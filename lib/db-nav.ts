@@ -16,10 +16,11 @@ export async function getNavItems(all: boolean = false): Promise<NavItem[]> {
     if (remoteUrl && !process.env.IS_STUDIO) {
         try {
             const res = await fetch(`${remoteUrl}${all ? '?all=true' : ''}`, {
-                next: { revalidate: 300 } // Cache for 5 minutes
+                next: { revalidate: 30 } // Cache reduced to 30s for testing
             });
             if (res.ok) {
-                return await res.json();
+                const data = await res.json();
+                return data.navItems || [];
             }
         } catch (error) {
             console.error('Failed to fetch remote nav items:', error);

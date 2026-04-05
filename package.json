@@ -1,0 +1,48 @@
+{
+  "name": "ouiouiuiuoiuiu",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "next dev -p 5173",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@ffmpeg/core": "^0.12.10",
+    "@ffmpeg/ffmpeg": "^0.12.15",
+    "@ffmpeg/util": "^0.12.2",
+    "@fontsource/playfair-display": "^5.2.8",
+    "@google/genai": "^1.38.0",
+    "adm-zip": "^0.5.16",
+    "axios": "^1.13.6",
+    "better-sqlite3": "^12.6.2",
+    "csv-parser": "^3.2.0",
+    "date-fns": "^4.1.0",
+    "ffmpeg-static": "^5.3.0",
+    "framer-motion": "^12.34.3",
+    "html-to-image": "^1.11.13",
+    "html2canvas": "^1.4.1",
+    "jspdf": "^2.5.1",
+    "jszip": "^3.10.1",
+    "next": "14.2.14",
+    "papaparse": "^5.5.3",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-force-graph-2d": "^1.29.1",
+    "sharp": "^0.34.5",
+    "swr": "^2.2.5",
+    "text-to-svg": "^3.1.5"
+  },
+  "devDependencies": {
+    "@types/node": "^22.14.0",
+    "@types/papaparse": "^5.5.2",
+    "@types/react": "^18.3.10",
+    "@types/react-dom": "^18.3.0",
+    "autoprefixer": "^10.4.19",
+    "postcss": "^8.4.31",
+    "tailwindcss": "^3.4.1",
+    "typescript": "~5.8.2"
+  }
+}

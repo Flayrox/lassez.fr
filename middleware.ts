@@ -56,8 +56,8 @@ export async function middleware(req: NextRequest) {
     }
 
     // 2. EXCEPTIONS D'AUTHENTIFICATION
-    // La route de login/logout ne doit pas être bloquée par l'absence de cookie
-    if (pathname === '/api/radar/login' || pathname === '/api/radar/logout') {
+    // La route de login/logout et de navigation publique ne doit pas être bloquée
+    if (pathname === '/api/radar/login' || pathname === '/api/radar/logout' || pathname === '/api/radar/nav') {
         return NextResponse.next();
     }
 

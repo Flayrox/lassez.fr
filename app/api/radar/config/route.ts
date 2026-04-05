@@ -40,7 +40,7 @@ export async function GET() {
             }
         }, {
             headers: {
-                'Cache-Control': 's-maxage=30,展现-while-revalidate=10', // Cache court pour réactivité
+                'Cache-Control': 's-maxage=30, stale-while-revalidate=10', // Cache court pour réactivité
                 'Access-Control-Allow-Origin': '*', // Autoriser l'accès cross-origin
             }
         });

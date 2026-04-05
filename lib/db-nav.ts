@@ -3,13 +3,31 @@ import path from 'path';
 import { NavItem } from '@/types';
 
 /**
- * Fetch navigation items directly from the SQLite database.
- * This is a server-side utility optimized for direct access.
+ * Fetch navigation items.
+ * On the Studio (Hetzner), it reads from the local SQLite database.
+ * On the Reader (Hostinger), it fetches from the Studio API via RADAR_API_URL.
  * 
  * @param all If true, returns all items including disabled ones.
  * @returns Array of NavItem
  */
-export function getNavItems(all: boolean = false): NavItem[] {
+export async function getNavItems(all: boolean = false): Promise<NavItem[]> {
+    // 1. Check if we should use the Remote API (Hostinger case)
+    const remoteUrl = process.env.RADAR_API_URL;
+    if (remoteUrl && !process.env.IS_STUDIO) {
+        try {
+            const res = await fetch(`${remoteUrl}${all ? '?all=true' : ''}`, {
+                next: { revalidate: 60 } // Cache for 1 minute
+            });
+            if (res.ok) {
+                return await res.json();
+            }
+        } catch (error) {
+            console.error('Failed to fetch remote nav items:', error);
+            // Fallback to local logic/hardcoded if API is down
+        }
+    }
+
+    // 2. Local SQLite Logic (Hetzner Studio case)
     let db: any = null;
     try {
         const dbPath = path.join(process.cwd(), 'radar_lassez', 'radar.db');

@@ -28,12 +28,12 @@ export const metadata: Metadata = {
     },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
     children,
 }: {
     children: React.ReactNode;
 }) {
-    const navItems = getNavItems();
+    const navItems = await getNavItems();
 
     return (
         <html lang="fr" className={`${inter.variable} ${playfair.variable} ${jetbrains.variable}`}>

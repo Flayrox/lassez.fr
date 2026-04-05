@@ -17,7 +17,7 @@ export async function GET(request: Request) {
         const { searchParams } = new URL(request.url);
         const all = searchParams.get('all') === '1';
 
-        const navItems = getNavItems(all);
+        const navItems = await getNavItems(all);
 
         // Si on demande "all=1" (Radar-Admin), on ne veut pas de cache CDN agressif
         const headers: Record<string, string> = {

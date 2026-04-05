@@ -35,8 +35,8 @@ export async function middleware(req: NextRequest) {
         return NextResponse.next();
     }
 
-    // 1. RATE LIMITING SUR L'API RADAR
-    if (pathname.startsWith('/api/radar')) {
+    // 1. RATE LIMITING SUR L'API RADAR (SAUF NAVIGATION)
+    if (pathname.startsWith('/api/radar') && pathname !== '/api/radar/nav') {
         const ip = req.headers.get('x-forwarded-for') || req.ip || 'unknown';
         const now = Date.now();
 

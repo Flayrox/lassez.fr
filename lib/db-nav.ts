@@ -16,7 +16,7 @@ export async function getNavItems(all: boolean = false): Promise<NavItem[]> {
     if (remoteUrl && !process.env.IS_STUDIO) {
         try {
             const res = await fetch(`${remoteUrl}${all ? '?all=true' : ''}`, {
-                next: { revalidate: 60 } // Cache for 1 minute
+                next: { revalidate: 300 } // Cache for 5 minutes
             });
             if (res.ok) {
                 return await res.json();

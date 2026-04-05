@@ -35,7 +35,10 @@ export async function PATCH(request: Request) {
             daemon_rss_enabled, daemon_elections_enabled,
             social_mastodon_enabled, social_bluesky_enabled, social_twitter_enabled, social_discord_enabled,
             discord_test_mode,
-            rss_feeds, telegram_channels, ai_prompt
+            rss_feeds, telegram_channels, ai_prompt,
+            // --- Communication ---
+            maintenance_mode, maintenance_message,
+            popup_enabled, popup_title, popup_text, popup_link_url, popup_link_label
         } = body;
 
         const db = getDb();
@@ -61,6 +64,15 @@ export async function PATCH(request: Request) {
         if (rss_feeds !== undefined) updateStmt.run('rss_feeds', typeof rss_feeds === 'string' ? rss_feeds : JSON.stringify(rss_feeds));
         if (telegram_channels !== undefined) updateStmt.run('telegram_channels', typeof telegram_channels === 'string' ? telegram_channels : JSON.stringify(telegram_channels));
         if (ai_prompt !== undefined) updateStmt.run('ai_prompt', String(ai_prompt));
+
+        // --- Communication ---
+        if (maintenance_mode !== undefined) updateStmt.run('maintenance_mode', String(maintenance_mode));
+        if (maintenance_message !== undefined) updateStmt.run('maintenance_message', String(maintenance_message));
+        if (popup_enabled !== undefined) updateStmt.run('popup_enabled', String(popup_enabled));
+        if (popup_title !== undefined) updateStmt.run('popup_title', String(popup_title));
+        if (popup_text !== undefined) updateStmt.run('popup_text', String(popup_text));
+        if (popup_link_url !== undefined) updateStmt.run('popup_link_url', String(popup_link_url));
+        if (popup_link_label !== undefined) updateStmt.run('popup_link_label', String(popup_link_label));
 
         db.close();
         return NextResponse.json({ success: true, message: 'Paramètres mis à jour' });

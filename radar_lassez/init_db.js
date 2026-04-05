@@ -61,6 +61,15 @@ const defaults = {
     social_bluesky_enabled: 'true',
     social_twitter_enabled: 'true',
     
+    // --- Communication & Maintenance ---
+    maintenance_mode: 'false',
+    maintenance_message: 'L\'Assez fait peau neuve. Nous revenons dans quelques instants pour encore plus d\'investigations radicalement indépendantes.',
+    popup_enabled: 'false',
+    popup_title: 'Soutenez L\'Assez !',
+    popup_text: 'Votre média indépendant a besoin de vous pour continuer ses enquêtes sans concession. Soutenez-nous par un don.',
+    popup_link_url: '/soutenir',
+    popup_link_label: 'Faire un don',
+    
     rss_feeds: JSON.stringify([
         'https://www.france24.com/en/rss',
         'https://www.rfi.fr/en/rss',

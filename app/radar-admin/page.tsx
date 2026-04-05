@@ -458,8 +458,17 @@ export default function RadarAdminPage() {
     const [aiPrompt, setAiPrompt] = useState('');
     
     // --- Nouveaux Panels de Paramètres ---
-    const [settingsTab, setSettingsTab] = useState<'sources' | 'moteur' | 'sociaux' | 'sante'>('sources');
+    const [settingsTab, setSettingsTab] = useState<'sources' | 'moteur' | 'sociaux' | 'sante' | 'comm'>('sources');
     const [lastScanErrors, setLastScanErrors] = useState<{source: string, type: string, error: string}[]>([]);
+
+    // --- Communication Settings ---
+    const [maintenanceMode, setMaintenanceMode] = useState(false);
+    const [maintenanceMessage, setMaintenanceMessage] = useState('');
+    const [popupEnabled, setPopupEnabled] = useState(false);
+    const [popupTitle, setPopupTitle] = useState('');
+    const [popupText, setPopupText] = useState('');
+    const [popupLinkUrl, setPopupLinkUrl] = useState('');
+    const [popupLinkLabel, setPopupLinkLabel] = useState('');
 
     // ─── État Rubriques ──────────────────────────────────────
     const [navItems, setNavItems] = useState<{ slug: string; label: string; path: string; enabled: boolean; badge: string | null }[]>([]);
@@ -633,6 +642,14 @@ export default function RadarAdminPage() {
                 if (data.settings?.last_scan_errors) {
                     try { setLastScanErrors(JSON.parse(data.settings.last_scan_errors)); } catch(e){}
                 }
+
+                if (data.settings?.maintenance_mode) setMaintenanceMode(data.settings.maintenance_mode === 'true');
+                if (data.settings?.maintenance_message) setMaintenanceMessage(data.settings.maintenance_message);
+                if (data.settings?.popup_enabled) setPopupEnabled(data.settings.popup_enabled === 'true');
+                if (data.settings?.popup_title) setPopupTitle(data.settings.popup_title);
+                if (data.settings?.popup_text) setPopupText(data.settings.popup_text);
+                if (data.settings?.popup_link_url) setPopupLinkUrl(data.settings.popup_link_url);
+                if (data.settings?.popup_link_label) setPopupLinkLabel(data.settings.popup_link_label);
             } catch (e) { }
         };
         fetchSettings();
@@ -693,7 +710,14 @@ export default function RadarAdminPage() {
                     social_bluesky_enabled: socialBlueskyEnabled,
                     social_twitter_enabled: socialTwitterEnabled,
                     social_discord_enabled: socialDiscordEnabled,
-                    discord_test_mode: discordTestMode
+                    discord_test_mode: discordTestMode,
+                    maintenance_mode: maintenanceMode,
+                    maintenance_message: maintenanceMessage,
+                    popup_enabled: popupEnabled,
+                    popup_title: popupTitle,
+                    popup_text: popupText,
+                    popup_link_url: popupLinkUrl,
+                    popup_link_label: popupLinkLabel
                 })
             });
             setSettingsSavedFeedback(true);
@@ -877,6 +901,7 @@ export default function RadarAdminPage() {
                             <button onClick={() => setSettingsTab('sources')} className={`px-5 py-3 text-sm font-semibold transition-colors flex-shrink-0 ${settingsTab === 'sources' ? 'border-b-2 border-rose-600 text-rose-600 bg-white' : 'text-stone-500 hover:text-stone-800 hover:bg-white'}`}>🤖 Sources & Cerveau</button>
                             <button onClick={() => setSettingsTab('moteur')} className={`px-5 py-3 text-sm font-semibold transition-colors flex-shrink-0 ${settingsTab === 'moteur' ? 'border-b-2 border-rose-600 text-rose-600 bg-white' : 'text-stone-500 hover:text-stone-800 hover:bg-white'}`}>⚙️ Moteur & Auto</button>
                             <button onClick={() => setSettingsTab('sociaux')} className={`px-5 py-3 text-sm font-semibold transition-colors flex-shrink-0 ${settingsTab === 'sociaux' ? 'border-b-2 border-rose-600 text-rose-600 bg-white' : 'text-stone-500 hover:text-stone-800 hover:bg-white'}`}>🌍 Sociaux & Daemons</button>
+                            <button onClick={() => setSettingsTab('comm')} className={`px-5 py-3 text-sm font-semibold transition-colors flex-shrink-0 ${settingsTab === 'comm' ? 'border-b-2 border-rose-600 text-rose-600 bg-white' : 'text-stone-500 hover:text-stone-800 hover:bg-white'}`}>📢 Communication</button>
                             <button onClick={() => setSettingsTab('sante')} className={`px-5 py-3 text-sm font-semibold transition-colors flex-shrink-0 ${settingsTab === 'sante' ? 'border-b-2 border-rose-600 text-rose-600 bg-white' : 'text-stone-500 hover:text-stone-800 hover:bg-white'}`}>🩺 Santé du Radar</button>
                         </div>
 
@@ -1011,6 +1036,66 @@ export default function RadarAdminPage() {
                                         <SettingRow label="Mode Test (Discord)" description="Envoie des fiches détaillées plutôt que des alertes simples.">
                                             <Toggle checked={discordTestMode} onChange={v => setDiscordTestMode(v)} />
                                         </SettingRow>
+                                    </div>
+                                </motion.div>
+                            )}
+
+                            {settingsTab === 'comm' && (
+                                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-6">
+                                    <div className="space-y-1">
+                                        <h4 className="text-[10px] font-black uppercase tracking-widest text-rose-500 mb-2 mt-4">⚙️ Mode Maintenance</h4>
+                                        <SettingRow label="Activer la Maintenance" description="Bloque tout le site public et affiche le message de maintenance.">
+                                            <Toggle checked={maintenanceMode} onChange={v => setMaintenanceMode(v)} />
+                                        </SettingRow>
+                                        <div className="pt-2">
+                                            <label className="block text-[10px] font-black uppercase tracking-widest text-stone-400 mb-1">Message de maintenance</label>
+                                            <textarea 
+                                                value={maintenanceMessage}
+                                                onChange={e => setMaintenanceMessage(e.target.value)}
+                                                rows={4}
+                                                placeholder="Pourquoi le site est en pause ?"
+                                                className="w-full text-xs border border-stone-200 rounded-lg p-2 focus:ring-2 focus:ring-rose-400/30"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-1">
+                                        <h4 className="text-[10px] font-black uppercase tracking-widest text-sky-500 mb-2 mt-4">✨ Fenêtre Pop-up Publicitaire</h4>
+                                        <SettingRow label="Activer la Pop-up" description="Affiche une fenêtre modale à tous les lecteurs.">
+                                            <Toggle checked={popupEnabled} onChange={v => setPopupEnabled(v)} />
+                                        </SettingRow>
+                                        <div className="pt-2 space-y-3">
+                                            <div>
+                                                <label className="block text-[10px] font-black uppercase tracking-widest text-stone-400 mb-1">Titre de la pop-up</label>
+                                                <input 
+                                                    type="text" value={popupTitle} onChange={e => setPopupTitle(e.target.value)}
+                                                    className="w-full text-xs font-bold border border-stone-200 rounded-lg p-2 focus:ring-2 focus:ring-rose-400/30"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-[10px] font-black uppercase tracking-widest text-stone-400 mb-1">Texte de la pop-up</label>
+                                                <textarea 
+                                                    value={popupText} onChange={e => setPopupText(e.target.value)}
+                                                    rows={3} className="w-full text-xs border border-stone-200 rounded-lg p-2 focus:ring-2 focus:ring-rose-400/30"
+                                                />
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-2">
+                                                <div>
+                                                    <label className="block text-[10px] font-black uppercase tracking-widest text-stone-400 mb-1">Label du bouton</label>
+                                                    <input 
+                                                        type="text" value={popupLinkLabel} onChange={e => setPopupLinkLabel(e.target.value)}
+                                                        className="w-full text-xs border border-stone-200 rounded-lg p-2 focus:ring-2 focus:ring-rose-400/30"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-[10px] font-black uppercase tracking-widest text-stone-400 mb-1">Lien du bouton</label>
+                                                    <input 
+                                                        type="text" value={popupLinkUrl} onChange={e => setPopupLinkUrl(e.target.value)}
+                                                        className="w-full text-xs border border-stone-200 rounded-lg p-2 focus:ring-2 focus:ring-rose-400/30"
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
                                 </motion.div>
                             )}

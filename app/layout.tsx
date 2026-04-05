@@ -3,7 +3,9 @@ import Script from 'next/script';
 import './globals.css';
 import { Inter, Playfair_Display, JetBrains_Mono } from 'next/font/google';
 import { getNavItems } from '@/lib/db-nav';
+import { getRadarConfig } from '@/lib/radar-config';
 import { NavProvider } from '@/components/NavProvider';
+import CommunicationLayer from '@/components/CommunicationLayer';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 const playfair = Playfair_Display({ subsets: ['latin'], variable: '--font-playfair' });
@@ -34,6 +36,7 @@ export default async function RootLayout({
     children: React.ReactNode;
 }) {
     const navItems = await getNavItems();
+    const config = await getRadarConfig();
 
     return (
         <html lang="fr" className={`${inter.variable} ${playfair.variable} ${jetbrains.variable}`}>
@@ -94,6 +97,7 @@ export default async function RootLayout({
                     })}
                 </Script>
 
+                <CommunicationLayer config={config} />
                 <NavProvider initialNavItems={navItems}>
                     <div id="root">
                         {children}

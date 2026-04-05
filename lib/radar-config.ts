@@ -26,20 +26,22 @@ export async function getRadarConfig(): Promise<RadarConfig> {
     const configUrl = remoteUrl.replace('/nav', '/config');
 
     try {
-        // En mode Studio, on pourrait lire la DB, mais pour simplifier 
-        // et rester cohérent entre les deux serveurs, on passe par l'API interne/externe.
+        console.log(`[Radar Config] Fetching config from: ${configUrl}`);
         const res = await fetch(configUrl, {
-            next: { revalidate: 30 } // Cache de 30 secondes
+            next: { revalidate: 30 }
         });
 
         if (res.ok) {
             const data = await res.json();
+            console.log(`[Radar Config] Received config:`, data.config);
             if (data.success && data.config) {
                 return data.config;
             }
+        } else {
+            console.error(`[Radar Config] Fetch failed with status: ${res.status}`);
         }
     } catch (error) {
-        console.error('Failed to fetch radar config:', error);
+        console.error('[Radar Config] Fetch error:', error);
     }
 
     return DEFAULT_CONFIG;

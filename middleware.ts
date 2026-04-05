@@ -36,7 +36,7 @@ export async function middleware(req: NextRequest) {
     }
 
     // 1. RATE LIMITING SUR L'API RADAR (SAUF NAVIGATION)
-    if (pathname.startsWith('/api/radar') && pathname !== '/api/radar/nav') {
+    if (pathname.startsWith('/api/radar') && pathname !== '/api/radar/nav' && pathname !== '/api/radar/config') {
         const ip = req.headers.get('x-forwarded-for') || req.ip || 'unknown';
         const now = Date.now();
 
@@ -57,7 +57,7 @@ export async function middleware(req: NextRequest) {
 
     // 2. EXCEPTIONS D'AUTHENTIFICATION
     // La route de login/logout et de navigation publique ne doit pas être bloquée
-    if (pathname === '/api/radar/login' || pathname === '/api/radar/logout' || pathname === '/api/radar/nav') {
+    if (pathname === '/api/radar/login' || pathname === '/api/radar/logout' || pathname === '/api/radar/nav' || pathname === '/api/radar/config') {
         return NextResponse.next();
     }
 

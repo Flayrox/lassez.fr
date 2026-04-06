@@ -123,7 +123,7 @@ export async function middleware(req: NextRequest) {
 
         // Erreur 401 absolue pour l'accès direct aux API Radar
         if (pathname.startsWith('/api/radar')) {
-            return NextResponse.json({ success: false, error: 'Accès Cryptographique Refusé.' }, { status: 401 });
+            return NextResponse.json({ success: false, error: 'Acces Refuse (Signature Invalide)' }, { status: 401 });
         }
     }
 

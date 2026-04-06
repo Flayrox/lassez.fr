@@ -45,7 +45,7 @@ async function publishPost(postId) {
         return;
     }
 
-    const post = db.prepare('SELECT id, source_title, flash_content, image_keyword, tags FROM radar_posts WHERE id = ?').get(postId);
+    const post = db.prepare('SELECT id, source_title, flash_content, image_keyword, tags, punchline, video_path FROM radar_posts WHERE id = ?').get(postId);
 
     if (!post) {
         console.error(`❌ Impossible de trouver le post ID ${postId} dans la DB.`);
@@ -150,11 +150,22 @@ async function publishPost(postId) {
             wpArticleUrl = wpArticleUrl.replace('api.lassez.fr', new URL(frontendUrl).hostname);
         }
 
-        await broadcastToSocials(post.flash_content, imageResult?.localPath, wpArticleUrl, skipLink);
+        await broadcastToSocials(post.flash_content, imageResult?.localPath, wpArticleUrl, skipLink, post.video_path);
 
-        // Update de la base locale (on sauvegarde aussi l'URL locale Smart Cache pour l'historique Front)
+        // Update de la base locale
         db.prepare('UPDATE radar_posts SET status = ?, wp_id = ?, image_keyword = ? WHERE id = ?')
             .run('PUBLISHED', wpResponse.data.id, generatedImageUrl || post.image_keyword, postId);
+
+        // Nettoyage du fichier vidéo après publication réussie
+        if (post.video_path) {
+            try {
+                const fs = await import('fs');
+                if (fs.default.existsSync(post.video_path)) {
+                    fs.default.unlinkSync(post.video_path);
+                    console.log(`🧹 [PUBLISH] Vidéo temporaire nettoyée : ${post.video_path}`);
+                }
+            } catch (e) { /* ignore */ }
+        }
 
     } catch (err) {
         console.error("❌ Échec de la publication globale :", err.response?.data?.message || err.message);

@@ -32,6 +32,9 @@ const cols = db.pragma('table_info(radar_posts)').map(c => c.name);
 if (!cols.includes('wp_id')) { db.exec(`ALTER TABLE radar_posts ADD COLUMN wp_id INTEGER`); console.log('  ↳ Colonne wp_id ajoutée.'); }
 if (!cols.includes('approved_at')) { db.exec(`ALTER TABLE radar_posts ADD COLUMN approved_at DATETIME`); console.log('  ↳ Colonne approved_at ajoutée.'); }
 if (!cols.includes('scheduled_at')) { db.exec(`ALTER TABLE radar_posts ADD COLUMN scheduled_at DATETIME`); console.log('  ↳ Colonne scheduled_at ajoutée.'); }
+if (!cols.includes('type_ouverture')) { db.exec(`ALTER TABLE radar_posts ADD COLUMN type_ouverture TEXT DEFAULT '📌 LE FAIT DU JOUR'`); console.log('  ↳ Colonne type_ouverture ajoutée.'); }
+if (!cols.includes('fiabilite')) { db.exec(`ALTER TABLE radar_posts ADD COLUMN fiabilite TEXT DEFAULT 'haute'`); console.log('  ↳ Colonne fiabilite ajoutée.'); }
+if (!cols.includes('video_path')) { db.exec(`ALTER TABLE radar_posts ADD COLUMN video_path TEXT`); console.log('  ↳ Colonne video_path ajoutée.'); }
 
 console.log('✅ Table radar_posts prête.');
 
@@ -71,16 +74,23 @@ const defaults = {
     popup_link_label: 'Faire un don',
     
     rss_feeds: JSON.stringify([
+        // --- France mainstream ---
         'https://www.france24.com/en/rss',
         'https://www.rfi.fr/en/rss',
         'https://www.lemonde.fr/rss/une.xml',
         'https://www.mediapart.fr/articles/feed',
         'https://www.francetvinfo.fr/titres.rss',
         'https://www.humanite.fr/rss',
-        'https://www.lefigaro.fr/rss/figaro_actualites.xml',
         'https://www.la-croix.com/RSS',
         'http://tempsreel.nouvelobs.com/rss.xml',
         'https://www.midilibre.fr/actu/politique/rss.xml',
+        // --- Nouveaux v2 ---
+        'https://feeds.leparisien.fr/leparisien/rss',
+        'https://www.lefigaro.fr/rss/figaro_actualites.xml',
+        'https://www.rtl.fr/actu/rss',
+        'https://www.arretsurimages.net/rss',
+        'https://www.politis.fr/feed/',
+        // --- International / Palestine / Droits humains ---
         'https://www.palestinechronicle.com/feed/',
         'https://english.wafa.ps/rss',
         'https://english.palinfo.com/feed/',
@@ -99,6 +109,7 @@ const defaults = {
         'https://www.globalissues.org/feed',
         'https://www.chathamhouse.org/rss',
         'https://theconversation.com/fr/rss',
+        // --- Médias indépendants ---
         'https://www.blast-info.fr/rss.xml',
         'https://basta.media/spip.php?page=backend',
         'https://reporterre.net/spip.php?page=backend'
@@ -106,13 +117,17 @@ const defaults = {
     telegram_channels: JSON.stringify([
         'brevesdepresse',
         'AlertesInfos',
-        'mediavenir'
+        'mediavenir',
+        // --- Nouveaux v2 ---
+        'bfmtv_fr',
+        'cnews_fr',
+        'FranceInsoumise'
     ]),
-    ai_prompt: `Tu es le rédacteur en chef du média d'investigation indépendant "L'Assez". Ton IA est programmée pour être une arme de démystification politique radicale.
+    ai_prompt: `Tu es le rédacteur en chef du média d'investigation indépendant "L'Assez". Ton IA est une arme de démystification politique radicale.
 Tu rédiges un fil d'actualité en direct (style Telegram/Twitter). On te fournit une liste d'articles d'actualité brute.
 
 === 1. LIGNE ÉDITORIALE "L'ASSEZ" (RADICALE & JACOBINE) ===
-Ta ligne est strictement pro-Peuple, anti-Oligarchie. 
+Ta ligne est strictement pro-Peuple, anti-Oligarchie.
 - Tu défends sans complexe les forces de rupture (LFI et mouvements sociaux) contre les attaques du bloc bourgeois.
 - Ta mission est de pointer l'HYPOCRISIE de la classe politique et des médias dominants.
 - Les sujets doivent être hautement systémiques : lutte des classes, anti-impérialisme, néocolonialisme, répression policière, loi du marché contre l'humain.
@@ -129,11 +144,32 @@ Ta ligne est strictement pro-Peuple, anti-Oligarchie.
 - Identifie la manipulation.
 - Traduis le langage du pouvoir.
 
-=== 4. FORMAT L'ASSEZ (TWEET/FLASH) ===
-Pour chaque événement retenu, rédige un "Flash" ultra-percutant. Structure :
-[Emojis] INFO - [Titre d'accroche DÉNONCIATEUR]
+=== 4. TAG D'OUVERTURE DYNAMIQUE (OBLIGATOIRE) ===
+Pour chaque flash, tu DOIS choisir UN tag d'ouverture parmi ces 4 :
+- "🔴 ALERTE INFO !" → Breaking news confirmé, événement majeur immédiat
+- "📌 LE FAIT DU JOUR" → Info structurante qui mérite l'attention
+- "🔎 DÉCRYPTAGE" → Analyse de fond, mise en perspective, contradictions
+- "🗓️ À VENIR" → Événement futur (manif, vote, procès)
+NE PAS abuser du 🔴 ALERTE INFO ! — Réserve-le aux vrais breaking news.
+
+=== 5. SYSTÈME DE CONFIANCE PAR SOURCE ===
+Chaque article est taggé avec un niveau de confiance :
+- 🟢 CONFIANCE HAUTE : Mediapart, Humanité, Blast, Reporterre, Basta!, Politis, Arrêt sur Images
+- 🟡 CONFIANCE MOYENNE : France24, RFI, FranceInfo, RTL, Le Monde, Le Parisien, La Croix
+- 🔴 CONFIANCE BASSE : Le Figaro, CNews, BFM (surtout quand info politique sensible)
+Si une info vient d'une source 🔴, tu DOIS utiliser Google Search pour la vérifier. Si elle n'est PAS confirmée par au moins 1 autre source, marque "fiabilite": "suspecte".
+ATTENTION SPÉCIALE : certains médias de droite relaient parfois des fake news instrumentalisant la gauche. Sois vigilant.
+
+=== 6. FORMAT L'ASSEZ (TWEET/FLASH) ===
+Pour chaque événement retenu, rédige un Flash. Structure :
+[TAG D'OUVERTURE] [ÉMOJI THÈME] [THÈME] :
 [Paragraphe factuel ACÉRÉ]
-[Décryptage POLITIQUE RADICAL avec mise en contexte historique et petite pique cynique].`
+[Décryptage POLITIQUE RADICAL avec mise en contexte historique et petite pique cynique].
+
+Exemple : "📌 LE FAIT DU JOUR ⚖️ JUSTICE : Macron nomme un procureur controversé..."
+
+=== 7. CONTEXTE RAG (ARCHIVES) ===
+Si un bloc "ARCHIVES L'ASSEZ" est fourni ci-dessous, utilise-le pour détecter les contradictions politiques et les inclure dans ton décryptage.`
 };
 
 const insertDefault = db.prepare(`INSERT OR IGNORE INTO radar_settings (key, value) VALUES (?, ?)`);
@@ -154,6 +190,23 @@ CREATE TABLE IF NOT EXISTS radar_social_drafts (
 );
 `);
 console.log('✅ Table radar_social_drafts prête.');
+
+// ─── Table des archives politiques (RAG FTS5) ──────────────────
+try {
+    db.exec(`
+    CREATE VIRTUAL TABLE IF NOT EXISTS radar_archives USING fts5(
+        date_archive,
+        entite,
+        mots_cles,
+        declaration_brute,
+        source_url,
+        tokenize = 'porter unicode61'
+    );
+    `);
+    console.log('✅ Table radar_archives (FTS5) prête.');
+} catch (e) {
+    console.log('ℹ️  Table radar_archives déjà existante ou FTS5 disponible :', e.message);
+}
 
 db.close();
 console.log('');

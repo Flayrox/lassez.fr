@@ -34,7 +34,7 @@ const truncateText = (text, maxLength) => {
 // ============================================================================
 // MASTODON
 // ============================================================================
-export async function postToMastodon(text, localImagePath, wpUrl, skipLink = false) {
+export async function postToMastodon(text, localImagePath, wpUrl, skipLink = false, videoPath = null) {
     if (!process.env.MASTODON_ACCESS_TOKEN || !process.env.MASTODON_INSTANCE_URL) {
         console.log('Skip [MASTODON] Identifiants manquants.');
         return false;
@@ -56,12 +56,15 @@ export async function postToMastodon(text, localImagePath, wpUrl, skipLink = fal
 
         let mediaIds = [];
 
-        // Upload media nativement
-        if (localImagePath && fs.existsSync(localImagePath)) {
-            console.log('🐘 [MASTODON] Upload de l\'image...');
+        // Upload vidéo en priorité, sinon image
+        const mediaPath = (videoPath && fs.existsSync(videoPath)) ? videoPath : localImagePath;
+        const isVideo = mediaPath && mediaPath === videoPath;
+
+        if (mediaPath && fs.existsSync(mediaPath)) {
+            console.log(`🐘 [MASTODON] Upload ${isVideo ? 'de la vidéo' : 'de l\'image'}...`);
             const media = await masto.v2.media.create({
-                file: new Blob([fs.readFileSync(localImagePath)]),
-                description: 'Image illustration du flash info Radar L\'Assez'
+                file: new Blob([fs.readFileSync(mediaPath)]),
+                description: isVideo ? 'Vidéo OSINT Radar L\'Assez' : 'Image illustration du flash info Radar L\'Assez'
             });
             mediaIds.push(media.id);
         }
@@ -84,7 +87,7 @@ export async function postToMastodon(text, localImagePath, wpUrl, skipLink = fal
 // ============================================================================
 // BLUESKY
 // ============================================================================
-export async function postToBluesky(text, localImagePath, wpUrl, skipLink = false) {
+export async function postToBluesky(text, localImagePath, wpUrl, skipLink = false, videoPath = null) {
     if (!process.env.BLUESKY_IDENTIFIER || !process.env.BLUESKY_APP_PASSWORD) {
         console.log('Skip [BLUESKY] Identifiants manquants.');
         return false;
@@ -155,7 +158,7 @@ export async function postToBluesky(text, localImagePath, wpUrl, skipLink = fals
 // ============================================================================
 // TWITTER / X
 // ============================================================================
-export async function postToTwitter(text, localImagePath, wpUrl, skipLink = false) {
+export async function postToTwitter(text, localImagePath, wpUrl, skipLink = false, videoPath = null) {
     if (!process.env.TWITTER_API_KEY || !process.env.TWITTER_API_SECRET || !process.env.TWITTER_ACCESS_TOKEN || !process.env.TWITTER_ACCESS_SECRET) {
         console.log('Skip [TWITTER] Identifiants manquants.');
         return false;
@@ -182,10 +185,12 @@ export async function postToTwitter(text, localImagePath, wpUrl, skipLink = fals
 
         let mediaIds = [];
 
-        // Upload media nativement (v1 API used for media upload inside v2 client)
-        if (localImagePath && fs.existsSync(localImagePath)) {
-            console.log('🐦 [TWITTER] Upload de l\'image...');
-            const mediaId = await client.v1.uploadMedia(localImagePath);
+        // Upload vidéo en priorité, sinon image
+        const mediaPath = (videoPath && fs.existsSync(videoPath)) ? videoPath : localImagePath;
+
+        if (mediaPath && fs.existsSync(mediaPath)) {
+            console.log('🐦 [TWITTER] Upload du média...');
+            const mediaId = await client.v1.uploadMedia(mediaPath);
             mediaIds.push(mediaId);
         }
 
@@ -206,7 +211,7 @@ export async function postToTwitter(text, localImagePath, wpUrl, skipLink = fals
 // ============================================================================
 // DISCORD (WEBHOOK BROADCAST)
 // ============================================================================
-export async function postToDiscord(text, localImagePath, wpUrl, skipLink = false) {
+export async function postToDiscord(text, localImagePath, wpUrl, skipLink = false, videoPath = null) {
     if (!process.env.DISCORD_WEBHOOK_URL) {
         console.log('Skip [DISCORD] Webhook manquant.');
         return false;
@@ -231,10 +236,18 @@ export async function postToDiscord(text, localImagePath, wpUrl, skipLink = fals
             }]
         };
 
-        if (localImagePath && fs.existsSync(localImagePath)) {
-            const fileName = path.basename(localImagePath);
-            formData.append('file', fs.createReadStream(localImagePath), fileName);
-            payload.embeds[0].image = { url: `attachment://${fileName}` };
+        // Upload vidéo en priorité, sinon image
+        const mediaPath = (videoPath && fs.existsSync(videoPath)) ? videoPath : localImagePath;
+
+        if (mediaPath && fs.existsSync(mediaPath)) {
+            const fileName = path.basename(mediaPath);
+            formData.append('file', fs.createReadStream(mediaPath), fileName);
+            if (mediaPath.endsWith('.mp4') || mediaPath.endsWith('.webm')) {
+                // Pour les vidéos, pas d'embed image
+                payload.embeds[0].footer = { text: '🎬 Vidéo OSINT attachée' };
+            } else {
+                payload.embeds[0].image = { url: `attachment://${fileName}` };
+            }
         }
 
         formData.append('payload_json', JSON.stringify(payload));
@@ -254,7 +267,7 @@ export async function postToDiscord(text, localImagePath, wpUrl, skipLink = fals
 // ============================================================================
 // GLOBAL CROSS-POSTING FUNCTION
 // ============================================================================
-export async function broadcastToSocials(text, localImagePath, wpUrl, skipLink = false) {
+export async function broadcastToSocials(text, localImagePath, wpUrl, skipLink = false, videoPath = null) {
     console.log('================================================');
     console.log(`🌐 [CROSS-POSTING] Lancement sur les réseaux...`);
     console.log('================================================');
@@ -266,10 +279,10 @@ export async function broadcastToSocials(text, localImagePath, wpUrl, skipLink =
     const useDiscord = settings.social_discord_enabled === 'true';
 
     const tasks = [];
-    if (useMastodon) tasks.push(postToMastodon(text, localImagePath, wpUrl, skipLink));
-    if (useBluesky) tasks.push(postToBluesky(text, localImagePath, wpUrl, skipLink));
-    if (useTwitter) tasks.push(postToTwitter(text, localImagePath, wpUrl, skipLink));
-    if (useDiscord) tasks.push(postToDiscord(text, localImagePath, wpUrl, skipLink));
+    if (useMastodon) tasks.push(postToMastodon(text, localImagePath, wpUrl, skipLink, videoPath));
+    if (useBluesky) tasks.push(postToBluesky(text, localImagePath, wpUrl, skipLink, videoPath));
+    if (useTwitter) tasks.push(postToTwitter(text, localImagePath, wpUrl, skipLink, videoPath));
+    if (useDiscord) tasks.push(postToDiscord(text, localImagePath, wpUrl, skipLink, videoPath));
 
     if (tasks.length > 0) {
         await Promise.allSettled(tasks);

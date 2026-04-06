@@ -8,6 +8,9 @@ import Database from 'better-sqlite3';
 import fs from 'fs';
 import { generateSmartCacheImage } from './imageProcessor.js';
 import FormData from 'form-data';
+import { deduplicateItems } from './deduplicator.js';
+import { searchArchives, extractEntitiesFromTitles, archiveDeclarations } from './politicalMemory.js';
+import { detectVideoUrl, processVideo, cleanupVideoFiles } from './videoIngester.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -111,24 +114,26 @@ function markAsIgnored(sourceUrl, sourceTitle) {
     } catch (e) { }
 }
 
-// Migration douce des colonnes geo/tags si elles n'existent pas encore
+// Migration douce des colonnes si elles n'existent pas encore
 try {
     const cols = db.pragma('table_info(radar_posts)').map(c => c.name);
     if (!cols.includes('geo')) db.exec("ALTER TABLE radar_posts ADD COLUMN geo TEXT DEFAULT 'france'");
     if (!cols.includes('tags')) db.exec("ALTER TABLE radar_posts ADD COLUMN tags TEXT DEFAULT ''");
     if (!cols.includes('punchline')) db.exec("ALTER TABLE radar_posts ADD COLUMN punchline TEXT DEFAULT ''");
+    if (!cols.includes('type_ouverture')) db.exec("ALTER TABLE radar_posts ADD COLUMN type_ouverture TEXT DEFAULT '📌 LE FAIT DU JOUR'");
+    if (!cols.includes('fiabilite')) db.exec("ALTER TABLE radar_posts ADD COLUMN fiabilite TEXT DEFAULT 'haute'");
+    if (!cols.includes('video_path')) db.exec("ALTER TABLE radar_posts ADD COLUMN video_path TEXT");
 } catch (e) { }
 
-function enqueuePost(sourceUrl, sourceTitle, flashContent, imageKeyword, status = 'PENDING', geo = 'france', tags = '', punchline = '') {
+function enqueuePost(sourceUrl, sourceTitle, flashContent, imageKeyword, status = 'PENDING', geo = 'france', tags = '', punchline = '', typeOuverture = '📌 LE FAIT DU JOUR', fiabilite = 'haute', videoPath = null) {
     try {
-        db.prepare('INSERT OR IGNORE INTO radar_posts (source_url, source_title, flash_content, image_keyword, status, geo, tags, punchline) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(sourceUrl, sourceTitle || 'Inconnu', flashContent, imageKeyword || '', status, geo, tags, punchline);
+        db.prepare('INSERT OR IGNORE INTO radar_posts (source_url, source_title, flash_content, image_keyword, status, geo, tags, punchline, type_ouverture, fiabilite, video_path) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(sourceUrl, sourceTitle || 'Inconnu', flashContent, imageKeyword || '', status, geo, tags, punchline, typeOuverture, fiabilite, videoPath);
     } catch (e) {
-        // En cas d'erreur (ex: colonne manquante temporaire avant migration persistée), on ignore ou on relance
-        console.warn('⚠️ Erreur DB enqueuePost (punchline manquante ?)', e.message);
+        console.warn('⚠️ Erreur DB enqueuePost:', e.message);
     }
 }
 
-// -- 3. LE SCRAPER TELEGRAM (Mini-RSSHub Local) --
+// -- 3. LE SCRAPER TELEGRAM (Mini-RSSHub Local + Détection Vidéo) --
 async function fetchTelegramMessages(handle) {
     try {
         console.log(`📡 Scraping Telegram : @${handle}...`);
@@ -141,6 +146,8 @@ async function fetchTelegramMessages(handle) {
         const messages = [];
         const msgRegex = /<div class="tgme_widget_message_text js-message_text[^>]*>([\s\S]*?)<\/div>/g;
         const linkRegex = /<a class="tgme_widget_message_date" href="(https:\/\/t\.me\/[^"]+)"/g;
+        // Détection des vidéos dans les messages Telegram
+        const videoRegex = /<video[^>]*src="([^"]+)"/g;
 
         let match;
         const rawTexts = [];
@@ -158,12 +165,36 @@ async function fetchTelegramMessages(handle) {
         for (let i = 1; i <= count; i++) {
             const text = rawTexts[rawTexts.length - i];
             const link = links[links.length - i];
-            messages.push({
+
+            const msg = {
                 title: `Post Telegram @${handle}`,
                 content: text,
                 link: link,
-                pubDate: new Date().toISOString()
-            });
+                pubDate: new Date().toISOString(),
+                videoUrl: null,
+                videoPath: null
+            };
+
+            // Détecter les vidéos dans le texte du message
+            const videoUrlInText = detectVideoUrl(text);
+            if (videoUrlInText) {
+                msg.videoUrl = videoUrlInText;
+                console.log(`  🎬 [TELEGRAM] Vidéo détectée dans @${handle}: ${videoUrlInText}`);
+
+                // Pipeline vidéo complet (pré-filtre + download + transcription)
+                try {
+                    const videoResult = await processVideo(videoUrlInText, text);
+                    if (videoResult) {
+                        msg.content += `\n\n--- TRANSCRIPTION VIDÉO ---\n${videoResult.transcription}`;
+                        msg.videoPath = videoResult.videoPath;
+                        console.log(`  ✅ [TELEGRAM] Vidéo traitée pour @${handle}`);
+                    }
+                } catch (videoErr) {
+                    console.warn(`  ⚠️ [TELEGRAM] Erreur vidéo: ${videoErr.message}`);
+                }
+            }
+
+            messages.push(msg);
         }
 
         return messages;
@@ -174,26 +205,62 @@ async function fetchTelegramMessages(handle) {
 }
 
 // -- 2. LE CERVEAU (Gemini avec output JSON en Batch) --
-// -- 2. LE CERVEAU (Gemini avec output JSON en Batch) --
-async function rewriteBatchWithGemini(itemsBatch, maxArticles, customPrompt) {
+// -- SYSTÈME DE CONFIANCE PAR SOURCE --
+const SOURCE_TRUST = {
+    // 🟢 Confiance haute
+    'mediapart': '🟢', 'humanite': '🟢', 'humanité': '🟢', 'blast': '🟢', 'reporterre': '🟢',
+    'basta': '🟢', 'politis': '🟢', 'arretsurimages': '🟢', 'arrêt sur images': '🟢',
+    '972mag': '🟢', 'amnesty': '🟢', 'hrw': '🟢', 'btselem': '🟢',
+    'franceinsoumise': '🟢', 'palestinechronicle': '🟢',
+    // 🟡 Confiance moyenne
+    'france24': '🟡', 'rfi': '🟡', 'francetvinfo': '🟡', 'lemonde': '🟡',
+    'leparisien': '🟡', 'lacroix': '🟡', 'la-croix': '🟡', 'rtl': '🟡',
+    'nouvelobs': '🟡', 'midilibre': '🟡', 'globalvoices': '🟡',
+    'theconversation': '🟡', 'chathamhouse': '🟡',
+    'brevesdepresse': '🟡', 'alertesinfos': '🟡', 'mediavenir': '🟡',
+    // 🔴 Confiance basse
+    'lefigaro': '🔴', 'figaro': '🔴', 'cnews': '🔴', 'bfmtv': '🔴', 'bfm': '🔴',
+};
+
+function getSourceTrust(sourceTitle, sourceUrl) {
+    const combined = (sourceTitle + ' ' + sourceUrl).toLowerCase();
+    for (const [key, level] of Object.entries(SOURCE_TRUST)) {
+        if (combined.includes(key)) return level;
+    }
+    return '🟡'; // Par défaut : confiance moyenne
+}
+
+// -- 2. LE CERVEAU (Gemini 3 Pro avec JSON strict et confiance source) --
+async function rewriteBatchWithGemini(itemsBatch, maxArticles, customPrompt, archiveContext = '') {
     const model = genAI.getGenerativeModel({
-        model: "gemini-3-pro-preview",
+        model: "gemini-2.5-pro-preview-05-06",
         tools: [{ googleSearch: {} }],
         generationConfig: { responseMimeType: "application/json" }
     });
 
     const articlesText = itemsBatch.map((item, index) => {
         const safeContent = item.content || "";
+        const trustLevel = getSourceTrust(item.sourceTitle, item.id);
         return `
 [ID_ARTICLE: BATCH_ITEM_${index}]
 Titre original: ${item.title}
+Source: ${item.sourceTitle} ${trustLevel === '🔴' ? '[⚠️ CONFIANCE BASSE — VÉRIFICATION OBLIGATOIRE VIA GOOGLE SEARCH]' : trustLevel === '🟢' ? '[✅ CONFIANCE HAUTE]' : '[🟡 CONFIANCE MOYENNE]'}
 Contenu: ${safeContent.substring(0, 1500)}
 ---
 `;
     }).join('\n');
 
+    const archiveBlock = archiveContext ? `
+
+=== ARCHIVES L'ASSEZ (CASIER JUDICIAIRE POLITIQUE) ===
+Les archives suivantes contiennent des déclarations passées de personnalités politiques. Utilise-les pour détecter des contradictions :
+${archiveContext}
+=== FIN DES ARCHIVES ===
+` : '';
+
     const prompt = `
 ${customPrompt}
+${archiveBlock}
 
 === MISSION DE RECHERCHE ET SYNTHÈSE ===
 1. Utilise impérativement le CONTENU FOURNI dans les articles ci-dessous comme base de ton analyse.
@@ -201,6 +268,7 @@ ${customPrompt}
    - Vérifier les chiffres et les faits mentionnés.
    - Extraire le "passif" ou les casseroles des protagonistes mentionnés (ministres, patrons, entreprises).
    - Trouver des éléments de contexte plus larges pour ton "tacle final".
+   - OBLIGATOIRE pour les sources 🔴 CONFIANCE BASSE : cross-checker l'info.
 
 === RÈGLE DE SÉLECTION (LIMITATION) ===
 Tu dois analyser les articles ci-dessous et sélectionner STRICTEMENT les ${maxArticles} infos les plus percutantes et systémiques. 
@@ -210,24 +278,33 @@ Génère AU MAXIMUM ${maxArticles} flashs (tu peux en renvoyer moins si l'actu e
 Réponds UNIQUEMENT par un tableau JSON avec exactement ces champs :
 [ { 
   "id": "BATCH_ITEM_N",
+  "typeOuverture": "📌 LE FAIT DU JOUR",
+  "themeEmoji": "⚖️",
+  "theme": "JUSTICE",
   "shortTitle": "titre choc sans emojis",
-  "flash": "texte complet du flash L'Assez",
+  "flash": "texte complet du flash L'Assez commencant par le TAG D'OUVERTURE + emoji thème + thème",
   "imageKeyword": "mot-clé image strict en anglais (ex: riot, police)",
   "punchline": "résumé marquant et piquant de 6 à 10 mots max, sans majuscules forcées",
   "geo": "france" ou "international",
-  "tags": ["tag1", "tag2"]
+  "tags": ["tag1", "tag2"],
+  "fiabilite": "haute" ou "moyenne" ou "suspecte",
+  "entitesPolitiques": ["Macron", "Darmanin"]
 } ]
-- "shortTitle" : Un titre très court et choc (max 6-8 mots) résumant l'info pour l'image.
-- "flash" : Le texte rédigé selon les règles de style de L'Assez (ALERTE INFO, ÉMOJI, SUJET, etc).
+
+CHAMPS IMPORTANTS :
+- "typeOuverture" : OBLIGATOIRE. Un de : "🔴 ALERTE INFO !", "📌 LE FAIT DU JOUR", "🔎 DÉCRYPTAGE", "🗓️ À VENIR"
+- "fiabilite" : "suspecte" si source 🔴 ET non confirmée par Google Search
+- "entitesPolitiques" : liste des personnages politiques mentionnés (pour alimenter le casier judiciaire)
+- "flash" : Le texte rédigé selon les règles de style de L'Assez. DOIT commencer par le typeOuverture.
 
 Voici les articles à analyser (Source principale) :
 ${articlesText}
     `;
 
     try {
-        console.log(`[DEBUG] Sending to Gemini (Radical Mode)...`);
+        console.log(`[DEBUG] Envoi à Gemini 3 Pro (Cerveau Éditorial v2)...`);
         const result = await model.generateContent(prompt);
-        console.log(`[DEBUG] Gemini responded!`);
+        console.log(`[DEBUG] Gemini a répondu !`);
 
         const rawText = result.response.text();
 
@@ -426,11 +503,26 @@ async function main() {
 
     if (unreadItems.length === 0) return console.log("✅ Tout est à jour.");
 
-    unreadItems.sort(() => Math.random() - 0.5);
-    const batchToProcess = unreadItems.slice(0, 40);
+    // ─── PHASE 2 : TAMIS ANTI-DOUBLONS ───
+    console.log('\n🛡️ Passage dans le Tamis Anti-Doublons...');
+    const deduplicated = deduplicateItems(unreadItems, db);
 
-    console.log(`🧠 Analyse IA de ${batchToProcess.length} articles...`);
-    const aiResults = await rewriteBatchWithGemini(batchToProcess, maxArticles, dynamicPrompt);
+    if (deduplicated.length === 0) return console.log("✅ Tout a été filtré par le Tamis.");
+
+    deduplicated.sort(() => Math.random() - 0.5);
+    const batchToProcess = deduplicated.slice(0, 40);
+
+    // ─── PHASE 4 : CASIER JUDICIAIRE POLITIQUE (RAG) ───
+    console.log('\n🗄️ Consultation du Casier Judiciaire Politique...');
+    const detectedEntities = extractEntitiesFromTitles(batchToProcess);
+    const archiveContext = searchArchives(detectedEntities, db);
+    if (archiveContext) {
+        console.log(`  📚 ${detectedEntities.length} entité(s) détectée(s), archives injectées dans le prompt.`);
+    }
+
+    // ─── PHASE 1 : CERVEAU ÉDITORIAL ───
+    console.log(`\n🧠 Analyse IA de ${batchToProcess.length} articles (Cerveau Éditorial v2)...`);
+    const aiResults = await rewriteBatchWithGemini(batchToProcess, maxArticles, dynamicPrompt, archiveContext);
 
     if (aiResults && aiResults.length > 0) {
         let newItems = [];
@@ -444,11 +536,11 @@ async function main() {
                     const geo = result.geo || 'france';
                     const tags = Array.isArray(result.tags) ? result.tags.join(',') : '';
                     const finalTitle = result.shortTitle || original.sourceTitle;
+                    const typeOuverture = result.typeOuverture || '📌 LE FAIT DU JOUR';
+                    const fiabilite = result.fiabilite || 'haute';
+                    const videoPath = original.videoPath || null;
                     
-                    const testMode = settings.discord_test_mode === 'true';
-                    // Dans le cas du mode test, on peut quand même enqueue en PENDING 
-                    // ou choisir de ne rien faire. Ici on enqueue (PENDING) pour qu'il le voit sur le dashboard aussi.
-                    enqueuePost(original.id, finalTitle, flash, original.imageUrl || result.imageKeyword, ingestStatus, geo, tags, result.punchline || "INFO EXCLUSIVE L'ASSEZ");
+                    enqueuePost(original.id, finalTitle, flash, original.imageUrl || result.imageKeyword, ingestStatus, geo, tags, result.punchline || "INFO EXCLUSIVE L'ASSEZ", typeOuverture, fiabilite, videoPath);
                     
                     newItems.push({
                         title: finalTitle,
@@ -456,11 +548,17 @@ async function main() {
                         geo: geo,
                         tags: tags,
                         imageUrl: original.imageUrl || result.imageKeyword,
-                        punchline: result.punchline || "INFO EXCLUSIVE L'ASSEZ"
+                        punchline: result.punchline || "INFO EXCLUSIVE L'ASSEZ",
+                        typeOuverture: typeOuverture,
+                        fiabilite: fiabilite,
+                        entitesPolitiques: result.entitesPolitiques || []
                     });
                 }
             }
         }
+
+        // ─── PHASE 4 (suite) : ARCHIVAGE DES DÉCLARATIONS ───
+        archiveDeclarations(aiResults, batchToProcess, db);
 
         const handledIds = aiResults.map(r => {
             const m = r.id.match(/\d+/);
@@ -481,6 +579,9 @@ async function main() {
         console.log(`\n✅ Tout a été filtré par l'IA.`);
         for (const item of batchToProcess) markAsIgnored(item.id, item.sourceTitle);
     }
+
+    // Nettoyage des fichiers vidéo temporaires (>24h)
+    cleanupVideoFiles();
 }
 
 main().catch(error => {
@@ -488,3 +589,4 @@ main().catch(error => {
     console.error(error);
     process.exit(1);
 });
+

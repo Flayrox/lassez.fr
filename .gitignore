@@ -21,6 +21,10 @@ yarn-error.log*
 .DS_Store
 Thumbs.db
 
+# Fichiers OSINT (vidéos temporaires)
+radar_lassez/tmp-videos/
+public/radar-images/
+
 # Archives de transfert (On en a plus besoin)
 *.zip
 *.tar.gz

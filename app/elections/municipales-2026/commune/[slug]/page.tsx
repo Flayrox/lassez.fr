@@ -114,13 +114,13 @@ export default async function CommunePage({ params }: Props) {
       id: r.id,
       candidat: r.candidat,
       nuance: r.nuance,
-      pct: r.pct,
-      voix: r.voix,
+      pct: typeof r.pct === 'number' ? r.pct : 0,
+      voix: typeof r.voix === 'number' ? r.voix : 0,
       statut: r.statut || 'elimine'
     }));
 
     // Logic intelligente d'élection
-    const candidats = rawCands.sort((a, b) => b.pct - a.pct).map((c, idx) => {
+    const candidats = rawCands.sort((a, b) => (b.pct || 0) - (a.pct || 0)).map((c, idx) => {
         let finalStatut = c.statut;
         if (t === 1 && c.pct > 50) finalStatut = 'elu';
         if (t === 2 && idx === 0 && rawCands.length > 0) finalStatut = 'elu';
@@ -243,8 +243,8 @@ export default async function CommunePage({ params }: Props) {
                             {tour.candidats.map((c, idx) => {
                                 const nuance = getNuanceConfig(c.nuance);
                                 const statut = STATUT_CONFIG[c.statut as any] || STATUT_CONFIG.elimine;
-                                const maxPct = Math.max(...tour.candidats.map(can => can.pct)) || 100;
-                                const barWidth = maxPct > 0 ? (c.pct / maxPct) * 100 : 0;
+                                const maxPct = Math.max(...tour.candidats.map(can => can.pct || 0)) || 100;
+                                const barWidth = maxPct > 0 ? ((c.pct || 0) / maxPct) * 100 : 0;
                                 const isEliminated = c.statut === 'elimine' || c.statut === 'retrait';
 
                                 return (
@@ -270,15 +270,15 @@ export default async function CommunePage({ params }: Props) {
                                                         </span>
                                                     )}
                                                 </div>
-                                                {c.voix > 0 && (
+                                                {(c.voix || 0) > 0 && (
                                                     <span className="font-mono text-[9px] text-ink/40 mt-1 block font-bold uppercase tracking-tighter">
-                                                        {c.voix.toLocaleString('fr-FR')} voix • {c.pct.toFixed(1)}%
+                                                        {(c.voix || 0).toLocaleString('fr-FR')} voix • {(c.pct || 0).toFixed(1)}%
                                                     </span>
                                                 )}
                                             </div>
                                             <div className="shrink-0 text-right">
                                                 <span className="font-serif font-black text-3xl md:text-4xl tabular-nums leading-none" style={{ color: isEliminated ? '#9CA3AF' : nuance.bg }}>
-                                                    {c.pct.toFixed(1).replace('.', ',')}
+                                                    {(c.pct || 0).toFixed(1).replace('.', ',')}
                                                 </span>
                                                 <span className="font-mono text-xs text-ink/40 ml-0.5">%</span>
                                             </div>

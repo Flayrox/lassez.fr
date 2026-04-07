@@ -22,8 +22,8 @@ module.exports = {
         },
         {
             name: 'radar-admin',
-            script: 'npm',
-            args: 'start',
+            script: './node_modules/next/dist/bin/next',
+            args: 'start -p 3000',
             cwd: './',
             instances: 1,
             exec_mode: 'fork',

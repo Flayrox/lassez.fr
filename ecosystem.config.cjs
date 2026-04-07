@@ -22,9 +22,8 @@ module.exports = {
         },
         {
             name: 'radar-admin',
-            script: './node_modules/next/dist/bin/next',
-            args: 'start -p 3000',
-            cwd: './',
+            script: 'server.js',
+            cwd: './.next/standalone',
             instances: 1,
             exec_mode: 'fork',
             autorestart: true,

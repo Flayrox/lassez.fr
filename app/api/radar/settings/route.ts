@@ -36,6 +36,7 @@ export async function PATCH(request: Request) {
             social_mastodon_enabled, social_bluesky_enabled, social_twitter_enabled, social_discord_enabled,
             discord_test_mode,
             rss_feeds, telegram_channels, rss_bridge_base_url, x_accounts, ai_prompt,
+            ai_prompt_relevance, ai_prompt_breaking, ai_prompt_decrypt, ai_prompt_standard,
             ai_model_main, source_trust_map,
             dedup_similarity_threshold, dedup_recent_hours,
             video_ingest_enabled, video_prefilter_model, video_prefilter_prompt, video_prefilter_min_chars, video_transcribe_model, video_max_audio_mb,
@@ -69,6 +70,10 @@ export async function PATCH(request: Request) {
         if (rss_bridge_base_url !== undefined) updateStmt.run('rss_bridge_base_url', String(rss_bridge_base_url));
         if (x_accounts !== undefined) updateStmt.run('x_accounts', typeof x_accounts === 'string' ? x_accounts : JSON.stringify(x_accounts));
         if (ai_prompt !== undefined) updateStmt.run('ai_prompt', String(ai_prompt));
+        if (ai_prompt_relevance !== undefined) updateStmt.run('ai_prompt_relevance', String(ai_prompt_relevance));
+        if (ai_prompt_breaking !== undefined) updateStmt.run('ai_prompt_breaking', String(ai_prompt_breaking));
+        if (ai_prompt_decrypt !== undefined) updateStmt.run('ai_prompt_decrypt', String(ai_prompt_decrypt));
+        if (ai_prompt_standard !== undefined) updateStmt.run('ai_prompt_standard', String(ai_prompt_standard));
         if (ai_model_main !== undefined) updateStmt.run('ai_model_main', String(ai_model_main));
         if (source_trust_map !== undefined) updateStmt.run('source_trust_map', String(source_trust_map));
         if (dedup_similarity_threshold !== undefined) updateStmt.run('dedup_similarity_threshold', String(dedup_similarity_threshold));

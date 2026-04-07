@@ -253,7 +253,7 @@ function buildTwitterBridgeFeed(baseUrl, account) {
 }
 
 // -- 2. LE CERVEAU (Gemini 3 Pro avec JSON strict et confiance source) --
-async function rewriteBatchWithGemini(itemsBatch, maxArticles, customPrompt, archiveContext = '', sourceTrustMap = DEFAULT_SOURCE_TRUST, aiModelMain = 'gemini-2.5-pro-preview-05-06') {
+async function rewriteBatchWithGemini(itemsBatch, maxArticles, customPrompt, archiveContext = '', sourceTrustMap = DEFAULT_SOURCE_TRUST, aiModelMain = 'gemini-2.5-pro-preview-05-06', specificPrompts = {}) {
     const model = genAI.getGenerativeModel({
         model: aiModelMain,
         tools: [{ googleSearch: {} }],
@@ -283,6 +283,11 @@ ${archiveContext}
     const prompt = `
 ${customPrompt}
 ${archiveBlock}
+
+=== INSTRUCTIONS DE FORMATAGE SPÉCIFIQUES ===
+${specificPrompts.breaking ? `POUR LES ALERTES INFO : ${specificPrompts.breaking}` : ''}
+${specificPrompts.decrypt ? `POUR LES DÉCRYPTAGES : ${specificPrompts.decrypt}` : ''}
+${specificPrompts.standard ? `POUR LES FAITS DU JOUR : ${specificPrompts.standard}` : ''}
 
 === MISSION DE RECHERCHE ET SYNTHÈSE ===
 1. Utilise impérativement le CONTENU FOURNI dans les articles ci-dessous comme base de ton analyse.
@@ -465,6 +470,9 @@ async function main() {
     const xFeeds = xAccounts.map(acc => buildTwitterBridgeFeed(rssBridgeBaseUrl, acc)).filter(Boolean);
     const effectiveRssFeeds = Array.from(new Set([...rssFeeds, ...xFeeds]));
     const dynamicPrompt = settings.ai_prompt || "Tu es un assistant...";
+    const aiPromptBreaking = settings.ai_prompt_breaking || "";
+    const aiPromptDecrypt = settings.ai_prompt_decrypt || "";
+    const aiPromptStandard = settings.ai_prompt_standard || "";
     const aiModelMain = settings.ai_model_main || 'gemini-2.5-pro-preview-05-06';
     const sourceTrustMap = parseJsonSetting(settings.source_trust_map, DEFAULT_SOURCE_TRUST);
     const dedupOptions = {
@@ -510,7 +518,7 @@ async function main() {
                     sourceTitle: feed.title || "Flux RSS",
                     imageUrl: (item.enclosure?.type?.startsWith('image') ? item.enclosure.url : null) ||
                         item.mediaContent?.['$']?.url ||
-                        (item.contentEncoded || item.content || '').match(/<img[^>]+src=["'](https?:\/\/[^"'>]+)["']/i)?.[1]?.replace(/&amp;/g, '&')
+                        (item.contentEncoded || item.content || '').match(/<img[^>]+src=["'](https?:\/\/[^"'>]+)["']/i)?.[1]?.replace(/&/g, '&')
                 });
             }
         } catch (error) {
@@ -563,7 +571,11 @@ async function main() {
 
     // ─── PHASE 1 : CERVEAU ÉDITORIAL ───
     console.log(`\n🧠 Analyse IA de ${batchToProcess.length} articles (Cerveau Éditorial v2)...`);
-    const aiResults = await rewriteBatchWithGemini(batchToProcess, maxArticles, dynamicPrompt, archiveContext, sourceTrustMap, aiModelMain);
+    const aiResults = await rewriteBatchWithGemini(batchToProcess, maxArticles, dynamicPrompt, archiveContext, sourceTrustMap, aiModelMain, {
+        breaking: aiPromptBreaking,
+        decrypt: aiPromptDecrypt,
+        standard: aiPromptStandard
+    });
 
     if (aiResults && aiResults.length > 0) {
         let newItems = [];
@@ -630,4 +642,3 @@ main().catch(error => {
     console.error(error);
     process.exit(1);
 });
-

@@ -32,6 +32,7 @@
     "react-dom": "^18.3.1",
     "react-force-graph-2d": "^1.29.1",
     "sharp": "^0.34.5",
+    "ssh2": "^1.17.0",
     "swr": "^2.2.5",
     "text-to-svg": "^3.1.5"
   },

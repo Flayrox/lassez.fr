@@ -6,8 +6,9 @@ import { DashboardLayout } from '../components/DashboardLayout';
 
 export default function SettingsPage() {
     const { settings, fetchSettings, isDaemonRunning, countdown } = useRadarAdmin();
-    const [activeTab, setActiveTab] = useState<'prompt' | 'pipeline' | 'diffusion' | 'health' | 'comms'>('prompt');
+    const [activeTab, setActiveTab] = useState<'prompt' | 'logic' | 'pipeline' | 'diffusion' | 'health' | 'comms'>('prompt');
     const [isSaving, setIsSaving] = useState(false);
+    const [isTesting, setIsTesting] = useState(false);
     const [form, setForm] = useState<any>({});
 
     useEffect(() => {
@@ -29,8 +30,19 @@ export default function SettingsPage() {
 
     const updateForm = (key: string, val: any) => setForm((prev: any) => ({ ...prev, [key]: val }));
 
+    const handleTestFlows = async () => {
+        setIsTesting(true);
+        try {
+            const res = await fetch('/api/radar/test-flows', { method: 'POST' });
+            const data = await res.json();
+            if (data.success) alert(data.message);
+        } catch (e) { console.error(e); }
+        finally { setIsTesting(false); }
+    };
+
     const tabs = [
         { key: 'prompt', label: 'Moteur IA', icon: 'psychology' },
+        { key: 'logic', label: 'Logique Édito', icon: 'neurology' },
         { key: 'pipeline', label: 'Pipeline', icon: 'tune' },
         { key: 'diffusion', label: 'Diffusion', icon: 'share' },
         { key: 'health', label: 'Maintenance', icon: 'health_and_safety' },
@@ -80,23 +92,107 @@ export default function SettingsPage() {
                     <div className="flex-1 bg-white border-4 border-stone-900 shadow-[12px_12px_0px_0px_#1A1C1C] p-10 min-h-[600px]">
                         {activeTab === 'prompt' && (
                             <div className="space-y-6">
-                                <h3 className="text-xl font-black uppercase tracking-tighter font-headline mb-4">Prompt maître IA</h3>
+                                <h3 className="text-xl font-black uppercase tracking-tighter font-headline mb-4">Moteur de Pensée</h3>
+                                <div className="grid grid-cols-2 gap-6">
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase text-stone-500 mb-1 block">Main Gemini Model</label>
+                                        <input
+                                            type="text"
+                                            value={form.ai_model_main || 'gemini-3-flash-preview'}
+                                            onChange={e => updateForm('ai_model_main', e.target.value)}
+                                            className="w-full bg-stone-50 border-4 border-stone-900 p-3 font-mono text-xs"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase text-stone-500 mb-1 block">Trust Mode</label>
+                                        <div className="p-3 bg-stone-50 border-4 border-stone-900 text-[10px] font-black uppercase">
+                                            RAG + Search + TrustMap Actif
+                                        </div>
+                                    </div>
+                                </div>
                                 <div>
-                                    <label className="text-[10px] font-black uppercase text-stone-500 mb-1 block">Main Gemini Model</label>
-                                    <input
-                                        type="text"
-                                        value={form.ai_model_main || 'gemini-2.5-pro-preview-05-06'}
-                                        onChange={e => updateForm('ai_model_main', e.target.value)}
-                                        className="w-full bg-stone-50 border-4 border-stone-900 p-3 font-mono text-xs"
+                                    <label className="text-[10px] font-black uppercase text-stone-500 mb-1 block">Instructions de Base (Système)</label>
+                                    <textarea 
+                                        value={form.ai_prompt || ''} 
+                                        onChange={e => updateForm('ai_prompt', e.target.value)}
+                                        rows={15}
+                                        className="w-full bg-stone-50 border-4 border-stone-900 p-6 font-body text-sm leading-relaxed focus:bg-white focus:outline-none transition-all"
                                     />
                                 </div>
-                                <textarea 
-                                    value={form.ai_prompt || ''} 
-                                    onChange={e => updateForm('ai_prompt', e.target.value)}
-                                    rows={20}
-                                    className="w-full bg-stone-50 border-4 border-stone-900 p-6 font-body text-sm leading-relaxed focus:bg-white focus:outline-none transition-all"
-                                />
-                                <p className="text-[10px] font-bold text-stone-400 uppercase">Ce prompt définit le ton éditorial, le filtrage et la précision d'extraction du Cortex.</p>
+                                <p className="text-[10px] font-bold text-stone-400 uppercase">Ce prompt définit le comportement global de l'IA (le "Cerveau").</p>
+                                
+                                <div className="pt-8 border-t-4 border-stone-100">
+                                    <h3 className="text-xl font-black uppercase tracking-tighter font-headline mb-4">Diagnostic & Validation</h3>
+                                    <button 
+                                        onClick={handleTestFlows}
+                                        disabled={isTesting}
+                                        className="flex items-center gap-3 bg-stone-900 text-white px-6 py-3 border-4 border-stone-900 font-black uppercase tracking-widest hover:bg-white hover:text-stone-900 transition-all text-xs"
+                                    >
+                                        <span className="material-symbols-outlined">{isTesting ? 'sync' : 'biotech'}</span>
+                                        {isTesting ? 'Test en cours...' : 'Lancer un test flux complet (Discord)'}
+                                    </button>
+                                    <p className="mt-3 text-[10px] font-bold text-stone-400 uppercase">Simule un flux Twitter, Telegram et RSS pour vérifier la génération des formats et l'envoi Discord.</p>
+                                </div>
+                            </div>
+                        )}
+
+                        {activeTab === 'logic' && (
+                            <div className="space-y-8">
+                                <h3 className="text-xl font-black uppercase tracking-tighter font-headline">Intelligence de Tri & Formats</h3>
+                                
+                                <section className="space-y-4">
+                                    <header className="border-l-4 border-red-600 pl-4">
+                                        <h4 className="text-sm font-black uppercase tracking-tight">1. Le Tamis (Filtre de Pertinence)</h4>
+                                        <p className="text-[10px] font-bold text-stone-400 uppercase">Instructions pour décider si une info est gardée ou jetée</p>
+                                    </header>
+                                    <textarea 
+                                        value={form.ai_prompt_relevance || ''} 
+                                        onChange={e => updateForm('ai_prompt_relevance', e.target.value)}
+                                        rows={6}
+                                        placeholder="Ex: Analyse si l'info est politique, sociale ou judiciaire. Réponds OUI/NON."
+                                        className="w-full bg-stone-50 border-4 border-stone-900 p-4 font-body text-xs"
+                                    />
+                                </section>
+
+                                <section className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div className="space-y-4">
+                                        <header className="border-l-4 border-stone-900 pl-4">
+                                            <h4 className="text-sm font-black uppercase tracking-tight">2. Alerte Info</h4>
+                                            <p className="text-[10px] font-bold text-stone-400 uppercase">Style Breaking News</p>
+                                        </header>
+                                        <textarea 
+                                            value={form.ai_prompt_breaking || ''} 
+                                            onChange={e => updateForm('ai_prompt_breaking', e.target.value)}
+                                            rows={5}
+                                            className="w-full bg-stone-50 border-4 border-stone-900 p-4 font-body text-xs"
+                                        />
+                                    </div>
+                                    <div className="space-y-4">
+                                        <header className="border-l-4 border-stone-900 pl-4">
+                                            <h4 className="text-sm font-black uppercase tracking-tight">3. Décryptage</h4>
+                                            <p className="text-[10px] font-bold text-stone-400 uppercase">Style Analyse & Tacle</p>
+                                        </header>
+                                        <textarea 
+                                            value={form.ai_prompt_decrypt || ''} 
+                                            onChange={e => updateForm('ai_prompt_decrypt', e.target.value)}
+                                            rows={5}
+                                            className="w-full bg-stone-50 border-4 border-stone-900 p-4 font-body text-xs"
+                                        />
+                                    </div>
+                                </section>
+
+                                <section className="space-y-4">
+                                    <header className="border-l-4 border-stone-900 pl-4">
+                                        <h4 className="text-sm font-black uppercase tracking-tight">4. Format Standard</h4>
+                                        <p className="text-[10px] font-bold text-stone-400 uppercase">Style Fait du Jour</p>
+                                    </header>
+                                    <textarea 
+                                        value={form.ai_prompt_standard || ''} 
+                                        onChange={e => updateForm('ai_prompt_standard', e.target.value)}
+                                        rows={5}
+                                        className="w-full bg-stone-50 border-4 border-stone-900 p-4 font-body text-xs"
+                                    />
+                                </section>
                             </div>
                         )}
 
@@ -124,11 +220,11 @@ export default function SettingsPage() {
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         <div>
                                             <label className="text-[10px] font-black uppercase text-stone-500 mb-1 block">Pre-filter Model</label>
-                                            <input type="text" value={form.video_prefilter_model || 'gemini-2.0-flash'} onChange={e => updateForm('video_prefilter_model', e.target.value)} className="w-full bg-stone-50 border-4 border-stone-900 p-3 font-mono text-xs" />
+                                            <input type="text" value={form.video_prefilter_model || 'gemini-3-flash-preview'} onChange={e => updateForm('video_prefilter_model', e.target.value)} className="w-full bg-stone-50 border-4 border-stone-900 p-3 font-mono text-xs" />
                                         </div>
                                         <div>
                                             <label className="text-[10px] font-black uppercase text-stone-500 mb-1 block">Transcribe Model</label>
-                                            <input type="text" value={form.video_transcribe_model || 'gemini-2.0-flash'} onChange={e => updateForm('video_transcribe_model', e.target.value)} className="w-full bg-stone-50 border-4 border-stone-900 p-3 font-mono text-xs" />
+                                            <input type="text" value={form.video_transcribe_model || 'gemini-3-flash-preview'} onChange={e => updateForm('video_transcribe_model', e.target.value)} className="w-full bg-stone-50 border-4 border-stone-900 p-3 font-mono text-xs" />
                                         </div>
                                         <div>
                                             <label className="text-[10px] font-black uppercase text-stone-500 mb-1 block">Min chars for pre-filter</label>

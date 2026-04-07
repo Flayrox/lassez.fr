@@ -9,7 +9,7 @@
  *  │ BOUCLE 1 : Scanner RSS/IA (toutes les N heures)          │
  *  │   → Scanne les flux RSS + Telegram                       │
  *  │   → Envoie à Gemini pour analyse                         │
- *  │   → Stocke les "bangers" en PENDING dans SQLite          │
+ *  │   → Stocke les "flash_content" en PENDING dans SQLite   │
  *  │   → Notifie via Discord                                  │
  *  ├──────────────────────────────────────────────────────────┤
  *  │ BOUCLE 2 : Publisheur anti-bot (toutes les minutes)      │
@@ -27,9 +27,11 @@
 import { spawn } from 'child_process';
 import path from 'path';
 import fs from 'fs';
+import http from 'http';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import Database from 'better-sqlite3';
+import { syncDatabase } from '../lib/radar-schema.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -37,20 +39,28 @@ const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.join(__dirname, '.env') });
 dotenv.config({ path: path.join(__dirname, '..', '.env') });
 
-// ─── Logging vers fichier + console ───────────────────────────
-const LOG_PATH = path.join(__dirname, 'daemon.log');
-const MAX_LOG_BYTES = 5 * 1024 * 1024; // 5 Mo max, puis rotation
-
-function log(msg) {
-    const line = `[${new Date().toISOString()}] ${msg}`;
+// ─── Logging vers SQLite + Console ────────────────────────────
+/**
+ * Log a message to both console and the radar_logs table.
+ * Traces to REQ-DB-LOGS.
+ */
+function log(msg, level = 'INFO') {
+    const timestamp = new Date().toISOString();
+    const line = `[${timestamp}] [${level}] ${msg}`;
     console.log(line);
+    
+    let db;
     try {
-        // Rotation si le fichier est trop gros
-        if (fs.existsSync(LOG_PATH) && fs.statSync(LOG_PATH).size > MAX_LOG_BYTES) {
-            fs.renameSync(LOG_PATH, LOG_PATH + '.old');
-        }
-        fs.appendFileSync(LOG_PATH, line + '\n');
-    } catch (e) { /* ignore erreurs log */ }
+        db = new Database(path.join(__dirname, 'radar.db'));
+        db.prepare('INSERT INTO radar_logs (level, message) VALUES (?, ?)').run(level, msg);
+        
+        // Automated 7-day cleanup (approx. 1 week)
+        db.prepare("DELETE FROM radar_logs WHERE created_at < datetime('now', '-7 days')").run();
+        db.close();
+    } catch (e) {
+        // Fallback to console if DB fails
+        if (db) try { db.close(); } catch(_) {}
+    }
 }
 
 // ─── Lecture des settings depuis la DB ───────────────────────────────────────────
@@ -181,19 +191,11 @@ async function runPublisher() {
     try {
         db = new Database(path.join(__dirname, 'radar.db'));
 
-        // S'assurer que les colonnes nécessaires existent
-        const cols = db.pragma(`table_info(radar_posts)`).map(c => c.name);
-        if (!cols.includes('approved_at')) { db.exec(`ALTER TABLE radar_posts ADD COLUMN approved_at DATETIME`); log('📊 Colonne approved_at ajoutée.'); }
-        if (!cols.includes('scheduled_at')) { db.exec(`ALTER TABLE radar_posts ADD COLUMN scheduled_at DATETIME`); log('📊 Colonne scheduled_at ajoutée.'); }
-        if (!cols.includes('punchline')) { db.exec(`ALTER TABLE radar_posts ADD COLUMN punchline TEXT`); log('📊 Colonne punchline ajoutée.'); }
-
         if (!autoPilotEnabled) {
-            // Pilote Auto OFF → on annule les scheduled_at existants pour éviter
-            // que des posts soient publiés si quelqu'un réactive le pilote plus tard
-            // (ils seront re-planifiés à ce moment-là avec un nouveau délai)
+            // Pilote Auto OFF
             const pending = db.prepare(`SELECT count(*) as c FROM radar_posts WHERE status = 'APPROVED'`).get();
             if (pending.c > 0) {
-                log(`⚫ Pilote Auto désactivé. ${pending.c} post(s) APPROVED en attente de validation manuelle.`);
+                // On ne loggue plus toutes les minutes si c'est désactivé pour ne pas polluer
             }
             db.close();
             return;
@@ -236,7 +238,7 @@ async function runPublisher() {
         }
 
     } catch (e) {
-        log(`❌ Erreur dans runPublisher: ${e.message}`);
+        log(`❌ Erreur dans runPublisher: ${e.message}`, 'ERROR');
     } finally {
         if (db) { try { db.close(); } catch (_) { } }
     }
@@ -263,7 +265,7 @@ async function runElectionSync() {
     try {
         await runScript('sync_elections.js');
     } catch (e) {
-        log(`❌ Erreur dans runElectionSync: ${e.message}`);
+        log(`❌ Erreur dans runElectionSync: ${e.message}`, 'ERROR');
     } finally {
         electionRunning = false;
         const settings = getSettings();
@@ -296,31 +298,79 @@ function startElectionSyncLoop() {
     }, 15000);
 }
 
+// ─── BOUCLE 4 : Heartbeat ─────────────────────────────────────
+/**
+ * Updates the system_health table every 60s.
+ * Traces to REQ-HB-MONITOR.
+ */
+function startHeartbeatLoop() {
+    setInterval(() => {
+        let db;
+        try {
+            db = new Database(path.join(__dirname, 'radar.db'));
+            db.prepare("INSERT INTO system_health (id, last_heartbeat, status) VALUES (1, CURRENT_TIMESTAMP, 'ALIVE') ON CONFLICT(id) DO UPDATE SET last_heartbeat=CURRENT_TIMESTAMP, status='ALIVE'").run();
+            db.close();
+        } catch (e) {
+            if (db) try { db.close(); } catch(_) {}
+        }
+    }, 60 * 1000);
+    log('💓 Boucle de Heartbeat démarrée (check toutes les minutes).');
+}
+
+// ─── BOUCLE 5 : Job Processor ─────────────────────────────────
+/**
+ * Polls radar_jobs every 10s for manual triggers from UI.
+ * Traces to REQ-JOB-SYNC.
+ */
+let jobRunning = false;
+async function processJobs() {
+    if (jobRunning) return;
+    let db;
+    try {
+        db = new Database(path.join(__dirname, 'radar.db'));
+        const job = db.prepare("SELECT * FROM radar_jobs WHERE status = 'PENDING' LIMIT 1").get();
+        
+        if (job) {
+            jobRunning = true;
+            log(`🛠️ Traitement du job ID ${job.id} (Type: ${job.type})...`);
+            db.prepare("UPDATE radar_jobs SET status = 'RUNNING' WHERE id = ?").run(job.id);
+            db.close();
+            db = null;
+
+            try {
+                if (job.type === 'MANUAL_SCAN') {
+                    await runScan();
+                } else if (job.type === 'ELECTION_SYNC') {
+                    await runElectionSync();
+                }
+                
+                db = new Database(path.join(__dirname, 'radar.db'));
+                db.prepare("UPDATE radar_jobs SET status = 'COMPLETED', result = ? WHERE id = ?").run('Success', job.id);
+            } catch (err) {
+                log(`❌ Échec du job ID ${job.id}: ${err.message}`, 'ERROR');
+                if (!db) db = new Database(path.join(__dirname, 'radar.db'));
+                db.prepare("UPDATE radar_jobs SET status = 'FAILED', result = ? WHERE id = ?").run(err.message, job.id);
+            }
+        }
+    } catch (e) {
+        log(`⚠️ Erreur Job Processor: ${e.message}`, 'ERROR');
+    } finally {
+        jobRunning = false;
+        if (db) try { db.close(); } catch(_) {}
+    }
+}
+
+function startJobLoop() {
+    setInterval(() => processJobs(), 10 * 1000);
+    log('⚙️ Boucle de gestion des Jobs démarrée (check toutes les 10s).');
+}
+
 // ─── INIT DB : S'assure que les tables/settings existent ──────
 function ensureDb() {
     const db = new Database(path.join(__dirname, 'radar.db'));
 
-    db.exec(`
-        CREATE TABLE IF NOT EXISTS radar_posts (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            source_url TEXT UNIQUE NOT NULL,
-            source_title TEXT NOT NULL,
-            flash_content TEXT NOT NULL,
-            image_keyword TEXT,
-            status TEXT DEFAULT 'PENDING' CHECK(status IN ('PENDING', 'APPROVED', 'REJECTED', 'PUBLISHED', 'IGNORED', 'FAILED')),
-            wp_id INTEGER,
-            approved_at DATETIME,
-            scheduled_at DATETIME,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        );
-    `);
-
-    db.exec(`
-        CREATE TABLE IF NOT EXISTS radar_settings (
-            key TEXT PRIMARY KEY,
-            value TEXT NOT NULL
-        );
-    `);
+    // Synchronisation via le schéma SSOT
+    syncDatabase(db);
 
     // Valeurs par défaut si elles n'existent pas encore
     const defaults = {
@@ -330,7 +380,18 @@ function ensureDb() {
         rss_lookback_hours: '24',
         scan_interval_hours: '2',
         discord_test_mode: 'false',
-        daemon_rss_enabled: 'true'
+        daemon_rss_enabled: 'true',
+        auto_pilot_enabled: 'true',
+        ai_model_main: 'gemini-2.5-pro-preview-05-06',
+        source_trust_map: '{"mediapart":"🟢","france24":"🟡","lefigaro":"🔴"}',
+        dedup_similarity_threshold: '0.65',
+        dedup_recent_hours: '24',
+        video_ingest_enabled: 'true',
+        video_prefilter_model: 'gemini-2.0-flash',
+        video_prefilter_prompt: 'Ce message Telegram parle-t-il de politique, de mouvements sociaux, de justice ou d un evenement d interet public ? Reponds uniquement par OUI ou NON.',
+        video_prefilter_min_chars: '20',
+        video_transcribe_model: 'gemini-2.0-flash',
+        video_max_audio_mb: '20'
     };
 
     const insertDefault = db.prepare(`INSERT OR IGNORE INTO radar_settings (key, value) VALUES (?, ?)`);
@@ -339,32 +400,31 @@ function ensureDb() {
     }
 
     db.close();
-    log('✅ Base de données vérifiée et prête.');
+    log('✅ Base de données vérifiée et prête via syncDatabase.');
 }
 
 // ─── ENTRÉE PRINCIPALE ─────────────────────────────────────────
 log('');
 log('██████████████████████████████████████████████');
-log('█  RADAR L\'ASSEZ — DAEMON v1.0               █');
-log('█  Démarrage du service autonome...          █');
+log('█  RADAR L\'ASSEZ — DAEMON v2.0               █');
+log('█  Démarrage du service autonome harmonisé... █');
 log('██████████████████████████████████████████████');
 log('');
 
 try {
     ensureDb();
 } catch (e) {
-    log(`❌ FATAL — Erreur d'initialisation de la DB: ${e.message}`);
+    log(`❌ FATAL — Erreur d'initialisation de la DB: ${e.message}`, 'ERROR');
     process.exit(1);
 }
 
 startPublisherLoop();
 startScanLoop();
 startElectionSyncLoop();
+startHeartbeatLoop();
+startJobLoop();
 
 // ─── SERVEUR DUMMY POUR HOSTINGER ─────────────────────────────
-// Hostinger (Phusion Passenger) TUE les applications Node.js qui n'ouvrent pas de port.
-// Même si ceci est un daemon backend, on doit écouter sur un port pour passer le test de santé d'Hostinger.
-const http = require('http');
 const dummyServer = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
     res.end('DAEMON IS ALIVE\n');

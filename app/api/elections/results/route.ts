@@ -4,10 +4,26 @@ import path from 'path';
 import { logToDaemon, errorToDaemon } from '../../logger';
 
 export const dynamic = 'force-dynamic';
+const syncLocks = new Map<string, Promise<void>>();
 
 function getDb() {
     const dbPath = path.join(process.cwd(), 'radar_lassez', 'radar.db');
     return new Database(dbPath);
+}
+
+function safeCloseDb(db: any) {
+    if (!db) return;
+    try {
+        db.close();
+    } catch (_) {
+        // Ignore close failures to avoid masking the main error
+    }
+}
+
+function withCache(data: any, cacheControl: string) {
+    const res = NextResponse.json(data);
+    res.headers.set('Cache-Control', cacheControl);
+    return res;
 }
 
 function ensureTable(db: any) {
@@ -230,6 +246,37 @@ async function syncOfficialData(db: any, electionSlug: string, force: boolean = 
     }
 }
 
+async function runSyncWithLock(electionSlug: string, force: boolean = false) {
+    const existing = syncLocks.get(electionSlug);
+    if (existing && !force) {
+        await existing;
+        return;
+    }
+    if (existing && force) {
+        await existing;
+    }
+
+    const syncPromise = (async () => {
+        let syncDb: any = null;
+        try {
+            syncDb = getDb();
+            ensureTable(syncDb);
+            await syncOfficialData(syncDb, electionSlug, force);
+        } finally {
+            safeCloseDb(syncDb);
+        }
+    })();
+
+    syncLocks.set(electionSlug, syncPromise);
+    try {
+        await syncPromise;
+    } finally {
+        if (syncLocks.get(electionSlug) === syncPromise) {
+            syncLocks.delete(electionSlug);
+        }
+    }
+}
+
 export interface Candidat {
     id: number;
     candidat: string;
@@ -259,23 +306,17 @@ export async function GET(request: Request) {
     const forceSync = searchParams.get('forceSync') === '1';
     const listCities = searchParams.get('list_cities') === '1';
 
+    let db: any = null;
     try {
-        const db = getDb();
+        db = getDb();
         ensureTable(db);
 
         // Tâche de fond pour la sync (ou forcee)
         if (forceSync || (!all && !query && !searchParams.get('ville') && !listCities)) {
             if (forceSync) {
-                await syncOfficialData(db, electionSlug, true);
+                await runSyncWithLock(electionSlug, true);
             } else {
-                (async () => {
-                    const syncDb = getDb();
-                    try {
-                        await syncOfficialData(syncDb, electionSlug);
-                    } finally {
-                        syncDb.close();
-                    }
-                })().catch(console.error);
+                runSyncWithLock(electionSlug, false).catch((e) => errorToDaemon('[Élections] Background sync error:', e));
             }
         }
 
@@ -289,11 +330,12 @@ export async function GET(request: Request) {
                 ORDER BY ville ASC
             `).all(electionSlug, dep);
             
-            db.close();
-            return NextResponse.json({
+            safeCloseDb(db);
+            db = null;
+            return withCache({
                 success: true,
                 cities
-            });
+            }, 'public, max-age=60, stale-while-revalidate=300');
         }
 
         // 1. Mode suggestion (Autocomplete avec département)
@@ -325,8 +367,9 @@ export async function GET(request: Request) {
                     LIMIT 10
                   `).all(...params);
 
-            db.close();
-            return NextResponse.json({
+            safeCloseDb(db);
+            db = null;
+            return withCache({
                 success: true,
                 suggestions: suggestions.map(s => ({
                     name: `${s.ville} (${s.code_departement})`,
@@ -335,7 +378,7 @@ export async function GET(request: Request) {
                     dep: s.code_departement,
                     insee: s.code_insee
                 }))
-            });
+            }, 'public, max-age=60, stale-while-revalidate=300');
         }
 
         // 2. Overrides locaux
@@ -359,7 +402,8 @@ export async function GET(request: Request) {
         }
 
         if (all) {
-            db.close();
+            safeCloseDb(db);
+            db = null;
             const results = Object.entries(localByVille).map(([ville, tours]) => ({
                 ville,
                 tours: [1, 2].map(t => ({ tour: t, candidats: (tours[t] || []).sort((a,b)=>b.pct-a.pct), hasData: !!tours[t]?.length }))
@@ -463,7 +507,8 @@ export async function GET(request: Request) {
             }
         }
 
-        db.close();
+        safeCloseDb(db);
+        db = null;
 
         const results: VilleResult[] = Object.entries(finalByKey).map(([key, tours]) => {
             const [v, d] = key.split('|');
@@ -497,14 +542,17 @@ export async function GET(request: Request) {
 
     } catch (error: any) {
         return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    } finally {
+        safeCloseDb(db);
     }
 }
 
 export async function POST(request: Request) {
+    let db: any = null;
     try {
         const body = await request.json();
         const { election_slug = 'municipales-2026', ville, tour = 1, candidat, nuance, pct, voix, statut = 'elimine', active = 1 } = body;
-        const db = getDb();
+        db = getDb();
         ensureTable(db);
         db.prepare(`
             INSERT INTO elections_resultats (election_slug, ville, tour, candidat, nuance, pct, voix, statut, active, updated_at)
@@ -512,23 +560,30 @@ export async function POST(request: Request) {
             ON CONFLICT(election_slug, ville, tour, candidat)
             DO UPDATE SET nuance=excluded.nuance, pct=excluded.pct, voix=excluded.voix, statut=excluded.statut, active=excluded.active, updated_at=datetime('now')
         `).run(election_slug, ville, tour, candidat, nuance || null, pct, voix || 0, statut, active ? 1 : 0);
-        db.close();
+        safeCloseDb(db);
+        db = null;
         return NextResponse.json({ success: true });
     } catch (error: any) {
         return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    } finally {
+        safeCloseDb(db);
     }
 }
 
 export async function DELETE(request: Request) {
+    let db: any = null;
     try {
         const { searchParams } = new URL(request.url);
         const id = searchParams.get('id');
-        const db = getDb();
+        db = getDb();
         ensureTable(db);
         db.prepare('DELETE FROM elections_resultats WHERE id = ?').run(id);
-        db.close();
+        safeCloseDb(db);
+        db = null;
         return NextResponse.json({ success: true });
     } catch (error: any) {
         return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    } finally {
+        safeCloseDb(db);
     }
 }

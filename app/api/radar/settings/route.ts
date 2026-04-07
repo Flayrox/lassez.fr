@@ -35,7 +35,10 @@ export async function PATCH(request: Request) {
             daemon_rss_enabled, daemon_elections_enabled,
             social_mastodon_enabled, social_bluesky_enabled, social_twitter_enabled, social_discord_enabled,
             discord_test_mode,
-            rss_feeds, telegram_channels, ai_prompt,
+            rss_feeds, telegram_channels, rss_bridge_base_url, x_accounts, ai_prompt,
+            ai_model_main, source_trust_map,
+            dedup_similarity_threshold, dedup_recent_hours,
+            video_ingest_enabled, video_prefilter_model, video_prefilter_prompt, video_prefilter_min_chars, video_transcribe_model, video_max_audio_mb,
             // --- Communication ---
             maintenance_mode, maintenance_message,
             popup_enabled, popup_title, popup_text, popup_link_url, popup_link_label
@@ -63,7 +66,19 @@ export async function PATCH(request: Request) {
         
         if (rss_feeds !== undefined) updateStmt.run('rss_feeds', typeof rss_feeds === 'string' ? rss_feeds : JSON.stringify(rss_feeds));
         if (telegram_channels !== undefined) updateStmt.run('telegram_channels', typeof telegram_channels === 'string' ? telegram_channels : JSON.stringify(telegram_channels));
+        if (rss_bridge_base_url !== undefined) updateStmt.run('rss_bridge_base_url', String(rss_bridge_base_url));
+        if (x_accounts !== undefined) updateStmt.run('x_accounts', typeof x_accounts === 'string' ? x_accounts : JSON.stringify(x_accounts));
         if (ai_prompt !== undefined) updateStmt.run('ai_prompt', String(ai_prompt));
+        if (ai_model_main !== undefined) updateStmt.run('ai_model_main', String(ai_model_main));
+        if (source_trust_map !== undefined) updateStmt.run('source_trust_map', String(source_trust_map));
+        if (dedup_similarity_threshold !== undefined) updateStmt.run('dedup_similarity_threshold', String(dedup_similarity_threshold));
+        if (dedup_recent_hours !== undefined) updateStmt.run('dedup_recent_hours', String(dedup_recent_hours));
+        if (video_ingest_enabled !== undefined) updateStmt.run('video_ingest_enabled', String(video_ingest_enabled));
+        if (video_prefilter_model !== undefined) updateStmt.run('video_prefilter_model', String(video_prefilter_model));
+        if (video_prefilter_prompt !== undefined) updateStmt.run('video_prefilter_prompt', String(video_prefilter_prompt));
+        if (video_prefilter_min_chars !== undefined) updateStmt.run('video_prefilter_min_chars', String(video_prefilter_min_chars));
+        if (video_transcribe_model !== undefined) updateStmt.run('video_transcribe_model', String(video_transcribe_model));
+        if (video_max_audio_mb !== undefined) updateStmt.run('video_max_audio_mb', String(video_max_audio_mb));
 
         // --- Communication ---
         if (maintenance_mode !== undefined) updateStmt.run('maintenance_mode', String(maintenance_mode));

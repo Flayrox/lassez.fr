@@ -1,6 +1,7 @@
 import Database from 'better-sqlite3';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { syncDatabase } from '../lib/radar-schema.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -11,44 +12,13 @@ console.log(`Initialisation de la base de données SQLite à : ${dbPath}`);
 
 const db = new Database(dbPath);
 
-// ─── Table principale : posts radar ─────────────────────────
-db.exec(`
-CREATE TABLE IF NOT EXISTS radar_posts (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    source_url TEXT UNIQUE NOT NULL,
-    source_title TEXT NOT NULL,
-    flash_content TEXT NOT NULL,
-    image_keyword TEXT,
-    status TEXT DEFAULT 'PENDING' CHECK(status IN ('PENDING', 'APPROVED', 'REJECTED', 'PUBLISHED', 'IGNORED', 'FAILED')),
-    wp_id INTEGER,
-    approved_at DATETIME,
-    scheduled_at DATETIME,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-`);
+// ─── Synchronisation via le schéma Single Source of Truth ─────
+syncDatabase(db);
 
-// ─── Migrations : ajouter les colonnes manquantes si la DB existe déjà ─
-const cols = db.pragma('table_info(radar_posts)').map(c => c.name);
-if (!cols.includes('wp_id')) { db.exec(`ALTER TABLE radar_posts ADD COLUMN wp_id INTEGER`); console.log('  ↳ Colonne wp_id ajoutée.'); }
-if (!cols.includes('approved_at')) { db.exec(`ALTER TABLE radar_posts ADD COLUMN approved_at DATETIME`); console.log('  ↳ Colonne approved_at ajoutée.'); }
-if (!cols.includes('scheduled_at')) { db.exec(`ALTER TABLE radar_posts ADD COLUMN scheduled_at DATETIME`); console.log('  ↳ Colonne scheduled_at ajoutée.'); }
-if (!cols.includes('type_ouverture')) { db.exec(`ALTER TABLE radar_posts ADD COLUMN type_ouverture TEXT DEFAULT '📌 LE FAIT DU JOUR'`); console.log('  ↳ Colonne type_ouverture ajoutée.'); }
-if (!cols.includes('fiabilite')) { db.exec(`ALTER TABLE radar_posts ADD COLUMN fiabilite TEXT DEFAULT 'haute'`); console.log('  ↳ Colonne fiabilite ajoutée.'); }
-if (!cols.includes('video_path')) { db.exec(`ALTER TABLE radar_posts ADD COLUMN video_path TEXT`); console.log('  ↳ Colonne video_path ajoutée.'); }
-
-console.log('✅ Table radar_posts prête.');
-
-// ─── Table des paramètres du radar ──────────────────────────
-db.exec(`
-CREATE TABLE IF NOT EXISTS radar_settings (
-    key TEXT PRIMARY KEY,
-    value TEXT NOT NULL
-);
-`);
-
-// Valeurs par défaut (INSERT OR IGNORE pour ne pas écraser les valeurs existantes)
+// ─── Table des paramètres du radar (Valeurs par défaut) ────────
+// Note: syncDatabase s'occupe de la création des tables, ici on gère les défauts.
 const defaults = {
-    max_articles: '3',     // Nombre max de bangers par cycle IA
+    max_articles: '3',     // Nombre max de flash_content par cycle IA
     min_delay_min: '0',     // Délai min (minutes) avant publication auto
     max_delay_min: '15',    // Délai max (minutes) avant publication auto
     rss_lookback_hours: '24',    // Fenêtre temporelle des articles RSS à scanner
@@ -123,6 +93,15 @@ const defaults = {
         'cnews_fr',
         'FranceInsoumise'
     ]),
+    rss_bridge_base_url: 'http://localhost:3300',
+    x_accounts: JSON.stringify([
+        'JLMelenchon',
+        'MathildePanot',
+        'RimaHas',
+        'Manuel_Bompard',
+        'FranceInsoumise',
+        'ImpactMediaFR'
+    ]),
     ai_prompt: `Tu es le rédacteur en chef du média d'investigation indépendant "L'Assez". Ton IA est une arme de démystification politique radicale.
 Tu rédiges un fil d'actualité en direct (style Telegram/Twitter). On te fournit une liste d'articles d'actualité brute.
 
@@ -170,6 +149,37 @@ Exemple : "📌 LE FAIT DU JOUR ⚖️ JUSTICE : Macron nomme un procureur contr
 
 === 7. CONTEXTE RAG (ARCHIVES) ===
 Si un bloc "ARCHIVES L'ASSEZ" est fourni ci-dessous, utilise-le pour détecter les contradictions politiques et les inclure dans ton décryptage.`
+    ,
+    ai_model_main: 'gemini-2.5-pro-preview-05-06',
+    source_trust_map: JSON.stringify({
+        mediapart: '🟢',
+        humanite: '🟢',
+        'humanité': '🟢',
+        blast: '🟢',
+        reporterre: '🟢',
+        basta: '🟢',
+        politis: '🟢',
+        arretsurimages: '🟢',
+        franceinsoumise: '🟢',
+        france24: '🟡',
+        rfi: '🟡',
+        francetvinfo: '🟡',
+        lemonde: '🟡',
+        leparisien: '🟡',
+        rtl: '🟡',
+        lefigaro: '🔴',
+        figaro: '🔴',
+        cnews: '🔴',
+        bfmtv: '🔴'
+    }),
+    dedup_similarity_threshold: '0.65',
+    dedup_recent_hours: '24',
+    video_ingest_enabled: 'true',
+    video_prefilter_model: 'gemini-2.0-flash',
+    video_prefilter_prompt: 'Ce message Telegram parle-t-il de politique, de mouvements sociaux, de justice ou d un evenement d interet public ? Reponds uniquement par OUI ou NON.',
+    video_prefilter_min_chars: '20',
+    video_transcribe_model: 'gemini-2.0-flash',
+    video_max_audio_mb: '20'
 };
 
 const insertDefault = db.prepare(`INSERT OR IGNORE INTO radar_settings (key, value) VALUES (?, ?)`);

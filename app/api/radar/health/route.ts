@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import Database from 'better-sqlite3';
 import path from 'path';
+import { execSync } from 'child_process';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,15 +17,26 @@ export async function GET() {
         mastodon: { status: 'loading', message: '' },
         bluesky: { status: 'loading', message: '' },
         twitter: { status: 'loading', message: '' },
-        daemon: { status: 'loading', message: '' }
+        daemon: { status: 'loading', message: '' },
+        ffmpeg: { status: 'loading', message: '' },
+        ytdlp: { status: 'loading', message: '' },
+        scrapers: { status: 'loading', message: '' }
     };
 
-    // 1. DATABASE
+    // 1. DATABASE + FTS5
     try {
         const db = getDb();
         const test = db.prepare('SELECT 1 as val').get();
+        let ftsStatus = '';
+        try {
+            db.prepare('SELECT 1 FROM radar_archives LIMIT 1').get();
+            ftsStatus = ' + Archives FTS5';
+        } catch(e) {
+            ftsStatus = ' (FTS5 Manquant)';
+        }
+        
         if (test && (test as any).val === 1) {
-            healthStatus.database = { status: 'ok', message: 'Connecté (SQLite)' };
+            healthStatus.database = { status: 'ok', message: 'Connecté (SQLite)' + ftsStatus };
         } else {
             healthStatus.database = { status: 'error', message: 'Erreur inattendue' };
         }
@@ -160,6 +172,50 @@ export async function GET() {
         }
     } catch (e: any) {
         healthStatus.daemon = { status: 'error', message: e.message };
+    }
+
+    // 8. FFMPEG
+    try {
+        execSync('ffmpeg -version', { stdio: 'ignore' });
+        healthStatus.ffmpeg = { status: 'ok', message: 'Binaire disponible' };
+    } catch (e: any) {
+        healthStatus.ffmpeg = { status: 'error', message: 'Non trouvé (Binaire manquant)' };
+    }
+
+    // 9. YT-DLP
+    try {
+        execSync('yt-dlp --version', { stdio: 'ignore' });
+        healthStatus.ytdlp = { status: 'ok', message: 'Binaire disponible' };
+    } catch (e: any) {
+        healthStatus.ytdlp = { status: 'error', message: 'Non trouvé (Binaire manquant)' };
+    }
+
+    // 10. SCRAPERS (Ping)
+    try {
+        const db = getDb();
+        const rssFeedsRaw = db.prepare("SELECT value FROM radar_settings WHERE key = 'rss_feeds'").get() as any;
+        db.close();
+        let feeds: string[] = [];
+        if (rssFeedsRaw && rssFeedsRaw.value) {
+            try { feeds = JSON.parse(rssFeedsRaw.value); } catch(e){}
+        }
+        if (feeds.length > 0) {
+            const firstFeed = feeds[0];
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 8000);
+            const feedRes = await fetch(firstFeed, { signal: controller.signal }).catch(() => null);
+            clearTimeout(timeoutId);
+            
+            if (feedRes && feedRes.ok) {
+                healthStatus.scrapers = { status: 'ok', message: `Ping OK (${new URL(firstFeed).hostname})` };
+            } else {
+                healthStatus.scrapers = { status: 'warning', message: 'Flux injoignables ou lents' };
+            }
+        } else {
+            healthStatus.scrapers = { status: 'ok', message: 'Aucun flux configuré' };
+        }
+    } catch(e: any) {
+        healthStatus.scrapers = { status: 'error', message: e.message };
     }
 
     return NextResponse.json({ success: true, health: healthStatus });

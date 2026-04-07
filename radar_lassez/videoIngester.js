@@ -66,26 +66,28 @@ export function detectVideoUrl(text) {
  * @param {string} messageText - Texte du message Telegram contenant la vidéo
  * @returns {Promise<boolean>} - true si pertinent
  */
-export async function shouldProcessVideo(messageText) {
-    if (!messageText || messageText.length < 20) return false;
-
-    try {
-        const model = genAI.getGenerativeModel({
-            model: "gemini-2.0-flash",
-        });
-
-        const result = await model.generateContent(
-            `Tu es un filtre de pertinence pour un média d'investigation politique de gauche.
+export async function shouldProcessVideo(messageText, options = {}) {
+    const minChars = Number(options.prefilterMinChars || 20);
+    const prefilterModel = options.prefilterModel || 'gemini-2.0-flash';
+    const prefilterPrompt = options.prefilterPrompt || `Tu es un filtre de pertinence pour un média d'investigation politique de gauche.
 Analyse ce message Telegram et réponds UNIQUEMENT par "OUI" ou "NON".
 La vidéo associée est-elle liée à un sujet politique, social, judiciaire, ou d'intérêt public majeur ?
 
 Exemples de sujets pertinents : manifestation, vote à l'Assemblée, garde à vue d'un politique, discours politique, répression policière, scandale d'État.
 Exemples de sujets NON pertinents : pub, divertissement, sport, météo, cuisine, people.
 
-Message : "${messageText.substring(0, 500)}"
+Message : "{{MESSAGE}}"
 
-Réponds uniquement OUI ou NON :`
-        );
+Réponds uniquement OUI ou NON :`;
+    if (!messageText || messageText.length < minChars) return false;
+
+    try {
+        const model = genAI.getGenerativeModel({
+            model: prefilterModel,
+        });
+
+        const prompt = prefilterPrompt.replace('{{MESSAGE}}', messageText.substring(0, 500));
+        const result = await model.generateContent(prompt);
 
         const answer = result.response.text().trim().toUpperCase();
         const isRelevant = answer.startsWith('OUI');
@@ -158,20 +160,22 @@ export async function downloadAndExtractAudio(videoUrl) {
  * @param {string} audioPath - Chemin vers le fichier MP3
  * @returns {Promise<string>} - Texte transcrit
  */
-export async function transcribeAudio(audioPath) {
+export async function transcribeAudio(audioPath, options = {}) {
     try {
         if (!fs.existsSync(audioPath)) return '';
 
         const audioSize = fs.statSync(audioPath).size;
-        if (audioSize > 20 * 1024 * 1024) { // 20 Mo max
-            console.warn('  ⚠️ [OSINT] Audio trop volumineux pour la transcription (>20Mo).');
+        const maxAudioMb = Number(options.maxAudioMb || 20);
+        const transcribeModel = options.transcribeModel || 'gemini-2.0-flash';
+        if (audioSize > maxAudioMb * 1024 * 1024) {
+            console.warn(`  ⚠️ [OSINT] Audio trop volumineux pour la transcription (>${maxAudioMb}Mo).`);
             return '';
         }
 
         console.log(`  🎤 [OSINT] Transcription audio via Gemini...`);
 
         const model = genAI.getGenerativeModel({
-            model: "gemini-2.0-flash", // Flash pour la transcription (rapide + pas cher)
+            model: transcribeModel,
         });
 
         const audioData = fs.readFileSync(audioPath);
@@ -213,11 +217,12 @@ Transcription :`
  * @param {string} messageText - Texte du message Telegram
  * @returns {Promise<{transcription: string, videoPath: string}|null>}
  */
-export async function processVideo(videoUrl, messageText) {
+export async function processVideo(videoUrl, messageText, options = {}) {
     console.log(`  🎬 [OSINT] Pipeline vidéo démarré pour : ${videoUrl}`);
+    if (options.enabled === false) return null;
 
     // Étape 1 : Pré-filtre IA
-    const isRelevant = await shouldProcessVideo(messageText);
+    const isRelevant = await shouldProcessVideo(messageText, options);
     if (!isRelevant) {
         console.log(`  ⏭️  [OSINT] Vidéo non pertinente, skip.`);
         return null;
@@ -228,7 +233,7 @@ export async function processVideo(videoUrl, messageText) {
     if (!files) return null;
 
     // Étape 3 : Transcription
-    const transcription = await transcribeAudio(files.audioPath);
+    const transcription = await transcribeAudio(files.audioPath, options);
 
     // Nettoyage de l'audio (on garde la vidéo pour publication)
     try { fs.unlinkSync(files.audioPath); } catch (_) {}

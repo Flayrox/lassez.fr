@@ -4,36 +4,39 @@ import path from 'path';
 import { spawn } from 'child_process';
 import { logToDaemon, errorToDaemon } from '../logger';
 
+import { syncDatabase } from '@/lib/radar-schema';
+
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 // Helper to get db connection
 function getDb() {
     const dbPath = path.join(process.cwd(), 'radar_lassez', 'radar.db');
-    return new Database(dbPath);
+    const db = new Database(dbPath);
+    // Sync schema on each connection (it's idempotent)
+    syncDatabase(db);
+    return db;
 }
 
-let migrationDone = false;
 let trendingCache: { data: { tag: string; count: number }[]; expires: number } = { data: [], expires: 0 };
+function safeCloseDb(db: any) {
+    if (!db) return;
+    try {
+        db.close();
+    } catch (_) {
+        // Do not throw on close in API handlers
+    }
+}
 
 export async function GET(request: Request) {
+    let db: any = null;
     try {
         const { searchParams } = new URL(request.url);
         const status = searchParams.get('status') || 'PENDING';
         const geo = searchParams.get('geo'); // 'france' | 'international' | null
         const tag = searchParams.get('tag'); // filtre par tag
 
-        const db = getDb();
-
-        // Migration une seule fois par session serveur
-        if (!migrationDone) {
-            try {
-                const cols = (db.pragma('table_info(radar_posts)') as any[]).map((c: any) => c.name);
-                if (!cols.includes('geo')) db.exec("ALTER TABLE radar_posts ADD COLUMN geo TEXT DEFAULT 'france'");
-                if (!cols.includes('tags')) db.exec("ALTER TABLE radar_posts ADD COLUMN tags TEXT DEFAULT ''");
-            } catch (_) { }
-            migrationDone = true;
-        }
+        db = getDb();
 
         // Query dynamique avec filtres optionnels
         let query = `SELECT id, source_url, source_title, flash_content, image_keyword, status, geo, tags, type_ouverture, fiabilite, video_path, created_at FROM radar_posts WHERE status = ?`;
@@ -76,15 +79,19 @@ export async function GET(request: Request) {
             };
         }
 
-        db.close();
+        safeCloseDb(db);
+        db = null;
         return NextResponse.json({ success: true, count: pendingPosts.length, posts: pendingPosts, trending_tags: trendingCache.data });
     } catch (error: any) {
         console.error("Erreur API Radar (GET):", error);
         return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    } finally {
+        safeCloseDb(db);
     }
 }
 
 export async function PATCH(request: Request) {
+    let db: any = null;
     try {
         const body = await request.json();
         const { id, ids, status, flash_content, image_keyword, source_title } = body;
@@ -99,7 +106,7 @@ export async function PATCH(request: Request) {
             return NextResponse.json({ success: false, error: 'Status invalide' }, { status: 400 });
         }
 
-        const db = getDb();
+        db = getDb();
 
         let info;
         if (idsArray.length > 1) {
@@ -145,7 +152,8 @@ export async function PATCH(request: Request) {
             }
         }
 
-        db.close();
+        safeCloseDb(db);
+        db = null;
 
         if (info.changes === 0) {
             return NextResponse.json({ success: false, error: 'Article introuvable' }, { status: 404 });
@@ -155,5 +163,7 @@ export async function PATCH(request: Request) {
     } catch (error: any) {
         errorToDaemon("Erreur API Radar (PATCH):", error);
         return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    } finally {
+        safeCloseDb(db);
     }
 }

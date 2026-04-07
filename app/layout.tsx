@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Script from 'next/script';
 import './globals.css';
-import { Inter, Playfair_Display, JetBrains_Mono } from 'next/font/google';
+import { Inter, Playfair_Display, JetBrains_Mono, Newsreader, Space_Grotesk } from 'next/font/google';
 import { getNavItems } from '@/lib/db-nav';
 import { getRadarConfig } from '@/lib/radar-config';
 import { NavProvider } from '@/components/NavProvider';
@@ -10,6 +10,17 @@ import CommunicationLayer from '@/components/CommunicationLayer';
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 const playfair = Playfair_Display({ subsets: ['latin'], variable: '--font-playfair' });
 const jetbrains = JetBrains_Mono({ subsets: ['latin'], variable: '--font-jetbrains' });
+const newsreader = Newsreader({ 
+    subsets: ['latin'], 
+    variable: '--font-newsreader',
+    display: 'swap',
+    style: ['normal', 'italic']
+});
+const spaceGrotesk = Space_Grotesk({ 
+    subsets: ['latin'], 
+    variable: '--font-space-grotesk',
+    display: 'swap'
+});
 
 export const metadata: Metadata = {
     metadataBase: new URL('https://lassez.fr'),
@@ -39,9 +50,11 @@ export default async function RootLayout({
     const config = await getRadarConfig();
 
     return (
-        <html lang="fr" className={`${inter.variable} ${playfair.variable} ${jetbrains.variable}`}>
+        <html lang="fr" className={`${inter.variable} ${playfair.variable} ${jetbrains.variable} ${newsreader.variable} ${spaceGrotesk.variable}`}>
+
             <head>
                 <meta name="fediverse:creator" content="@lassezmedia@mastodon.social" />
+                <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
                 {/* Matomo Tracker */}
                 <Script id="matomo-script" strategy="afterInteractive">
                     {`

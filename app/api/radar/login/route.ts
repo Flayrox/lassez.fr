@@ -7,7 +7,8 @@ const WINDOW_MS = 5 * 60 * 1000; // 5 minutes
 
 export async function POST(req: Request) {
     try {
-        const ip = req.headers.get('x-forwarded-for') || 'unknown';
+        const forwardedFor = req.headers.get('x-forwarded-for') || '';
+        const ip = forwardedFor.split(',')[0]?.trim() || 'unknown';
         const now = Date.now();
 
         // Rate Limiting (Anti-Bruteforce)
@@ -29,8 +30,13 @@ export async function POST(req: Request) {
         const { username, password } = body;
 
         const validUser = process.env.RADAR_ADMIN_USER || 'admin';
-        const validPwd = process.env.RADAR_ADMIN_PASSWORD || 'lassez123';
-        const secret = process.env.RADAR_SESSION_SECRET || 'fallback-secret-please-change-in-production-123456789';
+        const validPwd = process.env.RADAR_ADMIN_PASSWORD;
+        const secret = process.env.RADAR_SESSION_SECRET;
+
+        if (!validPwd || !secret) {
+            console.error('[RADAR-AUTH] Missing required env vars: RADAR_ADMIN_PASSWORD and/or RADAR_SESSION_SECRET');
+            return NextResponse.json({ success: false, error: 'Configuration serveur invalide.' }, { status: 503 });
+        }
 
         // Timing-Safe Comparison to prevent Timing Attacks
         const isUserValid = username.length === validUser.length && crypto.timingSafeEqual(Buffer.from(username), Buffer.from(validUser));

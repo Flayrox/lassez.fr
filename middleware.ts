@@ -11,6 +11,7 @@ const WINDOW_MS = 60 * 1000; // par minute
 export async function middleware(req: NextRequest) {
     const { pathname } = req.nextUrl;
     const hostname = req.headers.get('host') || '';
+    const radarSecret = process.env.RADAR_SESSION_SECRET;
 
     // Détection du sous-domaine
     // En local ça sera "studio.localhost", en prod "studio.lassez.fr"
@@ -37,7 +38,8 @@ export async function middleware(req: NextRequest) {
 
     // 1. RATE LIMITING SUR L'API RADAR (SAUF NAVIGATION)
     if (pathname.startsWith('/api/radar') && pathname !== '/api/radar/nav' && pathname !== '/api/radar/config') {
-        const ip = req.headers.get('x-forwarded-for') || req.ip || 'unknown';
+        const forwardedFor = req.headers.get('x-forwarded-for') || '';
+        const ip = forwardedFor.split(',')[0]?.trim() || req.ip || 'unknown';
         const now = Date.now();
 
         if (ipMap.has(ip)) {
@@ -62,7 +64,16 @@ export async function middleware(req: NextRequest) {
     }
 
     // 3. VÉRIFICATION DU COOKIE (CRYPTOGRAPHIQUE)
-    const secretKeyStr = process.env.RADAR_SESSION_SECRET || 'fallback-secret-please-change-in-production-123456789';
+    if (!radarSecret) {
+        if (pathname.startsWith('/api/radar') && pathname !== '/api/radar/nav' && pathname !== '/api/radar/config') {
+            return NextResponse.json({ success: false, error: 'Radar auth is not configured.' }, { status: 503 });
+        }
+        if (pathname.startsWith('/radar-admin') || pathname.startsWith('/radar-login')) {
+            return NextResponse.redirect(new URL('/', req.url));
+        }
+    }
+
+    const secretKeyStr = radarSecret as string;
     const sessionCookie = req.cookies.get('radar_session')?.value;
 
     let isAuthenticated = false;

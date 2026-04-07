@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+
+<html class="light" lang="fr"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>L'ASSEZ | Réseaux &amp; Paramètres</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,700&amp;family=Space+Grotesk:wght@400;500;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface-container-highest": "#e2e2e2",
+                        "surface-container": "#eeeeed",
+                        "secondary-fixed-dim": "#c6c6c6",
+                        "tertiary-container": "#bc0100",
+                        "primary-fixed": "#ffdad4",
+                        "surface-variant": "#e2e2e2",
+                        "secondary-fixed": "#e2e2e2",
+                        "on-secondary": "#ffffff",
+                        "error": "#ba1a1a",
+                        "on-primary-fixed": "#410000",
+                        "inverse-surface": "#2f3131",
+                        "error-container": "#ffdad6",
+                        "on-primary": "#ffffff",
+                        "inverse-on-surface": "#f1f1f0",
+                        "on-surface": "#1a1c1c",
+                        "tertiary-fixed": "#ffdad4",
+                        "outline-variant": "#e6bdb6",
+                        "on-tertiary": "#ffffff",
+                        "surface-tint": "#bf0602",
+                        "primary": "#8f0100",
+                        "on-primary-container": "#ffc8c0",
+                        "tertiary": "#8f0100",
+                        "on-tertiary-container": "#ffc8c0",
+                        "surface-dim": "#dadad9",
+                        "surface-bright": "#f9f9f9",
+                        "on-tertiary-fixed-variant": "#930100",
+                        "tertiary-fixed-dim": "#ffb4a8",
+                        "on-primary-fixed-variant": "#930100",
+                        "surface": "#f9f9f9",
+                        "on-background": "#1a1c1c",
+                        "on-secondary-fixed-variant": "#454747",
+                        "on-secondary-fixed": "#1a1c1c",
+                        "on-error": "#ffffff",
+                        "surface-container-low": "#f4f3f3",
+                        "on-error-container": "#93000a",
+                        "inverse-primary": "#ffb4a8",
+                        "on-secondary-container": "#636564",
+                        "secondary": "#5d5f5e",
+                        "primary-fixed-dim": "#ffb4a8",
+                        "primary-container": "#bc0100",
+                        "outline": "#916f69",
+                        "surface-container-high": "#e8e8e8",
+                        "surface-container-lowest": "#ffffff",
+                        "on-surface-variant": "#5d3f3b",
+                        "background": "#f9f9f9",
+                        "on-tertiary-fixed": "#410000",
+                        "secondary-container": "#e2e2e2"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0px",
+                        "lg": "0px",
+                        "xl": "0px",
+                        "full": "9999px"
+                    },
+                    "fontFamily": {
+                        "headline": ["Newsreader", "serif"],
+                        "body": ["Space Grotesk", "sans-serif"],
+                        "label": ["Space Grotesk", "sans-serif"]
+                    }
+                },
+            },
+        }
+    </script>
+<style>.material-symbols-outlined {
+    font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24
+    }
+body {
+    font-family: "Space Grotesk", sans-serif;
+    background-color: #f9f9f9
+    }
+.editorial-shadow {
+    box-shadow: 4px 4px 0 0 #1A1C1C
+    }
+.editorial-shadow-hover:hover {
+    box-shadow: 8px 8px 0 0 #1A1C1C;
+    transform: translate(-2px, -2px)
+    }
+.active-nav-shadow {
+    box-shadow: 4px 4px 0 0 #1A1C1C
+    }
+.paper-grain {
+    background-image: url(https://lh3.googleusercontent.com/aida-public/AB6AXuCy6TS309O8rhBiClLJhOPc-Zm5h7yZDDkQpHPf_5VEcnCob9TA0lp0vT0LrqesCR_EBuws4Bf0T5pWJp7EUztA15kR-lZ6Vhc_LP9OerhE5t8PdxYbweUdshcXK4aLdvMRqsVjF4PGsEVlQW8TK8G8L4a0IYHhLO7wcIjvIMBNlP6FpUVfZbpGa54wYotx7Dc-JCEZQxz6axG4x8_1NCSZvDQ0fuBcbBAjpZeGv1XvzWf7qkJ6wV9gMJW7DvqRj2MxAMjjaw6eHReF)
+    }</style>
+</head>
+<body class="bg-surface text-on-surface overflow-x-hidden">
+<div class="flex min-h-screen">
+<!-- SideNavBar -->
+<aside class="w-64 h-screen border-r-4 border-stone-900 dark:border-stone-50 flex flex-col sticky top-0 left-0 bg-stone-50 dark:bg-zinc-950 z-50">
+<div class="p-6 border-b-4 border-stone-900">
+<h1 class="text-3xl font-black tracking-tighter text-stone-900 dark:text-stone-50 font-headline uppercase">L'ASSEZ</h1>
+<p class="text-xs font-bold font-label uppercase tracking-widest text-stone-600 mt-1">Terminal Admin</p>
+</div>
+<nav class="flex-1 px-4 py-8 space-y-4">
+<!-- Radar -->
+<a class="flex items-center gap-3 px-4 py-3 text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100 hover:translate-x-[-2px] hover:translate-y-[-2px] transition-all duration-100 font-label font-bold uppercase text-sm" href="#">
+<span class="material-symbols-outlined" data-icon="radar">radar</span>
+<span>Radar</span>
+</a>
+<!-- Studio -->
+<a class="flex items-center gap-3 px-4 py-3 text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100 hover:translate-x-[-2px] hover:translate-y-[-2px] transition-all duration-100 font-label font-bold uppercase text-sm" href="#">
+<span class="material-symbols-outlined" data-icon="settings_input_component">settings_input_component</span>
+<span>Studio</span>
+</a>
+<!-- Network (ACTIVE) -->
+<a class="flex items-center gap-3 px-4 py-3 bg-red-700 text-white border-4 border-stone-900 shadow-[4px_4px_0px_0px_rgba(26,28,28,1)] translate-x-1 translate-y-1 shadow-none font-label font-bold uppercase text-sm" href="#">
+<span class="material-symbols-outlined" data-icon="hub">hub</span>
+<span>Network</span>
+</a>
+<!-- Settings -->
+<a class="flex items-center gap-3 px-4 py-3 text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100 hover:translate-x-[-2px] hover:translate-y-[-2px] transition-all duration-100 font-label font-bold uppercase text-sm" href="#">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span>Settings</span>
+</a>
+</nav>
+<div class="p-4 border-t-4 border-stone-900 bg-stone-100">
+<button class="w-full bg-red-700 text-white border-4 border-stone-900 py-3 font-label font-bold uppercase text-xs editorial-shadow hover:translate-x-[-2px] hover:translate-y-[-2px] transition-all duration-100">
+                    Manual Scan
+                </button>
+<div class="mt-6 flex items-center gap-3 px-2">
+<img alt="Admin Avatar" class="w-10 h-10 border-2 border-stone-900" data-alt="close-up portrait of a sharp-featured man with glasses and short hair in a minimalist architectural setting with harsh shadows" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCn6EIT2HmFGeK1RQnfLXapCzdopZaO6kUzyfiCJrBYytlnr9L-g1scNKeklmKda4LnCIYvtkJb4KA1mgYpbzdI5Wg7byIu32lsRFUoXkGuzHlmZ8mr9BugKDmyg4yyT4iDALLxLrOfs9-kbnwU-4AIrHkMA0tP3LMmTI6m4S9KTMSj_YCZcZrBrxAT2j7qgNKaZXhL2Tk0xqTpBP4Iv_WoVD2qehdb_29Oe9edmpbwC6SpO65FGquYCu78e4EpV0YniG0SG6Ef-boI"/>
+<div class="overflow-hidden">
+<p class="text-xs font-bold uppercase truncate">User profile</p>
+<a class="text-[10px] text-red-700 font-bold flex items-center gap-1 uppercase" href="#">
+<span class="material-symbols-outlined text-xs" data-icon="logout">logout</span> Logout
+                        </a>
+</div>
+</div>
+</div>
+</aside>
+<!-- Main Content Canvas -->
+<main class="flex-1 flex flex-col min-w-0">
+<!-- TopAppBar -->
+<header class="flex justify-between items-center w-full px-8 py-6 sticky top-0 z-40 bg-stone-50 dark:bg-zinc-950 border-b-4 border-stone-900 dark:border-stone-50 shadow-[0px_4px_0px_0px_rgba(26,28,28,1)]">
+<div class="flex items-center gap-8">
+<h2 class="text-2xl font-headline font-bold uppercase tracking-tight text-stone-900">CONFIGURATION RÉSEAUX</h2>
+<nav class="hidden lg:flex gap-6">
+<a class="text-stone-600 font-label font-bold text-xs uppercase hover:text-red-700" href="#">RSS Feeds</a>
+<a class="text-stone-600 font-label font-bold text-xs uppercase hover:text-red-700" href="#">Telegram Channels</a>
+<a class="text-stone-600 font-label font-bold text-xs uppercase hover:text-red-700" href="#">Templates</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<button class="px-4 py-2 border-4 border-stone-900 bg-stone-50 font-label font-bold text-xs uppercase editorial-shadow hover:bg-stone-200 active:scale-95 transition-all">
+                        Export to JSON
+                    </button>
+<button class="px-6 py-2 border-4 border-stone-900 bg-red-700 text-white font-label font-bold text-xs uppercase editorial-shadow hover:translate-x-[-2px] hover:translate-y-[-2px] active:scale-95 transition-all">
+                        Publish All
+                    </button>
+<div class="h-8 w-px bg-stone-900 mx-2"></div>
+<span class="material-symbols-outlined cursor-pointer hover:text-red-700" data-icon="terminal">terminal</span>
+<span class="material-symbols-outlined cursor-pointer hover:text-red-700" data-icon="refresh">refresh</span>
+</div>
+</header>
+<!-- Dashboard Content -->
+<div class="p-8 space-y-12 pb-24 paper-grain">
+<!-- Section: Publication Channels -->
+<section>
+<div class="flex items-end justify-between mb-6">
+<div>
+<span class="text-xs font-label font-bold bg-stone-900 text-white px-2 py-1 mb-2 inline-block uppercase">01 / Channels</span>
+<h3 class="text-4xl font-headline font-bold uppercase">External Platforms</h3>
+</div>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+<!-- Mastodon -->
+<div class="border-4 border-stone-900 bg-white p-6 editorial-shadow">
+<div class="flex justify-between items-start mb-6">
+<div class="w-12 h-12 bg-indigo-100 flex items-center justify-center border-2 border-stone-900">
+<span class="material-symbols-outlined text-indigo-700" data-icon="share">share</span>
+</div>
+<div class="flex flex-col items-end">
+<span class="text-[10px] font-bold uppercase text-stone-400 mb-1">Status</span>
+<span class="flex items-center gap-1 text-[10px] font-bold text-green-600 border border-green-600 px-2 py-0.5 uppercase">Connected</span>
+</div>
+</div>
+<h4 class="text-xl font-headline font-bold uppercase mb-1">Mastodon</h4>
+<p class="text-xs text-stone-500 font-label mb-6">social.lasse-z.com</p>
+<div class="flex gap-2">
+<button class="flex-1 py-2 bg-stone-900 text-white text-[10px] font-bold uppercase">Test Connection</button>
+<div class="w-12 bg-green-500 border-2 border-stone-900 cursor-pointer relative flex items-center px-1">
+<div class="h-4 w-4 bg-white border border-stone-900 ml-auto"></div>
+</div>
+</div>
+</div>
+<!-- Bluesky -->
+<div class="border-4 border-stone-900 bg-white p-6 editorial-shadow">
+<div class="flex justify-between items-start mb-6">
+<div class="w-12 h-12 bg-sky-100 flex items-center justify-center border-2 border-stone-900">
+<span class="material-symbols-outlined text-sky-600" data-icon="cloud">cloud</span>
+</div>
+<div class="flex flex-col items-end">
+<span class="text-[10px] font-bold uppercase text-stone-400 mb-1">Status</span>
+<span class="flex items-center gap-1 text-[10px] font-bold text-green-600 border border-green-600 px-2 py-0.5 uppercase">Connected</span>
+</div>
+</div>
+<h4 class="text-xl font-headline font-bold uppercase mb-1">Bluesky</h4>
+<p class="text-xs text-stone-500 font-label mb-6">@admin.bsky.social</p>
+<div class="flex gap-2">
+<button class="flex-1 py-2 bg-stone-900 text-white text-[10px] font-bold uppercase">Test Connection</button>
+<div class="w-12 bg-green-500 border-2 border-stone-900 cursor-pointer relative flex items-center px-1">
+<div class="h-4 w-4 bg-white border border-stone-900 ml-auto"></div>
+</div>
+</div>
+</div>
+<!-- Discord -->
+<div class="border-4 border-stone-900 bg-white p-6 editorial-shadow">
+<div class="flex justify-between items-start mb-6">
+<div class="w-12 h-12 bg-slate-100 flex items-center justify-center border-2 border-stone-900">
+<span class="material-symbols-outlined text-slate-700" data-icon="webhook">webhook</span>
+</div>
+<div class="flex flex-col items-end">
+<span class="text-[10px] font-bold uppercase text-stone-400 mb-1">Status</span>
+<span class="flex items-center gap-1 text-[10px] font-bold text-red-600 border border-red-600 px-2 py-0.5 uppercase">Disconnected</span>
+</div>
+</div>
+<h4 class="text-xl font-headline font-bold uppercase mb-1">Discord Webhook</h4>
+<p class="text-xs text-stone-500 font-label mb-6">#terminal-logs</p>
+<div class="flex gap-2">
+<button class="flex-1 py-2 bg-stone-900 text-white text-[10px] font-bold uppercase">Test Connection</button>
+<div class="w-12 bg-stone-200 border-2 border-stone-900 cursor-pointer relative flex items-center px-1">
+<div class="h-4 w-4 bg-white border border-stone-900 mr-auto"></div>
+</div>
+</div>
+</div>
+<!-- X -->
+<div class="border-4 border-stone-900 bg-white p-6 editorial-shadow">
+<div class="flex justify-between items-start mb-6">
+<div class="w-12 h-12 bg-stone-100 flex items-center justify-center border-2 border-stone-900">
+<span class="material-symbols-outlined text-stone-900" data-icon="close">close</span>
+</div>
+<div class="flex flex-col items-end">
+<span class="text-[10px] font-bold uppercase text-stone-400 mb-1">Status</span>
+<span class="flex items-center gap-1 text-[10px] font-bold text-red-600 border border-red-600 px-2 py-0.5 uppercase">Disconnected</span>
+</div>
+</div>
+<h4 class="text-xl font-headline font-bold uppercase mb-1">X (Twitter)</h4>
+<p class="text-xs text-stone-500 font-label mb-6">@assez_official</p>
+<div class="flex gap-2">
+<button class="flex-1 py-2 bg-stone-200 text-stone-400 text-[10px] font-bold uppercase cursor-not-allowed">API v2 Limited</button>
+<div class="w-12 bg-stone-200 border-2 border-stone-900 cursor-pointer relative flex items-center px-1">
+<div class="h-4 w-4 bg-white border border-stone-900 mr-auto"></div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Section: RSS/Telegram Manager -->
+<section>
+<div class="flex items-end justify-between mb-6">
+<div>
+<span class="text-xs font-label font-bold bg-red-700 text-white px-2 py-1 mb-2 inline-block uppercase">02 / Sources</span>
+<h3 class="text-4xl font-headline font-bold uppercase">RSS &amp; Telegram Manager</h3>
+</div>
+<button class="px-6 py-2 bg-stone-900 text-white font-label font-bold text-xs uppercase border-4 border-stone-900 editorial-shadow hover:translate-x-[-2px] hover:translate-y-[-2px]">
+                            Add New Source +
+                        </button>
+</div>
+<div class="border-4 border-stone-900 bg-white editorial-shadow overflow-hidden">
+<table class="w-full text-left border-collapse">
+<thead class="bg-stone-50 border-b-4 border-stone-900">
+<tr>
+<th class="p-4 font-label font-bold text-[10px] uppercase tracking-widest text-stone-400 border-r-2 border-stone-900">Type</th>
+<th class="p-4 font-label font-bold text-[10px] uppercase tracking-widest text-stone-400 border-r-2 border-stone-900">Source Identity &amp; URL</th>
+<th class="p-4 font-label font-bold text-[10px] uppercase tracking-widest text-stone-400 border-r-2 border-stone-900">Last Sync</th>
+<th class="p-4 font-label font-bold text-[10px] uppercase tracking-widest text-stone-400 border-r-2 border-stone-900">Items</th>
+<th class="p-4 font-label font-bold text-[10px] uppercase tracking-widest text-stone-400">Actions</th>
+</tr>
+</thead>
+<tbody class="divide-y-2 divide-stone-200">
+<tr class="hover:bg-stone-50">
+<td class="p-4 border-r-2 border-stone-900"><span class="px-2 py-1 bg-red-100 text-red-700 text-[10px] font-bold uppercase">RSS</span></td>
+<td class="p-4 border-r-2 border-stone-900 font-bold text-sm">Le Monde - International<br/><span class="text-[10px] text-stone-400 font-normal">lemonde.fr/international/rss_full.xml</span></td>
+<td class="p-4 border-r-2 border-stone-900 font-headline font-bold italic">2 mins ago</td>
+<td class="p-4 border-r-2 border-stone-900 font-headline text-lg">142</td>
+<td class="p-4 flex gap-4">
+<button class="text-stone-900 font-label font-bold text-[10px] uppercase underline">Sync</button>
+<button class="text-stone-900 font-label font-bold text-[10px] uppercase underline">Edit</button>
+<button class="text-red-700 font-label font-bold text-[10px] uppercase underline">Purge</button>
+</td>
+</tr>
+<tr class="hover:bg-stone-50">
+<td class="p-4 border-r-2 border-stone-900"><span class="px-2 py-1 bg-blue-100 text-blue-700 text-[10px] font-bold uppercase">Telegram</span></td>
+<td class="p-4 border-r-2 border-stone-900 font-bold text-sm">OSINT Technical<br/><span class="text-[10px] text-stone-400 font-normal">t.me/osinttechnical_feed</span></td>
+<td class="p-4 border-r-2 border-stone-900 font-headline font-bold italic">5 mins ago</td>
+<td class="p-4 border-r-2 border-stone-900 font-headline text-lg">89</td>
+<td class="p-4 flex gap-4">
+<button class="text-stone-900 font-label font-bold text-[10px] uppercase underline">Sync</button>
+<button class="text-stone-900 font-label font-bold text-[10px] uppercase underline">Edit</button>
+<button class="text-red-700 font-label font-bold text-[10px] uppercase underline">Purge</button>
+</td>
+</tr>
+<tr class="hover:bg-stone-50">
+<td class="p-4 border-r-2 border-stone-900"><span class="px-2 py-1 bg-red-100 text-red-700 text-[10px] font-bold uppercase">RSS</span></td>
+<td class="p-4 border-r-2 border-stone-900 font-bold text-sm">The Verge - Tech<br/><span class="text-[10px] text-stone-400 font-normal">theverge.com/rss/index.xml</span></td>
+<td class="p-4 border-r-2 border-stone-900 font-headline font-bold italic">12 mins ago</td>
+<td class="p-4 border-r-2 border-stone-900 font-headline text-lg">2,104</td>
+<td class="p-4 flex gap-4">
+<button class="text-stone-900 font-label font-bold text-[10px] uppercase underline">Sync</button>
+<button class="text-stone-900 font-label font-bold text-[10px] uppercase underline">Edit</button>
+<button class="text-red-700 font-label font-bold text-[10px] uppercase underline">Purge</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<!-- Section: System Maintenance -->
+<section>
+<div class="flex items-end justify-between mb-6">
+<div>
+<span class="text-xs font-label font-bold bg-stone-900 text-white px-2 py-1 mb-2 inline-block uppercase">03 / Maintenance</span>
+<h3 class="text-4xl font-headline font-bold uppercase">System Health Diagnostics</h3>
+</div>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+<!-- DB -->
+<div class="bg-white border-4 border-stone-900 p-8 flex items-center justify-between editorial-shadow">
+<div>
+<h5 class="font-headline font-bold text-xl uppercase mb-1">PostgreSQL v15</h5>
+<p class="text-[10px] font-label font-bold uppercase text-stone-500">Database Engine</p>
+<div class="mt-4 flex gap-2">
+<div class="h-2 w-8 bg-green-500"></div>
+<div class="h-2 w-8 bg-green-500"></div>
+<div class="h-2 w-8 bg-green-500"></div>
+<div class="h-2 w-8 bg-stone-200"></div>
+</div>
+</div>
+<div class="h-16 w-16 border-4 border-green-600 flex items-center justify-center">
+<span class="material-symbols-outlined text-green-600 text-4xl font-bold" data-icon="check">check</span>
+</div>
+</div>
+<!-- API -->
+<div class="bg-white border-4 border-stone-900 p-8 flex items-center justify-between editorial-shadow">
+<div>
+<h5 class="font-headline font-bold text-xl uppercase mb-1">Internal Gateway</h5>
+<p class="text-[10px] font-label font-bold uppercase text-stone-500">API Endpoint Status</p>
+<div class="mt-4 flex gap-2">
+<div class="h-2 w-8 bg-green-500"></div>
+<div class="h-2 w-8 bg-green-500"></div>
+<div class="h-2 w-8 bg-green-500"></div>
+<div class="h-2 w-8 bg-green-500"></div>
+</div>
+</div>
+<div class="h-16 w-16 border-4 border-green-600 flex items-center justify-center">
+<span class="material-symbols-outlined text-green-600 text-4xl font-bold" data-icon="check">check</span>
+</div>
+</div>
+<!-- Scraping -->
+<div class="bg-stone-50 border-4 border-red-700 p-8 flex items-center justify-between editorial-shadow bg-[repeating-linear-gradient(45deg,transparent,transparent_10px,rgba(188,1,0,0.05)_10px,rgba(188,1,0,0.05)_20px)]">
+<div>
+<h5 class="font-headline font-bold text-xl uppercase mb-1 text-red-700">Scraper Cluster #4</h5>
+<p class="text-[10px] font-label font-bold uppercase text-red-700/60">Node Failure Detected</p>
+<div class="mt-4 flex gap-2 text-[10px] font-bold font-label uppercase text-red-700">
+                                    REBOOTING... [ 44% ]
+                                </div>
+</div>
+<div class="h-16 w-16 border-4 border-red-700 flex items-center justify-center bg-white">
+<span class="material-symbols-outlined text-red-700 text-4xl font-bold" data-icon="close">close</span>
+</div>
+</div>
+</div>
+</section>
+</div>
+</main>
+</div>
+</body></html>

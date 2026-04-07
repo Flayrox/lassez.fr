@@ -17,8 +17,8 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const SIMILARITY_THRESHOLD = 0.65; // Seuil de similarité pour fusionner
-const RECENT_HOURS = 24; // Fenêtre anti-doublon en heures
+const DEFAULT_SIMILARITY_THRESHOLD = 0.65; // Seuil de similarité pour fusionner
+const DEFAULT_RECENT_HOURS = 24; // Fenêtre anti-doublon en heures
 
 /**
  * Normalise un titre pour la comparaison
@@ -35,7 +35,7 @@ function normalizeTitle(title) {
  * Regroupe les articles par similarité de titre.
  * Retourne des "clusters" : chaque cluster contient les articles fusionnés.
  */
-function clusterBySimilarity(items) {
+function clusterBySimilarity(items, similarityThreshold = DEFAULT_SIMILARITY_THRESHOLD) {
     const clusters = []; // Chaque cluster = { representative: item, members: [item, ...] }
     const assigned = new Set();
 
@@ -55,7 +55,7 @@ function clusterBySimilarity(items) {
 
             const similarity = compareTwoStrings(titleA, titleB);
 
-            if (similarity >= SIMILARITY_THRESHOLD) {
+            if (similarity >= similarityThreshold) {
                 cluster.members.push(items[j]);
                 assigned.add(j);
 
@@ -101,14 +101,14 @@ function mergeCluster(cluster) {
  * Vérifie si un sujet similaire a déjà été traité récemment (24h).
  * Interroge radar_posts pour les titres récents.
  */
-function wasRecentlyPublished(title, db) {
+function wasRecentlyPublished(title, db, recentHours = DEFAULT_RECENT_HOURS) {
     try {
         const normalizedTitle = normalizeTitle(title);
         if (normalizedTitle.length < 10) return false; // Titre trop court pour comparer
 
         const recentPosts = db.prepare(`
             SELECT source_title FROM radar_posts 
-            WHERE created_at > datetime('now', '-${RECENT_HOURS} hours')
+            WHERE created_at > datetime('now', '-${recentHours} hours')
             AND status != 'IGNORED'
         `).all();
 
@@ -136,13 +136,15 @@ function wasRecentlyPublished(title, db) {
  * @param {Database} db - Instance better-sqlite3
  * @returns {Array} - Articles dédupliqués et fusionnés
  */
-export function deduplicateItems(items, db) {
+export function deduplicateItems(items, db, options = {}) {
     if (!items || items.length === 0) return [];
+    const similarityThreshold = Math.max(0.3, Math.min(0.95, Number(options.similarityThreshold || DEFAULT_SIMILARITY_THRESHOLD)));
+    const recentHours = Math.max(1, Math.min(168, Number(options.recentHours || DEFAULT_RECENT_HOURS)));
 
     const originalCount = items.length;
 
     // Étape 1 : Clustering par similarité de titre
-    const clusters = clusterBySimilarity(items);
+    const clusters = clusterBySimilarity(items, similarityThreshold);
     const clusteredCount = clusters.length;
 
     // Étape 2 : Fusion des clusters
@@ -150,7 +152,7 @@ export function deduplicateItems(items, db) {
 
     // Étape 3 : Check 24h — retirer les sujets déjà traités
     const deduplicated = merged.filter(item => {
-        const alreadyDone = wasRecentlyPublished(item.title, db);
+        const alreadyDone = wasRecentlyPublished(item.title, db, recentHours);
         if (alreadyDone) {
             console.log(`  🛡️ [TAMIS] Sujet déjà traité (24h) : "${item.title.substring(0, 60)}..."`);
         }

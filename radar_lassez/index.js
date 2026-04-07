@@ -134,7 +134,7 @@ function enqueuePost(sourceUrl, sourceTitle, flashContent, imageKeyword, status 
 }
 
 // -- 3. LE SCRAPER TELEGRAM (Mini-RSSHub Local + Détection Vidéo) --
-async function fetchTelegramMessages(handle) {
+async function fetchTelegramMessages(handle, videoOptions = {}) {
     try {
         console.log(`📡 Scraping Telegram : @${handle}...`);
         const url = `https://t.me/s/${handle}`;
@@ -183,7 +183,7 @@ async function fetchTelegramMessages(handle) {
 
                 // Pipeline vidéo complet (pré-filtre + download + transcription)
                 try {
-                    const videoResult = await processVideo(videoUrlInText, text);
+                    const videoResult = await processVideo(videoUrlInText, text, videoOptions);
                     if (videoResult) {
                         msg.content += `\n\n--- TRANSCRIPTION VIDÉO ---\n${videoResult.transcription}`;
                         msg.videoPath = videoResult.videoPath;
@@ -206,7 +206,7 @@ async function fetchTelegramMessages(handle) {
 
 // -- 2. LE CERVEAU (Gemini avec output JSON en Batch) --
 // -- SYSTÈME DE CONFIANCE PAR SOURCE --
-const SOURCE_TRUST = {
+const DEFAULT_SOURCE_TRUST = {
     // 🟢 Confiance haute
     'mediapart': '🟢', 'humanite': '🟢', 'humanité': '🟢', 'blast': '🟢', 'reporterre': '🟢',
     'basta': '🟢', 'politis': '🟢', 'arretsurimages': '🟢', 'arrêt sur images': '🟢',
@@ -222,25 +222,47 @@ const SOURCE_TRUST = {
     'lefigaro': '🔴', 'figaro': '🔴', 'cnews': '🔴', 'bfmtv': '🔴', 'bfm': '🔴',
 };
 
-function getSourceTrust(sourceTitle, sourceUrl) {
+function getSourceTrust(sourceTitle, sourceUrl, sourceTrustMap = DEFAULT_SOURCE_TRUST) {
     const combined = (sourceTitle + ' ' + sourceUrl).toLowerCase();
-    for (const [key, level] of Object.entries(SOURCE_TRUST)) {
+    for (const [key, level] of Object.entries(sourceTrustMap)) {
         if (combined.includes(key)) return level;
     }
     return '🟡'; // Par défaut : confiance moyenne
 }
 
+function parseJsonSetting(raw, fallback) {
+    try {
+        if (!raw) return fallback;
+        const parsed = JSON.parse(raw);
+        return parsed && typeof parsed === 'object' ? parsed : fallback;
+    } catch (_) {
+        return fallback;
+    }
+}
+
+function normalizeBridgeBaseUrl(rawUrl) {
+    const fallback = 'http://localhost:3300';
+    const base = (rawUrl || fallback).trim().replace(/\/$/, '');
+    return base || fallback;
+}
+
+function buildTwitterBridgeFeed(baseUrl, account) {
+    const u = account.replace(/^@/, '').trim();
+    if (!u) return null;
+    return `${baseUrl}/?action=display&bridge=TwitterBridge&context=By+username&u=${encodeURIComponent(u)}&format=Atom`;
+}
+
 // -- 2. LE CERVEAU (Gemini 3 Pro avec JSON strict et confiance source) --
-async function rewriteBatchWithGemini(itemsBatch, maxArticles, customPrompt, archiveContext = '') {
+async function rewriteBatchWithGemini(itemsBatch, maxArticles, customPrompt, archiveContext = '', sourceTrustMap = DEFAULT_SOURCE_TRUST, aiModelMain = 'gemini-2.5-pro-preview-05-06') {
     const model = genAI.getGenerativeModel({
-        model: "gemini-2.5-pro-preview-05-06",
+        model: aiModelMain,
         tools: [{ googleSearch: {} }],
         generationConfig: { responseMimeType: "application/json" }
     });
 
     const articlesText = itemsBatch.map((item, index) => {
         const safeContent = item.content || "";
-        const trustLevel = getSourceTrust(item.sourceTitle, item.id);
+        const trustLevel = getSourceTrust(item.sourceTitle, item.id, sourceTrustMap);
         return `
 [ID_ARTICLE: BATCH_ITEM_${index}]
 Titre original: ${item.title}
@@ -378,7 +400,7 @@ async function notifyDiscordValidation(items, autoApprove = false, testMode = fa
         }
 
         formData.append('payload_json', JSON.stringify({
-            content: "🔔 **MODE TEST ACTIF** : Voici les bangers générés par l'IA. Le *Moteur d'Image* a aussi été testé et son rendu est attaché.",
+            content: "🔔 **MODE TEST ACTIF** : Voici les flash_content générés par l'IA. Le *Moteur d'Image* a aussi été testé et son rendu est attaché.",
             embeds: embeds,
             attachments: attachmentsPayload
         }));
@@ -435,18 +457,37 @@ async function main() {
     // Dynamic lists & prompts from DB
     let rssFeeds = [];
     let telegramChannels = [];
+    let xAccounts = [];
     try { rssFeeds = JSON.parse(settings.rss_feeds || '[]'); } catch(e){}
     try { telegramChannels = JSON.parse(settings.telegram_channels || '[]'); } catch(e){}
+    try { xAccounts = JSON.parse(settings.x_accounts || '[]'); } catch(e){}
+    const rssBridgeBaseUrl = normalizeBridgeBaseUrl(settings.rss_bridge_base_url);
+    const xFeeds = xAccounts.map(acc => buildTwitterBridgeFeed(rssBridgeBaseUrl, acc)).filter(Boolean);
+    const effectiveRssFeeds = Array.from(new Set([...rssFeeds, ...xFeeds]));
     const dynamicPrompt = settings.ai_prompt || "Tu es un assistant...";
+    const aiModelMain = settings.ai_model_main || 'gemini-2.5-pro-preview-05-06';
+    const sourceTrustMap = parseJsonSetting(settings.source_trust_map, DEFAULT_SOURCE_TRUST);
+    const dedupOptions = {
+        similarityThreshold: parseFloat(settings.dedup_similarity_threshold || '0.65'),
+        recentHours: parseInt(settings.dedup_recent_hours || '24', 10)
+    };
+    const videoOptions = {
+        enabled: settings.video_ingest_enabled !== 'false',
+        prefilterModel: settings.video_prefilter_model || 'gemini-2.0-flash',
+        prefilterPrompt: settings.video_prefilter_prompt || undefined,
+        prefilterMinChars: parseInt(settings.video_prefilter_min_chars || '20', 10),
+        transcribeModel: settings.video_transcribe_model || 'gemini-2.0-flash',
+        maxAudioMb: parseInt(settings.video_max_audio_mb || '20', 10)
+    };
 
     if (autoApprove) {
-        console.log("🤖 Mode Fantôme actif : les bangers seront auto-approuvés (APPROVED) dès leur génération.");
+        console.log("🤖 Mode Fantôme actif : les flash_content seront auto-approuvés (APPROVED) dès leur génération.");
     }
 
     let unreadItems = [];
     let scanErrors = [];
 
-    for (const feedUrl of rssFeeds) {
+    for (const feedUrl of effectiveRssFeeds) {
         try {
             console.log(`🔍 Scan RSS : ${feedUrl}`);
             const feed = await fetchFeedWithTimeout(feedUrl, 15000);
@@ -480,7 +521,7 @@ async function main() {
 
     for (const handle of telegramChannels) {
         try {
-            const msgs = await fetchTelegramMessages(handle);
+            const msgs = await fetchTelegramMessages(handle, videoOptions);
             for (const msg of msgs) {
                 if (!isProcessed(msg.link)) {
                     unreadItems.push({
@@ -505,7 +546,7 @@ async function main() {
 
     // ─── PHASE 2 : TAMIS ANTI-DOUBLONS ───
     console.log('\n🛡️ Passage dans le Tamis Anti-Doublons...');
-    const deduplicated = deduplicateItems(unreadItems, db);
+    const deduplicated = deduplicateItems(unreadItems, db, dedupOptions);
 
     if (deduplicated.length === 0) return console.log("✅ Tout a été filtré par le Tamis.");
 
@@ -522,7 +563,7 @@ async function main() {
 
     // ─── PHASE 1 : CERVEAU ÉDITORIAL ───
     console.log(`\n🧠 Analyse IA de ${batchToProcess.length} articles (Cerveau Éditorial v2)...`);
-    const aiResults = await rewriteBatchWithGemini(batchToProcess, maxArticles, dynamicPrompt, archiveContext);
+    const aiResults = await rewriteBatchWithGemini(batchToProcess, maxArticles, dynamicPrompt, archiveContext, sourceTrustMap, aiModelMain);
 
     if (aiResults && aiResults.length > 0) {
         let newItems = [];

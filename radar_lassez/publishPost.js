@@ -131,7 +131,10 @@ async function publishPost(postId) {
         }
 
         const wpResponse = await axios.post(`${process.env.WP_URL}/wp-json/wp/v2/posts`, postPayload, {
-            headers: { 'Authorization': `Bearer ${token}` }
+            headers: {
+                'Authorization': authHeader,
+                'User-Agent': 'lassez-radar/1.0'
+            }
         });
 
         console.log(`🚀 [SUCCÈS] Article publié sur WP ! Post ID : ${wpResponse.data.id}`);

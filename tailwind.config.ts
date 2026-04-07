@@ -12,6 +12,9 @@ const config: Config = {
                 sans: ['var(--font-inter)', 'sans-serif'],
                 serif: ['var(--font-playfair)', 'serif'],
                 mono: ['var(--font-jetbrains)', 'monospace'],
+                headline: ['var(--font-newsreader)', 'serif'],
+                label: ['var(--font-space-grotesk)', 'sans-serif'],
+                body: ['var(--font-space-grotesk)', 'sans-serif'],
             },
             keyframes: {
                 marquee: {

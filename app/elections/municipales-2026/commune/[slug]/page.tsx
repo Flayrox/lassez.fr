@@ -10,34 +10,11 @@ import CitySearchBar from '@/components/CitySearchBar';
 import Link from 'next/link';
 
 export const dynamicParams = true;
-export const revalidate = 60;
+export const dynamic = 'force-dynamic';
 
 function getDb() {
   const dbPath = path.join(process.cwd(), 'radar_lassez', 'radar.db');
   return new Database(dbPath, { readonly: true });
-}
-
-export async function generateStaticParams() {
-  let db;
-  try {
-    db = getDb();
-    const topCities = db.prepare(`
-      SELECT code_insee, ville 
-      FROM elections_officiel_cache 
-      WHERE election_slug = 'municipales-2026'
-      ORDER BY id DESC 
-      LIMIT 100
-    `).all() as { code_insee: string; ville: string }[];
-    
-    return topCities.map((city) => ({
-      slug: formatCommuneSlug(city.code_insee, city.ville),
-    }));
-  } catch (e) {
-    console.error('Failed to generate static params', e);
-    return [];
-  } finally {
-    if (db) db.close();
-  }
 }
 
 type Props = {
@@ -78,6 +55,13 @@ export default async function CommunePage({ params }: Props) {
 
   try {
     db = getDb();
+    
+    // Vérification de sécurité: si la table n'existe pas encore
+    const tableExists = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='elections_officiel_cache'").get();
+    if (!tableExists) {
+        throw new Error('Table elections_officiel_cache missing');
+    }
+
     allRows = db.prepare(`
       SELECT * 
       FROM elections_officiel_cache 
@@ -103,6 +87,7 @@ export default async function CommunePage({ params }: Props) {
   }
 
   if (!cityData) {
+    // Si la DB ou la table manque, ou si la ville n'existe pas
     notFound();
   }
 

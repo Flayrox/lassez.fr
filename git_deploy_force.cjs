@@ -10,8 +10,6 @@ conn.on('ready', () => {
     git pull origin main
     npm install
     npm run build
-    cp -r public .next/standalone/
-    cp -r .next/static .next/standalone/.next/
     pm2 stop radar-admin
     pm2 delete radar-admin
     pm2 start ecosystem.config.cjs --only radar-admin

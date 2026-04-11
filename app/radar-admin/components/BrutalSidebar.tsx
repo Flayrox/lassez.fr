@@ -10,10 +10,31 @@ const sidebarLinks = [
     { name: 'Network', icon: 'hub', href: '/radar-admin/network', activePattern: /^\/radar-admin\/network/ },
     { name: 'Lab', icon: 'terminal', href: '/radar-admin/lab', activePattern: /^\/radar-admin\/lab/ },
     { name: 'Settings', icon: 'settings', href: '/radar-admin/settings', activePattern: /^\/radar-admin\/settings/ },
+    { name: 'Users', icon: 'manage_accounts', href: '/radar-admin/users', activePattern: /^\/radar-admin\/users/ },
 ];
 
 export function BrutalSidebar() {
     const pathname = usePathname();
+    const [isScanning, setIsScanning] = React.useState(false);
+
+    const handleManualScan = async () => {
+        setIsScanning(true);
+        try {
+            // Lancer le processus en arrière plan
+            const response = await fetch('/api/radar/trigger', { method: 'POST' });
+            if (!response.ok) {
+                alert("Erreur lors du lancement du scan.");
+            } else {
+                // Optionnel: on peut écouter le stream ici ou juste notifier que c'est lancé
+                alert("Scan manuel lancé ! Rendez-vous sur la Console pour suivre la progression en direct.");
+            }
+        } catch (e) {
+            console.error(e);
+            alert("Erreur réseau au lancement du scan.");
+        } finally {
+            setIsScanning(false);
+        }
+    };
 
     return (
         <aside className="w-64 h-screen border-r-4 border-stone-900 flex flex-col sticky top-0 left-0 bg-stone-50 z-50 font-label">
@@ -43,8 +64,12 @@ export function BrutalSidebar() {
             </nav>
 
             <div className="p-4 mt-auto">
-                <button className="w-full bg-stone-900 text-white font-bold py-3 border-4 border-stone-900 shadow-[4px_4px_0px_0px_rgba(26,28,28,1)] hover:translate-x-[-2px] hover:translate-y-[-2px] transition-all active:translate-x-0 active:translate-y-0 active:shadow-none uppercase text-xs tracking-widest">
-                    Manual Scan
+                <button 
+                    onClick={handleManualScan}
+                    disabled={isScanning}
+                    className={`w-full text-white font-bold py-3 border-4 border-stone-900 transition-all uppercase text-xs tracking-widest ${isScanning ? 'bg-stone-500 cursor-wait' : 'bg-stone-900 shadow-[4px_4px_0px_0px_rgba(26,28,28,1)] hover:translate-x-[-2px] hover:translate-y-[-2px] active:translate-x-0 active:translate-y-0 active:shadow-none'}`}
+                >
+                    {isScanning ? 'Lancement...' : 'Manual Scan'}
                 </button>
                 <div className="mt-8 border-t-4 border-stone-900 pt-4 pb-2">
                     <Link

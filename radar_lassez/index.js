@@ -207,19 +207,22 @@ async function fetchTelegramMessages(handle, videoOptions = {}) {
 // -- 2. LE CERVEAU (Gemini avec output JSON en Batch) --
 // -- SYSTÈME DE CONFIANCE PAR SOURCE --
 const DEFAULT_SOURCE_TRUST = {
-    // 🟢 Confiance haute
+    // 🟢 Confiance haute (Indépendants, Gauche, Droits Humains)
     'mediapart': '🟢', 'humanite': '🟢', 'humanité': '🟢', 'blast': '🟢', 'reporterre': '🟢',
     'basta': '🟢', 'politis': '🟢', 'arretsurimages': '🟢', 'arrêt sur images': '🟢',
-    '972mag': '🟢', 'amnesty': '🟢', 'hrw': '🟢', 'btselem': '🟢',
-    'franceinsoumise': '🟢', 'palestinechronicle': '🟢',
-    // 🟡 Confiance moyenne
+    '972mag': '🟢', 'amnesty': '🟢', 'hrw': '🟢', 'btselem': '🟢', 'fidh': '🟢', 'phr': '🟢',
+    'palestinechronicle': '🟢', 'wafa': '🟢', 'palinfo': '🟢', 'maannews': '🟢',
+    'franceinsoumise': '🟢', 'jlmelenchon': '🟢', 'mathildepanot': '🟢', 'rimahas': '🟢',
+    'manuel_bompard': '🟢', 'impactmediafr': '🟢',
+    // 🟡 Confiance moyenne (Généralistes Mainstream)
     'france24': '🟡', 'rfi': '🟡', 'francetvinfo': '🟡', 'lemonde': '🟡',
     'leparisien': '🟡', 'lacroix': '🟡', 'la-croix': '🟡', 'rtl': '🟡',
-    'nouvelobs': '🟡', 'midilibre': '🟡', 'globalvoices': '🟡',
-    'theconversation': '🟡', 'chathamhouse': '🟡',
+    'nouvelobs': '🟡', 'midilibre': '🟡', 'globalvoices': '🟡', 'thenewhumanitarian': '🟡',
+    'theconversation': '🟡', 'chathamhouse': '🟡', 'haaretz': '🟡', 'un.org': '🟡',
     'brevesdepresse': '🟡', 'alertesinfos': '🟡', 'mediavenir': '🟡',
-    // 🔴 Confiance basse
-    'lefigaro': '🔴', 'figaro': '🔴', 'cnews': '🔴', 'bfmtv': '🔴', 'bfm': '🔴',
+    // 🔴 Confiance basse (Extrême-Droite, Réactionnaires, Sensationalisme)
+    'lefigaro': '🔴', 'figaro': '🔴', 'cnews': '🔴', 'cnews_fr': '🔴', 'bfmtv': '🔴', 
+    'bfm': '🔴', 'bfmtv_fr': '🔴', 'freedomhouse': '🔴',
 };
 
 function getSourceTrust(sourceTitle, sourceUrl, sourceTrustMap = DEFAULT_SOURCE_TRUST) {
@@ -319,7 +322,7 @@ Réponds UNIQUEMENT par un tableau JSON avec exactement ces champs :
 } ]
 
 CHAMPS IMPORTANTS :
-- "typeOuverture" : OBLIGATOIRE. Un de : "🔴 ALERTE INFO !", "📌 LE FAIT DU JOUR", "🔎 DÉCRYPTAGE", "🗓️ À VENIR"
+- "typeOuverture" : OBLIGATOIRE. Tu as uniquement le droit d'utiliser un de ces formats : ${specificPrompts.allowedTypes ? specificPrompts.allowedTypes.join(', ') : '"🔴 ALERTE INFO !", "📌 LE FAIT DU JOUR", "🔎 DÉCRYPTAGE", "🗓️ À VENIR"'}
 - "fiabilite" : "suspecte" si source 🔴 ET non confirmée par Google Search
 - "entitesPolitiques" : liste des personnages politiques mentionnés (pour alimenter le casier judiciaire)
 - "flash" : Le texte rédigé selon les règles de style de L'Assez. DOIT commencer par le typeOuverture.
@@ -357,13 +360,8 @@ async function notifyDiscordValidation(items, autoApprove = false, testMode = fa
 
     const count = items.length;
 
-    // Mode Test : Envoi des détails complets avec test du moteur d'image
+    // Mode Test : Un message par article avec son image
     if (testMode && count > 0) {
-        const formData = new FormData();
-        const embeds = [];
-        const attachmentsPayload = [];
-        let fileIndex = 0;
-
         for (const it of items.slice(0, 10)) {
             const embed = {
                 title: `🧪 [TEST] ${it.title}`,
@@ -376,69 +374,99 @@ async function notifyDiscordValidation(items, autoApprove = false, testMode = fa
             };
 
             if (it.imageUrl) {
-                // Qu'il s'agisse d'une image native (HTTP) ou d'un mot-clé IA, on la passe OBLIGATOIREMENT
-                // Le mot-clé est défini, on déclenche le moteur SmartCacheImage pour montrer à l'utilisateur que ça marche
                 console.log(`[TEST-IMG] Traitement de l'image (SmartCache Filtres) pour : ${it.imageUrl}...`);
                 const imgInfo = await generateSmartCacheImage(it.imageUrl, it.imageUrl, it.title, it.punchline);
                 
                 if (imgInfo && imgInfo.localPath && fs.existsSync(imgInfo.localPath)) {
-                    const fileName = `radar_${fileIndex}.jpg`;
-                    formData.append(`files[${fileIndex}]`, fs.createReadStream(imgInfo.localPath), { filename: fileName });
-                    attachmentsPayload.push({ id: fileIndex, filename: fileName, description: "Image L'Assez" });
-                    
-                    embed.image = { url: `attachment://${fileName}` };
+                    const formData = new FormData();
+                    formData.append('files[0]', fs.createReadStream(imgInfo.localPath), { filename: 'radar_image.jpg' });
+                    embed.image = { url: `attachment://radar_image.jpg` };
                     
                     if (it.imageUrl.startsWith('http')) {
-                        embed.fields.push({ name: "🖼️ Moteur Image", value: `✅ Filtres appliqués sur l'image source !`, inline: false });
+                        embed.fields.push({ name: "🖼️ Moteur Image", value: `✅ Filtres appliqués`, inline: false });
                     } else {
-                        embed.fields.push({ name: "🖼️ Moteur Image", value: `✅ Générée via mot-clé IA`, inline: false });
+                        embed.fields.push({ name: "🖼️ Moteur Image", value: `✅ Générée via IA`, inline: false });
                     }
-                    fileIndex++;
+
+                    formData.append('payload_json', JSON.stringify({ embeds: [embed] }));
+                    
+                    try {
+                        await axios.post(CONFIG.DISCORD_WEBHOOK_URL, formData, {
+                            headers: formData.getHeaders()
+                        });
+                        console.log(`-> ✅ Message [TEST] envoyé pour : ${it.title}`);
+                    } catch (err) {
+                        console.error(`❌ Échec Discord (Test) pour ${it.title}:`, err.message);
+                    }
                 } else {
-                    embed.fields.push({ name: "🖼️ Moteur Image", value: `❌ Échec du maquillage (Source/Mot-clé: ${it.imageUrl})`, inline: false });
+                    embed.fields.push({ name: "🖼️ Moteur Image", value: `❌ Échec du maquillage`, inline: false });
+                    
+                    try {
+                        await axios.post(CONFIG.DISCORD_WEBHOOK_URL, { embeds: [embed] }, {
+                            headers: { 'User-Agent': 'Mozilla/5.0' }
+                        });
+                        console.log(`-> ✅ Message [TEST] envoyé pour : ${it.title}`);
+                    } catch (err) {
+                        console.error(`❌ Échec Discord (Test) pour ${it.title}:`, err.message);
+                    }
                 }
             } else {
-                embed.fields.push({ name: "🖼️ Moteur Image", value: "Pas d'image (aucun mot-clé ni source)", inline: false });
+                embed.fields.push({ name: "🖼️ Moteur Image", value: "Pas d'image", inline: false });
+                
+                try {
+                    await axios.post(CONFIG.DISCORD_WEBHOOK_URL, { embeds: [embed] }, {
+                        headers: { 'User-Agent': 'Mozilla/5.0' }
+                    });
+                    console.log(`-> ✅ Message [TEST] envoyé pour : ${it.title}`);
+                } catch (err) {
+                    console.error(`❌ Échec Discord (Test) pour ${it.title}:`, err.message);
+                }
             }
-
-            embeds.push(embed);
-        }
-
-        formData.append('payload_json', JSON.stringify({
-            content: "🔔 **MODE TEST ACTIF** : Voici les flash_content générés par l'IA. Le *Moteur d'Image* a aussi été testé et son rendu est attaché.",
-            embeds: embeds,
-            attachments: attachmentsPayload
-        }));
-
-        try {
-            await axios.post(CONFIG.DISCORD_WEBHOOK_URL, formData, {
-                headers: formData.getHeaders()
-            });
-            console.log("-> ✅ Notification détaillée avec Images (TEST) envoyée sur Discord !");
-        } catch (err) {
-            console.error("❌ Échec Webhook Discord (Test):", err.message);
         }
         return;
     }
 
-    // Mode Normal : Notification condensée
-    const embed = autoApprove ? {
+    // Mode Normal : Un message intro + un message par article
+    const introEmbed = autoApprove ? {
         title: "🤖 Radar L'Assez : Mode Fantôme ✈️",
-        description: `**${count}** flash(s) généré(s) et **auto-approuvé(s)** !\nIls seront publiés automatiquement selon le délai anti-bot configuré.`,
+        description: `**${count}** flash(s) généré(s) et **auto-approuvé(s)** !`,
         color: 3066993  // Vert
     } : {
         title: "📡 Radar L'Assez : En attente de validation",
-        description: `L'IA a généré **${count}** nouveau(x) Flash(s) !\nRendez-vous sur le Dashboard d'administration Web pour les publier sur L'Assez.`,
+        description: `L'IA a généré **${count}** nouveau(x) Flash(s) !`,
         color: 13631488  // Rouge
     };
 
     try {
-        await axios.post(CONFIG.DISCORD_WEBHOOK_URL, { embeds: [embed] }, {
+        await axios.post(CONFIG.DISCORD_WEBHOOK_URL, { embeds: [introEmbed] }, {
             headers: { 'User-Agent': 'Mozilla/5.0' }
         });
-        console.log("-> ✅ Notification envoyée sur Discord !");
+        console.log("-> ✅ Message intro envoyé sur Discord !");
     } catch (err) {
-        console.error("❌ Échec Webhook Discord:", err.message);
+        console.error("❌ Échec Webhook Discord (intro):", err.message);
+    }
+
+    // Envoyer un message par article
+    for (const it of items) {
+        const embed = {
+            title: it.title,
+            description: it.flash,
+            fields: [
+                { name: "🏷️ Geo", value: it.geo, inline: true },
+                { name: "🔎 Tags", value: it.tags || "—", inline: true }
+            ],
+            color: autoApprove ? 3066993 : 13631488,
+            footer: { text: "Flash L'Assez" }
+        };
+
+        try {
+            await axios.post(CONFIG.DISCORD_WEBHOOK_URL, { embeds: [embed] }, {
+                headers: { 'User-Agent': 'Mozilla/5.0' }
+            });
+            console.log(`-> ✅ Flash envoyé : ${it.title}`);
+        } catch (err) {
+            console.error(`❌ Échec Discord pour : ${it.title}:`, err.message);
+        }
     }
 }
 
@@ -469,11 +497,34 @@ async function main() {
     const rssBridgeBaseUrl = normalizeBridgeBaseUrl(settings.rss_bridge_base_url);
     const xFeeds = xAccounts.map(acc => buildTwitterBridgeFeed(rssBridgeBaseUrl, acc)).filter(Boolean);
     const effectiveRssFeeds = Array.from(new Set([...rssFeeds, ...xFeeds]));
-    const dynamicPrompt = settings.ai_prompt || "Tu es un assistant...";
-    const aiPromptBreaking = settings.ai_prompt_breaking || "";
-    const aiPromptDecrypt = settings.ai_prompt_decrypt || "";
-    const aiPromptStandard = settings.ai_prompt_standard || "";
-    const aiModelMain = settings.ai_model_main || 'gemini-2.5-pro-preview-05-06';
+    const dynamicPrompt = settings.ai_prompt || "Tu es le Cortex Éditorial de L'Assez, un média d'investigation politique indépendant et très incisif. Ton but est de repérer et synthétiser les informations cruciales et les casseroles politiques.";
+    
+    // Prompts par défaut robustes si la BDD est vide
+    const defaultBreaking = "Rédige une alerte urgente et percutante (1 à 2 paragraphes courts). Va droit au but, souligne l'urgence de la situation sans formule de politesse.";
+    const defaultDecrypt = "Rédige une analyse piquante (2 paragraphes). Utilise le contexte des archives fournies pour mettre en lumière les contradictions ou le 'passif' du politicien mentionné. Sois sarcastique et précis.";
+    const defaultStandard = "Rédige une brève factuelle mais engagée (1 paragraphe). Résume l'information principale avec le ton caractéristique de L'Assez : direct, informatif, et qui ne prend pas de gants.";
+    const defaultRelevance = `Tu es un filtre de pertinence pour un média d'investigation politique de gauche.
+Analyse ce message Telegram et réponds UNIQUEMENT par "OUI" ou "NON".
+La vidéo associée est-elle liée à un sujet politique, social, judiciaire, ou d'intérêt public majeur ?
+
+Exemples de sujets pertinents : manifestation, vote à l'Assemblée, garde à vue d'un politique, discours politique, répression policière, scandale d'État.
+Exemples de sujets NON pertinents : pub, divertissement, sport, météo, cuisine, people.
+
+Message : "{{MESSAGE}}"
+
+Réponds uniquement OUI ou NON :`;
+
+    const aiPromptBreaking = settings.ai_prompt_breaking_enabled !== 'false' ? (settings.ai_prompt_breaking || defaultBreaking) : "";
+    const aiPromptDecrypt = settings.ai_prompt_decrypt_enabled !== 'false' ? (settings.ai_prompt_decrypt || defaultDecrypt) : "";
+    const aiPromptStandard = settings.ai_prompt_standard_enabled !== 'false' ? (settings.ai_prompt_standard || defaultStandard) : "";
+    
+    const allowedTypes = [];
+    if (settings.ai_prompt_breaking_enabled !== 'false') allowedTypes.push('"🔴 ALERTE INFO !"');
+    if (settings.ai_prompt_standard_enabled !== 'false') allowedTypes.push('"📌 LE FAIT DU JOUR"');
+    if (settings.ai_prompt_decrypt_enabled !== 'false') allowedTypes.push('"🔎 DÉCRYPTAGE"');
+    allowedTypes.push('"🗓️ À VENIR"');
+
+    const aiModelMain = settings.ai_model_main || 'gemini-3.1-pro-preview';
     const sourceTrustMap = parseJsonSetting(settings.source_trust_map, DEFAULT_SOURCE_TRUST);
     const dedupOptions = {
         similarityThreshold: parseFloat(settings.dedup_similarity_threshold || '0.65'),
@@ -481,10 +532,10 @@ async function main() {
     };
     const videoOptions = {
         enabled: settings.video_ingest_enabled !== 'false',
-        prefilterModel: settings.video_prefilter_model || 'gemini-2.0-flash',
-        prefilterPrompt: settings.video_prefilter_prompt || undefined,
+        prefilterModel: settings.video_prefilter_model || 'gemini-3-flash-preview',
+        prefilterPrompt: settings.video_prefilter_prompt || defaultRelevance,
         prefilterMinChars: parseInt(settings.video_prefilter_min_chars || '20', 10),
-        transcribeModel: settings.video_transcribe_model || 'gemini-2.0-flash',
+        transcribeModel: settings.video_transcribe_model || 'gemini-3-flash-preview',
         maxAudioMb: parseInt(settings.video_max_audio_mb || '20', 10)
     };
 

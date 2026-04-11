@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { spawn } from 'child_process';
+import { exec } from 'child_process';
 import path from 'path';
 import { logToDaemon, errorToDaemon } from '../../logger';
 
@@ -23,22 +23,28 @@ export async function POST() {
                 const cleanEnv = { ...process.env, FORCE_COLOR: '0' };
                 delete (cleanEnv as any).NODE_OPTIONS;
 
-                const child = spawn(process.execPath, [scriptPath], {
+                // Utilisation de exec au lieu de spawn pour Windows avec chemin contenant des espaces.
+                // On met node en dur et on encapsule le chemin complet entre guillemets.
+                const child = exec(`node "${scriptPath}"`, {
                     cwd: radarDir,
                     env: cleanEnv
                 });
 
-                child.stdout.on('data', (data) => {
-                    const str = data.toString();
-                    controller.enqueue(encoder.encode(str));
-                    logToDaemon(`[MANUAL-SCAN] ${str.trim()}`);
-                });
+                if (child.stdout) {
+                    child.stdout.on('data', (data) => {
+                        const str = data.toString();
+                        controller.enqueue(encoder.encode(str));
+                        logToDaemon(`[MANUAL-SCAN] ${str.trim()}`);
+                    });
+                }
 
-                child.stderr.on('data', (data) => {
-                    const str = data.toString();
-                    controller.enqueue(encoder.encode(str));
-                    errorToDaemon(`[MANUAL-SCAN] ${str.trim()}`);
-                });
+                if (child.stderr) {
+                    child.stderr.on('data', (data) => {
+                        const str = data.toString();
+                        controller.enqueue(encoder.encode(str));
+                        errorToDaemon(`[MANUAL-SCAN] ${str.trim()}`);
+                    });
+                }
 
                 child.on('close', (code) => {
                     if (code === 0) {

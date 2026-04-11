@@ -34,12 +34,10 @@ async function testDiscord() {
 
     const formData = new FormData();
     const embeds = [];
-    const attachmentsPayload = [];
     const fileIndex = 0;
     const fileName = `radar_${fileIndex}.jpg`;
 
     formData.append(`files[${fileIndex}]`, fs.createReadStream(imgInfo.localPath), { filename: fileName });
-    attachmentsPayload.push({ id: fileIndex, filename: fileName, description: "Image L'Assez" });
 
     embeds.push({
         title: `🧪 [TEST] ${title}`,
@@ -54,8 +52,7 @@ async function testDiscord() {
 
     formData.append('payload_json', JSON.stringify({
         content: "🔔 **TEST MANUEL DU MOTEUR D'IMAGE IA SEUL**",
-        embeds: embeds,
-        attachments: attachmentsPayload
+        embeds: embeds
     }));
 
     try {

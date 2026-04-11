@@ -37,9 +37,11 @@ export async function PATCH(request: Request) {
             discord_test_mode,
             rss_feeds, telegram_channels, rss_bridge_base_url, x_accounts, ai_prompt,
             ai_prompt_relevance, ai_prompt_breaking, ai_prompt_decrypt, ai_prompt_standard,
+            ai_prompt_breaking_enabled, ai_prompt_decrypt_enabled, ai_prompt_standard_enabled,
             ai_model_main, source_trust_map,
             dedup_similarity_threshold, dedup_recent_hours,
             video_ingest_enabled, video_prefilter_model, video_prefilter_prompt, video_prefilter_min_chars, video_transcribe_model, video_max_audio_mb,
+            image_overlay_enabled, image_overlay_opacity, image_box_scale_169, image_box_scale_1x1,
             // --- Communication ---
             maintenance_mode, maintenance_message,
             popup_enabled, popup_title, popup_text, popup_link_url, popup_link_label
@@ -74,6 +76,9 @@ export async function PATCH(request: Request) {
         if (ai_prompt_breaking !== undefined) updateStmt.run('ai_prompt_breaking', String(ai_prompt_breaking));
         if (ai_prompt_decrypt !== undefined) updateStmt.run('ai_prompt_decrypt', String(ai_prompt_decrypt));
         if (ai_prompt_standard !== undefined) updateStmt.run('ai_prompt_standard', String(ai_prompt_standard));
+        if (ai_prompt_breaking_enabled !== undefined) updateStmt.run('ai_prompt_breaking_enabled', String(ai_prompt_breaking_enabled));
+        if (ai_prompt_decrypt_enabled !== undefined) updateStmt.run('ai_prompt_decrypt_enabled', String(ai_prompt_decrypt_enabled));
+        if (ai_prompt_standard_enabled !== undefined) updateStmt.run('ai_prompt_standard_enabled', String(ai_prompt_standard_enabled));
         if (ai_model_main !== undefined) updateStmt.run('ai_model_main', String(ai_model_main));
         if (source_trust_map !== undefined) updateStmt.run('source_trust_map', String(source_trust_map));
         if (dedup_similarity_threshold !== undefined) updateStmt.run('dedup_similarity_threshold', String(dedup_similarity_threshold));
@@ -84,6 +89,10 @@ export async function PATCH(request: Request) {
         if (video_prefilter_min_chars !== undefined) updateStmt.run('video_prefilter_min_chars', String(video_prefilter_min_chars));
         if (video_transcribe_model !== undefined) updateStmt.run('video_transcribe_model', String(video_transcribe_model));
         if (video_max_audio_mb !== undefined) updateStmt.run('video_max_audio_mb', String(video_max_audio_mb));
+        if (image_overlay_enabled !== undefined) updateStmt.run('image_overlay_enabled', String(image_overlay_enabled));
+        if (image_overlay_opacity !== undefined) updateStmt.run('image_overlay_opacity', String(image_overlay_opacity));
+        if (image_box_scale_169 !== undefined) updateStmt.run('image_box_scale_169', String(image_box_scale_169));
+        if (image_box_scale_1x1 !== undefined) updateStmt.run('image_box_scale_1x1', String(image_box_scale_1x1));
 
         // --- Communication ---
         if (maintenance_mode !== undefined) updateStmt.run('maintenance_mode', String(maintenance_mode));

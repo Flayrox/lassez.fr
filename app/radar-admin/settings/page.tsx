@@ -6,9 +6,10 @@ import { DashboardLayout } from '../components/DashboardLayout';
 
 export default function SettingsPage() {
     const { settings, fetchSettings, isDaemonRunning, countdown } = useRadarAdmin();
-    const [activeTab, setActiveTab] = useState<'prompt' | 'logic' | 'pipeline' | 'diffusion' | 'health' | 'comms'>('prompt');
+    const [activeTab, setActiveTab] = useState<'prompt' | 'logic' | 'sources' | 'pipeline' | 'diffusion' | 'health' | 'comms'>('prompt');
     const [isSaving, setIsSaving] = useState(false);
     const [isTesting, setIsTesting] = useState(false);
+    const [isTestingImages, setIsTestingImages] = useState(false);
     const [form, setForm] = useState<any>({});
 
     useEffect(() => {
@@ -40,9 +41,25 @@ export default function SettingsPage() {
         finally { setIsTesting(false); }
     };
 
+    const handleTestImages = async () => {
+        setIsTestingImages(true);
+        try {
+            const res = await fetch('/api/radar/test-images', { method: 'POST' });
+            const data = await res.json();
+            if (data.success) alert('Test images lance. Verifie Discord pour les rendus 1:1 et 16:9.');
+            else alert(data.error || 'Echec du test image.');
+        } catch (e) {
+            console.error(e);
+            alert('Erreur reseau pendant le test image.');
+        } finally {
+            setIsTestingImages(false);
+        }
+    };
+
     const tabs = [
         { key: 'prompt', label: 'Moteur IA', icon: 'psychology' },
         { key: 'logic', label: 'Logique Édito', icon: 'neurology' },
+        { key: 'sources', label: 'Sources', icon: 'rss_feed' },
         { key: 'pipeline', label: 'Pipeline', icon: 'tune' },
         { key: 'diffusion', label: 'Diffusion', icon: 'share' },
         { key: 'health', label: 'Maintenance', icon: 'health_and_safety' },
@@ -156,41 +173,128 @@ export default function SettingsPage() {
 
                                 <section className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <div className="space-y-4">
-                                        <header className="border-l-4 border-stone-900 pl-4">
-                                            <h4 className="text-sm font-black uppercase tracking-tight">2. Alerte Info</h4>
-                                            <p className="text-[10px] font-bold text-stone-400 uppercase">Style Breaking News</p>
+                                        <header className="border-l-4 border-stone-900 pl-4 flex justify-between items-center pr-2">
+                                            <div>
+                                                <h4 className="text-sm font-black uppercase tracking-tight">2. Alerte Info</h4>
+                                                <p className="text-[10px] font-bold text-stone-400 uppercase">Style Breaking News</p>
+                                            </div>
+                                            <Toggle checked={form.ai_prompt_breaking_enabled !== 'false'} onChange={v => updateForm('ai_prompt_breaking_enabled', v ? 'true' : 'false')} />
                                         </header>
                                         <textarea 
                                             value={form.ai_prompt_breaking || ''} 
                                             onChange={e => updateForm('ai_prompt_breaking', e.target.value)}
                                             rows={5}
-                                            className="w-full bg-stone-50 border-4 border-stone-900 p-4 font-body text-xs"
+                                            className={`w-full border-4 p-4 font-body text-xs transition-colors ${form.ai_prompt_breaking_enabled === 'false' ? 'bg-stone-200 border-stone-300 text-stone-400 cursor-not-allowed' : 'bg-stone-50 border-stone-900'}`}
+                                            disabled={form.ai_prompt_breaking_enabled === 'false'}
                                         />
                                     </div>
                                     <div className="space-y-4">
-                                        <header className="border-l-4 border-stone-900 pl-4">
-                                            <h4 className="text-sm font-black uppercase tracking-tight">3. Décryptage</h4>
-                                            <p className="text-[10px] font-bold text-stone-400 uppercase">Style Analyse & Tacle</p>
+                                        <header className="border-l-4 border-stone-900 pl-4 flex justify-between items-center pr-2">
+                                            <div>
+                                                <h4 className="text-sm font-black uppercase tracking-tight">3. Décryptage</h4>
+                                                <p className="text-[10px] font-bold text-stone-400 uppercase">Style Analyse & Tacle</p>
+                                            </div>
+                                            <Toggle checked={form.ai_prompt_decrypt_enabled !== 'false'} onChange={v => updateForm('ai_prompt_decrypt_enabled', v ? 'true' : 'false')} />
                                         </header>
                                         <textarea 
                                             value={form.ai_prompt_decrypt || ''} 
                                             onChange={e => updateForm('ai_prompt_decrypt', e.target.value)}
                                             rows={5}
-                                            className="w-full bg-stone-50 border-4 border-stone-900 p-4 font-body text-xs"
+                                            className={`w-full border-4 p-4 font-body text-xs transition-colors ${form.ai_prompt_decrypt_enabled === 'false' ? 'bg-stone-200 border-stone-300 text-stone-400 cursor-not-allowed' : 'bg-stone-50 border-stone-900'}`}
+                                            disabled={form.ai_prompt_decrypt_enabled === 'false'}
                                         />
                                     </div>
                                 </section>
 
                                 <section className="space-y-4">
-                                    <header className="border-l-4 border-stone-900 pl-4">
-                                        <h4 className="text-sm font-black uppercase tracking-tight">4. Format Standard</h4>
-                                        <p className="text-[10px] font-bold text-stone-400 uppercase">Style Fait du Jour</p>
+                                    <header className="border-l-4 border-stone-900 pl-4 flex justify-between items-center pr-2">
+                                        <div>
+                                            <h4 className="text-sm font-black uppercase tracking-tight">4. Format Standard</h4>
+                                            <p className="text-[10px] font-bold text-stone-400 uppercase">Style Fait du Jour</p>
+                                        </div>
+                                        <Toggle checked={form.ai_prompt_standard_enabled !== 'false'} onChange={v => updateForm('ai_prompt_standard_enabled', v ? 'true' : 'false')} />
                                     </header>
                                     <textarea 
                                         value={form.ai_prompt_standard || ''} 
                                         onChange={e => updateForm('ai_prompt_standard', e.target.value)}
                                         rows={5}
-                                        className="w-full bg-stone-50 border-4 border-stone-900 p-4 font-body text-xs"
+                                        className={`w-full border-4 p-4 font-body text-xs transition-colors ${form.ai_prompt_standard_enabled === 'false' ? 'bg-stone-200 border-stone-300 text-stone-400 cursor-not-allowed' : 'bg-stone-50 border-stone-900'}`}
+                                        disabled={form.ai_prompt_standard_enabled === 'false'}
+                                    />
+                                </section>
+                            </div>
+                        )}
+
+                        {activeTab === 'sources' && (
+                            <div className="space-y-8">
+                                <h3 className="text-xl font-black uppercase tracking-tighter font-headline mb-6">Gestion des Sources</h3>
+                                
+                                <section className="space-y-4 border-l-4 border-stone-900 pl-4">
+                                    <div>
+                                        <h4 className="text-sm font-black uppercase tracking-tight">Flux RSS</h4>
+                                        <p className="text-[10px] font-bold text-stone-400 uppercase mb-2">Un flux par ligne</p>
+                                    </div>
+                                    <textarea 
+                                        value={(() => {
+                                            try { return JSON.parse(form.rss_feeds || '[]').join('\n'); } catch { return ''; }
+                                        })()}
+                                        onChange={e => {
+                                            const arr = e.target.value.split('\n').map(l => l.trim()).filter(Boolean);
+                                            updateForm('rss_feeds', JSON.stringify(arr));
+                                        }}
+                                        rows={5}
+                                        placeholder="https://exemple.com/rss"
+                                        className="w-full bg-stone-50 border-4 border-stone-900 p-4 font-mono text-xs"
+                                    />
+                                </section>
+
+                                <section className="space-y-4 border-l-4 border-blue-600 pl-4">
+                                    <div>
+                                        <h4 className="text-sm font-black uppercase tracking-tight">Telegram (Scraper)</h4>
+                                        <p className="text-[10px] font-bold text-stone-400 uppercase mb-2">Noms de chaînes, un par ligne (sans le @)</p>
+                                    </div>
+                                    <textarea 
+                                        value={(() => {
+                                            try { return JSON.parse(form.telegram_channels || '[]').join('\n'); } catch { return ''; }
+                                        })()}
+                                        onChange={e => {
+                                            const arr = e.target.value.split('\n').map(l => l.trim().replace(/^@/, '')).filter(Boolean);
+                                            updateForm('telegram_channels', JSON.stringify(arr));
+                                        }}
+                                        rows={5}
+                                        placeholder="FranceInsoumise"
+                                        className="w-full bg-stone-50 border-4 border-stone-900 p-4 font-mono text-xs"
+                                    />
+                                </section>
+
+                                <section className="space-y-4 border-l-4 border-neutral-800 pl-4">
+                                    <div className="flex justify-between items-start">
+                                        <div>
+                                            <h4 className="text-sm font-black uppercase tracking-tight">X / Twitter (RSS-Bridge)</h4>
+                                            <p className="text-[10px] font-bold text-stone-400 uppercase mb-2">Comptes, un par ligne (sans le @)</p>
+                                        </div>
+                                    </div>
+                                    <div className="mb-2">
+                                        <label className="text-[10px] font-black uppercase text-stone-500 mb-1 block">URL de votre RSS-Bridge</label>
+                                        <input 
+                                            type="text" 
+                                            value={form.rss_bridge_base_url || ''} 
+                                            onChange={e => updateForm('rss_bridge_base_url', e.target.value)}
+                                            placeholder="http://localhost:3300"
+                                            className="w-full bg-stone-50 border-4 border-stone-900 p-3 font-mono text-xs"
+                                        />
+                                    </div>
+                                    <textarea 
+                                        value={(() => {
+                                            try { return JSON.parse(form.x_accounts || '[]').join('\n'); } catch { return ''; }
+                                        })()}
+                                        onChange={e => {
+                                            const arr = e.target.value.split('\n').map(l => l.trim().replace(/^@/, '')).filter(Boolean);
+                                            updateForm('x_accounts', JSON.stringify(arr));
+                                        }}
+                                        rows={5}
+                                        placeholder="JLMelenchon"
+                                        className="w-full bg-stone-50 border-4 border-stone-900 p-4 font-mono text-xs"
                                     />
                                 </section>
                             </div>
@@ -239,6 +343,38 @@ export default function SettingsPage() {
                                         <label className="text-[10px] font-black uppercase text-stone-500 mb-1 block">Pre-filter Prompt (use {"{{MESSAGE}}"})</label>
                                         <textarea value={form.video_prefilter_prompt || ''} onChange={e => updateForm('video_prefilter_prompt', e.target.value)} rows={5} className="w-full bg-stone-50 border-4 border-stone-900 p-4 font-body text-xs" />
                                     </div>
+                                </section>
+
+                                <section className="space-y-4">
+                                    <div className="flex items-center justify-between">
+                                        <h3 className="text-xl font-black uppercase tracking-tighter font-headline">Image Engine</h3>
+                                        <button
+                                            onClick={handleTestImages}
+                                            disabled={isTestingImages}
+                                            className="bg-stone-900 text-white px-4 py-2 border-2 border-stone-900 text-[10px] font-black uppercase tracking-widest hover:bg-white hover:text-stone-900 transition-colors disabled:opacity-60"
+                                        >
+                                            {isTestingImages ? 'Test...' : 'Tester 1:1 + 16:9'}
+                                        </button>
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div className="flex items-center justify-between p-4 bg-stone-50 border-4 border-stone-900">
+                                            <span className="text-[10px] font-black uppercase tracking-widest">Fond keyword libre de droit</span>
+                                            <Toggle checked={form.image_overlay_enabled !== 'false'} onChange={v => updateForm('image_overlay_enabled', v ? 'true' : 'false')} />
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] font-black uppercase text-stone-500 mb-1 block">Opacite fond keyword (0-1)</label>
+                                            <input type="number" step="0.05" min="0" max="1" value={form.image_overlay_opacity || '0.5'} onChange={e => updateForm('image_overlay_opacity', e.target.value)} className="w-full bg-stone-50 border-4 border-stone-900 p-3 font-black text-xs" />
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] font-black uppercase text-stone-500 mb-1 block">Taille encadre 16:9 (0.55-1)</label>
+                                            <input type="number" step="0.01" min="0.55" max="1" value={form.image_box_scale_169 || '0.78'} onChange={e => updateForm('image_box_scale_169', e.target.value)} className="w-full bg-stone-50 border-4 border-stone-900 p-3 font-black text-xs" />
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] font-black uppercase text-stone-500 mb-1 block">Taille encadre 1:1 (0.55-1)</label>
+                                            <input type="number" step="0.01" min="0.55" max="1" value={form.image_box_scale_1x1 || '0.78'} onChange={e => updateForm('image_box_scale_1x1', e.target.value)} className="w-full bg-stone-50 border-4 border-stone-900 p-3 font-black text-xs" />
+                                        </div>
+                                    </div>
+                                    <p className="text-[10px] font-bold text-stone-400 uppercase">Le fond keyword est tire depuis une source libre de droit et applique en overlay sur les visuels.</p>
                                 </section>
 
                                 <section className="space-y-4">

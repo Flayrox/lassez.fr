@@ -56,6 +56,16 @@ export function RadarCard({ post, onUpdate, activeTab, isSelected, onToggleSelec
                     )}
                     <div className="flex items-center gap-2">
                         <span className="text-[10px] font-black uppercase tracking-tighter bg-stone-900 text-white px-2 py-0.5">SIGNAL_ID: {post.id}</span>
+                        {post.type_ouverture && (
+                            <span className={`text-[10px] font-black uppercase tracking-tighter px-2 py-0.5 border-2 border-stone-900 ${
+                                post.type_ouverture.includes('ALERTE') ? 'bg-red-600 text-white border-red-800' :
+                                post.type_ouverture.includes('DÉCRYPTAGE') ? 'bg-indigo-600 text-white border-indigo-800' :
+                                post.type_ouverture.includes('VENIR') ? 'bg-amber-500 text-black border-amber-700' :
+                                'bg-stone-200 text-stone-900'
+                            }`}>
+                                {post.type_ouverture.replace(/['"]/g, '')}
+                            </span>
+                        )}
                         <span className={`text-[10px] font-black uppercase tracking-tighter px-2 py-0.5 border-2 border-stone-900 ${
                             post.geo === 'france' ? 'bg-blue-600 text-white' : 'bg-emerald-600 text-white'
                         }`}>

@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import axios from 'axios';
 import { fileURLToPath } from 'url';
+import Database from 'better-sqlite3';
 
 import TextToSVG from 'text-to-svg';
 
@@ -13,6 +14,87 @@ const __dirname = path.dirname(__filename);
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
 const IMAGES_DIR = path.join(PUBLIC_DIR, 'radar-images');
 const LOGO_PATH = path.join(PUBLIC_DIR, 'logo_lassez_white.svg');
+const RADAR_DB_PATH = path.join(__dirname, 'radar.db');
+
+const DEFAULT_IMAGE_SETTINGS = {
+    image_overlay_enabled: true,
+    image_overlay_opacity: 0.5,
+    image_box_scale_169: 0.78,
+    image_box_scale_1x1: 0.78
+};
+
+function clamp(num, min, max) {
+    return Math.max(min, Math.min(max, num));
+}
+
+function toBool(value, fallback = true) {
+    if (value === undefined || value === null || value === '') return fallback;
+    return String(value).toLowerCase() === 'true';
+}
+
+function getImageEngineSettings() {
+    const result = { ...DEFAULT_IMAGE_SETTINGS };
+    try {
+        const db = new Database(RADAR_DB_PATH, { readonly: true });
+        const rows = db.prepare("SELECT key, value FROM radar_settings WHERE key IN ('image_overlay_enabled', 'image_overlay_opacity', 'image_box_scale_169', 'image_box_scale_1x1')").all();
+        db.close();
+
+        for (const row of rows) {
+            if (row.key === 'image_overlay_enabled') {
+                result.image_overlay_enabled = toBool(row.value, DEFAULT_IMAGE_SETTINGS.image_overlay_enabled);
+            }
+            if (row.key === 'image_overlay_opacity') {
+                result.image_overlay_opacity = clamp(parseFloat(row.value || String(DEFAULT_IMAGE_SETTINGS.image_overlay_opacity)), 0, 1);
+            }
+            if (row.key === 'image_box_scale_169') {
+                result.image_box_scale_169 = clamp(parseFloat(row.value || String(DEFAULT_IMAGE_SETTINGS.image_box_scale_169)), 0.55, 1);
+            }
+            if (row.key === 'image_box_scale_1x1') {
+                result.image_box_scale_1x1 = clamp(parseFloat(row.value || String(DEFAULT_IMAGE_SETTINGS.image_box_scale_1x1)), 0.55, 1);
+            }
+        }
+    } catch (e) {
+        console.warn('[PROCESSOR] Settings image indisponibles, fallback par defaut.', e.message);
+    }
+
+    return result;
+}
+
+function buildBackgroundKeywords(sourceImageUrl, keywordFallback, articleTitle) {
+    const raw = `${keywordFallback || ''} ${articleTitle || ''}`.replace(/https?:\/\/\S+/g, '').trim();
+    const tokens = raw
+        .toLowerCase()
+        .replace(/[^a-z0-9\s]/g, ' ')
+        .split(/\s+/)
+        .filter(Boolean)
+        .filter(w => w.length > 2)
+        .filter(w => !['avec', 'dans', 'pour', 'from', 'that', 'this', 'les', 'des', 'une', 'sur', 'par', 'du', 'and'].includes(w));
+
+    if (!tokens.length && sourceImageUrl && sourceImageUrl.startsWith('http')) {
+        return 'news politics protest';
+    }
+    if (!tokens.length) {
+        return 'politics journalism protest';
+    }
+    return tokens.slice(0, 6).join(',');
+}
+
+async function fetchRoyaltyFreeBackgroundOverlay(query, width, height, opacity) {
+    try {
+        const sourceUrl = `https://source.unsplash.com/${Math.max(width, 1400)}x${Math.max(height, 900)}/?${encodeURIComponent(query)}`;
+        const response = await axios.get(sourceUrl, { responseType: 'arraybuffer', timeout: 12000 });
+        return await sharp(Buffer.from(response.data))
+            .resize(width, height, { fit: 'cover', position: 'attention' })
+            .grayscale()
+            .modulate({ brightness: 0.85, contrast: 1.05 })
+            .ensureAlpha(opacity)
+            .png()
+            .toBuffer();
+    } catch (e) {
+        console.warn('[PROCESSOR] Overlay keyword indisponible:', e.message);
+        return null;
+    }
+}
 
 // Chargement de la vraie police d'écriture statique Black (900) pour la transformation en Vecteurs Path purs
 const playfairFontPath = path.join(PUBLIC_DIR, 'fonts', 'PlayfairDisplay-Black.ttf');
@@ -48,6 +130,7 @@ export async function generateSmartCacheImage(sourceImageUrl, keywordFallback, a
     console.log(`[PROCESSOR] Traitement de l'image (Brut Style) : ${sourceImageUrl || 'Aucune source'}`);
 
     try {
+        const engineSettings = getImageEngineSettings();
         const isSquare = !(sourceImageUrl && sourceImageUrl.startsWith('http'));
         const W = isSquare ? 1080 : 1200;
         const H = isSquare ? 1080 : 675;
@@ -82,6 +165,14 @@ export async function generateSmartCacheImage(sourceImageUrl, keywordFallback, a
                 .grayscale()
                 .modulate({ brightness: 0.75 })
                 .linear(1.25, -32);
+        }
+
+        if (engineSettings.image_overlay_enabled) {
+            const keywordQuery = buildBackgroundKeywords(sourceImageUrl, keywordFallback, articleTitle);
+            const overlayInput = await fetchRoyaltyFreeBackgroundOverlay(keywordQuery, W, H, engineSettings.image_overlay_opacity);
+            if (overlayInput) {
+                processed = processed.composite([{ input: overlayInput, top: 0, left: 0, blend: 'over' }]);
+            }
         }
 
         const titleText = articleTitle ? articleTitle : "LA COLÈRE GRONDE DANS LES RUES";
@@ -129,6 +220,7 @@ export async function generateSmartCacheImage(sourceImageUrl, keywordFallback, a
 
         if (isSquare) {
             // ==== Rendu SQUARE 1:1 sans image source ====
+            const compactScale = clamp(engineSettings.image_box_scale_1x1, 0.55, 1);
             
             const totalTextHeight = lines.length * lineHeight;
             const startY = (H - totalTextHeight) / 2 - 40; // Centré + remonté légèrement
@@ -153,6 +245,17 @@ export async function generateSmartCacheImage(sourceImageUrl, keywordFallback, a
             const finalSubtext = subtext ? subtext.toUpperCase() : `INFO EXCLUSIVE L'ASSEZ - DOSSIER : ${firstTag}`;
             
             const subtextY = startY + totalTextHeight + 40;
+            const borderStroke = Math.max(16, Math.round(32 * compactScale));
+            const sideStripe = Math.max(10, Math.round(16 * compactScale));
+            const flashWidth = Math.round(240 * compactScale);
+            const flashHeight = Math.round(44 * compactScale);
+            const flashY = Math.round(100 * compactScale);
+            const flashFontSize = Math.max(13, Math.round(20 * compactScale));
+            const dividerHalfWidth = Math.round(200 * compactScale);
+            const subtextFontSize = Math.max(13, Math.round(20 * compactScale));
+            const logoScale = 0.175 * compactScale;
+            const logoOffsetX = Math.round((W / 2) - (180 * logoScale) / 2);
+            const logoOffsetY = H - Math.round(90 * compactScale);
 
             typographyOverlay = Buffer.from(`
                 <svg width="${W}" height="${H}">
@@ -169,16 +272,16 @@ export async function generateSmartCacheImage(sourceImageUrl, keywordFallback, a
                     <rect width="${W}" height="${H}" fill="url(#vignette)" />
                     
                     <!-- Bordure noire (8px dans le div x2 environ = 16px) -->
-                    <rect width="${W}" height="${H}" fill="none" stroke="#000000" stroke-width="32" />
+                    <rect width="${W}" height="${H}" fill="none" stroke="#000000" stroke-width="${borderStroke}" />
                     
                     <!-- Bandes décoratives sombres/claires -->
-                    <rect x="0" y="0" width="16" height="${H}" fill="rgba(0,0,0,0.3)" />
-                    <rect x="${W - 16}" y="0" width="16" height="${H}" fill="rgba(255,255,255,0.1)" />
+                    <rect x="0" y="0" width="${sideStripe}" height="${H}" fill="rgba(0,0,0,0.3)" />
+                    <rect x="${W - sideStripe}" y="0" width="${sideStripe}" height="${H}" fill="rgba(255,255,255,0.1)" />
 
                     <!-- Header: Flash Info (Petit) -->
-                    <g transform="translate(0, 100)">
-                        <rect x="${W/2 - 120}" y="0" width="240" height="44" fill="#000000" />
-                        <text x="${W/2}" y="30" fill="#ffffff" font-family="'Space Grotesk', 'Arial', sans-serif" font-weight="bold" font-size="20" text-anchor="middle" letter-spacing="3px">FLASH INFO</text>
+                    <g transform="translate(0, ${flashY})">
+                        <rect x="${W/2 - Math.round(flashWidth / 2)}" y="0" width="${flashWidth}" height="${flashHeight}" fill="#000000" />
+                        <text x="${W/2}" y="${Math.round(flashHeight * 0.68)}" fill="#ffffff" font-family="'Space Grotesk', 'Arial', sans-serif" font-weight="bold" font-size="${flashFontSize}" text-anchor="middle" letter-spacing="3px">FLASH INFO</text>
                     </g>
 
                     <!-- Titre centré -->
@@ -186,12 +289,12 @@ export async function generateSmartCacheImage(sourceImageUrl, keywordFallback, a
                     
                     <!-- Subtext avec ligne supérieure -->
                     <g transform="translate(0, ${subtextY})">
-                        <line x1="${W/2 - 200}" y1="0" x2="${W/2 + 200}" y2="0" stroke="white" stroke-width="4" />
-                        <text x="${W/2}" y="36" fill="white" font-family="'Space Grotesk', 'Arial', sans-serif" font-weight="bold" font-size="20" letter-spacing="1px" text-anchor="middle">${finalSubtext}</text>
+                        <line x1="${W/2 - dividerHalfWidth}" y1="0" x2="${W/2 + dividerHalfWidth}" y2="0" stroke="white" stroke-width="${Math.max(2, Math.round(4 * compactScale))}" />
+                        <text x="${W/2}" y="${Math.round(36 * compactScale)}" fill="white" font-family="'Space Grotesk', 'Arial', sans-serif" font-weight="bold" font-size="${subtextFontSize}" letter-spacing="1px" text-anchor="middle">${finalSubtext}</text>
                     </g>
 
                     <!-- Footer / Vrai Logo SVG en bas au centre avec ombre (50% plus petit) -->
-                    <g transform="translate(509, ${H - 90}) scale(0.175)" filter="url(#hard-shadow)">
+                    <g transform="translate(${logoOffsetX}, ${logoOffsetY}) scale(${logoScale})" filter="url(#hard-shadow)">
                         ${lassezSVGData ? lassezSVGData : '<rect x="0" y="0" width="180" height="50" fill="#000000" stroke="#ffffff" stroke-width="2" /><text x="90" y="35" fill="#ffffff" font-family="serif" font-weight="900" font-size="30" font-style="italic" text-anchor="middle">L\'ASSEZ</text>'}
                     </g>
                 </svg>
@@ -199,11 +302,12 @@ export async function generateSmartCacheImage(sourceImageUrl, keywordFallback, a
 
         } else {
             // ==== Rendu HORIZONTAL 16:9 avec image source ====
+            const compactScale = clamp(engineSettings.image_box_scale_169, 0.55, 1);
             
             const totalTextHeight = lines.length * lineHeight;
-            const boxPaddingY = 32;
-            const boxPaddingX = 32;
-            const infoBarHeight = 50;
+            const boxPaddingY = Math.max(18, Math.round(32 * compactScale));
+            const boxPaddingX = Math.max(18, Math.round(32 * compactScale));
+            const infoBarHeight = Math.max(26, Math.round(50 * compactScale));
             const contentBoxHeight = totalTextHeight + (boxPaddingY * 2) + infoBarHeight;
 
             const startX = 48;
@@ -233,6 +337,15 @@ export async function generateSmartCacheImage(sourceImageUrl, keywordFallback, a
 
             const boxWidth = Math.max(320, dynamicMaxTextWidth + (boxPaddingX * 2) + 24);
             const dividerWidth = boxWidth - 64;
+            const flashWidth = Math.round(150 * compactScale);
+            const flashHeight = Math.round(32 * compactScale);
+            const flashY = Math.max(0, startY - Math.round(36 * compactScale));
+            const flashFontSize = Math.max(11, Math.round(16 * compactScale));
+            const flashOffset = Math.round(10 * compactScale);
+            const actFontSize = Math.max(140, Math.round(260 * compactScale));
+            const actLineW = Math.max(64, Math.round(128 * compactScale));
+            const actLineH = Math.max(2, Math.round(4 * compactScale));
+            const logoScale = 0.175 * compactScale;
 
             const rightNow = new Date();
             const infoDateString = `${rightNow.getHours().toString().padStart(2, '0')}:${rightNow.getMinutes().toString().padStart(2, '0')} CET  |  Paris, France`;
@@ -256,18 +369,18 @@ export async function generateSmartCacheImage(sourceImageUrl, keywordFallback, a
                     <rect x="0" y="0" width="${W}" height="${H}" fill="url(#dither)" opacity="0.3" /> 
 
                     <!-- Top Right Vrai Logo (50% plus petit avec ombre portée) -->
-                    <g transform="translate(${W - 85}, 16) scale(0.175)" filter="url(#hard-shadow-169)">
+                    <g transform="translate(${W - 85}, 16) scale(${logoScale})" filter="url(#hard-shadow-169)">
                         ${lassezSVGData ? lassezSVGData : '<rect x="0" y="0" width="180" height="50" fill="#000000" stroke="#ffffff" stroke-width="2" /><text x="90" y="35" fill="#ffffff" font-family="serif" font-weight="900" font-size="30" font-style="italic" text-anchor="middle">L\'ASSEZ</text>'}
                     </g>
 
-                    <text x="${W - 50}" y="${H - 45}" fill="#ffffff" fill-opacity="0.15" font-family="'Arial Black', sans-serif" font-weight="900" font-size="260" text-anchor="end">ACT</text>
-                    <rect x="${W - 128}" y="${H / 2}" width="128" height="4" fill="#D32F2F" />
+                    <text x="${W - 50}" y="${H - 45}" fill="#ffffff" fill-opacity="0.15" font-family="'Arial Black', sans-serif" font-weight="900" font-size="${actFontSize}" text-anchor="end">ACT</text>
+                    <rect x="${W - actLineW}" y="${H / 2}" width="${actLineW}" height="${actLineH}" fill="#D32F2F" />
 
                     <!-- Flash Info Block -->
-                    <g transform="translate(${startX}, ${startY - 36})">
-                        <polygon points="10,4 160,4 150,36 0,36" fill="#000000" />
-                        <polygon points="6,0 156,0 146,32 -4,32" fill="#D32F2F" />
-                        <text x="76" y="22" fill="#ffffff" font-family="'Arial', sans-serif" font-weight="bold" font-size="16" text-anchor="middle" letter-spacing="2px">FLASH INFO</text>
+                    <g transform="translate(${startX}, ${flashY})">
+                        <polygon points="${flashOffset},4 ${flashWidth + flashOffset},4 ${flashWidth - flashOffset},${flashHeight + 4} 0,${flashHeight + 4}" fill="#000000" />
+                        <polygon points="${flashOffset - 4},0 ${flashWidth + flashOffset - 4},0 ${flashWidth - flashOffset - 4},${flashHeight} -4,${flashHeight}" fill="#D32F2F" />
+                        <text x="${Math.round(flashWidth / 2)}" y="${Math.round(flashHeight * 0.68)}" fill="#ffffff" font-family="'Arial', sans-serif" font-weight="bold" font-size="${flashFontSize}" text-anchor="middle" letter-spacing="2px">FLASH INFO</text>
                     </g>
 
                     <!-- Main Text Background -->

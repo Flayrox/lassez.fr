@@ -77,6 +77,7 @@ export async function middleware(req: NextRequest) {
     const sessionCookie = req.cookies.get('radar_session')?.value;
 
     let isAuthenticated = false;
+    let sessionPayload: any = null;
 
     if (sessionCookie) {
         try {
@@ -113,6 +114,7 @@ export async function middleware(req: NextRequest) {
 
                     if (isValidSignature) {
                         isAuthenticated = true;
+                        sessionPayload = decodedPayload;
                     }
                 }
             }
@@ -136,6 +138,35 @@ export async function middleware(req: NextRequest) {
         if (pathname.startsWith('/api/radar')) {
             return NextResponse.json({ success: false, error: 'Acces Refuse (Signature Invalide)' }, { status: 401 });
         }
+    }
+
+    // 5. CONTRÔLE FIN DES PERMISSIONS PAR ROUTE
+    const role = sessionPayload?.role || 'viewer';
+    const permissions = sessionPayload?.permissions || {};
+
+    const requiredUiPermission = (() => {
+        if (pathname.startsWith('/radar-admin/users')) return 'users';
+        if (pathname.startsWith('/radar-admin/settings')) return 'settings';
+        if (pathname.startsWith('/radar-admin/studio')) return 'studio';
+        if (pathname.startsWith('/radar-admin/network')) return 'network';
+        if (pathname.startsWith('/radar-admin/lab')) return 'lab';
+        if (pathname.startsWith('/radar-admin')) return 'radar';
+        return null;
+    })();
+
+    if (requiredUiPermission && role !== 'admin' && !permissions?.[requiredUiPermission]) {
+        if (pathname.startsWith('/radar-admin')) {
+            return NextResponse.redirect(new URL('/radar-admin', req.url));
+        }
+    }
+
+    const requiredApiPermission = (() => {
+        if (pathname.startsWith('/api/radar/users')) return 'users';
+        return null;
+    })();
+
+    if (requiredApiPermission && role !== 'admin' && !permissions?.[requiredApiPermission]) {
+        return NextResponse.json({ success: false, error: 'Permission refusee.' }, { status: 403 });
     }
 
     return NextResponse.next();

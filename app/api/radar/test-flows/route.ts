@@ -6,8 +6,8 @@ export async function POST() {
     try {
         const scriptPath = path.join(process.cwd(), 'radar_lassez', 'test_all_flows.js');
         
-        // Exécuter le script de test en arrière-plan
-        exec(`node ${scriptPath}`, (error, stdout, stderr) => {
+        // Exécuter le script de test en arrière-plan avec guillemets pour les espaces
+        exec(`node "${scriptPath}"`, (error, stdout, stderr) => {
             if (error) {
                 console.error(`[TEST FLUX] Erreur: ${error.message}`);
                 return;

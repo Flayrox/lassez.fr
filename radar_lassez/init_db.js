@@ -179,7 +179,11 @@ Si un bloc "ARCHIVES L'ASSEZ" est fourni ci-dessous, utilise-le pour détecter l
     video_prefilter_prompt: 'Ce message Telegram parle-t-il de politique, de mouvements sociaux, de justice ou d un evenement d interet public ? Reponds uniquement par OUI ou NON.',
     video_prefilter_min_chars: '20',
     video_transcribe_model: 'gemini-2.0-flash',
-    video_max_audio_mb: '20'
+    video_max_audio_mb: '20',
+    image_overlay_enabled: 'true',
+    image_overlay_opacity: '0.5',
+    image_box_scale_169: '0.78',
+    image_box_scale_1x1: '0.78'
 };
 
 const insertDefault = db.prepare(`INSERT OR IGNORE INTO radar_settings (key, value) VALUES (?, ?)`);

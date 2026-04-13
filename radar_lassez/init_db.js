@@ -30,6 +30,8 @@ const defaults = {
     election_interval_hours: '0.5', // Intervalle entre deux scans d'élections
     daemon_rss_enabled: 'true', // Activer le scan RSS/Telegram
     daemon_elections_enabled: 'false', // Activer le scan d'élections
+    daemon_rss_schedule_enabled: 'false', // Activer planning heures fixes RSS (HH:MM)
+    daemon_rss_schedule_times: '', // Ex: 07:30,12:00,18:45
     social_mastodon_enabled: 'true',
     social_bluesky_enabled: 'true',
     social_twitter_enabled: 'true',

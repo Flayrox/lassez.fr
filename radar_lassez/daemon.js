@@ -128,6 +128,55 @@ function runScript(scriptName, args = []) {
     });
 }
 
+function pad2(n) {
+    return String(n).padStart(2, '0');
+}
+
+function toLocalDateKey(d) {
+    return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+}
+
+function toLocalHourMinute(d) {
+    return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+}
+
+function parseDailySchedule(raw) {
+    if (!raw) return [];
+    const parts = String(raw)
+        .split(/[\n,;|\s]+/)
+        .map(x => x.trim())
+        .filter(Boolean);
+
+    const unique = new Set();
+    for (const token of parts) {
+        const m = token.match(/^(\d{1,2}):(\d{2})$/);
+        if (!m) continue;
+        const h = Number(m[1]);
+        const min = Number(m[2]);
+        if (h < 0 || h > 23 || min < 0 || min > 59) continue;
+        unique.add(`${pad2(h)}:${pad2(min)}`);
+    }
+    return Array.from(unique).sort();
+}
+
+function getNextScheduledDate(scheduleTimes, now = new Date()) {
+    if (!scheduleTimes.length) return null;
+
+    for (let dayOffset = 0; dayOffset <= 2; dayOffset += 1) {
+        const base = new Date(now);
+        base.setHours(0, 0, 0, 0);
+        base.setDate(base.getDate() + dayOffset);
+
+        for (const hhmm of scheduleTimes) {
+            const [h, m] = hhmm.split(':').map(Number);
+            const candidate = new Date(base);
+            candidate.setHours(h, m, 0, 0);
+            if (candidate > now) return candidate;
+        }
+    }
+    return null;
+}
+
 // ─── BOUCLE 1 : Scan RSS/IA ───────────────────────────────────
 let scanRunning = false;
 
@@ -148,10 +197,21 @@ async function runScan() {
     } finally {
         scanRunning = false;
         const settings = getSettings();
-        const intervalHours = parseFloat(settings.scan_interval_hours || '2');
-        const nextScanAt = new Date(Date.now() + intervalHours * 60 * 60 * 1000);
-        saveSetting('next_scan_at', nextScanAt.toISOString());
-        log(`⏰ Prochain scan automatique prévu à ${nextScanAt.toLocaleTimeString('fr-FR')} (dans ${intervalHours}h).`);
+        const scheduleEnabled = settings.daemon_rss_schedule_enabled === 'true';
+        const scheduleTimes = parseDailySchedule(settings.daemon_rss_schedule_times || '');
+
+        if (scheduleEnabled && scheduleTimes.length > 0) {
+            const nextScheduled = getNextScheduledDate(scheduleTimes);
+            if (nextScheduled) {
+                saveSetting('next_scan_at', nextScheduled.toISOString());
+                log(`⏰ Prochain scan RSS programmé à ${nextScheduled.toLocaleTimeString('fr-FR')} (heures fixes: ${scheduleTimes.join(', ')}).`);
+            }
+        } else {
+            const intervalHours = parseFloat(settings.scan_interval_hours || '2');
+            const nextScanAt = new Date(Date.now() + intervalHours * 60 * 60 * 1000);
+            saveSetting('next_scan_at', nextScanAt.toISOString());
+            log(`⏰ Prochain scan automatique prévu à ${nextScanAt.toLocaleTimeString('fr-FR')} (dans ${intervalHours}h).`);
+        }
     }
 }
 
@@ -160,6 +220,27 @@ function startScanLoop() {
         if (scanRunning) return;
         const settings = getSettings();
         if (settings.daemon_rss_enabled === 'false') return;
+
+        const scheduleEnabled = settings.daemon_rss_schedule_enabled === 'true';
+        const scheduleTimes = parseDailySchedule(settings.daemon_rss_schedule_times || '');
+
+        if (scheduleEnabled && scheduleTimes.length > 0) {
+            const now = new Date();
+            const minuteKey = toLocalHourMinute(now);
+            const hitKey = `${toLocalDateKey(now)} ${minuteKey}`;
+            const lastHit = settings.daemon_rss_schedule_last_hit || '';
+
+            const nextScheduled = getNextScheduledDate(scheduleTimes, new Date(now.getTime() + 60 * 1000));
+            if (nextScheduled) {
+                saveSetting('next_scan_at', nextScheduled.toISOString());
+            }
+
+            if (scheduleTimes.includes(minuteKey) && lastHit !== hitKey) {
+                saveSetting('daemon_rss_schedule_last_hit', hitKey);
+                runScan();
+            }
+            return;
+        }
 
         const nextScanAt = settings.next_scan_at ? new Date(settings.next_scan_at) : new Date(0);
         if (new Date() >= nextScanAt) {
@@ -172,6 +253,18 @@ function startScanLoop() {
         log('🚀 Daemon RSS prêt. Premier check dans 5 secondes...');
         const settings = getSettings();
         if (settings.daemon_rss_enabled !== 'false') {
+            const scheduleEnabled = settings.daemon_rss_schedule_enabled === 'true';
+            const scheduleTimes = parseDailySchedule(settings.daemon_rss_schedule_times || '');
+            if (scheduleEnabled && scheduleTimes.length > 0) {
+                const now = new Date();
+                const nextScheduled = getNextScheduledDate(scheduleTimes, new Date(now.getTime() + 60 * 1000));
+                if (nextScheduled) {
+                    saveSetting('next_scan_at', nextScheduled.toISOString());
+                    log(`🗓️  Mode heures fixes actif (RSS): ${scheduleTimes.join(', ')}.`);
+                }
+                return;
+            }
+
             const nextScanAt = settings.next_scan_at ? new Date(settings.next_scan_at) : new Date(0);
             if (new Date() >= nextScanAt) runScan();
         }
@@ -381,6 +474,8 @@ function ensureDb() {
         scan_interval_hours: '2',
         discord_test_mode: 'false',
         daemon_rss_enabled: 'true',
+        daemon_rss_schedule_enabled: 'false',
+        daemon_rss_schedule_times: '',
         auto_pilot_enabled: 'true',
         ai_model_main: 'gemini-2.5-pro-preview-05-06',
         source_trust_map: '{"mediapart":"🟢","france24":"🟡","lefigaro":"🔴"}',

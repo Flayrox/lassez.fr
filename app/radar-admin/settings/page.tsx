@@ -472,6 +472,26 @@ export default function SettingsPage() {
                                                 </div>
                                             </div>
                                         </div>
+                                        <div className="p-4 bg-stone-50 border-4 border-stone-900 space-y-3">
+                                            <div className="flex items-center justify-between">
+                                                <div>
+                                                    <label className="text-[10px] font-black uppercase text-stone-500 mb-1 block">Mode Heures Exactes</label>
+                                                    <p className="text-[10px] font-bold text-stone-400 uppercase">Lance le scrape RSS a des heures fixes d'influence</p>
+                                                </div>
+                                                <Toggle checked={form.daemon_rss_schedule_enabled === 'true'} onChange={v => updateForm('daemon_rss_schedule_enabled', v ? 'true' : 'false')} />
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] font-black uppercase text-stone-500 mb-1 block">Heures RSS (HH:MM)</label>
+                                                <input
+                                                    type="text"
+                                                    value={form.daemon_rss_schedule_times || ''}
+                                                    onChange={e => updateForm('daemon_rss_schedule_times', e.target.value)}
+                                                    placeholder="07:30, 12:00, 18:45, 21:00"
+                                                    className="w-full bg-white border-4 border-stone-900 p-3 font-mono text-xs"
+                                                />
+                                                <p className="mt-2 text-[10px] font-bold text-stone-400 uppercase">Si actif, le champ Scan Interval est ignore pour la boucle RSS.</p>
+                                            </div>
+                                        </div>
                                     </div>
                                 </section>
                             </div>

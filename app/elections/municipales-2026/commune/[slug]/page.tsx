@@ -4,7 +4,7 @@ import { getDepartmentName } from '@/lib/geo-data';
 import Database from 'better-sqlite3';
 import path from 'path';
 import Layout from '@/components/Layout';
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { getNuanceConfig, STATUT_CONFIG } from '@/lib/election-colors';
 import CitySearchBar from '@/components/CitySearchBar';
 import Link from 'next/link';
@@ -48,6 +48,7 @@ export async function generateMetadata(
 
 export default async function CommunePage({ params }: Props) {
   const codeInsee = params.slug.split('-')[0];
+  const citySlugPart = params.slug.split('-').slice(1).join('-');
   let db;
   let cityData: any = null;
   let allRows: any[] = [];
@@ -87,7 +88,23 @@ export default async function CommunePage({ params }: Props) {
   }
 
   if (!cityData) {
-    // Si la DB ou la table manque, ou si la ville n'existe pas
+    // Fallback for reader environments or malformed legacy slugs.
+    const fallbackVille = citySlugPart
+      .split('-')
+      .filter(Boolean)
+      .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(' ')
+      .trim();
+    const depGuess = String(codeInsee || '').slice(0, 2);
+
+    if (fallbackVille) {
+      const qs = new URLSearchParams({ ville: fallbackVille });
+      if (/^[0-9]{2}$/.test(depGuess) || depGuess === '2A' || depGuess === '2B') {
+        qs.set('dep', depGuess);
+      }
+      redirect(`/elections/municipales-2026?${qs.toString()}`);
+    }
+
     notFound();
   }
 

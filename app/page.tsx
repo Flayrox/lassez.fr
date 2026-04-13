@@ -11,13 +11,17 @@ import TacticalNewsletter from '../components/TacticalNewsletter';
 import { getArticleUrl } from '../lib/getArticleUrl';
 
 async function getPosts(): Promise<WPPost[]> {
-    // On exclut la catégorie 12 (Révélations / Radar) pour garantir qu'on reçoit 
-    // bien nos Enquêtes et autres articles éditoriaux, même si le Daemon a beaucoup posté.
-    const res = await fetch(`${WP_API_URL}/posts?categories_exclude=12&per_page=14&_embed`, {
-        next: { revalidate: 60 },
-    });
-    if (!res.ok) throw new Error('Failed to fetch posts');
-    return res.json();
+    try {
+        // On exclut la catégorie 12 (Révélations / Radar) pour garantir qu'on reçoit
+        // bien nos Enquêtes et autres articles éditoriaux, même si le Daemon a beaucoup posté.
+        const res = await fetch(`${WP_API_URL}/posts?categories_exclude=12&per_page=14&_embed`, {
+            next: { revalidate: 60 },
+        });
+        if (!res.ok) return [];
+        return res.json();
+    } catch {
+        return [];
+    }
 }
 
 async function getRevelations(): Promise<WPPost[]> {

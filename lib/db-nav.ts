@@ -15,8 +15,8 @@ export async function getNavItems(all: boolean = false): Promise<NavItem[]> {
     const remoteUrl = process.env.RADAR_API_URL;
     if (remoteUrl && !process.env.IS_STUDIO) {
         try {
-            const res = await fetch(`${remoteUrl}${all ? '?all=true' : ''}${all ? '&' : '?'}t=${Date.now()}`, {
-                cache: 'no-store'
+            const res = await fetch(`${remoteUrl}${all ? '?all=true' : ''}`, {
+                next: { revalidate: 60 }
             });
             if (res.ok) {
                 const data = await res.json();

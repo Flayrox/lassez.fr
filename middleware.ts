@@ -16,7 +16,11 @@ export async function middleware(req: NextRequest) {
     // Détection du sous-domaine
     // En local ça sera "studio.localhost", en prod "studio.lassez.fr"
     const isStudioDomain = hostname.startsWith('studio.');
-    const isStudioRoute = pathname.startsWith('/radar-admin') || pathname.startsWith('/api/radar') || pathname.startsWith('/radar-login');
+    const isStudioRoute =
+        pathname.startsWith('/radar-admin') ||
+        pathname.startsWith('/api/radar') ||
+        pathname.startsWith('/radar-login') ||
+        pathname.startsWith('/api/elections');
 
     // ─── 0. SÉPARATION DES DOMAINES ───
     if (!isStudioDomain) {

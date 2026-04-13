@@ -13,7 +13,16 @@ export function useInfinitePosts(baseParams: string = '') {
     return `/api/wp/posts?${params}`;
   };
 
-  const { data, error, isLoading, size, setSize, isValidating } = useSWRInfinite<WPPost[]>(getKey, fetcher);
+  const { data, error, isLoading, size, setSize, isValidating } = useSWRInfinite<WPPost[]>(
+    getKey,
+    fetcher,
+    {
+      revalidateOnFocus: false,
+      revalidateFirstPage: false,
+      dedupingInterval: 30_000,
+      persistSize: true,
+    }
+  );
 
   const posts = data ? ([] as WPPost[]).concat(...data) : [];
   const isLoadingMore = isLoading || (size > 0 && data && typeof data[size - 1] === 'undefined');

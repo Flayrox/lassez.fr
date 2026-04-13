@@ -10,25 +10,51 @@ function getDb() {
     return new Database(dbPath);
 }
 
+function getStudioBaseUrl() {
+    const remoteUrl = process.env.RADAR_API_URL;
+    if (!remoteUrl) return null;
+    try {
+        const u = new URL(remoteUrl);
+        return `${u.protocol}//${u.host}`;
+    } catch {
+        return null;
+    }
+}
+
 export const dynamic = 'force-dynamic';
 
-export default function ElectionsHub() {
+export default async function ElectionsHub() {
     let db: any = null;
     try {
-        db = getDb();
-        const rows = db.prepare('SELECT key, value FROM radar_settings WHERE key IN (?, ?)').all(
-            'election_front_display_slugs_json',
-            'election_analysis_target_slug'
-        ) as { key: string; value: string }[];
-        const settingsMap = Object.fromEntries(rows.map(r => [String(r.key), String(r.value || '')]));
-        const displaySlugs = parseJsonArray(settingsMap.election_front_display_slugs_json, ['municipales-2026']);
-            
-        if (displaySlugs.length <= 1) {
-            const onlySlug = displaySlugs[0] || settingsMap.election_analysis_target_slug || 'municipales-2026';
-            redirect(`/elections/${onlySlug}`);
+        let displaySlugs: string[] = [];
+        let targetSlug = 'municipales-2026';
+
+        const studioBase = getStudioBaseUrl();
+        if (studioBase && !process.env.IS_STUDIO) {
+            const res = await fetch(`${studioBase}/api/elections/meta?t=${Date.now()}`, { cache: 'no-store' });
+            if (res.ok) {
+                const data = await res.json();
+                const remoteSlugs = Array.isArray(data?.elections) ? data.elections.map((x: any) => String(x?.slug || '')).filter(Boolean) : [];
+                displaySlugs = remoteSlugs.length ? remoteSlugs : ['municipales-2026'];
+                targetSlug = String(data?.targetSlug || 'municipales-2026');
+            }
         }
 
-        const targetSlug = String(settingsMap.election_analysis_target_slug || 'municipales-2026');
+        if (!displaySlugs.length) {
+            db = getDb();
+            const rows = db.prepare('SELECT key, value FROM radar_settings WHERE key IN (?, ?)').all(
+                'election_front_display_slugs_json',
+                'election_analysis_target_slug'
+            ) as { key: string; value: string }[];
+            const settingsMap = Object.fromEntries(rows.map(r => [String(r.key), String(r.value || '')]));
+            displaySlugs = parseJsonArray(settingsMap.election_front_display_slugs_json, ['municipales-2026']);
+            targetSlug = String(settingsMap.election_analysis_target_slug || 'municipales-2026');
+        }
+
+        if (displaySlugs.length <= 1) {
+            const onlySlug = displaySlugs[0] || targetSlug || 'municipales-2026';
+            redirect(`/elections/${onlySlug}`);
+        }
 
         return (
             <Layout>

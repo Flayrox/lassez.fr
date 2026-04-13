@@ -10,9 +10,29 @@ function getDb() {
     return new Database(dbPath);
 }
 
+function getStudioBaseUrl() {
+    const remoteUrl = process.env.RADAR_API_URL;
+    if (!remoteUrl) return null;
+    try {
+        const u = new URL(remoteUrl);
+        return `${u.protocol}//${u.host}`;
+    } catch {
+        return null;
+    }
+}
+
 export async function GET() {
     let db: any = null;
     try {
+        const studioBase = getStudioBaseUrl();
+        if (studioBase && !process.env.IS_STUDIO) {
+            const res = await fetch(`${studioBase}/api/elections/meta?t=${Date.now()}`, { cache: 'no-store' });
+            if (res.ok) {
+                const data = await res.json();
+                return NextResponse.json(data, { headers: { 'Cache-Control': 'public, max-age=60, stale-while-revalidate=120' } });
+            }
+        }
+
         db = getDb();
         const rows = db.prepare('SELECT key, value FROM radar_settings WHERE key IN (?, ?)').all(
             'election_front_display_slugs_json',

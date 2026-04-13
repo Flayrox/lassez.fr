@@ -90,14 +90,14 @@ function saveSetting(key, value) {
 }
 
 // ─── Exécution d'un script Node enfant  ───────────────────────
-function runScript(scriptName, args = []) {
+function runScript(scriptName, args = [], extraEnv = {}) {
     return new Promise((resolve, reject) => {
         const scriptPath = path.join(__dirname, scriptName);
         log(`  ▶ Lancement de ${scriptName} ${args.join(' ')}...`);
 
         const child = spawn('node', [scriptPath, ...args], {
             cwd: __dirname,
-            env: { ...process.env },
+            env: { ...process.env, ...extraEnv },
             stdio: 'pipe'
         });
 
@@ -177,6 +177,56 @@ function getNextScheduledDate(scheduleTimes, now = new Date()) {
     return null;
 }
 
+function parseTuningRules(raw) {
+    if (!raw) return [];
+    try {
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) ? parsed : [];
+    } catch (_) {
+        return [];
+    }
+}
+
+function isInTimeWindow(now, start, end) {
+    if (!start || !end) return false;
+    const s = start.match(/^(\d{1,2}):(\d{2})$/);
+    const e = end.match(/^(\d{1,2}):(\d{2})$/);
+    if (!s || !e) return false;
+
+    const startMin = Number(s[1]) * 60 + Number(s[2]);
+    const endMin = Number(e[1]) * 60 + Number(e[2]);
+    const nowMin = now.getHours() * 60 + now.getMinutes();
+
+    if (startMin === endMin) return true;
+    if (startMin < endMin) return nowMin >= startMin && nowMin < endMin;
+    return nowMin >= startMin || nowMin < endMin;
+}
+
+function findDaemonTuning(settings, daemonType) {
+    if (settings.daemon_dynamic_tuning_enabled !== 'true') return null;
+
+    const rules = parseTuningRules(settings.daemon_dynamic_tuning_rules || '');
+    if (!rules.length) return null;
+
+    const now = new Date();
+    const day = now.getDay();
+
+    for (const rule of rules) {
+        const daemons = Array.isArray(rule.daemons) ? rule.daemons.map(x => String(x).toLowerCase()) : [];
+        const days = Array.isArray(rule.days) ? rule.days.map(Number).filter(n => Number.isInteger(n) && n >= 0 && n <= 6) : [];
+
+        if (daemons.length && !daemons.includes(String(daemonType).toLowerCase())) continue;
+        if (days.length && !days.includes(day)) continue;
+        if (!isInTimeWindow(now, rule.start, rule.end)) continue;
+
+        if (rule.overrides && typeof rule.overrides === 'object') {
+            return { name: rule.name || 'rule', overrides: rule.overrides };
+        }
+    }
+
+    return null;
+}
+
 // ─── BOUCLE 1 : Scan RSS/IA ───────────────────────────────────
 let scanRunning = false;
 
@@ -191,7 +241,22 @@ async function runScan() {
     log('════════════════════════════════════════');
     saveSetting('last_scan_at', new Date().toISOString());
     try {
-        await runScript('index.js');
+        const settings = getSettings();
+        const tuning = findDaemonTuning(settings, 'rss');
+        const env = {};
+
+        if (tuning?.overrides?.max_articles !== undefined) {
+            env.RADAR_MAX_ARTICLES_OVERRIDE = String(tuning.overrides.max_articles);
+        }
+        if (tuning?.overrides?.rss_lookback_hours !== undefined) {
+            env.RADAR_RSS_LOOKBACK_HOURS_OVERRIDE = String(tuning.overrides.rss_lookback_hours);
+        }
+
+        if (Object.keys(env).length > 0) {
+            log(`🎛️ Tuning RSS actif (${tuning.name}) → ${JSON.stringify(tuning.overrides)}`);
+        }
+
+        await runScript('index.js', [], env);
     } catch (e) {
         log(`❌ Erreur inattendue dans runScan: ${e.message}`);
     } finally {
@@ -277,8 +342,17 @@ let publishingIds = new Set(); // Pour éviter les doubles publications
 async function runPublisher() {
     const settings = getSettings();
     const autoPilotEnabled = settings.auto_pilot_enabled === 'true';
-    const minDelay = parseInt(settings.min_delay_min || '0', 10);
-    const maxDelay = parseInt(settings.max_delay_min || '15', 10);
+    const tuning = findDaemonTuning(settings, 'publisher');
+    const minDelayRaw = tuning?.overrides?.min_delay_min ?? settings.min_delay_min;
+    const maxDelayRaw = tuning?.overrides?.max_delay_min ?? settings.max_delay_min;
+    const minDelay = parseInt(String(minDelayRaw || '0'), 10);
+    const maxDelay = parseInt(String(maxDelayRaw || '15'), 10);
+    const safeMinDelay = Number.isFinite(minDelay) ? minDelay : 0;
+    const safeMaxDelay = Number.isFinite(maxDelay) ? Math.max(safeMinDelay, maxDelay) : Math.max(safeMinDelay, 15);
+
+    if (tuning?.overrides) {
+        log(`🎛️ Tuning Publisher actif (${tuning.name}) → min=${safeMinDelay}m max=${safeMaxDelay}m`);
+    }
 
     let db;
     try {
@@ -304,7 +378,7 @@ async function runPublisher() {
 
         for (const post of unscheduled) {
             if (publishingIds.has(post.id)) continue;
-            const delayMin = minDelay + Math.random() * (maxDelay - minDelay);
+            const delayMin = safeMinDelay + Math.random() * (safeMaxDelay - safeMinDelay);
             const scheduledAt = new Date(Date.now() + delayMin * 60 * 1000);
             db.prepare(`UPDATE radar_posts SET scheduled_at = ? WHERE id = ?`)
                 .run(scheduledAt.toISOString(), post.id);
@@ -476,6 +550,8 @@ function ensureDb() {
         daemon_rss_enabled: 'true',
         daemon_rss_schedule_enabled: 'false',
         daemon_rss_schedule_times: '',
+        daemon_dynamic_tuning_enabled: 'false',
+        daemon_dynamic_tuning_rules: '',
         auto_pilot_enabled: 'true',
         ai_model_main: 'gemini-2.5-pro-preview-05-06',
         source_trust_map: '{"mediapart":"🟢","france24":"🟡","lefigaro":"🔴"}',

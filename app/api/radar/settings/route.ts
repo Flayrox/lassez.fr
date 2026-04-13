@@ -34,6 +34,7 @@ export async function PATCH(request: Request) {
             election_interval_hours,
             daemon_rss_enabled, daemon_elections_enabled,
             daemon_rss_schedule_enabled, daemon_rss_schedule_times,
+            daemon_dynamic_tuning_enabled, daemon_dynamic_tuning_rules,
             social_mastodon_enabled, social_bluesky_enabled, social_twitter_enabled, social_discord_enabled,
             discord_test_mode,
             rss_feeds, telegram_channels, rss_bridge_base_url, x_accounts, ai_prompt,
@@ -64,6 +65,8 @@ export async function PATCH(request: Request) {
         if (daemon_elections_enabled !== undefined) updateStmt.run('daemon_elections_enabled', String(daemon_elections_enabled));
         if (daemon_rss_schedule_enabled !== undefined) updateStmt.run('daemon_rss_schedule_enabled', String(daemon_rss_schedule_enabled));
         if (daemon_rss_schedule_times !== undefined) updateStmt.run('daemon_rss_schedule_times', String(daemon_rss_schedule_times));
+        if (daemon_dynamic_tuning_enabled !== undefined) updateStmt.run('daemon_dynamic_tuning_enabled', String(daemon_dynamic_tuning_enabled));
+        if (daemon_dynamic_tuning_rules !== undefined) updateStmt.run('daemon_dynamic_tuning_rules', String(daemon_dynamic_tuning_rules));
         if (social_mastodon_enabled !== undefined) updateStmt.run('social_mastodon_enabled', String(social_mastodon_enabled));
         if (social_bluesky_enabled !== undefined) updateStmt.run('social_bluesky_enabled', String(social_bluesky_enabled));
         if (social_twitter_enabled !== undefined) updateStmt.run('social_twitter_enabled', String(social_twitter_enabled));

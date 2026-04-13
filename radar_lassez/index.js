@@ -482,8 +482,14 @@ async function main() {
     console.log("🚀 Démarrage du Radar L'Assez...");
 
     const settings = getSettings();
-    const maxArticles = parseInt(settings.max_articles || '3', 10);
-    const rssLookbackHours = parseInt(settings.rss_lookback_hours || '24', 10);
+    const envMaxArticles = parseInt(process.env.RADAR_MAX_ARTICLES_OVERRIDE || '', 10);
+    const envLookbackHours = parseInt(process.env.RADAR_RSS_LOOKBACK_HOURS_OVERRIDE || '', 10);
+    const maxArticles = Number.isFinite(envMaxArticles) && envMaxArticles > 0
+        ? envMaxArticles
+        : parseInt(settings.max_articles || '3', 10);
+    const rssLookbackHours = Number.isFinite(envLookbackHours) && envLookbackHours > 0
+        ? envLookbackHours
+        : parseInt(settings.rss_lookback_hours || '24', 10);
     const autoApprove = settings.auto_approve_enabled === 'true';
     const ingestStatus = autoApprove ? 'APPROVED' : 'PENDING';
     

@@ -492,6 +492,40 @@ export default function SettingsPage() {
                                                 <p className="mt-2 text-[10px] font-bold text-stone-400 uppercase">Si actif, le champ Scan Interval est ignore pour la boucle RSS.</p>
                                             </div>
                                         </div>
+                                        <div className="p-4 bg-stone-50 border-4 border-stone-900 space-y-3">
+                                            <div className="flex items-center justify-between">
+                                                <div>
+                                                    <label className="text-[10px] font-black uppercase text-stone-500 mb-1 block">Tuning Dynamique Daemon</label>
+                                                    <p className="text-[10px] font-bold text-stone-400 uppercase">Surcharge max/lookup/delays selon heure et daemon</p>
+                                                </div>
+                                                <Toggle checked={form.daemon_dynamic_tuning_enabled === 'true'} onChange={v => updateForm('daemon_dynamic_tuning_enabled', v ? 'true' : 'false')} />
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] font-black uppercase text-stone-500 mb-1 block">Règles JSON</label>
+                                                <textarea
+                                                    value={form.daemon_dynamic_tuning_rules || ''}
+                                                    onChange={e => updateForm('daemon_dynamic_tuning_rules', e.target.value)}
+                                                    rows={8}
+                                                    placeholder={`[
+  {
+    "name": "prime-time-matin",
+    "daemons": ["rss", "publisher"],
+    "days": [1,2,3,4,5],
+    "start": "07:00",
+    "end": "10:00",
+    "overrides": {
+      "max_articles": 8,
+      "rss_lookback_hours": 8,
+      "min_delay_min": 1,
+      "max_delay_min": 4
+    }
+  }
+]`}
+                                                    className="w-full bg-white border-4 border-stone-900 p-3 font-mono text-xs"
+                                                />
+                                                <p className="mt-2 text-[10px] font-bold text-stone-400 uppercase">Le daemon prend la première règle active qui match l'heure, le jour et le type de daemon.</p>
+                                            </div>
+                                        </div>
                                     </div>
                                 </section>
                             </div>

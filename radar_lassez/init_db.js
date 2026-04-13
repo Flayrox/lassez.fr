@@ -32,6 +32,8 @@ const defaults = {
     daemon_elections_enabled: 'false', // Activer le scan d'élections
     daemon_rss_schedule_enabled: 'false', // Activer planning heures fixes RSS (HH:MM)
     daemon_rss_schedule_times: '', // Ex: 07:30,12:00,18:45
+    daemon_dynamic_tuning_enabled: 'false', // Active les surcharges dynamiques selon heure/daemon
+    daemon_dynamic_tuning_rules: '', // JSON de règles horaires pour max_articles/lookback/delays
     social_mastodon_enabled: 'true',
     social_bluesky_enabled: 'true',
     social_twitter_enabled: 'true',

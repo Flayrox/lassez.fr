@@ -2,11 +2,13 @@ import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import Layout from '../../../components/Layout';
 import ElectionsClient from '../../../components/ElectionsClient';
-import { WP_API_URL } from '../../../lib/api';
+import { getServerWpApiBaseUrl } from '../../../lib/wp-server-base';
 import { WPPost } from '../../../types';
 import Database from 'better-sqlite3';
 import path from 'path';
 import { formatElectionLabel } from '../../../lib/elections';
+
+const WP_BASE = getServerWpApiBaseUrl();
 
 function getDb() {
     const dbPath = path.join(process.cwd(), 'radar_lassez', 'radar.db');
@@ -28,7 +30,7 @@ async function getElectionArticles(slug: string): Promise<WPPost[]> {
     try {
         const keyword = encodeURIComponent(slug.replace(/-/g, ' '));
         const res = await fetch(
-            `${WP_API_URL}/posts?search=${keyword}&per_page=6&_embed`,
+            `${WP_BASE}/posts?search=${keyword}&per_page=6&_embed`,
             { next: { revalidate: 300 } }
         );
         if (!res.ok) return [];

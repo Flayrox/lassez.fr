@@ -5,16 +5,18 @@ import HeroCarousel from '../components/HeroCarousel';
 import JoinUsBlock from '../components/JoinUsBlock';
 import { Metadata } from 'next';
 import { WPPost } from '../types';
-import { WP_API_URL } from '../lib/api';
+import { getServerWpApiBaseUrl } from '../lib/wp-server-base';
 import Layout from '../components/Layout';
 import TacticalNewsletter from '../components/TacticalNewsletter';
 import { getArticleUrl } from '../lib/getArticleUrl';
+
+const WP_BASE = getServerWpApiBaseUrl();
 
 async function getPosts(): Promise<WPPost[]> {
     try {
         // On exclut la catégorie 12 (Révélations / Radar) pour garantir qu'on reçoit
         // bien nos Enquêtes et autres articles éditoriaux, même si le Daemon a beaucoup posté.
-        const res = await fetch(`${WP_API_URL}/posts?categories_exclude=12&per_page=14&_embed`, {
+        const res = await fetch(`${WP_BASE}/posts?categories_exclude=12&per_page=14&_embed`, {
             next: { revalidate: 60 },
         });
         if (!res.ok) return [];
@@ -25,7 +27,7 @@ async function getPosts(): Promise<WPPost[]> {
 }
 
 async function getRevelations(): Promise<WPPost[]> {
-    const res = await fetch(`${WP_API_URL}/posts?categories=12&per_page=5&_embed`, {
+    const res = await fetch(`${WP_BASE}/posts?categories=12&per_page=5&_embed`, {
         next: { revalidate: 30 },
     });
     if (!res.ok) return [];

@@ -1,15 +1,17 @@
 import { Metadata, ResolvingMetadata } from 'next';
 import { notFound } from 'next/navigation';
-import { WP_API_URL } from '../../../lib/api';
+import { getServerWpApiBaseUrl } from '../../../lib/wp-server-base';
 import { WPPost } from '../../../types';
 import ComprendreLessonClient from '../../../components/ComprendreLessonClient';
+
+const WP_BASE = getServerWpApiBaseUrl();
 
 type Props = {
     params: { slug: string };
 };
 
 async function getPost(slug: string): Promise<WPPost | null> {
-    const res = await fetch(`${WP_API_URL}/posts?slug=${slug}&_embed`, {
+    const res = await fetch(`${WP_BASE}/posts?slug=${slug}&_embed`, {
         next: { revalidate: 60 } // Revalidate every minute
     });
     if (!res.ok) return null;

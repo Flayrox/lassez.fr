@@ -1,7 +1,7 @@
 import { Metadata } from 'next';
 import Layout from '../../../components/Layout';
 import ElectionsClient from '../../../components/ElectionsClient';
-import { WP_API_URL } from '../../../lib/api';
+import { getServerWpApiBaseUrl } from '../../../lib/wp-server-base';
 import { WPPost } from '../../../types';
 import Script from 'next/script';
 import Database from 'better-sqlite3';
@@ -9,6 +9,7 @@ import path from 'path';
 
 const ELECTION_SLUG = 'municipales-2026';
 const BASE_URL = 'https://lassez.fr';
+const WP_BASE = getServerWpApiBaseUrl();
 
 export const metadata: Metadata = {
     title: "Élections Municipales 2026 — Résultats en Direct | L'Assez",
@@ -29,7 +30,7 @@ async function getElectionArticles(): Promise<WPPost[]> {
         // Cherche d'abord les articles avec le tag ou la catégorie "elections"
         // L'API WP permet de chercher par slug de catégorie
         const res = await fetch(
-            `${WP_API_URL}/posts?search=élections+municipales&per_page=6&_embed`,
+            `${WP_BASE}/posts?search=élections+municipales&per_page=6&_embed`,
             { next: { revalidate: 300 } }
         );
         if (!res.ok) return [];

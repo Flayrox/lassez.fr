@@ -1,17 +1,19 @@
 import { Metadata, ResolvingMetadata } from 'next';
 import { notFound } from 'next/navigation';
-import { WP_API_URL } from '../../../lib/api';
+import { getServerWpApiBaseUrl } from '../../../lib/wp-server-base';
 import { WPPost } from '../../../types';
 import ArticleClient from '../../../components/ArticleClient';
 import Layout from '../../../components/Layout';
 import Script from 'next/script';
+
+const WP_BASE = getServerWpApiBaseUrl();
 
 type Props = {
     params: { categorie: string; slug: string };
 };
 
 async function getPost(slug: string): Promise<WPPost | null> {
-    const res = await fetch(`${WP_API_URL}/posts?slug=${slug}&_embed`, {
+    const res = await fetch(`${WP_BASE}/posts?slug=${slug}&_embed`, {
         next: { revalidate: 60 }
     });
     if (!res.ok) return null;
@@ -20,7 +22,7 @@ async function getPost(slug: string): Promise<WPPost | null> {
 }
 
 async function getRelatedPosts(categoryId: number, excludeId: number): Promise<WPPost[]> {
-    const res = await fetch(`${WP_API_URL}/posts?categories=${categoryId}&exclude=${excludeId}&per_page=3&_embed`, {
+    const res = await fetch(`${WP_BASE}/posts?categories=${categoryId}&exclude=${excludeId}&per_page=3&_embed`, {
         next: { revalidate: 60 }
     });
     if (!res.ok) return [];

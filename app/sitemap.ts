@@ -1,18 +1,19 @@
 import { MetadataRoute } from 'next';
-import { WP_API_URL } from '../lib/api';
+import { getServerWpApiBaseUrl } from '../lib/wp-server-base';
 import { formatCommuneSlug } from '../lib/seo-engine';
 import { parseJsonArray } from '../lib/elections';
 
 const BASE_URL = 'https://lassez.fr';
+const WP_BASE = getServerWpApiBaseUrl();
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     try {
         // Fetch posts avec embed pour récupérer les slugs de catégories
-        const postsRes = await fetch(`${WP_API_URL}/posts?per_page=100&_embed`, { next: { revalidate: 3600 } });
+        const postsRes = await fetch(`${WP_BASE}/posts?per_page=100&_embed`, { next: { revalidate: 3600 } });
         const posts = await postsRes.json();
 
         // Fetch categories
-        const categoriesRes = await fetch(`${WP_API_URL}/categories?per_page=100`, { next: { revalidate: 3600 } });
+        const categoriesRes = await fetch(`${WP_BASE}/categories?per_page=100`, { next: { revalidate: 3600 } });
         const categories = await categoriesRes.json();
 
         // URLs articles en silo /[categorie]/[slug]

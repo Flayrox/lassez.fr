@@ -1,10 +1,12 @@
 import { Metadata, ResolvingMetadata } from 'next';
 import { notFound } from 'next/navigation';
-import { WP_API_URL } from '../../../lib/api';
+import { getServerWpApiBaseUrl } from '../../../lib/wp-server-base';
 import { WPPost, WPCategory } from '../../../types';
 import CategoryClient from '../../../components/CategoryClient';
 import Layout from '../../../components/Layout';
 import Script from 'next/script';
+
+const WP_BASE = getServerWpApiBaseUrl();
 
 type Props = {
     params: { slug: string };
@@ -12,7 +14,7 @@ type Props = {
 
 // Fetch the category to get ID and Name
 async function getCategoryBySlug(slug: string): Promise<WPCategory | null> {
-    const res = await fetch(`${WP_API_URL}/categories?slug=${slug}`);
+    const res = await fetch(`${WP_BASE}/categories?slug=${slug}`);
     if (!res.ok) return null;
     const categories = await res.json();
     return categories.length > 0 ? categories[0] : null;
@@ -22,7 +24,7 @@ async function getCategoryBySlug(slug: string): Promise<WPCategory | null> {
 async function getInitialPosts(categoryId: number | undefined): Promise<WPPost[]> {
     if (!categoryId) return [];
     // The useInfinitePosts hook uses per_page=9 by default.
-    const res = await fetch(`${WP_API_URL}/posts?categories=${categoryId}&per_page=9&_embed`, {
+    const res = await fetch(`${WP_BASE}/posts?categories=${categoryId}&per_page=9&_embed`, {
         next: { revalidate: 60 } // Revalidate every minute
     });
     if (!res.ok) return [];

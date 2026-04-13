@@ -13,6 +13,17 @@ function getDb() {
     return new Database(dbPath);
 }
 
+function getStudioBaseUrl() {
+    const remoteUrl = process.env.RADAR_API_URL;
+    if (!remoteUrl) return null;
+    try {
+        const u = new URL(remoteUrl);
+        return `${u.protocol}//${u.host}`;
+    } catch {
+        return null;
+    }
+}
+
 async function getElectionArticles(slug: string): Promise<WPPost[]> {
     try {
         const keyword = encodeURIComponent(slug.replace(/-/g, ' '));
@@ -30,6 +41,16 @@ async function getElectionArticles(slug: string): Promise<WPPost[]> {
 async function getDepartments(electionSlug: string): Promise<string[]> {
     let db: any = null;
     try {
+        const studioBase = getStudioBaseUrl();
+        if (studioBase && !process.env.IS_STUDIO) {
+            const res = await fetch(`${studioBase}/api/elections/results?slug=${encodeURIComponent(electionSlug)}&list_departments=1`, { cache: 'no-store' });
+            if (res.ok) {
+                const data = await res.json();
+                const departments = Array.isArray(data?.departments) ? data.departments.map((x: any) => String(x)).filter(Boolean) : [];
+                if (departments.length) return departments;
+            }
+        }
+
         db = getDb();
         const rows = db.prepare(
             'SELECT DISTINCT code_departement FROM elections_officiel_cache WHERE election_slug = ? ORDER BY code_departement'

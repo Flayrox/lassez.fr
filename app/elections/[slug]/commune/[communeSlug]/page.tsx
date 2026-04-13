@@ -21,9 +21,32 @@ function getDb() {
     return new Database(dbPath, { readonly: true });
 }
 
+function getStudioBaseUrl() {
+    const remoteUrl = process.env.RADAR_API_URL;
+    if (!remoteUrl) return null;
+    try {
+        const u = new URL(remoteUrl);
+        return `${u.protocol}//${u.host}`;
+    } catch {
+        return null;
+    }
+}
+
 async function getCityByInsee(electionSlug: string, codeInsee: string) {
     let db: any = null;
     try {
+        const studioBase = getStudioBaseUrl();
+        if (studioBase && !process.env.IS_STUDIO) {
+            const res = await fetch(
+                `${studioBase}/api/elections/results?slug=${encodeURIComponent(electionSlug)}&city_by_insee=1&insee=${encodeURIComponent(codeInsee)}`,
+                { cache: 'no-store' }
+            );
+            if (res.ok) {
+                const data = await res.json();
+                if (data?.city) return data.city as { code_insee: string; ville: string; code_departement: string };
+            }
+        }
+
         db = getDb();
         const row = db.prepare(
             'SELECT code_insee, ville, code_departement FROM elections_officiel_cache WHERE election_slug = ? AND code_insee = ? LIMIT 1'

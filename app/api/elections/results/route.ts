@@ -11,6 +11,17 @@ function getDb() {
     return new Database(dbPath);
 }
 
+function getStudioBaseUrl() {
+    const remoteUrl = process.env.RADAR_API_URL;
+    if (!remoteUrl) return null;
+    try {
+        const u = new URL(remoteUrl);
+        return `${u.protocol}//${u.host}`;
+    } catch {
+        return null;
+    }
+}
+
 function safeCloseDb(db: any) {
     if (!db) return;
     try {
@@ -336,12 +347,30 @@ export interface VilleResult {
 
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
+
+    const studioBase = getStudioBaseUrl();
+    if (studioBase && !process.env.IS_STUDIO) {
+        try {
+            const qs = searchParams.toString();
+            const res = await fetch(`${studioBase}/api/elections/results${qs ? `?${qs}` : ''}`, { cache: 'no-store' });
+            const data = await res.json();
+            return NextResponse.json(data, {
+                status: res.status,
+                headers: { 'Cache-Control': 'public, max-age=30, stale-while-revalidate=120' },
+            });
+        } catch (_) {
+            // Fall through to local behavior if Studio is unreachable.
+        }
+    }
+
     const electionSlug = searchParams.get('slug') || 'municipales-2026';
     const query = searchParams.get('q');
     const suggest = searchParams.get('suggest'); 
     const all = searchParams.get('all') === '1';
     const forceSync = searchParams.get('forceSync') === '1';
     const listCities = searchParams.get('list_cities') === '1';
+    const listDepartments = searchParams.get('list_departments') === '1';
+    const cityByInsee = searchParams.get('city_by_insee') === '1';
 
     let db: any = null;
     try {
@@ -349,12 +378,39 @@ export async function GET(request: Request) {
         ensureTable(db);
 
         // Tâche de fond pour la sync (ou forcee)
-        if (forceSync || (!all && !query && !searchParams.get('ville') && !listCities)) {
+        if (forceSync || (!all && !query && !searchParams.get('ville') && !listCities && !listDepartments && !cityByInsee)) {
             if (forceSync) {
                 await runSyncWithLock(electionSlug, true);
             } else {
                 runSyncWithLock(electionSlug, false).catch((e) => errorToDaemon('[Élections] Background sync error:', e));
             }
+        }
+
+        if (listDepartments) {
+            const departments = db.prepare(`
+                SELECT DISTINCT code_departement
+                FROM elections_officiel_cache
+                WHERE election_slug = ? AND code_departement IS NOT NULL
+                ORDER BY code_departement ASC
+            `).all(electionSlug) as { code_departement: string }[];
+
+            safeCloseDb(db);
+            db = null;
+            return withCache({ success: true, departments: departments.map(d => d.code_departement).filter(Boolean) }, 'public, max-age=60, stale-while-revalidate=300');
+        }
+
+        if (cityByInsee && searchParams.get('insee')) {
+            const insee = String(searchParams.get('insee') || '').trim();
+            const city = db.prepare(`
+                SELECT code_insee, ville, code_departement
+                FROM elections_officiel_cache
+                WHERE election_slug = ? AND code_insee = ?
+                LIMIT 1
+            `).get(electionSlug, insee);
+
+            safeCloseDb(db);
+            db = null;
+            return withCache({ success: true, city: city || null }, 'public, max-age=60, stale-while-revalidate=300');
         }
 
         // 0. Mode liste des villes par département

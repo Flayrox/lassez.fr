@@ -39,16 +39,51 @@ async function getElectionArticles(): Promise<WPPost[]> {
     }
 }
 
-async function getDepartments(): Promise<string[]> {
+function getStudioBaseUrl() {
+    const remoteUrl = process.env.RADAR_API_URL;
+    if (!remoteUrl) return null;
     try {
+        const u = new URL(remoteUrl);
+        return `${u.protocol}//${u.host}`;
+    } catch {
+        return null;
+    }
+}
+
+async function getDepartments(): Promise<string[]> {
+    let db: any = null;
+    try {
+        const studioBase = getStudioBaseUrl();
+        if (studioBase && !process.env.IS_STUDIO) {
+            const res = await fetch(
+                `${studioBase}/api/elections/results?slug=${encodeURIComponent(ELECTION_SLUG)}&list_departments=1`,
+                { cache: 'no-store' }
+            );
+            if (res.ok) {
+                const data = await res.json();
+                const departments = Array.isArray(data?.departments)
+                    ? data.departments.map((x: any) => String(x)).filter(Boolean)
+                    : [];
+                if (departments.length) return departments;
+            }
+        }
+
         const dbPath = path.join(process.cwd(), 'radar_lassez', 'radar.db');
-        const db = new Database(dbPath);
+        db = new Database(dbPath);
+
+        const tableExists = db.prepare(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='elections_officiel_cache'"
+        ).get();
+        if (!tableExists) return [];
+
         const rows = db.prepare('SELECT DISTINCT code_departement FROM elections_officiel_cache ORDER BY code_departement').all() as { code_departement: string }[];
-        db.close();
         return rows.map(r => r.code_departement).filter(Boolean);
-    } catch (error) {
-        console.error('Error fetching departments:', error);
+    } catch (_) {
         return [];
+    } finally {
+        if (db) {
+            try { db.close(); } catch (_) {}
+        }
     }
 }
 

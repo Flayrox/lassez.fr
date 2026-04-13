@@ -66,14 +66,24 @@ const nextConfig = {
                     },
                 ],
             },
-        ];
-    },
-    async redirects() {
-        return [
             {
-                source: '/elections/municipales-2026/:ville((?!commune).*)',
-                destination: '/elections/municipales-2026',
-                permanent: true,
+                // Evite l'indexation des surfaces Studio
+                source: '/radar-admin/:path*',
+                headers: [
+                    {
+                        key: 'X-Robots-Tag',
+                        value: 'noindex, nofollow',
+                    },
+                ],
+            },
+            {
+                source: '/radar-login',
+                headers: [
+                    {
+                        key: 'X-Robots-Tag',
+                        value: 'noindex, nofollow',
+                    },
+                ],
             },
         ];
     },

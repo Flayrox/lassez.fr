@@ -52,11 +52,18 @@ async function getDepartments(): Promise<string[]> {
     }
 }
 
-export default async function ElectionsMunicipales2026() {
+export default async function ElectionsMunicipales2026({
+    searchParams,
+}: {
+    searchParams?: { ville?: string; dep?: string };
+}) {
     const [articles, departments] = await Promise.all([
         getElectionArticles(),
         getDepartments()
     ]);
+
+    const initialVille = String(searchParams?.ville || '').trim();
+    const initialDep = String(searchParams?.dep || '').trim();
 
     const liveBlogSchema = {
         "@context": "https://schema.org",
@@ -101,7 +108,13 @@ export default async function ElectionsMunicipales2026() {
             <Script id="json-ld-breadcrumb-elections" type="application/ld+json" strategy="beforeInteractive">
                 {JSON.stringify(breadcrumbSchema)}
             </Script>
-            <ElectionsClient electionSlug={ELECTION_SLUG} articles={articles} departments={departments} />
+            <ElectionsClient
+                electionSlug={ELECTION_SLUG}
+                articles={articles}
+                departments={departments}
+                initialVille={initialVille}
+                initialDep={initialDep}
+            />
         </Layout>
     );
 }

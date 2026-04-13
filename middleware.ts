@@ -16,6 +16,7 @@ export async function middleware(req: NextRequest) {
     // Détection du sous-domaine
     // En local ça sera "studio.localhost", en prod "studio.lassez.fr"
     const isStudioDomain = hostname.startsWith('studio.');
+    const isStudioRoute = pathname.startsWith('/radar-admin') || pathname.startsWith('/api/radar') || pathname.startsWith('/radar-login');
 
     // ─── 0. SÉPARATION DES DOMAINES ───
     if (!isStudioDomain) {
@@ -23,16 +24,21 @@ export async function middleware(req: NextRequest) {
         if (pathname.startsWith('/radar-admin') || pathname.startsWith('/radar-login')) {
             return NextResponse.redirect(new URL('/', req.url));
         }
+        if (pathname.startsWith('/api/radar')) {
+            return NextResponse.json({ success: false, error: 'Not Found' }, { status: 404 });
+        }
     } else {
         // Sur le sous-domaine Studio, on redirige la racine (/) vers le dashboard
         if (pathname === '/') {
             return NextResponse.redirect(new URL('/radar-admin', req.url));
         }
+        if (!isStudioRoute) {
+            return new NextResponse('Not Found', { status: 404 });
+        }
     }
 
-    // Si ce n'est pas une route sécurisée (Radar Admin, Login, ou API Radar), 
-    // on laisse passer (ex: pages d'articles sur studio ou lassez.fr)
-    if (!pathname.startsWith('/radar-admin') && !pathname.startsWith('/api/radar') && !pathname.startsWith('/radar-login')) {
+    // Les routes publiques passent uniquement sur le domaine public.
+    if (!isStudioRoute) {
         return NextResponse.next();
     }
 

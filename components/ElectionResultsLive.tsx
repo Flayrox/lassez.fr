@@ -248,9 +248,16 @@ export default function ElectionResultsLive({
         setSearch(ville);
         setShowSuggestions(false);
         if (router) {
-            // Nouveau format de Silo SEO : /elections/municipales-2026/commune/[code-insee]-[nom-ville]
-            const finalSlug = insee ? formatCommuneSlug(insee, ville) : slug;
-            const url = `/elections/${electionSlug}/commune/${finalSlug}`;
+            let url = `/elections/${electionSlug}?ville=${encodeURIComponent(ville)}`;
+            if (dep) {
+                url += `&dep=${encodeURIComponent(dep)}`;
+            }
+
+            // Keep current SEO path for municipales only.
+            if (electionSlug === 'municipales-2026') {
+                const finalSlug = insee ? formatCommuneSlug(insee, ville) : slug;
+                url = `/elections/${electionSlug}/commune/${finalSlug}`;
+            }
             router.push(url);
         }
     };

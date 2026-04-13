@@ -3,8 +3,10 @@
 import React, { useState, useMemo } from 'react';
 import Link from 'next/link';
 import useSWR from 'swr';
+import { usePathname } from 'next/navigation';
 import { regions, departments } from '../../lib/geo-data';
 import { formatCommuneSlug } from '../../lib/seo-engine';
+import { formatElectionLabel } from '../../lib/elections';
 import { ChevronLeftIcon, SearchIcon } from '../icons';
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
@@ -44,11 +46,19 @@ const ElectionsSidebar: React.FC<ElectionsSidebarProps> = ({ onClose }) => {
     const [selectedRegion, setSelectedRegion] = useState<string | null>(null);
     const [selectedDept, setSelectedDept] = useState<string | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
+    const pathname = usePathname();
+
+    const electionSlug = useMemo(() => {
+        const match = String(pathname || '').match(/^\/elections\/([^\/]+)/);
+        return match?.[1] || 'municipales-2026';
+    }, [pathname]);
 
     const { data, isLoading } = useSWR(
-        selectedDept ? `/api/elections/results?list_cities=1&dep=${selectedDept}` : null,
+        selectedDept ? `/api/elections/results?slug=${encodeURIComponent(electionSlug)}&list_cities=1&dep=${selectedDept}` : null,
         fetcher
     );
+    const { data: electionsMeta } = useSWR('/api/elections/meta', fetcher);
+    const electionChoices = Array.isArray(electionsMeta?.elections) ? electionsMeta.elections : [];
 
     const filteredCities = useMemo(() => {
         if (!data?.cities) return [];
@@ -87,7 +97,7 @@ const ElectionsSidebar: React.FC<ElectionsSidebarProps> = ({ onClose }) => {
                 {/* Map Block */}
                 <div className="mb-8">
                     <Link
-                        href="/elections/municipales-2026"
+                        href={`/elections/${electionSlug}`}
                         onClick={onClose}
                         className="group block relative aspect-video bg-ink border-2 border-ink overflow-hidden shadow-hard hover:shadow-none hover:translate-x-1 hover:translate-y-1 transition-all duration-200"
                     >
@@ -96,10 +106,50 @@ const ElectionsSidebar: React.FC<ElectionsSidebarProps> = ({ onClose }) => {
                         </div>
                         <div className="absolute inset-0 p-4 flex flex-col justify-end bg-gradient-to-t from-ink to-transparent">
                             <span className="font-mono text-[10px] uppercase tracking-widest text-paper/60 mb-1">Carte Interactive</span>
-                            <span className="font-black text-lg uppercase text-paper leading-none">Municipales 2026</span>
+                            <span className="font-black text-lg uppercase text-paper leading-none">{formatElectionLabel(electionSlug)}</span>
                         </div>
                     </Link>
                 </div>
+
+                {!selectedRegion && electionChoices.length > 1 && (
+                    <div className="mb-8">
+                        <h3 className="font-bold font-mono uppercase tracking-widest text-[10px] mb-4 border-b-2 border-ink/20 pb-2 text-ink/60">
+                            Scrutin Actif
+                        </h3>
+                        <div className="space-y-2">
+                            {electionChoices.map((item: { slug: string; label: string; isTarget?: boolean; counts?: { communes?: number; departments?: number } }) => {
+                                const isCurrent = item.slug === electionSlug;
+                                const communes = Number(item.counts?.communes || 0);
+                                return (
+                                    <Link
+                                        key={item.slug}
+                                        href={`/elections/${item.slug}`}
+                                        onClick={onClose}
+                                        className={`flex items-center justify-between px-3 py-2 border-2 font-black text-[10px] uppercase tracking-wider transition-all ${
+                                            isCurrent
+                                                ? 'border-lassez-red bg-lassez-red text-paper'
+                                                : 'border-ink/10 bg-paper text-ink hover:border-ink hover:bg-white'
+                                        }`}
+                                    >
+                                        <span>{item.label || formatElectionLabel(item.slug)}</span>
+                                        <div className="flex items-center gap-1">
+                                            {communes > 0 && (
+                                                <span className={`font-mono text-[8px] px-1.5 py-0.5 border ${isCurrent ? 'border-paper/50' : 'border-ink/30'}`}>
+                                                    {communes}
+                                                </span>
+                                            )}
+                                            {item.isTarget && (
+                                                <span className={`font-mono text-[8px] px-1.5 py-0.5 border ${isCurrent ? 'border-paper/50' : 'border-ink/30'}`}>
+                                                    ANALYSE
+                                                </span>
+                                            )}
+                                        </div>
+                                    </Link>
+                                );
+                            })}
+                        </div>
+                    </div>
+                )}
 
                 {/* Drill-down Menus */}
                 <div className="mb-8">
@@ -160,7 +210,7 @@ const ElectionsSidebar: React.FC<ElectionsSidebarProps> = ({ onClose }) => {
                             <h4 className="font-black text-sm uppercase mb-4 px-2 border-l-4 border-lassez-red pl-3">{departments[selectedDept]}</h4>
                             <div className="space-y-4">
                                 <Link
-                                    href={`/elections/municipales-2026/${selectedDept}`}
+                                    href={`/elections/${electionSlug}/departement/${selectedDept}`}
                                     onClick={onClose}
                                     className="block w-full text-center font-black text-sm uppercase py-4 px-4 bg-ink text-paper border-2 border-ink shadow-hard hover:shadow-none hover:translate-x-1 hover:translate-y-1 transition-all duration-200"
                                 >
@@ -188,7 +238,7 @@ const ElectionsSidebar: React.FC<ElectionsSidebarProps> = ({ onClose }) => {
                                                 {filteredCities.map((city: { ville: string, code_insee: string }) => (
                                                     <li key={city.code_insee}>
                                                         <Link
-                                                            href={`/elections/municipales-2026/commune/${formatCommuneSlug(city.code_insee, city.ville)}`}
+                                                            href={`/elections/${electionSlug}/commune/${formatCommuneSlug(city.code_insee, city.ville)}`}
                                                             onClick={onClose}
                                                             className="block px-4 py-2 text-[11px] font-bold uppercase hover:bg-lassez-red hover:text-paper transition-colors"
                                                         >
@@ -219,7 +269,7 @@ const ElectionsSidebar: React.FC<ElectionsSidebarProps> = ({ onClose }) => {
                             {TOP_CITIES.map((city) => (
                                 <Link
                                     key={city.name}
-                                    href={`/elections/municipales-2026/${city.name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")}`}
+                                    href={`/elections/${electionSlug}?ville=${encodeURIComponent(city.name)}&dep=${encodeURIComponent(city.dept)}`}
                                     onClick={onClose}
                                     className="font-bold text-[11px] uppercase p-2 border border-ink/10 hover:border-ink hover:bg-white transition-all text-center"
                                 >

@@ -6,22 +6,42 @@ import { logToDaemon, errorToDaemon } from '../../logger';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300; // Si hébergé sur Vercel, ça donne 5 min, si local, ça ne fait rien.
 
-export async function POST() {
+export async function POST(request: Request) {
     try {
-        const scriptPath = path.join(process.cwd(), 'radar_lassez', 'index.js');
+        let action = 'scan';
+        let electionSlugOverride = '';
+        try {
+            const body = await request.json();
+            const raw = String(body?.action || '').toLowerCase();
+            if (raw === 'elections' || raw === 'election_sync') {
+                action = 'elections';
+            }
+            electionSlugOverride = String(body?.slug || '').trim();
+        } catch (_) {
+            // Empty body => default manual RSS scan
+        }
+
+        const scriptFile = action === 'elections' ? 'sync_elections.js' : 'index.js';
+        const logPrefix = action === 'elections' ? 'MANUAL-ELECTIONS' : 'MANUAL-SCAN';
+        const startLabel = action === 'elections' ? 'sync élections' : 'scan RSS/IA';
+
+        const scriptPath = path.join(process.cwd(), 'radar_lassez', scriptFile);
         const radarDir = path.join(process.cwd(), 'radar_lassez');
 
         const encoder = new TextEncoder();
 
         const customStream = new ReadableStream({
             start(controller) {
-                controller.enqueue(encoder.encode("🚀 Démarrage du script (Liaison Serveur)...\n"));
+                controller.enqueue(encoder.encode(`🚀 Démarrage ${startLabel} (Liaison Serveur)...\n`));
 
                 // Cloner l'environnement et retirer NODE_OPTIONS pour empêcher Next.js
                 // d'injecter son propre `fetch` patché dans notre processus Node natif,
                 // ce qui causait l'erreur "fetch failed" avec Gemini.
                 const cleanEnv = { ...process.env, FORCE_COLOR: '0' };
                 delete (cleanEnv as any).NODE_OPTIONS;
+                if (action === 'elections' && electionSlugOverride) {
+                    (cleanEnv as any).ELECTION_SLUG_OVERRIDE = electionSlugOverride;
+                }
 
                 // Utilisation de exec au lieu de spawn pour Windows avec chemin contenant des espaces.
                 // On met node en dur et on encapsule le chemin complet entre guillemets.
@@ -34,7 +54,7 @@ export async function POST() {
                     child.stdout.on('data', (data) => {
                         const str = data.toString();
                         controller.enqueue(encoder.encode(str));
-                        logToDaemon(`[MANUAL-SCAN] ${str.trim()}`);
+                        logToDaemon(`[${logPrefix}] ${str.trim()}`);
                     });
                 }
 
@@ -42,7 +62,7 @@ export async function POST() {
                     child.stderr.on('data', (data) => {
                         const str = data.toString();
                         controller.enqueue(encoder.encode(str));
-                        errorToDaemon(`[MANUAL-SCAN] ${str.trim()}`);
+                        errorToDaemon(`[${logPrefix}] ${str.trim()}`);
                     });
                 }
 

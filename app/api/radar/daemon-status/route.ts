@@ -70,6 +70,12 @@ export async function GET() {
             .map(x => x.trim())
             .filter(Boolean);
 
+        const rssIntervalEnabled = settings.daemon_rss_interval_enabled !== 'false';
+        const rssFixedEnabled = settings.daemon_rss_schedule_enabled === 'true' && scheduleTimes.length > 0;
+        const rssMode = rssIntervalEnabled && rssFixedEnabled
+            ? 'hybrid'
+            : (rssFixedEnabled ? 'fixed-hours' : (rssIntervalEnabled ? 'interval' : 'off'));
+
         return NextResponse.json({
             success: true,
             status: {
@@ -77,7 +83,7 @@ export async function GET() {
                 nextScanAt,
                 lastScanAt,
                 schedule: {
-                    mode: settings.daemon_rss_schedule_enabled === 'true' ? 'fixed-hours' : 'interval',
+                    mode: rssMode,
                     times: scheduleTimes,
                     intervalHours: Number(settings.scan_interval_hours || '2')
                 },

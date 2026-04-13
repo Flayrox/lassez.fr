@@ -11,7 +11,7 @@ type SessionPayload = {
 };
 
 const ROLE_VALUES = ['admin', 'editor', 'viewer'];
-const PERM_KEYS = ['radar', 'studio', 'network', 'lab', 'settings', 'users'];
+const PERM_KEYS = ['radar', 'studio', 'network', 'lab', 'daemon', 'settings', 'users'];
 
 function getDb() {
     const dbPath = path.join(process.cwd(), 'radar_lassez', 'radar.db');
@@ -25,6 +25,7 @@ function normalizePermissions(input: any, role: string) {
             studio: true,
             network: true,
             lab: true,
+            daemon: true,
             settings: true,
             users: true
         };
@@ -35,6 +36,7 @@ function normalizePermissions(input: any, role: string) {
         studio: false,
         network: false,
         lab: false,
+        daemon: false,
         settings: false,
         users: false
     };

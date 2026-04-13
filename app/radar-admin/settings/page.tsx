@@ -1,23 +1,115 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useRadarAdmin } from '../components/RadarAdminContext';
 import { DashboardLayout } from '../components/DashboardLayout';
 
+const MODEL_OPTIONS = [
+    'gemini-3.1-pro-preview',
+    'gemini-3-flash-preview',
+    'gemini-2.5-flash',
+    'gemini-2.5-flash-lite',
+    'gemini-2.5-pro'
+];
+
+function parseJsonObject(raw: any, fallback: any = {}) {
+    if (!raw) return fallback;
+    try {
+        const parsed = JSON.parse(String(raw));
+        return parsed && typeof parsed === 'object' ? parsed : fallback;
+    } catch (_) {
+        return fallback;
+    }
+}
+
+function parseJsonArray(raw: any, fallback: string[] = []) {
+    if (!raw) return fallback;
+    try {
+        const parsed = JSON.parse(String(raw));
+        return Array.isArray(parsed) ? parsed.map((x) => String(x)).filter(Boolean) : fallback;
+    } catch (_) {
+        return fallback;
+    }
+}
+
+const DEFAULT_SOURCE_CFG = {
+    enabled: true,
+    source_type: 'dataset-api',
+    parser_strategy: 'municipales-communes-v1',
+    source_url: '',
+    dataset_first_tour: '',
+    dataset_second_tour: '',
+    candidate_first_tour: '',
+    candidate_second_tour: '',
+    results_first_tour_url: '',
+    results_second_tour_url: '',
+    candidatures_first_tour_url: '',
+    candidatures_second_tour_url: ''
+};
+
+const DEFAULT_DAEMON_CFG = {
+    enabled: false,
+    live_mode_enabled: false,
+    poll_interval_minutes: 2,
+    interval_enabled: true,
+    interval_hours: 0.5,
+    schedule_enabled: false,
+    schedule_times: '',
+    sync_locked: false
+};
+
 export default function SettingsPage() {
+    const [isOverlayMode, setIsOverlayMode] = useState(false);
     const { settings, fetchSettings, isDaemonRunning, countdown } = useRadarAdmin();
     const [activeTab, setActiveTab] = useState<'prompt' | 'logic' | 'sources' | 'pipeline' | 'diffusion' | 'health' | 'comms'>('prompt');
+    const [advancedMode, setAdvancedMode] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
+    const [isDirty, setIsDirty] = useState(false);
     const [isTesting, setIsTesting] = useState(false);
     const [isTestingImages, setIsTestingImages] = useState(false);
     const [form, setForm] = useState<any>({});
+    const [newElectionSlug, setNewElectionSlug] = useState('');
+    const [wizardOpen, setWizardOpen] = useState(false);
+    const [wizardSlug, setWizardSlug] = useState('');
+    const [wizardShowFront, setWizardShowFront] = useState(true);
+    const [wizardUseAsTarget, setWizardUseAsTarget] = useState(false);
+    const [wizardLiveEnabled, setWizardLiveEnabled] = useState(false);
+    const [wizardPollMin, setWizardPollMin] = useState(2);
+    const [wizardUseRawUrls, setWizardUseRawUrls] = useState(false);
+    const [wizardSourceUrl, setWizardSourceUrl] = useState('');
+    const [wizardDatasetFirst, setWizardDatasetFirst] = useState('');
+    const [wizardDatasetSecond, setWizardDatasetSecond] = useState('');
+    const [wizardCandidateFirst, setWizardCandidateFirst] = useState('');
+    const [wizardCandidateSecond, setWizardCandidateSecond] = useState('');
 
     useEffect(() => {
-        if (settings) setForm({ ...settings });
+        if (typeof window === 'undefined') return;
+        const params = new URLSearchParams(window.location.search);
+        setIsOverlayMode(params.get('overlay') === '1');
+    }, []);
+
+    const notifyParentStatus = (status: 'clean' | 'dirty' | 'saving' | 'saved') => {
+        if (!isOverlayMode || typeof window === 'undefined') return;
+        window.parent.postMessage(
+            {
+                type: 'radar-settings-status',
+                status
+            },
+            window.location.origin
+        );
+    };
+
+    useEffect(() => {
+        if (settings) {
+            setForm({ ...settings });
+            setIsDirty(false);
+            notifyParentStatus('clean');
+        }
     }, [settings]);
 
     const handleSave = async () => {
         setIsSaving(true);
+        notifyParentStatus('saving');
         try {
             await fetch('/api/radar/settings', {
                 method: 'PATCH',
@@ -25,11 +117,182 @@ export default function SettingsPage() {
                 body: JSON.stringify(form)
             });
             fetchSettings();
+            setIsDirty(false);
+            notifyParentStatus('saved');
         } catch (e) { console.error(e); }
         finally { setIsSaving(false); }
     };
 
-    const updateForm = (key: string, val: any) => setForm((prev: any) => ({ ...prev, [key]: val }));
+    const updateForm = (key: string, val: any) => {
+        setForm((prev: any) => ({ ...prev, [key]: val }));
+        setIsDirty(true);
+        notifyParentStatus('dirty');
+    };
+
+    const electionSourcesMap = useMemo(() => parseJsonObject(form.election_sources_json, {}), [form.election_sources_json]);
+    const electionDaemonMap = useMemo(() => parseJsonObject(form.election_daemon_by_slug_json, {}), [form.election_daemon_by_slug_json]);
+    const displaySlugs = useMemo(() => parseJsonArray(form.election_front_display_slugs_json, ['municipales-2026']), [form.election_front_display_slugs_json]);
+    const lastUsedSourcesMap = useMemo(() => parseJsonObject(form.election_last_used_source_json, {}), [form.election_last_used_source_json]);
+
+    const electionSlugs = useMemo(() => {
+        const slugs = new Set<string>();
+        for (const key of Object.keys(electionSourcesMap || {})) slugs.add(String(key));
+        for (const key of Object.keys(electionDaemonMap || {})) slugs.add(String(key));
+        for (const key of displaySlugs || []) slugs.add(String(key));
+        if (form.election_analysis_target_slug) slugs.add(String(form.election_analysis_target_slug));
+        if (!slugs.size) slugs.add('municipales-2026');
+        return Array.from(slugs).sort((a, b) => a.localeCompare(b));
+    }, [electionSourcesMap, electionDaemonMap, displaySlugs, form.election_analysis_target_slug]);
+
+    const updateElectionSourcesMap = (next: Record<string, any>) => {
+        updateForm('election_sources_json', JSON.stringify(next, null, 2));
+    };
+
+    const updateElectionDaemonMap = (next: Record<string, any>) => {
+        updateForm('election_daemon_by_slug_json', JSON.stringify(next, null, 2));
+    };
+
+    const updateDisplaySlugs = (next: string[]) => {
+        updateForm('election_front_display_slugs_json', JSON.stringify(next));
+    };
+
+    const ensureSlugConfigs = (slug: string) => {
+        const cleanSlug = slug.trim();
+        if (!cleanSlug) return;
+        const nextSources = { ...electionSourcesMap };
+        const nextDaemon = { ...electionDaemonMap };
+        if (!nextSources[cleanSlug]) nextSources[cleanSlug] = { ...DEFAULT_SOURCE_CFG };
+        if (!nextDaemon[cleanSlug]) nextDaemon[cleanSlug] = { ...DEFAULT_DAEMON_CFG };
+        updateElectionSourcesMap(nextSources);
+        updateElectionDaemonMap(nextDaemon);
+    };
+
+    const addElectionSlug = () => {
+        const slug = newElectionSlug.trim().toLowerCase();
+        if (!slug) return;
+        if (!/^[a-z0-9-]{3,80}$/.test(slug)) {
+            alert('Slug invalide. Utilise uniquement lettres/chiffres/tirets (3-80).');
+            return;
+        }
+        ensureSlugConfigs(slug);
+        if (!displaySlugs.includes(slug)) updateDisplaySlugs([...displaySlugs, slug]);
+        if (!form.election_analysis_target_slug) updateForm('election_analysis_target_slug', slug);
+        setNewElectionSlug('');
+    };
+
+    const removeElectionSlug = (slug: string) => {
+        if (slug === 'municipales-2026') {
+            alert('Le slug municipale de base est conservé pour la compatibilité.');
+            return;
+        }
+        if (!confirm(`Supprimer la configuration du slug ${slug} ?`)) return;
+        const nextSources = { ...electionSourcesMap };
+        const nextDaemon = { ...electionDaemonMap };
+        delete nextSources[slug];
+        delete nextDaemon[slug];
+        updateElectionSourcesMap(nextSources);
+        updateElectionDaemonMap(nextDaemon);
+        updateDisplaySlugs(displaySlugs.filter((x) => x !== slug));
+        if (form.election_analysis_target_slug === slug) {
+            updateForm('election_analysis_target_slug', 'municipales-2026');
+        }
+    };
+
+    const toggleSlugDisplay = (slug: string, checked: boolean) => {
+        if (checked) {
+            if (!displaySlugs.includes(slug)) updateDisplaySlugs([...displaySlugs, slug]);
+        } else {
+            updateDisplaySlugs(displaySlugs.filter((x) => x !== slug));
+        }
+    };
+
+    const moveDisplaySlug = (slug: string, dir: -1 | 1) => {
+        const idx = displaySlugs.indexOf(slug);
+        if (idx < 0) return;
+        const target = idx + dir;
+        if (target < 0 || target >= displaySlugs.length) return;
+        const next = [...displaySlugs];
+        [next[idx], next[target]] = [next[target], next[idx]];
+        updateDisplaySlugs(next);
+    };
+
+    const updateSourceCfg = (slug: string, key: string, value: any) => {
+        const next = { ...electionSourcesMap };
+        const base = next[slug] && typeof next[slug] === 'object' ? next[slug] : { ...DEFAULT_SOURCE_CFG };
+        next[slug] = { ...base, [key]: value };
+        updateElectionSourcesMap(next);
+    };
+
+    const updateDaemonCfg = (slug: string, key: string, value: any) => {
+        const next = { ...electionDaemonMap };
+        const base = next[slug] && typeof next[slug] === 'object' ? next[slug] : { ...DEFAULT_DAEMON_CFG };
+        next[slug] = { ...base, [key]: value };
+        updateElectionDaemonMap(next);
+    };
+
+    const openWizard = () => {
+        setWizardSlug('');
+        setWizardShowFront(true);
+        setWizardUseAsTarget(false);
+        setWizardLiveEnabled(false);
+        setWizardPollMin(2);
+        setWizardUseRawUrls(false);
+        setWizardSourceUrl('');
+        setWizardDatasetFirst('');
+        setWizardDatasetSecond('');
+        setWizardCandidateFirst('');
+        setWizardCandidateSecond('');
+        setWizardOpen(true);
+    };
+
+    const applyWizard = () => {
+        const slug = wizardSlug.trim().toLowerCase();
+        if (!/^[a-z0-9-]{3,80}$/.test(slug)) {
+            alert('Slug invalide. Utilise uniquement lettres/chiffres/tirets (3-80).');
+            return;
+        }
+
+        const nextSources = { ...electionSourcesMap };
+        const nextDaemon = { ...electionDaemonMap };
+        const sourceBase = nextSources[slug] && typeof nextSources[slug] === 'object'
+            ? nextSources[slug]
+            : { ...DEFAULT_SOURCE_CFG };
+        const daemonBase = nextDaemon[slug] && typeof nextDaemon[slug] === 'object'
+            ? nextDaemon[slug]
+            : { ...DEFAULT_DAEMON_CFG };
+
+        nextSources[slug] = {
+            ...sourceBase,
+            enabled: true,
+            source_url: wizardUseRawUrls ? wizardSourceUrl.trim() : '',
+            dataset_first_tour: wizardUseRawUrls ? '' : wizardDatasetFirst.trim(),
+            dataset_second_tour: wizardUseRawUrls ? '' : wizardDatasetSecond.trim(),
+            candidate_first_tour: wizardUseRawUrls ? '' : wizardCandidateFirst.trim(),
+            candidate_second_tour: wizardUseRawUrls ? '' : wizardCandidateSecond.trim()
+        };
+
+        nextDaemon[slug] = {
+            ...daemonBase,
+            enabled: true,
+            live_mode_enabled: wizardLiveEnabled,
+            poll_interval_minutes: Math.max(2, Number(wizardPollMin || 2))
+        };
+
+        updateElectionSourcesMap(nextSources);
+        updateElectionDaemonMap(nextDaemon);
+
+        if (wizardShowFront && !displaySlugs.includes(slug)) {
+            updateDisplaySlugs([...displaySlugs, slug]);
+        }
+        if (!wizardShowFront && displaySlugs.includes(slug)) {
+            updateDisplaySlugs(displaySlugs.filter((x) => x !== slug));
+        }
+        if (wizardUseAsTarget || !form.election_analysis_target_slug) {
+            updateForm('election_analysis_target_slug', slug);
+        }
+
+        setWizardOpen(false);
+    };
 
     const handleTestFlows = async () => {
         setIsTesting(true);
@@ -57,31 +320,43 @@ export default function SettingsPage() {
     };
 
     const tabs = [
-        { key: 'prompt', label: 'Moteur IA', icon: 'psychology' },
-        { key: 'logic', label: 'Logique Édito', icon: 'neurology' },
-        { key: 'sources', label: 'Sources', icon: 'rss_feed' },
-        { key: 'pipeline', label: 'Pipeline', icon: 'tune' },
-        { key: 'diffusion', label: 'Diffusion', icon: 'share' },
-        { key: 'health', label: 'Maintenance', icon: 'health_and_safety' },
-        { key: 'comms', label: 'Comms', icon: 'campaign' },
+        { key: 'prompt', label: 'Moteur IA', icon: 'psychology', advanced: false },
+        { key: 'logic', label: 'Logique Édito', icon: 'neurology', advanced: false },
+        { key: 'sources', label: 'Sources', icon: 'rss_feed', advanced: false },
+        { key: 'pipeline', label: 'Pipeline', icon: 'tune', advanced: true },
+        { key: 'diffusion', label: 'Diffusion', icon: 'share', advanced: true },
+        { key: 'health', label: 'Maintenance', icon: 'health_and_safety', advanced: true },
+        { key: 'comms', label: 'Comms', icon: 'campaign', advanced: true },
     ];
+    const visibleTabs = tabs.filter(t => !t.advanced || advancedMode);
+
+    useEffect(() => {
+        if (!advancedMode && ['pipeline', 'diffusion', 'health', 'comms'].includes(activeTab)) {
+            setActiveTab('prompt');
+        }
+    }, [advancedMode, activeTab]);
 
     return (
         <DashboardLayout 
             title="CORTEX SETTINGS" 
             subtitle={countdown || "Configuration système active..."} 
             isDaemonRunning={isDaemonRunning}
+            embedded={isOverlayMode}
         >
-            <div className="max-w-6xl font-label">
-                <header className="mb-12">
+            <div className="max-w-6xl mx-auto font-label">
+                <header className="mb-8 md:mb-12">
                     <h2 className="text-3xl font-black uppercase tracking-tighter font-headline mb-2">Paramètres Cortex</h2>
                     <p className="text-xs font-bold text-stone-500 uppercase tracking-widest">Configuration globale des moteurs OSINT et diffusion</p>
+                    <div className="mt-4 inline-flex items-center gap-3 bg-white border-4 border-stone-900 px-4 py-2">
+                        <span className="text-[10px] font-black uppercase tracking-widest">Mode avancé</span>
+                        <Toggle checked={advancedMode} onChange={setAdvancedMode} />
+                    </div>
                 </header>
 
-                <div className="flex flex-col md:flex-row gap-12">
+                <div className="flex flex-col md:flex-row gap-6 md:gap-12">
                     {/* Internal Nav */}
                     <nav className="w-full md:w-64 flex flex-col gap-4">
-                        {tabs.map(tab => (
+                        {visibleTabs.map(tab => (
                             <button
                                 key={tab.key}
                                 onClick={() => setActiveTab(tab.key as any)}
@@ -106,7 +381,7 @@ export default function SettingsPage() {
                     </nav>
 
                     {/* Settings Panel */}
-                    <div className="flex-1 bg-white border-4 border-stone-900 shadow-[12px_12px_0px_0px_#1A1C1C] p-10 min-h-[600px]">
+                    <div className="flex-1 bg-white border-4 border-stone-900 shadow-[12px_12px_0px_0px_#1A1C1C] p-4 md:p-10 min-h-[600px]">
                         {activeTab === 'prompt' && (
                             <div className="space-y-6">
                                 <h3 className="text-xl font-black uppercase tracking-tighter font-headline mb-4">Moteur de Pensée</h3>
@@ -119,19 +394,37 @@ export default function SettingsPage() {
                                 </div>
                                 <div className="grid grid-cols-2 gap-6">
                                     <div>
-                                        <label className="text-[10px] font-black uppercase text-stone-500 mb-1 block">Main Gemini Model</label>
-                                        <input
-                                            type="text"
-                                            value={form.ai_model_main || 'gemini-3-flash-preview'}
-                                            onChange={e => updateForm('ai_model_main', e.target.value)}
-                                            className="w-full bg-stone-50 border-4 border-stone-900 p-3 font-mono text-xs"
-                                        />
+                                        <label className="text-[10px] font-black uppercase text-stone-500 mb-1 block">Modèle global fallback</label>
+                                        <select value={form.ai_model_main || 'gemini-2.5-pro'} onChange={e => updateForm('ai_model_main', e.target.value)} className="w-full bg-stone-50 border-4 border-stone-900 p-3 font-black text-xs">
+                                            {MODEL_OPTIONS.map(m => <option key={`main-${m}`} value={m}>{m}</option>)}
+                                        </select>
                                     </div>
                                     <div>
                                         <label className="text-[10px] font-black uppercase text-stone-500 mb-1 block">Trust Mode</label>
                                         <div className="p-3 bg-stone-50 border-4 border-stone-900 text-[10px] font-black uppercase">
                                             RAG + Search + TrustMap Actif
                                         </div>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase text-stone-500 mb-1 block">Modèle Alerte Info</label>
+                                        <select value={form.ai_model_breaking || 'gemini-3.1-pro-preview'} onChange={e => updateForm('ai_model_breaking', e.target.value)} className="w-full bg-stone-50 border-4 border-stone-900 p-3 font-black text-xs">
+                                            {MODEL_OPTIONS.map(m => <option key={`b-${m}`} value={m}>{m}</option>)}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase text-stone-500 mb-1 block">Modèle Fait du Jour</label>
+                                        <select value={form.ai_model_standard || 'gemini-2.5-flash'} onChange={e => updateForm('ai_model_standard', e.target.value)} className="w-full bg-stone-50 border-4 border-stone-900 p-3 font-black text-xs">
+                                            {MODEL_OPTIONS.map(m => <option key={`s-${m}`} value={m}>{m}</option>)}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase text-stone-500 mb-1 block">Modèle Décryptage</label>
+                                        <select value={form.ai_model_decrypt || 'gemini-2.5-pro'} onChange={e => updateForm('ai_model_decrypt', e.target.value)} className="w-full bg-stone-50 border-4 border-stone-900 p-3 font-black text-xs">
+                                            {MODEL_OPTIONS.map(m => <option key={`d-${m}`} value={m}>{m}</option>)}
+                                        </select>
                                     </div>
                                 </div>
                                 <div>
@@ -163,6 +456,27 @@ export default function SettingsPage() {
                         {activeTab === 'logic' && (
                             <div className="space-y-8">
                                 <h3 className="text-xl font-black uppercase tracking-tighter font-headline">Intelligence de Tri & Formats</h3>
+
+                                <section className="space-y-4">
+                                    <header className="border-l-4 border-stone-900 pl-4">
+                                        <h4 className="text-sm font-black uppercase tracking-tight">Google Search par type</h4>
+                                        <p className="text-[10px] font-bold text-stone-400 uppercase">Active ou coupe la vérification web selon le type de news</p>
+                                    </header>
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                        <div className="flex items-center justify-between p-3 bg-stone-50 border-2 border-stone-900">
+                                            <span className="text-[10px] font-black uppercase">Alerte Info</span>
+                                            <Toggle checked={form.google_search_breaking_enabled !== 'false'} onChange={v => updateForm('google_search_breaking_enabled', v ? 'true' : 'false')} />
+                                        </div>
+                                        <div className="flex items-center justify-between p-3 bg-stone-50 border-2 border-stone-900">
+                                            <span className="text-[10px] font-black uppercase">Fait du Jour</span>
+                                            <Toggle checked={form.google_search_standard_enabled !== 'false'} onChange={v => updateForm('google_search_standard_enabled', v ? 'true' : 'false')} />
+                                        </div>
+                                        <div className="flex items-center justify-between p-3 bg-stone-50 border-2 border-stone-900">
+                                            <span className="text-[10px] font-black uppercase">Décryptage</span>
+                                            <Toggle checked={form.google_search_decrypt_enabled !== 'false'} onChange={v => updateForm('google_search_decrypt_enabled', v ? 'true' : 'false')} />
+                                        </div>
+                                    </div>
+                                </section>
                                 
                                 <section className="space-y-4">
                                     <header className="border-l-4 border-red-600 pl-4">
@@ -304,6 +618,206 @@ export default function SettingsPage() {
                                         className="w-full bg-stone-50 border-4 border-stone-900 p-4 font-mono text-xs"
                                     />
                                 </section>
+
+                                <section className="space-y-4 border-l-4 border-red-700 pl-4">
+                                    <div>
+                                        <h4 className="text-sm font-black uppercase tracking-tight">Elections long-terme (multi-slugs)</h4>
+                                        <p className="text-[10px] font-bold text-stone-400 uppercase mb-2">Ajoute des slugs, configure les sources Etat, active le daemon live par slug, et pilote show/hide front sans JSON manuel.</p>
+                                    </div>
+
+                                    <div className="bg-amber-50 border-4 border-stone-900 p-4 space-y-3">
+                                        <div className="flex items-center justify-between gap-3 flex-wrap">
+                                            <div>
+                                                <div className="text-xs font-black uppercase tracking-widest">Assistant rapide (3 etapes)</div>
+                                                <div className="text-[10px] font-bold uppercase text-stone-500">Slug, affichage, source + live daemon en moins d'une minute.</div>
+                                            </div>
+                                            <button onClick={openWizard} className="px-4 py-2 bg-stone-900 text-white border-2 border-stone-900 text-[10px] font-black uppercase tracking-widest">Nouveau cycle guide</button>
+                                        </div>
+
+                                        {wizardOpen && (
+                                            <div className="bg-white border-2 border-stone-900 p-4 space-y-4">
+                                                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-[10px] font-black uppercase tracking-widest">
+                                                    <div className="p-2 border-2 border-stone-900 bg-stone-100">1. Identite du slug</div>
+                                                    <div className="p-2 border-2 border-stone-900 bg-stone-100">2. Visibilite front + cible daemon</div>
+                                                    <div className="p-2 border-2 border-stone-900 bg-stone-100">3. Source Etat + mode live</div>
+                                                </div>
+
+                                                <div className="space-y-2">
+                                                    <label className="text-[10px] font-black uppercase text-stone-500 block">Slug election</label>
+                                                    <input type="text" value={wizardSlug} onChange={e => setWizardSlug(e.target.value)} placeholder="presidentielles-2027" className="w-full bg-stone-50 border-2 border-stone-900 p-2 font-mono text-xs" />
+                                                </div>
+
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                    <div className="flex items-center justify-between p-3 bg-stone-50 border-2 border-stone-900">
+                                                        <span className="text-[10px] font-black uppercase">Afficher ce slug en front</span>
+                                                        <Toggle checked={wizardShowFront} onChange={setWizardShowFront} />
+                                                    </div>
+                                                    <div className="flex items-center justify-between p-3 bg-stone-50 border-2 border-stone-900">
+                                                        <span className="text-[10px] font-black uppercase">Utiliser comme cible daemon</span>
+                                                        <Toggle checked={wizardUseAsTarget} onChange={setWizardUseAsTarget} />
+                                                    </div>
+                                                </div>
+
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                    <div className="flex items-center justify-between p-3 bg-stone-50 border-2 border-stone-900">
+                                                        <span className="text-[10px] font-black uppercase">Source URL directe</span>
+                                                        <Toggle checked={wizardUseRawUrls} onChange={setWizardUseRawUrls} />
+                                                    </div>
+                                                    <div className="flex items-center justify-between p-3 bg-stone-50 border-2 border-stone-900">
+                                                        <span className="text-[10px] font-black uppercase">Activer mode live</span>
+                                                        <Toggle checked={wizardLiveEnabled} onChange={setWizardLiveEnabled} />
+                                                    </div>
+                                                </div>
+
+                                                <div>
+                                                    <label className="text-[10px] font-black uppercase text-stone-500 block mb-1">Pull interval live (minutes)</label>
+                                                    <input type="number" min="2" value={wizardPollMin} onChange={e => setWizardPollMin(Number(e.target.value || 2))} className="w-full bg-stone-50 border-2 border-stone-900 p-2 font-black text-xs" />
+                                                </div>
+
+                                                {wizardUseRawUrls ? (
+                                                    <div>
+                                                        <label className="text-[10px] font-black uppercase text-stone-500 block mb-1">URL fichier Etat</label>
+                                                        <input type="text" value={wizardSourceUrl} onChange={e => setWizardSourceUrl(e.target.value)} placeholder="https://..." className="w-full bg-stone-50 border-2 border-stone-900 p-2 font-mono text-xs" />
+                                                    </div>
+                                                ) : (
+                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                                        <input type="text" value={wizardDatasetFirst} onChange={e => setWizardDatasetFirst(e.target.value)} placeholder="dataset premier tour" className="w-full bg-stone-50 border-2 border-stone-900 p-2 font-mono text-xs" />
+                                                        <input type="text" value={wizardDatasetSecond} onChange={e => setWizardDatasetSecond(e.target.value)} placeholder="dataset second tour" className="w-full bg-stone-50 border-2 border-stone-900 p-2 font-mono text-xs" />
+                                                        <input type="text" value={wizardCandidateFirst} onChange={e => setWizardCandidateFirst(e.target.value)} placeholder="dataset candidats tour 1" className="w-full bg-stone-50 border-2 border-stone-900 p-2 font-mono text-xs" />
+                                                        <input type="text" value={wizardCandidateSecond} onChange={e => setWizardCandidateSecond(e.target.value)} placeholder="dataset candidats tour 2" className="w-full bg-stone-50 border-2 border-stone-900 p-2 font-mono text-xs" />
+                                                    </div>
+                                                )}
+
+                                                <div className="flex justify-end gap-2">
+                                                    <button onClick={() => setWizardOpen(false)} className="px-3 py-2 border-2 border-stone-900 bg-white text-[10px] font-black uppercase">Annuler</button>
+                                                    <button onClick={applyWizard} className="px-3 py-2 border-2 border-stone-900 bg-red-700 text-white text-[10px] font-black uppercase">Creer et configurer</button>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3">
+                                        <input
+                                            type="text"
+                                            value={newElectionSlug}
+                                            onChange={e => setNewElectionSlug(e.target.value)}
+                                            placeholder="nouveau-slug-election"
+                                            className="w-full bg-white border-4 border-stone-900 p-3 font-mono text-xs"
+                                        />
+                                        <button
+                                            onClick={addElectionSlug}
+                                            className="px-4 py-3 bg-stone-900 text-white border-4 border-stone-900 text-[10px] font-black uppercase tracking-widest"
+                                        >
+                                            Ajouter slug
+                                        </button>
+                                    </div>
+
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase text-stone-500 mb-1 block">Slug analyse cible (daemon elections)</label>
+                                        <select
+                                            value={form.election_analysis_target_slug || 'municipales-2026'}
+                                            onChange={e => updateForm('election_analysis_target_slug', e.target.value)}
+                                            className="w-full bg-stone-50 border-4 border-stone-900 p-3 font-black text-xs"
+                                        >
+                                            {electionSlugs.map(slug => <option key={`target-${slug}`} value={slug}>{slug}</option>)}
+                                        </select>
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black uppercase text-stone-500 mb-1 block">Slugs visibles en front (ordre d'affichage)</label>
+                                        {displaySlugs.length === 0 && <div className="text-[10px] font-black uppercase text-stone-400">Aucun slug visible pour le moment.</div>}
+                                        {displaySlugs.map((slug, idx) => (
+                                            <div key={`display-${slug}`} className="flex items-center gap-2 bg-white border-2 border-stone-900 p-2">
+                                                <span className="text-[10px] font-black uppercase w-7 text-center">{idx + 1}</span>
+                                                <span className="flex-1 text-[10px] font-black uppercase">{slug}</span>
+                                                <button onClick={() => moveDisplaySlug(slug, -1)} className="px-2 py-1 border-2 border-stone-900 text-[10px] font-black uppercase">↑</button>
+                                                <button onClick={() => moveDisplaySlug(slug, 1)} className="px-2 py-1 border-2 border-stone-900 text-[10px] font-black uppercase">↓</button>
+                                                <button onClick={() => toggleSlugDisplay(slug, false)} className="px-2 py-1 bg-red-700 text-white border-2 border-stone-900 text-[10px] font-black uppercase">Hide</button>
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    <div className="grid grid-cols-1 gap-4">
+                                        {electionSlugs.map((slug) => {
+                                            const sourceCfg = { ...DEFAULT_SOURCE_CFG, ...(electionSourcesMap[slug] || {}) };
+                                            const daemonCfg = { ...DEFAULT_DAEMON_CFG, ...(electionDaemonMap[slug] || {}) };
+                                            const isShown = displaySlugs.includes(slug);
+                                            const isTarget = (form.election_analysis_target_slug || 'municipales-2026') === slug;
+                                            const lastUsed = lastUsedSourcesMap[slug] || null;
+                                            return (
+                                                <div key={`slug-card-${slug}`} className="bg-white border-4 border-stone-900 p-4 space-y-4">
+                                                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                                                        <div>
+                                                            <h5 className="text-sm font-black uppercase tracking-widest">{slug}</h5>
+                                                            <div className="text-[10px] font-black uppercase text-stone-500">{isTarget ? 'Slug cible du daemon' : 'Slug secondaire'}</div>
+                                                        </div>
+                                                        <div className="flex items-center gap-2 flex-wrap">
+                                                            <button onClick={() => toggleSlugDisplay(slug, !isShown)} className={`px-3 py-2 border-2 border-stone-900 text-[10px] font-black uppercase ${isShown ? 'bg-stone-900 text-white' : 'bg-white text-stone-900'}`}>
+                                                                {isShown ? 'Visible front' : 'Afficher front'}
+                                                            </button>
+                                                            {!displaySlugs.includes(slug) && (
+                                                                <button onClick={() => toggleSlugDisplay(slug, true)} className="px-3 py-2 bg-emerald-700 text-white border-2 border-stone-900 text-[10px] font-black uppercase">Show</button>
+                                                            )}
+                                                            <button onClick={() => removeElectionSlug(slug)} className="px-3 py-2 bg-red-700 text-white border-2 border-stone-900 text-[10px] font-black uppercase">Supprimer</button>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                        <div className="space-y-2 p-3 border-2 border-stone-900 bg-stone-50">
+                                                            <div className="text-[10px] font-black uppercase text-stone-500">Source Etat</div>
+                                                            <div className="flex items-center justify-between">
+                                                                <span className="text-[10px] font-black uppercase">Source active</span>
+                                                                <Toggle checked={sourceCfg.enabled !== false && sourceCfg.enabled !== 'false'} onChange={v => updateSourceCfg(slug, 'enabled', v)} />
+                                                            </div>
+                                                            <input type="text" value={sourceCfg.source_url || ''} onChange={e => updateSourceCfg(slug, 'source_url', e.target.value)} placeholder="URL fichier Etat (optionnel)" className="w-full bg-white border-2 border-stone-900 p-2 font-mono text-xs" />
+                                                            <input type="text" value={sourceCfg.dataset_first_tour || ''} onChange={e => updateSourceCfg(slug, 'dataset_first_tour', e.target.value)} placeholder="Dataset API premier tour" className="w-full bg-white border-2 border-stone-900 p-2 font-mono text-xs" />
+                                                            <input type="text" value={sourceCfg.dataset_second_tour || ''} onChange={e => updateSourceCfg(slug, 'dataset_second_tour', e.target.value)} placeholder="Dataset API second tour" className="w-full bg-white border-2 border-stone-900 p-2 font-mono text-xs" />
+                                                            <input type="text" value={sourceCfg.candidate_first_tour || ''} onChange={e => updateSourceCfg(slug, 'candidate_first_tour', e.target.value)} placeholder="Dataset candidats premier tour" className="w-full bg-white border-2 border-stone-900 p-2 font-mono text-xs" />
+                                                            <input type="text" value={sourceCfg.candidate_second_tour || ''} onChange={e => updateSourceCfg(slug, 'candidate_second_tour', e.target.value)} placeholder="Dataset candidats second tour" className="w-full bg-white border-2 border-stone-900 p-2 font-mono text-xs" />
+                                                        </div>
+
+                                                        <div className="space-y-2 p-3 border-2 border-stone-900 bg-stone-50">
+                                                            <div className="text-[10px] font-black uppercase text-stone-500">Daemon live par slug</div>
+                                                            <div className="flex items-center justify-between">
+                                                                <span className="text-[10px] font-black uppercase">Daemon ON</span>
+                                                                <Toggle checked={daemonCfg.enabled === true || daemonCfg.enabled === 'true'} onChange={v => updateDaemonCfg(slug, 'enabled', v)} />
+                                                            </div>
+                                                            <div className="flex items-center justify-between">
+                                                                <span className="text-[10px] font-black uppercase">Live minutes</span>
+                                                                <Toggle checked={daemonCfg.live_mode_enabled === true || daemonCfg.live_mode_enabled === 'true'} onChange={v => updateDaemonCfg(slug, 'live_mode_enabled', v)} />
+                                                            </div>
+                                                            <div>
+                                                                <label className="text-[10px] font-black uppercase text-stone-500 mb-1 block">Pull interval (min, min=2)</label>
+                                                                <input type="number" min="2" value={daemonCfg.poll_interval_minutes ?? 2} onChange={e => updateDaemonCfg(slug, 'poll_interval_minutes', Number(e.target.value || 2))} className="w-full bg-white border-2 border-stone-900 p-2 font-black text-xs" />
+                                                            </div>
+                                                            <div className="grid grid-cols-2 gap-2">
+                                                                <div className="flex items-center justify-between p-2 bg-white border-2 border-stone-900">
+                                                                    <span className="text-[10px] font-black uppercase">Intervalle h</span>
+                                                                    <Toggle checked={daemonCfg.interval_enabled === true || daemonCfg.interval_enabled === 'true'} onChange={v => updateDaemonCfg(slug, 'interval_enabled', v)} />
+                                                                </div>
+                                                                <div className="flex items-center justify-between p-2 bg-white border-2 border-stone-900">
+                                                                    <span className="text-[10px] font-black uppercase">Heures fixes</span>
+                                                                    <Toggle checked={daemonCfg.schedule_enabled === true || daemonCfg.schedule_enabled === 'true'} onChange={v => updateDaemonCfg(slug, 'schedule_enabled', v)} />
+                                                                </div>
+                                                            </div>
+                                                            <input type="number" step="0.1" min="0.1" value={daemonCfg.interval_hours ?? 0.5} onChange={e => updateDaemonCfg(slug, 'interval_hours', Number(e.target.value || 0.5))} placeholder="Intervalle en heures" className="w-full bg-white border-2 border-stone-900 p-2 font-black text-xs" />
+                                                            <input type="text" value={daemonCfg.schedule_times || ''} onChange={e => updateDaemonCfg(slug, 'schedule_times', e.target.value)} placeholder="HH:MM, HH:MM" className="w-full bg-white border-2 border-stone-900 p-2 font-mono text-xs" />
+                                                            <div className="flex items-center justify-between p-2 bg-white border-2 border-stone-900">
+                                                                <span className="text-[10px] font-black uppercase">Sync locked</span>
+                                                                <Toggle checked={daemonCfg.sync_locked === true || daemonCfg.sync_locked === 'true'} onChange={v => updateDaemonCfg(slug, 'sync_locked', v)} />
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="p-3 bg-stone-100 border-2 border-stone-900">
+                                                        <div className="text-[10px] font-black uppercase text-stone-500 mb-1">Derniere source utilisee (audit)</div>
+                                                        <pre className="text-[10px] font-mono whitespace-pre-wrap break-all">{lastUsed ? JSON.stringify(lastUsed, null, 2) : 'Aucune execution source enregistree pour ce slug.'}</pre>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </section>
                             </div>
                         )}
 
@@ -432,107 +946,11 @@ export default function SettingsPage() {
                                 </section>
 
                                 <section className="space-y-6">
-                                    <h4 className="text-xs font-black uppercase tracking-widest text-stone-400 mb-6">Timing & Frequency</h4>
-                                    <div className="space-y-4">
-                                        <div>
-                                            <label className="text-[10px] font-black uppercase text-stone-500 mb-1 block">Max Signals per Scan</label>
-                                            <input 
-                                                type="number" 
-                                                value={form.max_articles || 3} 
-                                                onChange={e => updateForm('max_articles', e.target.value)}
-                                                className="w-full bg-stone-50 border-4 border-stone-900 p-3 font-black text-xs"
-                                            />
-                                        </div>
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <div>
-                                                <label className="text-[10px] font-black uppercase text-stone-500 mb-1 block">Min Delay (m)</label>
-                                                <input type="number" value={form.min_delay_min || 0} onChange={e => updateForm('min_delay_min', e.target.value)} className="w-full bg-stone-50 border-4 border-stone-900 p-3 font-black text-xs" />
-                                            </div>
-                                            <div>
-                                                <label className="text-[10px] font-black uppercase text-stone-500 mb-1 block">Max Delay (m)</label>
-                                                <input type="number" value={form.max_delay_min || 15} onChange={e => updateForm('max_delay_min', e.target.value)} className="w-full bg-stone-50 border-4 border-stone-900 p-3 font-black text-xs" />
-                                            </div>
-                                        </div>
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <div>
-                                                <label className="text-[10px] font-black uppercase text-stone-500 mb-1 block">RSS Lookback (h)</label>
-                                                <input type="number" min="1" value={form.rss_lookback_hours || 24} onChange={e => updateForm('rss_lookback_hours', e.target.value)} className="w-full bg-stone-50 border-4 border-stone-900 p-3 font-black text-xs" />
-                                            </div>
-                                            <div>
-                                                <label className="text-[10px] font-black uppercase text-stone-500 mb-1 block">Scan Interval (h)</label>
-                                                <input type="number" step="0.1" min="0.1" value={form.scan_interval_hours || 2} onChange={e => updateForm('scan_interval_hours', e.target.value)} className="w-full bg-stone-50 border-4 border-stone-900 p-3 font-black text-xs" />
-                                            </div>
-                                        </div>
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <div>
-                                                <label className="text-[10px] font-black uppercase text-stone-500 mb-1 block">Elections Interval (h)</label>
-                                                <input type="number" step="0.1" min="0.1" value={form.election_interval_hours || 0.5} onChange={e => updateForm('election_interval_hours', e.target.value)} className="w-full bg-stone-50 border-4 border-stone-900 p-3 font-black text-xs" />
-                                            </div>
-                                            <div className="flex flex-col justify-end gap-3">
-                                                <div className="flex items-center justify-between p-3 bg-stone-50 border-2 border-stone-100">
-                                                    <span className="font-bold uppercase text-[10px]">Daemon RSS</span>
-                                                    <Toggle checked={form.daemon_rss_enabled !== 'false'} onChange={v => updateForm('daemon_rss_enabled', v ? 'true' : 'false')} />
-                                                </div>
-                                                <div className="flex items-center justify-between p-3 bg-stone-50 border-2 border-stone-100">
-                                                    <span className="font-bold uppercase text-[10px]">Daemon Elections</span>
-                                                    <Toggle checked={form.daemon_elections_enabled === 'true'} onChange={v => updateForm('daemon_elections_enabled', v ? 'true' : 'false')} />
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div className="p-4 bg-stone-50 border-4 border-stone-900 space-y-3">
-                                            <div className="flex items-center justify-between">
-                                                <div>
-                                                    <label className="text-[10px] font-black uppercase text-stone-500 mb-1 block">Mode Heures Exactes</label>
-                                                    <p className="text-[10px] font-bold text-stone-400 uppercase">Lance le scrape RSS a des heures fixes d'influence</p>
-                                                </div>
-                                                <Toggle checked={form.daemon_rss_schedule_enabled === 'true'} onChange={v => updateForm('daemon_rss_schedule_enabled', v ? 'true' : 'false')} />
-                                            </div>
-                                            <div>
-                                                <label className="text-[10px] font-black uppercase text-stone-500 mb-1 block">Heures RSS (HH:MM)</label>
-                                                <input
-                                                    type="text"
-                                                    value={form.daemon_rss_schedule_times || ''}
-                                                    onChange={e => updateForm('daemon_rss_schedule_times', e.target.value)}
-                                                    placeholder="07:30, 12:00, 18:45, 21:00"
-                                                    className="w-full bg-white border-4 border-stone-900 p-3 font-mono text-xs"
-                                                />
-                                                <p className="mt-2 text-[10px] font-bold text-stone-400 uppercase">Si actif, le champ Scan Interval est ignore pour la boucle RSS.</p>
-                                            </div>
-                                        </div>
-                                        <div className="p-4 bg-stone-50 border-4 border-stone-900 space-y-3">
-                                            <div className="flex items-center justify-between">
-                                                <div>
-                                                    <label className="text-[10px] font-black uppercase text-stone-500 mb-1 block">Tuning Dynamique Daemon</label>
-                                                    <p className="text-[10px] font-bold text-stone-400 uppercase">Surcharge max/lookup/delays selon heure et daemon</p>
-                                                </div>
-                                                <Toggle checked={form.daemon_dynamic_tuning_enabled === 'true'} onChange={v => updateForm('daemon_dynamic_tuning_enabled', v ? 'true' : 'false')} />
-                                            </div>
-                                            <div>
-                                                <label className="text-[10px] font-black uppercase text-stone-500 mb-1 block">Règles JSON</label>
-                                                <textarea
-                                                    value={form.daemon_dynamic_tuning_rules || ''}
-                                                    onChange={e => updateForm('daemon_dynamic_tuning_rules', e.target.value)}
-                                                    rows={8}
-                                                    placeholder={`[
-  {
-    "name": "prime-time-matin",
-    "daemons": ["rss", "publisher"],
-    "days": [1,2,3,4,5],
-    "start": "07:00",
-    "end": "10:00",
-    "overrides": {
-      "max_articles": 8,
-      "rss_lookback_hours": 8,
-      "min_delay_min": 1,
-      "max_delay_min": 4
-    }
-  }
-]`}
-                                                    className="w-full bg-white border-4 border-stone-900 p-3 font-mono text-xs"
-                                                />
-                                                <p className="mt-2 text-[10px] font-bold text-stone-400 uppercase">Le daemon prend la première règle active qui match l'heure, le jour et le type de daemon.</p>
-                                            </div>
-                                        </div>
+                                    <h4 className="text-xs font-black uppercase tracking-widest text-stone-400 mb-6">Orchestration Daemon</h4>
+                                    <div className="p-5 bg-amber-50 border-4 border-stone-900 space-y-3">
+                                        <p className="text-xs font-black uppercase tracking-widest">Réglages avancés déplacés</p>
+                                        <p className="text-[10px] font-bold uppercase text-stone-500">Les paramètres de scan, programmation horaire et tuning dynamique sont centralisés dans le Daemon Center pour éviter les doublons.</p>
+                                        <a href="/radar-admin/daemon" className="inline-block bg-stone-900 text-white px-4 py-2 border-2 border-stone-900 text-[10px] font-black uppercase tracking-widest">Ouvrir le Daemon Center</a>
                                     </div>
                                 </section>
                             </div>

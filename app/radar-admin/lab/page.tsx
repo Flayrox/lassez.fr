@@ -12,15 +12,15 @@ export default function LabPage() {
 
     return (
         <DashboardLayout 
-            title="RESEARCH LAB" 
-            subtitle={countdown || "System diagnostics & AI testing..."} 
+            title="LABORATOIRE" 
+            subtitle={countdown || "Diagnostics système et tests IA..."} 
             isDaemonRunning={isDaemonRunning}
         >
             <div className="max-w-6xl space-y-8 font-label">
                 <header className="flex justify-between items-end border-b-4 border-stone-200 pb-6">
                     <div>
-                        <h2 className="text-3xl font-black uppercase tracking-tighter font-headline mb-2">Research Lab</h2>
-                        <p className="text-xs font-bold text-stone-500 uppercase tracking-widest">Signal extraction & AI prompt engineering</p>
+                        <h2 className="text-3xl font-black uppercase tracking-tighter font-headline mb-2">Laboratoire</h2>
+                        <p className="text-xs font-bold text-stone-500 uppercase tracking-widest">Extraction de signaux et ingénierie de prompts IA</p>
                     </div>
                     <nav className="flex gap-4">
                         <button
@@ -31,7 +31,7 @@ export default function LabPage() {
                                     : 'bg-white text-stone-400 border-stone-200 hover:border-stone-400'
                             }`}
                         >
-                            Terminal Console
+                            Console daemon
                         </button>
                         <button
                             onClick={() => setActiveTab('TEST_IA')}
@@ -41,7 +41,7 @@ export default function LabPage() {
                                     : 'bg-white text-stone-400 border-stone-200 hover:border-stone-400'
                             }`}
                         >
-                            IA Cortex Test
+                            Test Cortex IA
                         </button>
                     </nav>
                 </header>
@@ -52,7 +52,7 @@ export default function LabPage() {
 
                 <footer className="bg-stone-900 text-stone-500 p-4 font-mono text-[10px] uppercase tracking-widest flex items-center gap-4">
                     <span className="w-2 h-2 rounded-full bg-red-600 animate-pulse" />
-                    Lab Environment Active // Ready for Input
+                    Environnement Lab actif // Prêt pour exécution
                 </footer>
             </div>
         </DashboardLayout>

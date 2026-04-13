@@ -20,11 +20,20 @@ export default function CitySearchBar({ electionSlug = 'municipales-2026' }: { e
 
     const suggestions = suggestData?.suggestions || [];
 
-    const handleSelectVille = (ville: string, slug: string, insee?: string) => {
+    const handleSelectVille = (ville: string, slug: string, insee?: string, dep?: string) => {
         setSearch(ville);
         setShowSuggestions(false);
-        const finalSlug = insee ? formatCommuneSlug(insee, ville) : slug;
-        router.push(`/elections/${electionSlug}/commune/${finalSlug}`);
+        if (electionSlug === 'municipales-2026') {
+            const finalSlug = insee ? formatCommuneSlug(insee, ville) : slug;
+            router.push(`/elections/${electionSlug}/commune/${finalSlug}`);
+            return;
+        }
+
+        let url = `/elections/${electionSlug}?ville=${encodeURIComponent(ville)}`;
+        if (dep) {
+            url += `&dep=${encodeURIComponent(dep)}`;
+        }
+        router.push(url);
     };
 
     return (
@@ -52,7 +61,7 @@ export default function CitySearchBar({ electionSlug = 'municipales-2026' }: { e
                     {suggestions.map((s) => (
                         <button
                             key={`${s.slug}-${s.dep}`}
-                            onClick={() => handleSelectVille(s.name.split(' (')[0], s.slug, s.insee)}
+                            onClick={() => handleSelectVille(s.name.split(' (')[0], s.slug, s.insee, s.dep)}
                             className="w-full text-left px-4 py-3 border-b border-ink/10 hover:bg-lassez-red hover:text-paper transition-colors font-mono text-xs font-black uppercase tracking-wider"
                         >
                             {s.name}

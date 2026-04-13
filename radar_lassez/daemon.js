@@ -227,6 +227,166 @@ function findDaemonTuning(settings, daemonType) {
     return null;
 }
 
+function toNum(value, fallback) {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : fallback;
+}
+
+function isEnabledFlag(value, defaultValue = true) {
+    if (value === undefined || value === null || value === '') return defaultValue;
+    return String(value) === 'true';
+}
+
+function parseJsonObject(raw, fallback = {}) {
+    if (!raw) return fallback;
+    try {
+        const parsed = JSON.parse(raw);
+        return parsed && typeof parsed === 'object' ? parsed : fallback;
+    } catch (_) {
+        return fallback;
+    }
+}
+
+function getElectionAnalysisTargetSlug(settings) {
+    const slug = String(settings.election_analysis_target_slug || 'municipales-2026').trim();
+    return slug || 'municipales-2026';
+}
+
+function getElectionSlugConfig(settings) {
+    const targetSlug = getElectionAnalysisTargetSlug(settings);
+    const map = parseJsonObject(settings.election_daemon_by_slug_json || '{}', {});
+    const raw = map[targetSlug] && typeof map[targetSlug] === 'object' ? map[targetSlug] : {};
+    return {
+        targetSlug,
+        enabled: raw.enabled !== undefined ? isEnabledFlag(raw.enabled, true) : isEnabledFlag(settings.daemon_elections_enabled, false),
+        liveModeEnabled: raw.live_mode_enabled !== undefined ? isEnabledFlag(raw.live_mode_enabled, false) : false,
+        pollIntervalMinutes: Math.max(2, toNum(raw.poll_interval_minutes, 2)),
+        intervalEnabled: raw.interval_enabled !== undefined ? isEnabledFlag(raw.interval_enabled, true) : isEnabledFlag(settings.daemon_elections_interval_enabled, true),
+        intervalHours: toNum(raw.interval_hours, toNum(settings.election_interval_hours, 0.5)),
+        scheduleEnabled: raw.schedule_enabled !== undefined ? isEnabledFlag(raw.schedule_enabled, false) : isEnabledFlag(settings.daemon_elections_schedule_enabled, false),
+        scheduleTimesRaw: String(raw.schedule_times !== undefined ? raw.schedule_times : (settings.daemon_elections_schedule_times || '')),
+        syncLocked: raw.sync_locked !== undefined ? isEnabledFlag(raw.sync_locked, false) : false
+    };
+}
+
+function getDaemonProfiles(settings) {
+    const base = {
+        rss: {
+            max_articles: toNum(settings.max_articles, 3),
+            rss_lookback_hours: toNum(settings.rss_lookback_hours, 24),
+            min_delay_min: toNum(settings.min_delay_min, 0),
+            max_delay_min: toNum(settings.max_delay_min, 15),
+            scan_interval_hours: toNum(settings.scan_interval_hours, 2),
+            election_interval_hours: toNum(settings.election_interval_hours, 0.5)
+        },
+        publisher: {
+            max_articles: toNum(settings.max_articles, 3),
+            rss_lookback_hours: toNum(settings.rss_lookback_hours, 24),
+            min_delay_min: toNum(settings.min_delay_min, 0),
+            max_delay_min: toNum(settings.max_delay_min, 15),
+            scan_interval_hours: toNum(settings.scan_interval_hours, 2),
+            election_interval_hours: toNum(settings.election_interval_hours, 0.5)
+        },
+        elections: {
+            max_articles: toNum(settings.max_articles, 3),
+            rss_lookback_hours: toNum(settings.rss_lookback_hours, 24),
+            min_delay_min: toNum(settings.min_delay_min, 0),
+            max_delay_min: toNum(settings.max_delay_min, 15),
+            scan_interval_hours: toNum(settings.scan_interval_hours, 2),
+            election_interval_hours: toNum(settings.election_interval_hours, 0.5)
+        }
+    };
+
+    try {
+        const parsed = JSON.parse(settings.daemon_profiles_json || '{}');
+        if (!parsed || typeof parsed !== 'object') return base;
+
+        for (const key of ['rss', 'publisher', 'elections']) {
+            if (!parsed[key] || typeof parsed[key] !== 'object') continue;
+            for (const field of ['max_articles', 'rss_lookback_hours', 'min_delay_min', 'max_delay_min', 'scan_interval_hours', 'election_interval_hours']) {
+                if (parsed[key][field] === undefined) continue;
+                const next = Number(parsed[key][field]);
+                if (Number.isFinite(next)) {
+                    base[key][field] = next;
+                }
+            }
+        }
+    } catch (_) {
+        return base;
+    }
+
+    return base;
+}
+
+function getRssSchedulePlan(settings, now = new Date()) {
+    const profiles = getDaemonProfiles(settings);
+    const tuning = findDaemonTuning(settings, 'rss');
+
+    const intervalHours = toNum(tuning?.overrides?.scan_interval_hours ?? profiles.rss.scan_interval_hours, 2);
+    const intervalEnabled = isEnabledFlag(settings.daemon_rss_interval_enabled, true);
+
+    const scheduleEnabled = isEnabledFlag(settings.daemon_rss_schedule_enabled, false);
+    const scheduleTimes = parseDailySchedule(settings.daemon_rss_schedule_times || '');
+    const nextScheduled = (scheduleEnabled && scheduleTimes.length > 0)
+        ? getNextScheduledDate(scheduleTimes, new Date(now.getTime() + 60 * 1000))
+        : null;
+
+    const nextInterval = intervalEnabled
+        ? new Date(now.getTime() + intervalHours * 60 * 60 * 1000)
+        : null;
+
+    const candidates = [nextInterval, nextScheduled].filter(Boolean).sort((a, b) => a.getTime() - b.getTime());
+    const nextAt = candidates.length > 0 ? candidates[0] : null;
+
+    return {
+        intervalEnabled,
+        intervalHours,
+        scheduleEnabled,
+        scheduleTimes,
+        nextScheduled,
+        nextAt
+    };
+}
+
+function getElectionSchedulePlan(settings, now = new Date()) {
+    const profiles = getDaemonProfiles(settings);
+    const tuning = findDaemonTuning(settings, 'elections');
+    const slugCfg = getElectionSlugConfig(settings);
+
+    const fallbackInterval = toNum(tuning?.overrides?.election_interval_hours ?? profiles.elections.election_interval_hours, 0.5);
+    const intervalHours = slugCfg.liveModeEnabled
+        ? Math.max(2, toNum(slugCfg.pollIntervalMinutes, 2)) / 60
+        : toNum(slugCfg.intervalHours, fallbackInterval);
+    const intervalEnabled = slugCfg.intervalEnabled;
+
+    const scheduleEnabled = slugCfg.scheduleEnabled;
+    const scheduleTimes = parseDailySchedule(slugCfg.scheduleTimesRaw || '');
+    const nextScheduled = (scheduleEnabled && scheduleTimes.length > 0)
+        ? getNextScheduledDate(scheduleTimes, new Date(now.getTime() + 60 * 1000))
+        : null;
+
+    const nextInterval = intervalEnabled
+        ? new Date(now.getTime() + intervalHours * 60 * 60 * 1000)
+        : null;
+
+    const candidates = [nextInterval, nextScheduled].filter(Boolean).sort((a, b) => a.getTime() - b.getTime());
+    const nextAt = candidates.length > 0 ? candidates[0] : null;
+
+    return {
+        targetSlug: slugCfg.targetSlug,
+        enabled: slugCfg.enabled,
+        liveModeEnabled: slugCfg.liveModeEnabled,
+        pollIntervalMinutes: slugCfg.pollIntervalMinutes,
+        syncLocked: slugCfg.syncLocked,
+        intervalEnabled,
+        intervalHours,
+        scheduleEnabled,
+        scheduleTimes,
+        nextScheduled,
+        nextAt
+    };
+}
+
 // ─── BOUCLE 1 : Scan RSS/IA ───────────────────────────────────
 let scanRunning = false;
 
@@ -242,15 +402,14 @@ async function runScan() {
     saveSetting('last_scan_at', new Date().toISOString());
     try {
         const settings = getSettings();
+        const profiles = getDaemonProfiles(settings);
         const tuning = findDaemonTuning(settings, 'rss');
         const env = {};
 
-        if (tuning?.overrides?.max_articles !== undefined) {
-            env.RADAR_MAX_ARTICLES_OVERRIDE = String(tuning.overrides.max_articles);
-        }
-        if (tuning?.overrides?.rss_lookback_hours !== undefined) {
-            env.RADAR_RSS_LOOKBACK_HOURS_OVERRIDE = String(tuning.overrides.rss_lookback_hours);
-        }
+        const effMaxArticles = tuning?.overrides?.max_articles ?? profiles.rss.max_articles;
+        const effLookback = tuning?.overrides?.rss_lookback_hours ?? profiles.rss.rss_lookback_hours;
+        env.RADAR_MAX_ARTICLES_OVERRIDE = String(effMaxArticles);
+        env.RADAR_RSS_LOOKBACK_HOURS_OVERRIDE = String(effLookback);
 
         if (Object.keys(env).length > 0) {
             log(`🎛️ Tuning RSS actif (${tuning.name}) → ${JSON.stringify(tuning.overrides)}`);
@@ -262,20 +421,19 @@ async function runScan() {
     } finally {
         scanRunning = false;
         const settings = getSettings();
-        const scheduleEnabled = settings.daemon_rss_schedule_enabled === 'true';
-        const scheduleTimes = parseDailySchedule(settings.daemon_rss_schedule_times || '');
+        const plan = getRssSchedulePlan(settings);
 
-        if (scheduleEnabled && scheduleTimes.length > 0) {
-            const nextScheduled = getNextScheduledDate(scheduleTimes);
-            if (nextScheduled) {
-                saveSetting('next_scan_at', nextScheduled.toISOString());
-                log(`⏰ Prochain scan RSS programmé à ${nextScheduled.toLocaleTimeString('fr-FR')} (heures fixes: ${scheduleTimes.join(', ')}).`);
+        if (plan.nextAt) {
+            saveSetting('next_scan_at', plan.nextAt.toISOString());
+            if (plan.scheduleEnabled && plan.scheduleTimes.length > 0 && plan.intervalEnabled) {
+                log(`⏰ Prochain scan RSS à ${plan.nextAt.toLocaleTimeString('fr-FR')} (mode ET/OU: intervalle ${plan.intervalHours}h + heures fixes ${plan.scheduleTimes.join(', ')}).`);
+            } else if (plan.scheduleEnabled && plan.scheduleTimes.length > 0) {
+                log(`⏰ Prochain scan RSS programmé à ${plan.nextAt.toLocaleTimeString('fr-FR')} (heures fixes: ${plan.scheduleTimes.join(', ')}).`);
+            } else if (plan.intervalEnabled) {
+                log(`⏰ Prochain scan automatique prévu à ${plan.nextAt.toLocaleTimeString('fr-FR')} (dans ${plan.intervalHours}h).`);
             }
         } else {
-            const intervalHours = parseFloat(settings.scan_interval_hours || '2');
-            const nextScanAt = new Date(Date.now() + intervalHours * 60 * 60 * 1000);
-            saveSetting('next_scan_at', nextScanAt.toISOString());
-            log(`⏰ Prochain scan automatique prévu à ${nextScanAt.toLocaleTimeString('fr-FR')} (dans ${intervalHours}h).`);
+            log('⏸️ RSS: aucun déclencheur actif (intervalle/heures fixes désactivés).');
         }
     }
 }
@@ -286,29 +444,29 @@ function startScanLoop() {
         const settings = getSettings();
         if (settings.daemon_rss_enabled === 'false') return;
 
-        const scheduleEnabled = settings.daemon_rss_schedule_enabled === 'true';
-        const scheduleTimes = parseDailySchedule(settings.daemon_rss_schedule_times || '');
+        const now = new Date();
+        const plan = getRssSchedulePlan(settings, now);
+        if (plan.nextAt) {
+            saveSetting('next_scan_at', plan.nextAt.toISOString());
+        }
 
-        if (scheduleEnabled && scheduleTimes.length > 0) {
-            const now = new Date();
+        let shouldRun = false;
+        if (plan.scheduleEnabled && plan.scheduleTimes.length > 0) {
             const minuteKey = toLocalHourMinute(now);
             const hitKey = `${toLocalDateKey(now)} ${minuteKey}`;
             const lastHit = settings.daemon_rss_schedule_last_hit || '';
-
-            const nextScheduled = getNextScheduledDate(scheduleTimes, new Date(now.getTime() + 60 * 1000));
-            if (nextScheduled) {
-                saveSetting('next_scan_at', nextScheduled.toISOString());
-            }
-
-            if (scheduleTimes.includes(minuteKey) && lastHit !== hitKey) {
+            if (plan.scheduleTimes.includes(minuteKey) && lastHit !== hitKey) {
                 saveSetting('daemon_rss_schedule_last_hit', hitKey);
-                runScan();
+                shouldRun = true;
             }
-            return;
         }
 
-        const nextScanAt = settings.next_scan_at ? new Date(settings.next_scan_at) : new Date(0);
-        if (new Date() >= nextScanAt) {
+        if (!shouldRun && plan.intervalEnabled) {
+            const nextScanAt = settings.next_scan_at ? new Date(settings.next_scan_at) : new Date(0);
+            if (now >= nextScanAt) shouldRun = true;
+        }
+
+        if (shouldRun) {
             runScan();
         }
     }, 60 * 1000);
@@ -318,20 +476,20 @@ function startScanLoop() {
         log('🚀 Daemon RSS prêt. Premier check dans 5 secondes...');
         const settings = getSettings();
         if (settings.daemon_rss_enabled !== 'false') {
-            const scheduleEnabled = settings.daemon_rss_schedule_enabled === 'true';
-            const scheduleTimes = parseDailySchedule(settings.daemon_rss_schedule_times || '');
-            if (scheduleEnabled && scheduleTimes.length > 0) {
-                const now = new Date();
-                const nextScheduled = getNextScheduledDate(scheduleTimes, new Date(now.getTime() + 60 * 1000));
-                if (nextScheduled) {
-                    saveSetting('next_scan_at', nextScheduled.toISOString());
-                    log(`🗓️  Mode heures fixes actif (RSS): ${scheduleTimes.join(', ')}.`);
-                }
-                return;
+            const plan = getRssSchedulePlan(settings);
+            if (plan.nextAt) {
+                saveSetting('next_scan_at', plan.nextAt.toISOString());
             }
-
+            if (plan.scheduleEnabled && plan.scheduleTimes.length > 0) {
+                log(`🗓️  Heures fixes RSS actives: ${plan.scheduleTimes.join(', ')}.`);
+            }
+            if (plan.intervalEnabled) {
+                log(`🕒 Intervalle RSS actif: toutes les ${plan.intervalHours}h.`);
+            }
             const nextScanAt = settings.next_scan_at ? new Date(settings.next_scan_at) : new Date(0);
-            if (new Date() >= nextScanAt) runScan();
+            if (new Date() >= nextScanAt) {
+                runScan();
+            }
         }
     }, 5000);
 }
@@ -341,10 +499,11 @@ let publishingIds = new Set(); // Pour éviter les doubles publications
 
 async function runPublisher() {
     const settings = getSettings();
+    const profiles = getDaemonProfiles(settings);
     const autoPilotEnabled = settings.auto_pilot_enabled === 'true';
     const tuning = findDaemonTuning(settings, 'publisher');
-    const minDelayRaw = tuning?.overrides?.min_delay_min ?? settings.min_delay_min;
-    const maxDelayRaw = tuning?.overrides?.max_delay_min ?? settings.max_delay_min;
+    const minDelayRaw = tuning?.overrides?.min_delay_min ?? profiles.publisher.min_delay_min;
+    const maxDelayRaw = tuning?.overrides?.max_delay_min ?? profiles.publisher.max_delay_min;
     const minDelay = parseInt(String(minDelayRaw || '0'), 10);
     const maxDelay = parseInt(String(maxDelayRaw || '15'), 10);
     const safeMinDelay = Number.isFinite(minDelay) ? minDelay : 0;
@@ -430,16 +589,34 @@ async function runElectionSync() {
     log('🗳️  BOUCLE 3 — SYNC ÉLECTIONS');
     log('════════════════════════════════════════');
     try {
-        await runScript('sync_elections.js');
+        const settings = getSettings();
+        const plan = getElectionSchedulePlan(settings);
+        if (plan.syncLocked) {
+            log(`⏸️ Sync elections verrouillee pour ${plan.targetSlug} (sync_locked=true).`);
+            return;
+        }
+        // Keep analysis target slug decoupled from front display slug.
+        await runScript('sync_elections.js', [], { ELECTION_SLUG_OVERRIDE: plan.targetSlug });
     } catch (e) {
         log(`❌ Erreur dans runElectionSync: ${e.message}`, 'ERROR');
     } finally {
         electionRunning = false;
         const settings = getSettings();
-        const intervalHours = parseFloat(settings.election_interval_hours || '0.5');
-        const nextScanAt = new Date(Date.now() + intervalHours * 60 * 60 * 1000);
-        saveSetting('next_election_scan_at', nextScanAt.toISOString());
-        log(`⏰ Prochaine sync d'élections prévue à ${nextScanAt.toLocaleTimeString('fr-FR')} (dans ${intervalHours}h).`);
+        const plan = getElectionSchedulePlan(settings);
+        if (plan.nextAt) {
+            saveSetting('next_election_scan_at', plan.nextAt.toISOString());
+            if (plan.scheduleEnabled && plan.scheduleTimes.length > 0 && plan.intervalEnabled) {
+                const intervalLabel = plan.liveModeEnabled ? `${plan.pollIntervalMinutes}min` : `${plan.intervalHours}h`;
+                log(`⏰ Prochaine sync Elections (${plan.targetSlug}) à ${plan.nextAt.toLocaleTimeString('fr-FR')} (mode ET/OU: intervalle ${intervalLabel} + heures fixes ${plan.scheduleTimes.join(', ')}).`);
+            } else if (plan.scheduleEnabled && plan.scheduleTimes.length > 0) {
+                log(`⏰ Prochaine sync Elections (${plan.targetSlug}) programmée à ${plan.nextAt.toLocaleTimeString('fr-FR')} (heures fixes: ${plan.scheduleTimes.join(', ')}).`);
+            } else if (plan.intervalEnabled) {
+                const intervalLabel = plan.liveModeEnabled ? `${plan.pollIntervalMinutes}min` : `${plan.intervalHours}h`;
+                log(`⏰ Prochaine sync d'élections (${plan.targetSlug}) prévue à ${plan.nextAt.toLocaleTimeString('fr-FR')} (dans ${intervalLabel}).`);
+            }
+        } else {
+            log('⏸️ Elections: aucun déclencheur actif (intervalle/heures fixes désactivés).');
+        }
     }
 }
 
@@ -447,10 +624,33 @@ function startElectionSyncLoop() {
     setInterval(() => {
         if (electionRunning) return;
         const settings = getSettings();
-        if (settings.daemon_elections_enabled !== 'true') return;
+        const plan = getElectionSchedulePlan(settings);
+        if (!plan.enabled) return;
+        if (plan.syncLocked) return;
 
-        const nextScanAt = settings.next_election_scan_at ? new Date(settings.next_election_scan_at) : new Date(0);
-        if (new Date() >= nextScanAt) {
+        const now = new Date();
+        const runPlan = getElectionSchedulePlan(settings, now);
+        if (runPlan.nextAt) {
+            saveSetting('next_election_scan_at', runPlan.nextAt.toISOString());
+        }
+
+        let shouldRun = false;
+        if (runPlan.scheduleEnabled && runPlan.scheduleTimes.length > 0) {
+            const minuteKey = toLocalHourMinute(now);
+            const hitKey = `${toLocalDateKey(now)} ${minuteKey}`;
+            const lastHit = settings.daemon_elections_schedule_last_hit || '';
+            if (runPlan.scheduleTimes.includes(minuteKey) && lastHit !== hitKey) {
+                saveSetting('daemon_elections_schedule_last_hit', hitKey);
+                shouldRun = true;
+            }
+        }
+
+        if (!shouldRun && runPlan.intervalEnabled) {
+            const nextScanAt = settings.next_election_scan_at ? new Date(settings.next_election_scan_at) : new Date(0);
+            if (now >= nextScanAt) shouldRun = true;
+        }
+
+        if (shouldRun) {
             runElectionSync();
         }
     }, 60 * 1000);
@@ -458,7 +658,19 @@ function startElectionSyncLoop() {
     setTimeout(() => {
         log('🗳️  Daemon Élections prêt.');
         const settings = getSettings();
-        if (settings.daemon_elections_enabled === 'true') {
+        const enabled = getElectionSchedulePlan(settings).enabled;
+        if (enabled) {
+            const plan = getElectionSchedulePlan(settings);
+            if (plan.nextAt) {
+                saveSetting('next_election_scan_at', plan.nextAt.toISOString());
+            }
+            if (plan.scheduleEnabled && plan.scheduleTimes.length > 0) {
+                log(`🗓️  Heures fixes Elections (${plan.targetSlug}) actives: ${plan.scheduleTimes.join(', ')}.`);
+            }
+            if (plan.intervalEnabled) {
+                const intervalLabel = plan.liveModeEnabled ? `${plan.pollIntervalMinutes}min` : `${plan.intervalHours}h`;
+                log(`🕒 Intervalle Elections (${plan.targetSlug}) actif: toutes les ${intervalLabel}.`);
+            }
             const nextScanAt = settings.next_election_scan_at ? new Date(settings.next_election_scan_at) : new Date(0);
             if (new Date() >= nextScanAt) runElectionSync();
         }
@@ -548,12 +760,28 @@ function ensureDb() {
         scan_interval_hours: '2',
         discord_test_mode: 'false',
         daemon_rss_enabled: 'true',
+        daemon_rss_interval_enabled: 'true',
         daemon_rss_schedule_enabled: 'false',
         daemon_rss_schedule_times: '',
+        daemon_elections_interval_enabled: 'true',
+        daemon_elections_schedule_enabled: 'false',
+        daemon_elections_schedule_times: '',
+        election_analysis_target_slug: 'municipales-2026',
+        election_front_display_slugs_json: '["municipales-2026"]',
+        election_sources_json: '{"municipales-2026":{"source_type":"dataset-api","parser_strategy":"municipales-communes-v1","dataset_first_tour":"elections-municipales-2026-resultats-du-premier-tour","dataset_second_tour":"elections-municipales-2026-resultats-du-second-tour","candidate_first_tour":"elections-municipales-2026-listes-candidates-au-premier-tour","candidate_second_tour":"elections-municipales-2026-listes-candidates-au-second-tour","enabled":true}}',
+        election_daemon_by_slug_json: '{"municipales-2026":{"enabled":false,"live_mode_enabled":false,"poll_interval_minutes":2,"interval_enabled":true,"interval_hours":0.5,"schedule_enabled":false,"schedule_times":"","sync_locked":false}}',
+        election_last_used_source_json: '{}',
         daemon_dynamic_tuning_enabled: 'false',
         daemon_dynamic_tuning_rules: '',
+        daemon_profiles_json: '',
         auto_pilot_enabled: 'true',
         ai_model_main: 'gemini-2.5-pro-preview-05-06',
+        ai_model_breaking: 'gemini-3.1-pro-preview',
+        ai_model_standard: 'gemini-2.5-flash',
+        ai_model_decrypt: 'gemini-2.5-pro',
+        google_search_breaking_enabled: 'true',
+        google_search_standard_enabled: 'true',
+        google_search_decrypt_enabled: 'true',
         source_trust_map: '{"mediapart":"🟢","france24":"🟡","lefigaro":"🔴"}',
         dedup_similarity_threshold: '0.65',
         dedup_recent_hours: '24',

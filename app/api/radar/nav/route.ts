@@ -44,7 +44,7 @@ export async function GET(request: Request) {
                 { slug: 'revelations', label: 'Flux Révélation', path: '/revelations', enabled: true, badge: null, sort_order: 2 },
                 { slug: 'investigation', label: 'Investigation', path: '/investigation', enabled: true, badge: null, sort_order: 3 },
                 { slug: 'comprendre', label: 'Comprendre', path: '/comprendre', enabled: true, badge: null, sort_order: 4 },
-                { slug: 'elections', label: 'Élections', path: '/elections/municipales-2026', enabled: true, badge: 'LIVE', sort_order: 5 },
+                { slug: 'elections', label: 'Élections', path: '/elections', enabled: true, badge: 'LIVE', sort_order: 5 },
                 { slug: 'soutenir', label: 'Soutenir', path: '/soutenir', enabled: true, badge: null, sort_order: 6 },
             ]
         });

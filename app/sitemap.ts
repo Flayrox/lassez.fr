@@ -1,6 +1,7 @@
 import { MetadataRoute } from 'next';
 import { WP_API_URL } from '../lib/api';
 import { formatCommuneSlug } from '../lib/seo-engine';
+import { parseJsonArray } from '../lib/elections';
 
 const BASE_URL = 'https://lassez.fr';
 
@@ -48,7 +49,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
             { path: '/investigation', priority: 0.9 },
             { path: '/comprendre', priority: 0.9 },
             { path: '/podcasts', priority: 0.7 },
-            { path: '/elections/municipales-2026', priority: 1.0 },
+            { path: '/elections', priority: 1.0 },
             { path: '/soutenir', priority: 0.6 },
             { path: '/a-propos', priority: 0.5 },
             { path: '/mentions-legales', priority: 0.3 },
@@ -67,33 +68,54 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
             const dbPath = path.join(process.cwd(), 'radar_lassez', 'radar.db');
             const db = new Database(dbPath);
             
-            // 1. URLs des Départements (Hubs)
-            const departments = db.prepare(`
-                SELECT DISTINCT code_departement FROM elections_officiel_cache 
-                WHERE election_slug = 'municipales-2026' AND code_departement IS NOT NULL
-            `).all() as { code_departement: string }[];
-            
-            const deptUrls = departments.map(d => ({
-                url: `${BASE_URL}/elections/municipales-2026/departement/${d.code_departement}`,
+            const settingsRows = db.prepare(`
+                SELECT key, value FROM radar_settings
+                WHERE key IN ('election_front_display_slugs_json', 'election_analysis_target_slug')
+            `).all() as { key: string; value: string }[];
+            const settingsMap = Object.fromEntries(settingsRows.map(r => [String(r.key), String(r.value || '')]));
+            const displaySlugs = parseJsonArray(settingsMap.election_front_display_slugs_json, ['municipales-2026']);
+            const targetSlug = String(settingsMap.election_analysis_target_slug || 'municipales-2026');
+
+            const slugRootUrls = displaySlugs.map((slug) => ({
+                url: `${BASE_URL}/elections/${slug}`,
                 lastModified: new Date(),
                 changeFrequency: 'daily' as const,
-                priority: 0.9,
+                priority: slug === targetSlug ? 1.0 : 0.95,
             }));
 
-            // 2. URLs des Communes (Silos)
-            const cities = db.prepare(`
-                SELECT DISTINCT code_insee, ville, updated_at FROM elections_officiel_cache 
-                WHERE election_slug = 'municipales-2026'
-            `).all() as { code_insee: string, ville: string, updated_at: string }[];
-            
-            const cityUrls = cities.map(c => ({
-                url: `${BASE_URL}/elections/municipales-2026/commune/${formatCommuneSlug(c.code_insee, c.ville)}`,
-                lastModified: new Date(c.updated_at || new Date()),
-                changeFrequency: 'weekly' as const,
-                priority: 0.8,
-            }));
+            const dynamicUrls: Array<{ url: string; lastModified: Date; changeFrequency: 'daily' | 'weekly'; priority: number }> = [];
 
-            electionUrls = [...deptUrls, ...cityUrls];
+            for (const slug of displaySlugs) {
+                const departments = db.prepare(`
+                    SELECT DISTINCT code_departement FROM elections_officiel_cache 
+                    WHERE election_slug = ? AND code_departement IS NOT NULL
+                `).all(slug) as { code_departement: string }[];
+
+                for (const d of departments) {
+                    dynamicUrls.push({
+                        url: `${BASE_URL}/elections/${slug}/departement/${d.code_departement}`,
+                        lastModified: new Date(),
+                        changeFrequency: 'daily',
+                        priority: 0.9,
+                    });
+                }
+
+                const cities = db.prepare(`
+                    SELECT DISTINCT code_insee, ville, updated_at FROM elections_officiel_cache 
+                    WHERE election_slug = ?
+                `).all(slug) as { code_insee: string; ville: string; updated_at: string }[];
+
+                for (const c of cities) {
+                    dynamicUrls.push({
+                        url: `${BASE_URL}/elections/${slug}/commune/${formatCommuneSlug(c.code_insee, c.ville)}`,
+                        lastModified: new Date(c.updated_at || new Date()),
+                        changeFrequency: 'weekly',
+                        priority: 0.8,
+                    });
+                }
+            }
+
+            electionUrls = [...slugRootUrls, ...dynamicUrls];
             db.close();
         } catch (dbErr) {
             console.error('Sitemap DB fetch error:', dbErr);

@@ -38,7 +38,40 @@ function ensureTable() {
             election_slug TEXT PRIMARY KEY,
             last_sync TEXT
         );
+
+        CREATE TABLE IF NOT EXISTS election_source_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            slug TEXT NOT NULL,
+            source_url TEXT,
+            used_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            run_id TEXT,
+            checksum TEXT,
+            row_count INTEGER DEFAULT 0,
+            success INTEGER NOT NULL DEFAULT 0,
+            error_message TEXT
+        );
     `);
+}
+
+function getSettings() {
+    const rows = db.prepare('SELECT key, value FROM radar_settings').all();
+    const settings = {};
+    for (const row of rows) settings[row.key] = row.value;
+    return settings;
+}
+
+function saveSetting(key, value) {
+    db.prepare('INSERT OR REPLACE INTO radar_settings (key, value) VALUES (?, ?)').run(key, String(value));
+}
+
+function parseJsonObject(raw, fallback = {}) {
+    if (!raw) return fallback;
+    try {
+        const parsed = JSON.parse(raw);
+        return parsed && typeof parsed === 'object' ? parsed : fallback;
+    } catch (_) {
+        return fallback;
+    }
 }
 
 async function fetchAndStreamCsv(url, onRow) {
@@ -55,7 +88,12 @@ async function fetchAndStreamCsv(url, onRow) {
 }
 
 async function sync() {
-    const electionSlug = 'municipales-2026';
+    const settings = getSettings();
+    const electionSlug = process.env.ELECTION_SLUG_OVERRIDE || settings.election_analysis_target_slug || 'municipales-2026';
+    const sourcesMap = parseJsonObject(settings.election_sources_json || '{}', {});
+    const sourceCfg = sourcesMap[electionSlug] && typeof sourcesMap[electionSlug] === 'object' ? sourcesMap[electionSlug] : {};
+    const runId = `${electionSlug}-${Date.now()}`;
+
     ensureTable();
 
     const getLatestCsv = async (datasetSlug, keyword) => {
@@ -71,10 +109,17 @@ async function sync() {
         return resources[0].url;
     };
 
-    const firstTourResultsUrl = await getLatestCsv('elections-municipales-2026-resultats-du-premier-tour', 'communes');
-    const secondTourResultsUrl = await getLatestCsv('elections-municipales-2026-resultats-du-second-tour', 'communes');
-    const candidatures1Url = await getLatestCsv('elections-municipales-2026-listes-candidates-au-premier-tour', 'candidatures');
-    const candidatures2Url = await getLatestCsv('elections-municipales-2026-listes-candidates-au-second-tour', 'candidatures');
+    const defaultDatasets = {
+        firstTour: 'elections-municipales-2026-resultats-du-premier-tour',
+        secondTour: 'elections-municipales-2026-resultats-du-second-tour',
+        candidatures1: 'elections-municipales-2026-listes-candidates-au-premier-tour',
+        candidatures2: 'elections-municipales-2026-listes-candidates-au-second-tour'
+    };
+
+    const firstTourResultsUrl = sourceCfg.results_first_tour_url || await getLatestCsv(sourceCfg.dataset_first_tour || defaultDatasets.firstTour, 'communes');
+    const secondTourResultsUrl = sourceCfg.results_second_tour_url || await getLatestCsv(sourceCfg.dataset_second_tour || defaultDatasets.secondTour, 'communes');
+    const candidatures1Url = sourceCfg.candidatures_first_tour_url || await getLatestCsv(sourceCfg.candidate_first_tour || defaultDatasets.candidatures1, 'candidatures');
+    const candidatures2Url = sourceCfg.candidatures_second_tour_url || await getLatestCsv(sourceCfg.candidate_second_tour || defaultDatasets.candidatures2, 'candidatures');
 
     const candidatesMap = {};
     const indexCandidatures = async (url) => {
@@ -140,12 +185,38 @@ async function sync() {
         });
     };
 
-    if (firstTourResultsUrl) await processResults(firstTourResultsUrl, 1);
-    if (secondTourResultsUrl) await processResults(secondTourResultsUrl, 2);
-    if (buffer.length > 0) transaction(buffer);
+    try {
+        if (firstTourResultsUrl) await processResults(firstTourResultsUrl, 1);
+        if (secondTourResultsUrl) await processResults(secondTourResultsUrl, 2);
+        if (buffer.length > 0) transaction(buffer);
 
-    db.prepare('INSERT OR REPLACE INTO elections_sync_status (election_slug, last_sync) VALUES (?, ?)').run(electionSlug, new Date().toISOString());
-    console.log('Sync terminée.');
+        db.prepare('INSERT OR REPLACE INTO elections_sync_status (election_slug, last_sync) VALUES (?, ?)').run(electionSlug, new Date().toISOString());
+
+        const usedSource = {
+            slug: electionSlug,
+            used_at: new Date().toISOString(),
+            run_id: runId,
+            results_first_tour_url: firstTourResultsUrl || null,
+            results_second_tour_url: secondTourResultsUrl || null,
+            candidatures_first_tour_url: candidatures1Url || null,
+            candidatures_second_tour_url: candidatures2Url || null,
+            success: true
+        };
+        const lastUsedMap = parseJsonObject(settings.election_last_used_source_json || '{}', {});
+        lastUsedMap[electionSlug] = usedSource;
+        saveSetting('election_last_used_source_json', JSON.stringify(lastUsedMap));
+
+        const mainSource = firstTourResultsUrl || secondTourResultsUrl || candidatures1Url || candidatures2Url || null;
+        db.prepare('INSERT INTO election_source_history (slug, source_url, run_id, row_count, success, error_message) VALUES (?, ?, ?, ?, ?, ?)')
+            .run(electionSlug, mainSource, runId, 0, 1, null);
+
+        console.log(`Sync terminée pour ${electionSlug}.`);
+    } catch (e) {
+        const mainSource = firstTourResultsUrl || secondTourResultsUrl || candidatures1Url || candidatures2Url || null;
+        db.prepare('INSERT INTO election_source_history (slug, source_url, run_id, row_count, success, error_message) VALUES (?, ?, ?, ?, ?, ?)')
+            .run(electionSlug, mainSource, runId, 0, 0, e.message || String(e));
+        throw e;
+    }
 }
 
 sync().catch(console.error).finally(() => db.close());

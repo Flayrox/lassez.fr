@@ -26,6 +26,16 @@ function withCache(data: any, cacheControl: string) {
     return res;
 }
 
+function parseJsonObject(raw: string | undefined, fallback: any = {}) {
+    if (!raw) return fallback;
+    try {
+        const parsed = JSON.parse(raw);
+        return parsed && typeof parsed === 'object' ? parsed : fallback;
+    } catch (_) {
+        return fallback;
+    }
+}
+
 function ensureTable(db: any) {
     // Overrides manuels du Radar-Admin
     db.exec(`
@@ -128,10 +138,23 @@ async function syncOfficialData(db: any, electionSlug: string, force: boolean = 
             return resources[0].url;
         };
 
-        const firstTourResultsUrl = await getLatestCsv('elections-municipales-2026-resultats-du-premier-tour', 'communes');
-        const secondTourResultsUrl = await getLatestCsv('elections-municipales-2026-resultats-du-second-tour', 'communes');
-        const candidatures1Url = await getLatestCsv('elections-municipales-2026-listes-candidates-au-premier-tour', 'candidatures');
-        const candidatures2Url = await getLatestCsv('elections-municipales-2026-listes-candidates-au-second-tour', 'candidatures');
+        const settingsRows = db.prepare('SELECT key, value FROM radar_settings').all();
+        const settingsMap: Record<string, string> = {};
+        for (const row of settingsRows) settingsMap[String(row.key)] = String(row.value || '');
+        const sourcesMap = parseJsonObject(settingsMap.election_sources_json, {});
+        const sourceCfg = sourcesMap[electionSlug] && typeof sourcesMap[electionSlug] === 'object' ? sourcesMap[electionSlug] : {};
+
+        const defaultDatasets = {
+            firstTour: 'elections-municipales-2026-resultats-du-premier-tour',
+            secondTour: 'elections-municipales-2026-resultats-du-second-tour',
+            candidatures1: 'elections-municipales-2026-listes-candidates-au-premier-tour',
+            candidatures2: 'elections-municipales-2026-listes-candidates-au-second-tour'
+        };
+
+        const firstTourResultsUrl = sourceCfg.results_first_tour_url || await getLatestCsv(sourceCfg.dataset_first_tour || defaultDatasets.firstTour, 'communes');
+        const secondTourResultsUrl = sourceCfg.results_second_tour_url || await getLatestCsv(sourceCfg.dataset_second_tour || defaultDatasets.secondTour, 'communes');
+        const candidatures1Url = sourceCfg.candidatures_first_tour_url || await getLatestCsv(sourceCfg.candidate_first_tour || defaultDatasets.candidatures1, 'candidatures');
+        const candidatures2Url = sourceCfg.candidatures_second_tour_url || await getLatestCsv(sourceCfg.candidate_second_tour || defaultDatasets.candidatures2, 'candidatures');
 
         const candidatesMap: Record<string, { tete: string; nuanceLabel: string }> = {};
         
@@ -239,6 +262,20 @@ async function syncOfficialData(db: any, electionSlug: string, force: boolean = 
         if (buffer.length > 0) transaction(buffer);
         
         db.prepare('INSERT OR REPLACE INTO elections_sync_status (election_slug, last_sync) VALUES (?, ?)').run(electionSlug, new Date().toISOString());
+
+        const usedSource = {
+            slug: electionSlug,
+            used_at: new Date().toISOString(),
+            results_first_tour_url: firstTourResultsUrl || null,
+            results_second_tour_url: secondTourResultsUrl || null,
+            candidatures_first_tour_url: candidatures1Url || null,
+            candidatures_second_tour_url: candidatures2Url || null,
+            success: true
+        };
+        const lastUsedMap = parseJsonObject(settingsMap.election_last_used_source_json, {});
+        lastUsedMap[electionSlug] = usedSource;
+        db.prepare('INSERT OR REPLACE INTO radar_settings (key, value) VALUES (?, ?)')
+            .run('election_last_used_source_json', JSON.stringify(lastUsedMap));
         logToDaemon(`[Élections] Double-Sync Terminé : ${totalProcessed} communes traitées.`);
         
     } catch (e) {

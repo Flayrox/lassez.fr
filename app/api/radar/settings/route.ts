@@ -7,6 +7,19 @@ function getDb() {
     return new Database(dbPath);
 }
 
+const ALLOWED_MODELS = new Set([
+    'gemini-3.1-pro-preview',
+    'gemini-3-flash-preview',
+    'gemini-2.5-flash',
+    'gemini-2.5-flash-lite',
+    'gemini-2.5-pro'
+]);
+
+function normalizeModel(value: any, fallback: string) {
+    const v = String(value || '').trim();
+    return ALLOWED_MODELS.has(v) ? v : fallback;
+}
+
 export async function GET() {
     try {
         const db = getDb();
@@ -33,14 +46,21 @@ export async function PATCH(request: Request) {
             auto_pilot_enabled, auto_approve_enabled,
             election_interval_hours,
             daemon_rss_enabled, daemon_elections_enabled,
+            daemon_rss_interval_enabled, daemon_elections_interval_enabled,
             daemon_rss_schedule_enabled, daemon_rss_schedule_times,
+            daemon_elections_schedule_enabled, daemon_elections_schedule_times,
+            election_analysis_target_slug, election_front_display_slugs_json,
+            election_sources_json, election_daemon_by_slug_json, election_last_used_source_json,
             daemon_dynamic_tuning_enabled, daemon_dynamic_tuning_rules,
+            daemon_profiles_json,
             social_mastodon_enabled, social_bluesky_enabled, social_twitter_enabled, social_discord_enabled,
             discord_test_mode,
             rss_feeds, telegram_channels, rss_bridge_base_url, x_accounts, ai_prompt,
             ai_prompt_relevance, ai_prompt_breaking, ai_prompt_decrypt, ai_prompt_standard,
             ai_prompt_breaking_enabled, ai_prompt_decrypt_enabled, ai_prompt_standard_enabled,
-            ai_model_main, source_trust_map,
+            ai_model_main, ai_model_breaking, ai_model_standard, ai_model_decrypt,
+            google_search_breaking_enabled, google_search_standard_enabled, google_search_decrypt_enabled,
+            source_trust_map,
             dedup_similarity_threshold, dedup_recent_hours,
             video_ingest_enabled, video_prefilter_model, video_prefilter_prompt, video_prefilter_min_chars, video_transcribe_model, video_max_audio_mb,
             image_overlay_enabled, image_overlay_opacity, image_box_scale_169, image_box_scale_1x1,
@@ -63,10 +83,20 @@ export async function PATCH(request: Request) {
         if (election_interval_hours !== undefined) updateStmt.run('election_interval_hours', String(election_interval_hours));
         if (daemon_rss_enabled !== undefined) updateStmt.run('daemon_rss_enabled', String(daemon_rss_enabled));
         if (daemon_elections_enabled !== undefined) updateStmt.run('daemon_elections_enabled', String(daemon_elections_enabled));
+        if (daemon_rss_interval_enabled !== undefined) updateStmt.run('daemon_rss_interval_enabled', String(daemon_rss_interval_enabled));
+        if (daemon_elections_interval_enabled !== undefined) updateStmt.run('daemon_elections_interval_enabled', String(daemon_elections_interval_enabled));
         if (daemon_rss_schedule_enabled !== undefined) updateStmt.run('daemon_rss_schedule_enabled', String(daemon_rss_schedule_enabled));
         if (daemon_rss_schedule_times !== undefined) updateStmt.run('daemon_rss_schedule_times', String(daemon_rss_schedule_times));
+        if (daemon_elections_schedule_enabled !== undefined) updateStmt.run('daemon_elections_schedule_enabled', String(daemon_elections_schedule_enabled));
+        if (daemon_elections_schedule_times !== undefined) updateStmt.run('daemon_elections_schedule_times', String(daemon_elections_schedule_times));
+        if (election_analysis_target_slug !== undefined) updateStmt.run('election_analysis_target_slug', String(election_analysis_target_slug));
+        if (election_front_display_slugs_json !== undefined) updateStmt.run('election_front_display_slugs_json', String(election_front_display_slugs_json));
+        if (election_sources_json !== undefined) updateStmt.run('election_sources_json', String(election_sources_json));
+        if (election_daemon_by_slug_json !== undefined) updateStmt.run('election_daemon_by_slug_json', String(election_daemon_by_slug_json));
+        if (election_last_used_source_json !== undefined) updateStmt.run('election_last_used_source_json', String(election_last_used_source_json));
         if (daemon_dynamic_tuning_enabled !== undefined) updateStmt.run('daemon_dynamic_tuning_enabled', String(daemon_dynamic_tuning_enabled));
         if (daemon_dynamic_tuning_rules !== undefined) updateStmt.run('daemon_dynamic_tuning_rules', String(daemon_dynamic_tuning_rules));
+        if (daemon_profiles_json !== undefined) updateStmt.run('daemon_profiles_json', String(daemon_profiles_json));
         if (social_mastodon_enabled !== undefined) updateStmt.run('social_mastodon_enabled', String(social_mastodon_enabled));
         if (social_bluesky_enabled !== undefined) updateStmt.run('social_bluesky_enabled', String(social_bluesky_enabled));
         if (social_twitter_enabled !== undefined) updateStmt.run('social_twitter_enabled', String(social_twitter_enabled));
@@ -85,7 +115,13 @@ export async function PATCH(request: Request) {
         if (ai_prompt_breaking_enabled !== undefined) updateStmt.run('ai_prompt_breaking_enabled', String(ai_prompt_breaking_enabled));
         if (ai_prompt_decrypt_enabled !== undefined) updateStmt.run('ai_prompt_decrypt_enabled', String(ai_prompt_decrypt_enabled));
         if (ai_prompt_standard_enabled !== undefined) updateStmt.run('ai_prompt_standard_enabled', String(ai_prompt_standard_enabled));
-        if (ai_model_main !== undefined) updateStmt.run('ai_model_main', String(ai_model_main));
+        if (ai_model_main !== undefined) updateStmt.run('ai_model_main', normalizeModel(ai_model_main, 'gemini-2.5-pro'));
+        if (ai_model_breaking !== undefined) updateStmt.run('ai_model_breaking', normalizeModel(ai_model_breaking, 'gemini-3.1-pro-preview'));
+        if (ai_model_standard !== undefined) updateStmt.run('ai_model_standard', normalizeModel(ai_model_standard, 'gemini-2.5-flash'));
+        if (ai_model_decrypt !== undefined) updateStmt.run('ai_model_decrypt', normalizeModel(ai_model_decrypt, 'gemini-2.5-pro'));
+        if (google_search_breaking_enabled !== undefined) updateStmt.run('google_search_breaking_enabled', String(google_search_breaking_enabled));
+        if (google_search_standard_enabled !== undefined) updateStmt.run('google_search_standard_enabled', String(google_search_standard_enabled));
+        if (google_search_decrypt_enabled !== undefined) updateStmt.run('google_search_decrypt_enabled', String(google_search_decrypt_enabled));
         if (source_trust_map !== undefined) updateStmt.run('source_trust_map', String(source_trust_map));
         if (dedup_similarity_threshold !== undefined) updateStmt.run('dedup_similarity_threshold', String(dedup_similarity_threshold));
         if (dedup_recent_hours !== undefined) updateStmt.run('dedup_recent_hours', String(dedup_recent_hours));

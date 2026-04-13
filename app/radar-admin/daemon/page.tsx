@@ -19,7 +19,18 @@ type TuningRule = {
         rss_lookback_hours?: number;
         min_delay_min?: number;
         max_delay_min?: number;
+        scan_interval_hours?: number;
+        election_interval_hours?: number;
     };
+};
+
+type DaemonProfile = {
+    max_articles: string;
+    rss_lookback_hours: string;
+    min_delay_min: string;
+    max_delay_min: string;
+    scan_interval_hours: string;
+    election_interval_hours: string;
 };
 
 type DaemonStatus = {
@@ -77,6 +88,8 @@ function parseRules(raw: string): TuningRule[] {
                     rss_lookback_hours: rule?.overrides?.rss_lookback_hours !== undefined ? Number(rule.overrides.rss_lookback_hours) : undefined,
                     min_delay_min: rule?.overrides?.min_delay_min !== undefined ? Number(rule.overrides.min_delay_min) : undefined,
                     max_delay_min: rule?.overrides?.max_delay_min !== undefined ? Number(rule.overrides.max_delay_min) : undefined,
+                    scan_interval_hours: rule?.overrides?.scan_interval_hours !== undefined ? Number(rule.overrides.scan_interval_hours) : undefined,
+                    election_interval_hours: rule?.overrides?.election_interval_hours !== undefined ? Number(rule.overrides.election_interval_hours) : undefined,
                 }
             }))
             .filter((r: TuningRule) => /^(\d{2}):(\d{2})$/.test(r.start) && /^(\d{2}):(\d{2})$/.test(r.end));
@@ -97,6 +110,8 @@ function toRulesJson(rules: TuningRule[]) {
             ...(r.overrides.rss_lookback_hours !== undefined ? { rss_lookback_hours: r.overrides.rss_lookback_hours } : {}),
             ...(r.overrides.min_delay_min !== undefined ? { min_delay_min: r.overrides.min_delay_min } : {}),
             ...(r.overrides.max_delay_min !== undefined ? { max_delay_min: r.overrides.max_delay_min } : {}),
+            ...(r.overrides.scan_interval_hours !== undefined ? { scan_interval_hours: r.overrides.scan_interval_hours } : {}),
+            ...(r.overrides.election_interval_hours !== undefined ? { election_interval_hours: r.overrides.election_interval_hours } : {}),
         }
     })), null, 2);
 }
@@ -120,22 +135,49 @@ export default function DaemonPage() {
     const [autoPilotEnabled, setAutoPilotEnabled] = useState(false);
     const [autoApproveEnabled, setAutoApproveEnabled] = useState(false);
 
-    const [scanIntervalHours, setScanIntervalHours] = useState('2');
-    const [electionIntervalHours, setElectionIntervalHours] = useState('0.5');
-    const [maxArticles, setMaxArticles] = useState('3');
-    const [rssLookbackHours, setRssLookbackHours] = useState('24');
-    const [minDelayMin, setMinDelayMin] = useState('0');
-    const [maxDelayMin, setMaxDelayMin] = useState('15');
-
     const [scheduleEnabled, setScheduleEnabled] = useState(false);
+    const [rssIntervalEnabled, setRssIntervalEnabled] = useState(true);
     const [scheduleTimes, setScheduleTimes] = useState<string[]>([]);
     const [newScheduleTime, setNewScheduleTime] = useState('08:00');
+    const [electionsScheduleEnabled, setElectionsScheduleEnabled] = useState(false);
+    const [electionsIntervalEnabled, setElectionsIntervalEnabled] = useState(true);
+    const [electionsScheduleTimes, setElectionsScheduleTimes] = useState<string[]>([]);
+    const [newElectionScheduleTime, setNewElectionScheduleTime] = useState('09:00');
+
+    const [profilesOpen, setProfilesOpen] = useState(false);
+    const [daemonProfiles, setDaemonProfiles] = useState<Record<DaemonType, DaemonProfile>>({
+        rss: {
+            max_articles: '3',
+            rss_lookback_hours: '24',
+            min_delay_min: '0',
+            max_delay_min: '15',
+            scan_interval_hours: '2',
+            election_interval_hours: '0.5'
+        },
+        publisher: {
+            max_articles: '3',
+            rss_lookback_hours: '24',
+            min_delay_min: '0',
+            max_delay_min: '15',
+            scan_interval_hours: '2',
+            election_interval_hours: '0.5'
+        },
+        elections: {
+            max_articles: '3',
+            rss_lookback_hours: '24',
+            min_delay_min: '0',
+            max_delay_min: '15',
+            scan_interval_hours: '2',
+            election_interval_hours: '0.5'
+        }
+    });
 
     const [tuningEnabled, setTuningEnabled] = useState(false);
     const [rules, setRules] = useState<TuningRule[]>([]);
 
     const [modalOpen, setModalOpen] = useState(false);
     const [scanRunning, setScanRunning] = useState(false);
+    const [manualAction, setManualAction] = useState<'scan' | 'elections'>('scan');
     const [scanLogs, setScanLogs] = useState('');
     const [scanStartedAt, setScanStartedAt] = useState<number | null>(null);
     const [scanEndedAt, setScanEndedAt] = useState<number | null>(null);
@@ -147,15 +189,62 @@ export default function DaemonPage() {
         setAutoPilotEnabled(settings.auto_pilot_enabled === 'true');
         setAutoApproveEnabled(settings.auto_approve_enabled === 'true');
 
-        setScanIntervalHours(String(settings.scan_interval_hours || '2'));
-        setElectionIntervalHours(String(settings.election_interval_hours || '0.5'));
-        setMaxArticles(String(settings.max_articles || '3'));
-        setRssLookbackHours(String(settings.rss_lookback_hours || '24'));
-        setMinDelayMin(String(settings.min_delay_min || '0'));
-        setMaxDelayMin(String(settings.max_delay_min || '15'));
-
         setScheduleEnabled(settings.daemon_rss_schedule_enabled === 'true');
+        setRssIntervalEnabled(settings.daemon_rss_interval_enabled !== 'false');
         setScheduleTimes(parseTimes(settings.daemon_rss_schedule_times || ''));
+        setElectionsScheduleEnabled(settings.daemon_elections_schedule_enabled === 'true');
+        setElectionsIntervalEnabled(settings.daemon_elections_interval_enabled !== 'false');
+        setElectionsScheduleTimes(parseTimes(settings.daemon_elections_schedule_times || ''));
+
+        const globalBasedProfiles: Record<DaemonType, DaemonProfile> = {
+            rss: {
+                max_articles: String(settings.max_articles || '3'),
+                rss_lookback_hours: String(settings.rss_lookback_hours || '24'),
+                min_delay_min: String(settings.min_delay_min || '0'),
+                max_delay_min: String(settings.max_delay_min || '15'),
+                scan_interval_hours: String(settings.scan_interval_hours || '2'),
+                election_interval_hours: String(settings.election_interval_hours || '0.5')
+            },
+            publisher: {
+                max_articles: String(settings.max_articles || '3'),
+                rss_lookback_hours: String(settings.rss_lookback_hours || '24'),
+                min_delay_min: String(settings.min_delay_min || '0'),
+                max_delay_min: String(settings.max_delay_min || '15'),
+                scan_interval_hours: String(settings.scan_interval_hours || '2'),
+                election_interval_hours: String(settings.election_interval_hours || '0.5')
+            },
+            elections: {
+                max_articles: String(settings.max_articles || '3'),
+                rss_lookback_hours: String(settings.rss_lookback_hours || '24'),
+                min_delay_min: String(settings.min_delay_min || '0'),
+                max_delay_min: String(settings.max_delay_min || '15'),
+                scan_interval_hours: String(settings.scan_interval_hours || '2'),
+                election_interval_hours: String(settings.election_interval_hours || '0.5')
+            }
+        };
+        setDaemonProfiles(globalBasedProfiles);
+
+        try {
+            const parsed = settings.daemon_profiles_json ? JSON.parse(settings.daemon_profiles_json) : null;
+            if (parsed && typeof parsed === 'object') {
+                setDaemonProfiles({
+                    rss: {
+                        ...globalBasedProfiles.rss,
+                        ...(parsed.rss || {})
+                    },
+                    publisher: {
+                        ...globalBasedProfiles.publisher,
+                        ...(parsed.publisher || {})
+                    },
+                    elections: {
+                        ...globalBasedProfiles.elections,
+                        ...(parsed.elections || {})
+                    }
+                });
+            }
+        } catch (_) {
+            // ignore parse errors and keep defaults
+        }
 
         setTuningEnabled(settings.daemon_dynamic_tuning_enabled === 'true');
         setRules(parseRules(settings.daemon_dynamic_tuning_rules || ''));
@@ -181,21 +270,30 @@ export default function DaemonPage() {
     }, []);
 
     const validationError = useMemo(() => {
-        const minDelay = Number(minDelayMin);
-        const maxDelay = Number(maxDelayMin);
-        const scanInt = Number(scanIntervalHours);
-        const maxA = Number(maxArticles);
-        const lookback = Number(rssLookbackHours);
+        for (const daemonKey of ['rss', 'publisher', 'elections'] as DaemonType[]) {
+            const p = daemonProfiles[daemonKey];
+            const maxA = Number(p.max_articles);
+            const lookback = Number(p.rss_lookback_hours);
+            const minDelay = Number(p.min_delay_min);
+            const maxDelay = Number(p.max_delay_min);
+            const scanInt = Number(p.scan_interval_hours);
+            const electionInt = Number(p.election_interval_hours);
 
-        if (!Number.isFinite(scanInt) || scanInt < 0.1) return 'Scan interval invalide (min 0.1h).';
-        if (!Number.isFinite(maxA) || maxA < 1 || maxA > 40) return 'Max signals invalide (1-40).';
-        if (!Number.isFinite(lookback) || lookback < 1 || lookback > 240) return 'Lookback invalide (1-240h).';
-        if (!Number.isFinite(minDelay) || minDelay < 0) return 'Min delay invalide.';
-        if (!Number.isFinite(maxDelay) || maxDelay < 0) return 'Max delay invalide.';
-        if (minDelay > maxDelay) return 'Min delay doit etre <= Max delay.';
-        if (scheduleEnabled && scheduleTimes.length === 0) return 'Ajoute au moins une heure en mode heures fixes.';
+            if (!Number.isFinite(maxA) || maxA < 1 || maxA > 40) return `Max signals invalide pour ${daemonKey} (1-40).`;
+            if (!Number.isFinite(lookback) || lookback < 1 || lookback > 240) return `Lookback invalide pour ${daemonKey} (1-240h).`;
+            if (!Number.isFinite(minDelay) || minDelay < 0) return `Min delay invalide pour ${daemonKey}.`;
+            if (!Number.isFinite(maxDelay) || maxDelay < 0) return `Max delay invalide pour ${daemonKey}.`;
+            if (minDelay > maxDelay) return `Min delay doit etre <= Max delay pour ${daemonKey}.`;
+            if (!Number.isFinite(scanInt) || scanInt < 0.1) return `Scan interval invalide pour ${daemonKey} (min 0.1h).`;
+            if (!Number.isFinite(electionInt) || electionInt < 0.1) return `Elections interval invalide pour ${daemonKey} (min 0.1h).`;
+        }
+
+        if (daemonRssEnabled && !rssIntervalEnabled && !scheduleEnabled) return 'RSS: active au moins un declencheur (intervalle et/ou heures fixes).';
+        if (daemonElectionsEnabled && !electionsIntervalEnabled && !electionsScheduleEnabled) return 'Elections: active au moins un declencheur (intervalle et/ou heures fixes).';
+        if (scheduleEnabled && scheduleTimes.length === 0) return 'Ajoute au moins une heure RSS en mode heures fixes.';
+        if (electionsScheduleEnabled && electionsScheduleTimes.length === 0) return 'Ajoute au moins une heure Elections en mode heures fixes.';
         return null;
-    }, [minDelayMin, maxDelayMin, scanIntervalHours, maxArticles, rssLookbackHours, scheduleEnabled, scheduleTimes]);
+    }, [daemonProfiles, daemonRssEnabled, daemonElectionsEnabled, rssIntervalEnabled, scheduleEnabled, scheduleTimes, electionsIntervalEnabled, electionsScheduleEnabled, electionsScheduleTimes]);
 
     const addScheduleTime = () => {
         if (!/^(\d{2}):(\d{2})$/.test(newScheduleTime)) return;
@@ -204,6 +302,25 @@ export default function DaemonPage() {
 
     const removeScheduleTime = (value: string) => {
         setScheduleTimes(prev => prev.filter(x => x !== value));
+    };
+
+    const addElectionScheduleTime = () => {
+        if (!/^(\d{2}):(\d{2})$/.test(newElectionScheduleTime)) return;
+        setElectionsScheduleTimes(prev => parseTimes([...prev, newElectionScheduleTime].join(',')));
+    };
+
+    const removeElectionScheduleTime = (value: string) => {
+        setElectionsScheduleTimes(prev => prev.filter(x => x !== value));
+    };
+
+    const updateDaemonProfile = (daemon: DaemonType, key: keyof DaemonProfile, value: string) => {
+        setDaemonProfiles(prev => ({
+            ...prev,
+            [daemon]: {
+                ...prev[daemon],
+                [key]: value
+            }
+        }));
     };
 
     const addRule = () => {
@@ -279,19 +396,25 @@ export default function DaemonPage() {
                 daemon_elections_enabled: daemonElectionsEnabled ? 'true' : 'false',
                 auto_pilot_enabled: autoPilotEnabled ? 'true' : 'false',
                 auto_approve_enabled: autoApproveEnabled ? 'true' : 'false',
+                daemon_rss_interval_enabled: rssIntervalEnabled ? 'true' : 'false',
+                daemon_elections_interval_enabled: electionsIntervalEnabled ? 'true' : 'false',
 
-                scan_interval_hours: scanIntervalHours,
-                election_interval_hours: electionIntervalHours,
-                max_articles: maxArticles,
-                rss_lookback_hours: rssLookbackHours,
-                min_delay_min: minDelayMin,
-                max_delay_min: maxDelayMin,
+                scan_interval_hours: daemonProfiles.rss.scan_interval_hours,
+                election_interval_hours: daemonProfiles.elections.election_interval_hours,
+                max_articles: daemonProfiles.rss.max_articles,
+                rss_lookback_hours: daemonProfiles.rss.rss_lookback_hours,
+                min_delay_min: daemonProfiles.publisher.min_delay_min,
+                max_delay_min: daemonProfiles.publisher.max_delay_min,
 
                 daemon_rss_schedule_enabled: scheduleEnabled ? 'true' : 'false',
                 daemon_rss_schedule_times: scheduleTimes.join(', '),
+                daemon_elections_schedule_enabled: electionsScheduleEnabled ? 'true' : 'false',
+                daemon_elections_schedule_times: electionsScheduleTimes.join(', '),
 
                 daemon_dynamic_tuning_enabled: tuningEnabled ? 'true' : 'false',
-                daemon_dynamic_tuning_rules: toRulesJson(rules)
+                daemon_dynamic_tuning_rules: toRulesJson(rules),
+
+                daemon_profiles_json: JSON.stringify(daemonProfiles)
             };
 
             const res = await fetch('/api/radar/settings', {
@@ -317,6 +440,7 @@ export default function DaemonPage() {
     };
 
     const runManualScan = async () => {
+        setManualAction('scan');
         setModalOpen(true);
         setScanRunning(true);
         setScanLogs('');
@@ -353,31 +477,53 @@ export default function DaemonPage() {
         }
     };
 
+    const runManualElectionSync = async () => {
+        setManualAction('elections');
+        setModalOpen(true);
+        setScanRunning(true);
+        setScanLogs('');
+        setScanStartedAt(Date.now());
+        setScanEndedAt(null);
+
+        try {
+            const res = await fetch('/api/radar/trigger', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'elections' })
+            });
+            if (!res.ok || !res.body) {
+                const text = await res.text().catch(() => '');
+                setScanLogs(prev => prev + `\n❌ Impossible de lancer la sync elections. ${text}`);
+                setScanRunning(false);
+                setScanEndedAt(Date.now());
+                return;
+            }
+
+            const reader = res.body.getReader();
+            const decoder = new TextDecoder();
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                const chunk = decoder.decode(value, { stream: true });
+                setScanLogs(prev => prev + chunk);
+            }
+
+            setScanLogs(prev => prev + '\n✅ Sync elections terminee.');
+        } catch (e: any) {
+            setScanLogs(prev => prev + `\n❌ Erreur: ${e.message}`);
+        } finally {
+            setScanRunning(false);
+            setScanEndedAt(Date.now());
+            fetchDaemonStatus();
+        }
+    };
+
     const scanDurationSec = useMemo(() => {
         if (!scanStartedAt) return null;
         const end = scanEndedAt || Date.now();
         return Math.max(0, Math.round((end - scanStartedAt) / 1000));
     }, [scanStartedAt, scanEndedAt]);
-
-    const nextRunsPreview = useMemo(() => {
-        if (!scheduleEnabled || scheduleTimes.length === 0) return [] as string[];
-        const now = new Date();
-        const out: string[] = [];
-        for (let dayOffset = 0; dayOffset <= 2; dayOffset += 1) {
-            const base = new Date(now);
-            base.setHours(0, 0, 0, 0);
-            base.setDate(base.getDate() + dayOffset);
-            for (const t of scheduleTimes) {
-                const [h, m] = t.split(':').map(Number);
-                const d = new Date(base);
-                d.setHours(h, m, 0, 0);
-                if (d <= now) continue;
-                out.push(d.toLocaleString('fr-FR'));
-                if (out.length >= 3) return out;
-            }
-        }
-        return out;
-    }, [scheduleEnabled, scheduleTimes]);
 
     return (
         <DashboardLayout
@@ -414,11 +560,24 @@ export default function DaemonPage() {
                         <h2 className="text-2xl font-black uppercase tracking-tighter font-headline">Runtime & Actions</h2>
                         <div className="flex gap-3">
                             <button
+                                onClick={() => setProfilesOpen(true)}
+                                className="bg-white text-stone-900 px-5 py-3 border-4 border-stone-900 text-[10px] font-black uppercase tracking-widest"
+                            >
+                                Config par daemon
+                            </button>
+                            <button
                                 onClick={runManualScan}
                                 disabled={scanRunning}
                                 className="bg-red-700 text-white px-5 py-3 border-4 border-stone-900 text-[10px] font-black uppercase tracking-widest disabled:opacity-60"
                             >
-                                {scanRunning ? 'SCAN EN COURS...' : 'RUN MANUAL SCAN'}
+                                {scanRunning && manualAction === 'scan' ? 'SCAN EN COURS...' : 'RUN MANUAL SCAN'}
+                            </button>
+                            <button
+                                onClick={runManualElectionSync}
+                                disabled={scanRunning}
+                                className="bg-amber-600 text-white px-5 py-3 border-4 border-stone-900 text-[10px] font-black uppercase tracking-widest disabled:opacity-60"
+                            >
+                                {scanRunning && manualAction === 'elections' ? 'SYNC ELECTIONS...' : 'RUN MANUAL ELECTIONS'}
                             </button>
                             <button
                                 onClick={handleSave}
@@ -460,66 +619,101 @@ export default function DaemonPage() {
                         </div>
 
                         <div className="space-y-4">
-                            <h3 className="text-sm font-black uppercase tracking-widest text-stone-500">Core Limits</h3>
-                            <div className="grid grid-cols-2 gap-3">
-                                <div>
-                                    <label className="text-[10px] font-black uppercase text-stone-500 mb-1 block">Max Signals/Scan</label>
-                                    <input value={maxArticles} onChange={e => setMaxArticles(e.target.value)} type="number" min="1" max="40" className="w-full bg-stone-50 border-4 border-stone-900 p-2 font-black text-xs" />
-                                </div>
-                                <div>
-                                    <label className="text-[10px] font-black uppercase text-stone-500 mb-1 block">Lookback (h)</label>
-                                    <input value={rssLookbackHours} onChange={e => setRssLookbackHours(e.target.value)} type="number" min="1" max="240" className="w-full bg-stone-50 border-4 border-stone-900 p-2 font-black text-xs" />
-                                </div>
-                                <div>
-                                    <label className="text-[10px] font-black uppercase text-stone-500 mb-1 block">Min Delay (m)</label>
-                                    <input value={minDelayMin} onChange={e => setMinDelayMin(e.target.value)} type="number" min="0" className="w-full bg-stone-50 border-4 border-stone-900 p-2 font-black text-xs" />
-                                </div>
-                                <div>
-                                    <label className="text-[10px] font-black uppercase text-stone-500 mb-1 block">Max Delay (m)</label>
-                                    <input value={maxDelayMin} onChange={e => setMaxDelayMin(e.target.value)} type="number" min="0" className="w-full bg-stone-50 border-4 border-stone-900 p-2 font-black text-xs" />
-                                </div>
-                                <div>
-                                    <label className="text-[10px] font-black uppercase text-stone-500 mb-1 block">Scan Interval (h)</label>
-                                    <input value={scanIntervalHours} onChange={e => setScanIntervalHours(e.target.value)} type="number" step="0.1" min="0.1" className="w-full bg-stone-50 border-4 border-stone-900 p-2 font-black text-xs" />
-                                </div>
-                                <div>
-                                    <label className="text-[10px] font-black uppercase text-stone-500 mb-1 block">Elections Interval (h)</label>
-                                    <input value={electionIntervalHours} onChange={e => setElectionIntervalHours(e.target.value)} type="number" step="0.1" min="0.1" className="w-full bg-stone-50 border-4 border-stone-900 p-2 font-black text-xs" />
-                                </div>
+                            <h3 className="text-sm font-black uppercase tracking-widest text-stone-500">Configuration par daemon</h3>
+                            <div className="p-4 bg-amber-50 border-2 border-stone-900 space-y-2">
+                                <p className="text-[10px] font-black uppercase tracking-widest">Tout est configurable par daemon dans la fenêtre dédiée</p>
+                                <p className="text-[10px] font-bold uppercase text-stone-600">Intervalle / heures fixes + Max Signals/Scan + Lookback + Min/Max Delay pour chaque daemon.</p>
+                                <button onClick={() => setProfilesOpen(true)} className="bg-stone-900 text-white px-4 py-2 border-2 border-stone-900 text-[10px] font-black uppercase tracking-widest">Ouvrir la config détaillée</button>
                             </div>
                         </div>
                     </div>
                 </section>
 
                 <section className="bg-white border-4 border-stone-900 shadow-[10px_10px_0px_0px_#1A1C1C] p-8 space-y-6">
-                    <h2 className="text-2xl font-black uppercase tracking-tighter font-headline">Scheduling</h2>
-                    <div className="flex items-center justify-between p-3 bg-stone-50 border-2 border-stone-900">
-                        <span className="text-xs font-black uppercase">Mode Heures Fixes</span>
-                        <Toggle checked={scheduleEnabled} onChange={setScheduleEnabled} />
+                    <div className="flex items-center justify-between">
+                        <h2 className="text-2xl font-black uppercase tracking-tighter font-headline">Scheduling ET/OU</h2>
+                        <div className="text-[10px] font-black uppercase tracking-widest text-stone-500">Intervalle + Heures fixes peuvent coexister</div>
                     </div>
 
-                    {scheduleEnabled ? (
-                        <div className="space-y-4">
-                            <div className="flex flex-col md:flex-row gap-3 md:items-end">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="border-2 border-stone-900 bg-stone-50 p-4 space-y-4">
+                            <div className="flex items-center justify-between">
+                                <h3 className="text-sm font-black uppercase tracking-widest">RSS</h3>
+                                <span className={`px-2 py-1 text-[10px] font-black uppercase border-2 ${rssIntervalEnabled && scheduleEnabled ? 'bg-red-700 text-white border-red-700' : (rssIntervalEnabled || scheduleEnabled ? 'bg-stone-900 text-white border-stone-900' : 'bg-white text-stone-500 border-stone-400')}`}>
+                                    {rssIntervalEnabled && scheduleEnabled ? 'HYBRID ET/OU' : (rssIntervalEnabled ? 'INTERVALLE' : (scheduleEnabled ? 'HEURES FIXES' : 'OFF'))}
+                                </span>
+                            </div>
+
+                            <div className="flex items-center justify-between p-3 bg-white border-2 border-stone-900">
+                                <span className="text-xs font-black uppercase">Intervalle RSS</span>
+                                <Toggle checked={rssIntervalEnabled} onChange={setRssIntervalEnabled} />
+                            </div>
+                            {rssIntervalEnabled && (
                                 <div>
-                                    <label className="text-[10px] font-black uppercase text-stone-500 mb-1 block">Ajouter une heure HH:MM</label>
-                                    <input type="time" value={newScheduleTime} onChange={e => setNewScheduleTime(e.target.value)} className="bg-stone-50 border-4 border-stone-900 p-2 font-black text-xs" />
+                                    <label className="text-[10px] font-black uppercase text-stone-500 mb-1 block">Toutes les x heures</label>
+                                    <input type="number" step="0.1" value={daemonProfiles.rss.scan_interval_hours} onChange={e => updateDaemonProfile('rss', 'scan_interval_hours', e.target.value)} className="w-full bg-white border-2 border-stone-900 p-2 font-black text-xs" />
                                 </div>
-                                <button onClick={addScheduleTime} className="bg-stone-900 text-white px-4 py-2 border-2 border-stone-900 text-[10px] font-black uppercase tracking-widest">Ajouter</button>
+                            )}
+
+                            <div className="flex items-center justify-between p-3 bg-white border-2 border-stone-900">
+                                <span className="text-xs font-black uppercase">Heures fixes RSS</span>
+                                <Toggle checked={scheduleEnabled} onChange={setScheduleEnabled} />
                             </div>
-                            <div className="flex flex-wrap gap-2">
-                                {scheduleTimes.length === 0 && <span className="text-xs font-black uppercase text-stone-400">Aucune heure configuree</span>}
-                                {scheduleTimes.map(t => (
-                                    <button key={t} onClick={() => removeScheduleTime(t)} className="px-3 py-1 bg-stone-900 text-white border-2 border-stone-900 text-[10px] font-black uppercase">{t} ✕</button>
-                                ))}
-                            </div>
-                            <div className="text-[10px] font-black uppercase text-stone-500">
-                                Prochains runs: {nextRunsPreview.length ? nextRunsPreview.join(' | ') : '—'}
-                            </div>
+                            {scheduleEnabled && (
+                                <>
+                                    <div className="flex gap-2 items-end">
+                                        <input type="time" value={newScheduleTime} onChange={e => setNewScheduleTime(e.target.value)} className="bg-white border-2 border-stone-900 p-2 font-black text-xs" />
+                                        <button onClick={addScheduleTime} className="px-3 py-2 bg-stone-900 text-white border-2 border-stone-900 text-[10px] font-black uppercase">Ajouter</button>
+                                    </div>
+                                    <div className="flex flex-wrap gap-2">
+                                        {scheduleTimes.length === 0 && <span className="text-[10px] font-black uppercase text-stone-400">Aucune heure configuree</span>}
+                                        {scheduleTimes.map(t => (
+                                            <button key={`rss-main-${t}`} onClick={() => removeScheduleTime(t)} className="px-2 py-1 bg-stone-900 text-white border-2 border-stone-900 text-[10px] font-black uppercase">{t} ✕</button>
+                                        ))}
+                                    </div>
+                                </>
+                            )}
                         </div>
-                    ) : (
-                        <p className="text-xs font-bold uppercase text-stone-400">Mode intervalle actif (scan_interval_hours).</p>
-                    )}
+
+                        <div className="border-2 border-stone-900 bg-stone-50 p-4 space-y-4">
+                            <div className="flex items-center justify-between">
+                                <h3 className="text-sm font-black uppercase tracking-widest">Elections</h3>
+                                <span className={`px-2 py-1 text-[10px] font-black uppercase border-2 ${electionsIntervalEnabled && electionsScheduleEnabled ? 'bg-red-700 text-white border-red-700' : (electionsIntervalEnabled || electionsScheduleEnabled ? 'bg-stone-900 text-white border-stone-900' : 'bg-white text-stone-500 border-stone-400')}`}>
+                                    {electionsIntervalEnabled && electionsScheduleEnabled ? 'HYBRID ET/OU' : (electionsIntervalEnabled ? 'INTERVALLE' : (electionsScheduleEnabled ? 'HEURES FIXES' : 'OFF'))}
+                                </span>
+                            </div>
+
+                            <div className="flex items-center justify-between p-3 bg-white border-2 border-stone-900">
+                                <span className="text-xs font-black uppercase">Intervalle Elections</span>
+                                <Toggle checked={electionsIntervalEnabled} onChange={setElectionsIntervalEnabled} />
+                            </div>
+                            {electionsIntervalEnabled && (
+                                <div>
+                                    <label className="text-[10px] font-black uppercase text-stone-500 mb-1 block">Toutes les x heures</label>
+                                    <input type="number" step="0.1" value={daemonProfiles.elections.election_interval_hours} onChange={e => updateDaemonProfile('elections', 'election_interval_hours', e.target.value)} className="w-full bg-white border-2 border-stone-900 p-2 font-black text-xs" />
+                                </div>
+                            )}
+
+                            <div className="flex items-center justify-between p-3 bg-white border-2 border-stone-900">
+                                <span className="text-xs font-black uppercase">Heures fixes Elections</span>
+                                <Toggle checked={electionsScheduleEnabled} onChange={setElectionsScheduleEnabled} />
+                            </div>
+                            {electionsScheduleEnabled && (
+                                <>
+                                    <div className="flex gap-2 items-end">
+                                        <input type="time" value={newElectionScheduleTime} onChange={e => setNewElectionScheduleTime(e.target.value)} className="bg-white border-2 border-stone-900 p-2 font-black text-xs" />
+                                        <button onClick={addElectionScheduleTime} className="px-3 py-2 bg-stone-900 text-white border-2 border-stone-900 text-[10px] font-black uppercase">Ajouter</button>
+                                    </div>
+                                    <div className="flex flex-wrap gap-2">
+                                        {electionsScheduleTimes.length === 0 && <span className="text-[10px] font-black uppercase text-stone-400">Aucune heure configuree</span>}
+                                        {electionsScheduleTimes.map(t => (
+                                            <button key={`elections-main-${t}`} onClick={() => removeElectionScheduleTime(t)} className="px-2 py-1 bg-stone-900 text-white border-2 border-stone-900 text-[10px] font-black uppercase">{t} ✕</button>
+                                        ))}
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                    </div>
                 </section>
 
                 <section className="bg-white border-4 border-stone-900 shadow-[10px_10px_0px_0px_#1A1C1C] p-8 space-y-6">
@@ -598,6 +792,14 @@ export default function DaemonPage() {
                                         <label className="text-[10px] font-black uppercase text-stone-500 mb-1 block">max delay</label>
                                         <input type="number" value={rule.overrides.max_delay_min ?? ''} onChange={e => updateRuleOverride(rule.id, 'max_delay_min', e.target.value)} className="w-full bg-white border-2 border-stone-900 p-2 font-black text-xs" />
                                     </div>
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase text-stone-500 mb-1 block">scan interval h</label>
+                                        <input type="number" step="0.1" value={rule.overrides.scan_interval_hours ?? ''} onChange={e => updateRuleOverride(rule.id, 'scan_interval_hours', e.target.value)} className="w-full bg-white border-2 border-stone-900 p-2 font-black text-xs" />
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase text-stone-500 mb-1 block">elections interval h</label>
+                                        <input type="number" step="0.1" value={rule.overrides.election_interval_hours ?? ''} onChange={e => updateRuleOverride(rule.id, 'election_interval_hours', e.target.value)} className="w-full bg-white border-2 border-stone-900 p-2 font-black text-xs" />
+                                    </div>
                                 </div>
                             </div>
                         ))}
@@ -609,7 +811,9 @@ export default function DaemonPage() {
                 <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
                     <div className="w-full max-w-4xl bg-stone-50 border-4 border-stone-900 shadow-[12px_12px_0px_0px_#1A1C1C] p-6">
                         <div className="flex items-center justify-between mb-4">
-                            <h3 className="text-lg font-black uppercase tracking-tighter">Manual Scan Live Logs</h3>
+                            <h3 className="text-lg font-black uppercase tracking-tighter">
+                                {manualAction === 'elections' ? 'Manual Elections Sync Live Logs' : 'Manual Scan Live Logs'}
+                            </h3>
                             <button
                                 onClick={() => !scanRunning && setModalOpen(false)}
                                 className="px-3 py-1 border-2 border-stone-900 bg-white text-xs font-black uppercase disabled:opacity-50"
@@ -628,6 +832,113 @@ export default function DaemonPage() {
                         <pre className="h-[420px] overflow-auto bg-stone-900 text-stone-100 p-4 border-2 border-stone-900 text-xs leading-relaxed whitespace-pre-wrap">
                             {scanLogs || 'Aucun log pour le moment...'}
                         </pre>
+                    </div>
+                </div>
+            )}
+
+            {profilesOpen && (
+                <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
+                    <div className="w-full max-w-6xl bg-stone-50 border-4 border-stone-900 shadow-[12px_12px_0px_0px_#1A1C1C] p-6 max-h-[90vh] overflow-auto">
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-lg font-black uppercase tracking-tighter">Configuration individuelle par daemon</h3>
+                            <button onClick={() => setProfilesOpen(false)} className="px-3 py-1 border-2 border-stone-900 bg-white text-xs font-black uppercase">Fermer</button>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            {(['rss', 'publisher', 'elections'] as DaemonType[]).map((daemonKey) => (
+                                <div key={daemonKey} className="border-4 border-stone-900 bg-white p-4 space-y-3">
+                                    <h4 className="text-sm font-black uppercase tracking-widest">{daemonKey}</h4>
+                                    {daemonKey === 'rss' && (
+                                        <div className="space-y-2 p-3 border-2 border-stone-900 bg-stone-50">
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-[10px] font-black uppercase">Intervalle RSS</span>
+                                                <Toggle checked={rssIntervalEnabled} onChange={setRssIntervalEnabled} />
+                                            </div>
+                                            {rssIntervalEnabled && (
+                                                <div>
+                                                    <label className="text-[10px] font-black uppercase text-stone-500 block mb-1">Scan toutes les x heures</label>
+                                                    <input type="number" step="0.1" value={daemonProfiles.rss.scan_interval_hours} onChange={e => updateDaemonProfile('rss', 'scan_interval_hours', e.target.value)} className="w-full bg-white border-2 border-stone-900 p-2 font-black text-xs" />
+                                                </div>
+                                            )}
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-[10px] font-black uppercase">Heures fixes RSS</span>
+                                                <Toggle checked={scheduleEnabled} onChange={setScheduleEnabled} />
+                                            </div>
+                                            {scheduleEnabled && (
+                                                <>
+                                                    <div className="flex gap-2 items-end">
+                                                        <input type="time" value={newScheduleTime} onChange={e => setNewScheduleTime(e.target.value)} className="bg-white border-2 border-stone-900 p-2 font-black text-xs" />
+                                                        <button onClick={addScheduleTime} className="px-3 py-2 bg-stone-900 text-white border-2 border-stone-900 text-[10px] font-black uppercase">Ajouter</button>
+                                                    </div>
+                                                    <div className="flex flex-wrap gap-2">
+                                                        {scheduleTimes.map(t => (
+                                                            <button key={`rss-${t}`} onClick={() => removeScheduleTime(t)} className="px-2 py-1 bg-stone-900 text-white border-2 border-stone-900 text-[10px] font-black uppercase">{t} ✕</button>
+                                                        ))}
+                                                    </div>
+                                                </>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {daemonKey === 'elections' && (
+                                        <div className="space-y-2 p-3 border-2 border-stone-900 bg-stone-50">
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-[10px] font-black uppercase">Intervalle Elections</span>
+                                                <Toggle checked={electionsIntervalEnabled} onChange={setElectionsIntervalEnabled} />
+                                            </div>
+                                            {electionsIntervalEnabled && (
+                                                <div>
+                                                    <label className="text-[10px] font-black uppercase text-stone-500 block mb-1">Scan toutes les x heures</label>
+                                                    <input type="number" step="0.1" value={daemonProfiles.elections.election_interval_hours} onChange={e => updateDaemonProfile('elections', 'election_interval_hours', e.target.value)} className="w-full bg-white border-2 border-stone-900 p-2 font-black text-xs" />
+                                                </div>
+                                            )}
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-[10px] font-black uppercase">Heures fixes Elections</span>
+                                                <Toggle checked={electionsScheduleEnabled} onChange={setElectionsScheduleEnabled} />
+                                            </div>
+                                            {electionsScheduleEnabled && (
+                                                <>
+                                                    <div className="flex gap-2 items-end">
+                                                        <input type="time" value={newElectionScheduleTime} onChange={e => setNewElectionScheduleTime(e.target.value)} className="bg-white border-2 border-stone-900 p-2 font-black text-xs" />
+                                                        <button onClick={addElectionScheduleTime} className="px-3 py-2 bg-stone-900 text-white border-2 border-stone-900 text-[10px] font-black uppercase">Ajouter</button>
+                                                    </div>
+                                                    <div className="flex flex-wrap gap-2">
+                                                        {electionsScheduleTimes.map(t => (
+                                                            <button key={`elec-${t}`} onClick={() => removeElectionScheduleTime(t)} className="px-2 py-1 bg-stone-900 text-white border-2 border-stone-900 text-[10px] font-black uppercase">{t} ✕</button>
+                                                        ))}
+                                                    </div>
+                                                </>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase text-stone-500 block mb-1">Max Signals/Scan</label>
+                                        <input type="number" value={daemonProfiles[daemonKey].max_articles} onChange={e => updateDaemonProfile(daemonKey, 'max_articles', e.target.value)} className="w-full bg-stone-50 border-2 border-stone-900 p-2 font-black text-xs" />
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase text-stone-500 block mb-1">Lookback (h)</label>
+                                        <input type="number" value={daemonProfiles[daemonKey].rss_lookback_hours} onChange={e => updateDaemonProfile(daemonKey, 'rss_lookback_hours', e.target.value)} className="w-full bg-stone-50 border-2 border-stone-900 p-2 font-black text-xs" />
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase text-stone-500 block mb-1">Min Delay (m)</label>
+                                        <input type="number" value={daemonProfiles[daemonKey].min_delay_min} onChange={e => updateDaemonProfile(daemonKey, 'min_delay_min', e.target.value)} className="w-full bg-stone-50 border-2 border-stone-900 p-2 font-black text-xs" />
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase text-stone-500 block mb-1">Max Delay (m)</label>
+                                        <input type="number" value={daemonProfiles[daemonKey].max_delay_min} onChange={e => updateDaemonProfile(daemonKey, 'max_delay_min', e.target.value)} className="w-full bg-stone-50 border-2 border-stone-900 p-2 font-black text-xs" />
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase text-stone-500 block mb-1">Scan Interval (h)</label>
+                                        <input type="number" step="0.1" value={daemonProfiles[daemonKey].scan_interval_hours} onChange={e => updateDaemonProfile(daemonKey, 'scan_interval_hours', e.target.value)} className="w-full bg-stone-50 border-2 border-stone-900 p-2 font-black text-xs" />
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase text-stone-500 block mb-1">Elections Interval (h)</label>
+                                        <input type="number" step="0.1" value={daemonProfiles[daemonKey].election_interval_hours} onChange={e => updateDaemonProfile(daemonKey, 'election_interval_hours', e.target.value)} className="w-full bg-stone-50 border-2 border-stone-900 p-2 font-black text-xs" />
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                        <div className="mt-4 text-[10px] font-black uppercase text-stone-500">Les valeurs seront actives apres Enregistrer dans Runtime & Actions.</div>
                     </div>
                 </div>
             )}

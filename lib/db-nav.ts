@@ -60,7 +60,7 @@ export async function getNavItems(all: boolean = false): Promise<NavItem[]> {
                 ['revelations', 'Flux Révélation', '/revelations', 1, null, 2],
                 ['investigation', 'Investigation', '/investigation', 1, null, 3],
                 ['comprendre', 'Comprendre', '/comprendre', 1, null, 4],
-                ['elections', 'Élections', '/elections/municipales-2026', 1, 'LIVE', 5],
+                ['elections', 'Élections', '/elections', 1, 'LIVE', 5],
                 ['soutenir', 'Soutenir', '/soutenir', 1, null, 6],
             ];
 
@@ -81,7 +81,7 @@ export async function getNavItems(all: boolean = false): Promise<NavItem[]> {
         return rows.map((r: any) => ({
             slug: r.slug,
             label: r.label,
-            path: r.path,
+            path: r.slug === 'elections' ? '/elections' : r.path,
             enabled: r.enabled === 1,
             badge: r.badge || null,
             sort_order: r.sort_order,
@@ -95,7 +95,7 @@ export async function getNavItems(all: boolean = false): Promise<NavItem[]> {
             { slug: 'revelations', label: 'Flux Révélation', path: '/revelations', enabled: true, badge: null, sort_order: 2 },
             { slug: 'investigation', label: 'Investigation', path: '/investigation', enabled: true, badge: null, sort_order: 3 },
             { slug: 'comprendre', label: 'Comprendre', path: '/comprendre', enabled: true, badge: null, sort_order: 4 },
-            { slug: 'elections', label: 'Élections', path: '/elections/municipales-2026', enabled: true, badge: 'LIVE', sort_order: 5 },
+            { slug: 'elections', label: 'Élections', path: '/elections', enabled: true, badge: 'LIVE', sort_order: 5 },
             { slug: 'soutenir', label: 'Soutenir', path: '/soutenir', enabled: true, badge: null, sort_order: 6 },
         ];
         

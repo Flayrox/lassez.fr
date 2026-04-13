@@ -10,6 +10,7 @@ interface DashboardLayoutProps {
     subtitle?: string;
     isDaemonRunning?: boolean;
     fullBleed?: boolean;
+    embedded?: boolean;
 }
 
 export function DashboardLayout({ 
@@ -17,8 +18,22 @@ export function DashboardLayout({
     title, 
     subtitle, 
     isDaemonRunning,
-    fullBleed = false
+    fullBleed = false,
+    embedded = false
 }: DashboardLayoutProps) {
+    if (embedded) {
+        return (
+            <div className="min-h-screen bg-stone-50 font-body selection:bg-red-700 selection:text-white">
+                <main className="relative overflow-x-hidden">
+                    <div className="grain-overlay absolute inset-0 z-0 opacity-5 pointer-events-none"></div>
+                    <div className={`${fullBleed ? 'min-h-screen overflow-hidden' : 'p-4 md:p-6'} relative z-10`}>
+                        {children}
+                    </div>
+                </main>
+            </div>
+        );
+    }
+
     return (
         <div className="flex min-h-screen bg-stone-50 font-body selection:bg-red-700 selection:text-white">
             <BrutalSidebar />

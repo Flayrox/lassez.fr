@@ -13,7 +13,7 @@ type UserItem = {
     created_at: string;
 };
 
-const PERM_KEYS = ['radar', 'studio', 'network', 'lab', 'settings', 'users'] as const;
+const PERM_KEYS = ['radar', 'studio', 'network', 'lab', 'daemon', 'settings', 'users'] as const;
 
 const EMPTY_USER = {
     username: '',
@@ -24,6 +24,7 @@ const EMPTY_USER = {
         studio: false,
         network: false,
         lab: false,
+        daemon: false,
         settings: false,
         users: false
     },
@@ -71,6 +72,7 @@ export default function UsersPage() {
                     studio: true,
                     network: true,
                     lab: true,
+                    daemon: true,
                     settings: true,
                     users: true
                 }

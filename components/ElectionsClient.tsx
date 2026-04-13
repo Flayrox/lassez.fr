@@ -9,15 +9,20 @@ import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { regions, departments as deptNames } from '../lib/geo-data';
 import { formatCommuneSlug } from '../lib/seo-engine';
+import { formatElectionLabel } from '../lib/elections';
 
 interface ElectionsClientProps {
     electionSlug: string;
     articles: WPPost[];
     departments?: string[];
+    initialVille?: string;
+    initialDep?: string;
 }
 
-export default function ElectionsClient({ electionSlug, articles, departments = [] }: ElectionsClientProps) {
+export default function ElectionsClient({ electionSlug, articles, departments = [], initialVille = '', initialDep = '' }: ElectionsClientProps) {
     const [expandedRegion, setExpandedRegion] = useState<string | null>(null);
+
+    const electionLabel = formatElectionLabel(electionSlug);
 
     const toggleRegion = (regionName: string) => {
         setExpandedRegion(expandedRegion === regionName ? null : regionName);
@@ -58,15 +63,15 @@ export default function ElectionsClient({ electionSlug, articles, departments = 
                 </div>
                 <h1 className="font-serif font-black text-3xl md:text-5xl uppercase tracking-tighter text-ink leading-none">
                     Élections<br />
-                    <span className="text-lassez-red">Municipales</span> 2026
+                    <span className="text-lassez-red">{electionLabel}</span>
                 </h1>
                 <p className="mt-3 font-serif text-ink/70 text-base md:text-lg max-w-2xl">
-                    Découvrez les résultats définitifs du scrutin. Données issues des flux officiels du Ministère de l'Intérieur, consolidées par la rédaction.
+                    Découvrez les résultats définitifs du scrutin {electionLabel}. Données issues des flux officiels de l'Etat, consolidées par la rédaction.
                 </p>
             </div>
 
             {/* Résultats live */}
-            <ElectionResultsLive electionSlug={electionSlug} />
+            <ElectionResultsLive electionSlug={electionSlug} initialVille={initialVille} initialDep={initialDep} />
 
             {/* Navigation par Région & Département */}
             <div className="border-t-4 border-ink pt-4">
@@ -97,7 +102,7 @@ export default function ElectionsClient({ electionSlug, articles, departments = 
                                         return (
                                             <Link
                                                 key={deptCode}
-                                                href={`/elections/municipales-2026/departement/${deptCode}`}
+                                                href={`/elections/${electionSlug}/departement/${deptCode}`}
                                                 className={`flex flex-col items-center justify-center p-3 border-2 transition-all hover:-translate-y-1 hover:-translate-x-1 hover:shadow-hard-sm ${
                                                     hasData 
                                                     ? 'border-ink bg-white font-mono text-xs font-black' 
@@ -174,7 +179,7 @@ export default function ElectionsClient({ electionSlug, articles, departments = 
                     {importantVilles.map(v => (
                         <Link 
                             key={v.insee}
-                            href={`/elections/municipales-2026/commune/${formatCommuneSlug(v.insee, v.name)}`}
+                            href={`/elections/${electionSlug}/commune/${formatCommuneSlug(v.insee, v.name)}`}
                             className="font-mono text-[9px] font-black uppercase tracking-tight text-ink/50 hover:text-lassez-red transition-colors"
                         >
                             {v.name}

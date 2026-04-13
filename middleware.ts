@@ -146,7 +146,7 @@ export async function middleware(req: NextRequest) {
 
     const requiredUiPermission = (() => {
         if (pathname.startsWith('/radar-admin/users')) return 'users';
-        if (pathname.startsWith('/radar-admin/daemon')) return 'settings';
+        if (pathname.startsWith('/radar-admin/daemon')) return 'daemon';
         if (pathname.startsWith('/radar-admin/settings')) return 'settings';
         if (pathname.startsWith('/radar-admin/studio')) return 'studio';
         if (pathname.startsWith('/radar-admin/network')) return 'network';
@@ -163,9 +163,10 @@ export async function middleware(req: NextRequest) {
 
     const requiredApiPermission = (() => {
         if (pathname.startsWith('/api/radar/users')) return 'users';
-        if (pathname.startsWith('/api/radar/daemon-status')) return 'settings';
+        if (pathname.startsWith('/api/radar/daemon-status')) return 'daemon';
+        if (pathname.startsWith('/api/radar/logs')) return 'daemon';
+        if (pathname.startsWith('/api/radar/trigger')) return 'daemon';
         if (pathname.startsWith('/api/radar/settings')) return 'settings';
-        if (pathname.startsWith('/api/radar/trigger')) return 'settings';
         return null;
     })();
 

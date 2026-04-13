@@ -30,10 +30,20 @@ const defaults = {
     election_interval_hours: '0.5', // Intervalle entre deux scans d'élections
     daemon_rss_enabled: 'true', // Activer le scan RSS/Telegram
     daemon_elections_enabled: 'false', // Activer le scan d'élections
+    daemon_rss_interval_enabled: 'true', // Activer le scan RSS par intervalle
     daemon_rss_schedule_enabled: 'false', // Activer planning heures fixes RSS (HH:MM)
     daemon_rss_schedule_times: '', // Ex: 07:30,12:00,18:45
+    daemon_elections_interval_enabled: 'true', // Activer le scan Elections par intervalle
+    daemon_elections_schedule_enabled: 'false', // Planning heures fixes elections (HH:MM)
+    daemon_elections_schedule_times: '', // Ex: 09:00, 18:00
+    election_analysis_target_slug: 'municipales-2026', // Slug actuellement analyse par le daemon elections
+    election_front_display_slugs_json: '["municipales-2026"]', // Slugs affiches en front (multi-slugs)
+    election_sources_json: '{"municipales-2026":{"source_type":"dataset-api","parser_strategy":"municipales-communes-v1","dataset_first_tour":"elections-municipales-2026-resultats-du-premier-tour","dataset_second_tour":"elections-municipales-2026-resultats-du-second-tour","candidate_first_tour":"elections-municipales-2026-listes-candidates-au-premier-tour","candidate_second_tour":"elections-municipales-2026-listes-candidates-au-second-tour","enabled":true}}',
+    election_daemon_by_slug_json: '{"municipales-2026":{"enabled":false,"live_mode_enabled":false,"poll_interval_minutes":2,"interval_enabled":true,"interval_hours":0.5,"schedule_enabled":false,"schedule_times":"","sync_locked":false}}',
+    election_last_used_source_json: '{}', // Historique simplifie des dernieres URLs/sources utilisees
     daemon_dynamic_tuning_enabled: 'false', // Active les surcharges dynamiques selon heure/daemon
     daemon_dynamic_tuning_rules: '', // JSON de règles horaires pour max_articles/lookback/delays
+    daemon_profiles_json: '', // JSON de configuration separee par daemon
     social_mastodon_enabled: 'true',
     social_bluesky_enabled: 'true',
     social_twitter_enabled: 'true',
@@ -155,6 +165,12 @@ Exemple : "📌 LE FAIT DU JOUR ⚖️ JUSTICE : Macron nomme un procureur contr
 Si un bloc "ARCHIVES L'ASSEZ" est fourni ci-dessous, utilise-le pour détecter les contradictions politiques et les inclure dans ton décryptage.`
     ,
     ai_model_main: 'gemini-2.5-pro-preview-05-06',
+    ai_model_breaking: 'gemini-3.1-pro-preview',
+    ai_model_standard: 'gemini-2.5-flash',
+    ai_model_decrypt: 'gemini-2.5-pro',
+    google_search_breaking_enabled: 'true',
+    google_search_standard_enabled: 'true',
+    google_search_decrypt_enabled: 'true',
     source_trust_map: JSON.stringify({
         mediapart: '🟢',
         humanite: '🟢',
@@ -194,6 +210,31 @@ const insertDefault = db.prepare(`INSERT OR IGNORE INTO radar_settings (key, val
 for (const [key, value] of Object.entries(defaults)) {
     insertDefault.run(key, value);
 }
+
+db.prepare(`
+    INSERT OR IGNORE INTO elections_registry (slug, category, label, status)
+    VALUES (?, ?, ?, ?)
+`).run('municipales-2026', 'municipales', 'Municipales 2026', 'active');
+
+db.prepare(`
+    INSERT OR IGNORE INTO elections_registry (slug, category, label, status)
+    VALUES (?, ?, ?, ?)
+`).run('presidentielles-2027', 'presidentielles', 'Presidentielles 2027', 'draft');
+
+db.prepare(`
+    INSERT OR IGNORE INTO election_front_display (slug, is_visible, display_order, is_featured)
+    VALUES (?, ?, ?, ?)
+`).run('municipales-2026', 1, 1, 1);
+
+db.prepare(`
+    INSERT OR IGNORE INTO election_sources (slug, source_type, parser_strategy, enabled)
+    VALUES (?, ?, ?, ?)
+`).run('municipales-2026', 'dataset-api', 'municipales-communes-v1', 1);
+
+db.prepare(`
+    INSERT OR IGNORE INTO election_daemon_config (slug, daemon_enabled, live_mode_enabled, poll_interval_minutes, interval_enabled, interval_hours, schedule_enabled, schedule_times, sync_locked)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+`).run('municipales-2026', 0, 0, 2, 1, 0.5, 0, '', 0);
 
 console.log('✅ Table radar_settings prête avec les valeurs par défaut.');
 

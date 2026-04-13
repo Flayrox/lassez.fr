@@ -256,10 +256,15 @@ function buildTwitterBridgeFeed(baseUrl, account) {
 }
 
 // -- 2. LE CERVEAU (Gemini 3 Pro avec JSON strict et confiance source) --
-async function rewriteBatchWithGemini(itemsBatch, maxArticles, customPrompt, archiveContext = '', sourceTrustMap = DEFAULT_SOURCE_TRUST, aiModelMain = 'gemini-2.5-pro-preview-05-06', specificPrompts = {}) {
+async function rewriteBatchWithGemini(itemsBatch, maxArticles, customPrompt, archiveContext = '', sourceTrustMap = DEFAULT_SOURCE_TRUST, aiModelMain = 'gemini-2.5-pro-preview-05-06', specificPrompts = {}, options = {}) {
+    const useGoogleSearch = options.useGoogleSearch !== false;
+    const allowedTypes = Array.isArray(options.allowedTypes) && options.allowedTypes.length
+        ? options.allowedTypes
+        : (specificPrompts.allowedTypes || ['"🔴 ALERTE INFO !"', '"📌 LE FAIT DU JOUR"', '"🔎 DÉCRYPTAGE"', '"🗓️ À VENIR"']);
+
     const model = genAI.getGenerativeModel({
         model: aiModelMain,
-        tools: [{ googleSearch: {} }],
+        tools: useGoogleSearch ? [{ googleSearch: {} }] : [],
         generationConfig: { responseMimeType: "application/json" }
     });
 
@@ -322,7 +327,7 @@ Réponds UNIQUEMENT par un tableau JSON avec exactement ces champs :
 } ]
 
 CHAMPS IMPORTANTS :
-- "typeOuverture" : OBLIGATOIRE. Tu as uniquement le droit d'utiliser un de ces formats : ${specificPrompts.allowedTypes ? specificPrompts.allowedTypes.join(', ') : '"🔴 ALERTE INFO !", "📌 LE FAIT DU JOUR", "🔎 DÉCRYPTAGE", "🗓️ À VENIR"'}
+- "typeOuverture" : OBLIGATOIRE. Tu as uniquement le droit d'utiliser un de ces formats : ${allowedTypes.join(', ')}
 - "fiabilite" : "suspecte" si source 🔴 ET non confirmée par Google Search
 - "entitesPolitiques" : liste des personnages politiques mentionnés (pour alimenter le casier judiciaire)
 - "flash" : Le texte rédigé selon les règles de style de L'Assez. DOIT commencer par le typeOuverture.
@@ -332,7 +337,7 @@ ${articlesText}
     `;
 
     try {
-        console.log(`[DEBUG] Envoi à Gemini 3 Pro (Cerveau Éditorial v2)...`);
+        console.log(`[DEBUG] Envoi à Gemini (${aiModelMain}) | GoogleSearch=${useGoogleSearch ? 'ON' : 'OFF'}...`);
         const result = await model.generateContent(prompt);
         console.log(`[DEBUG] Gemini a répondu !`);
 
@@ -531,6 +536,12 @@ Réponds uniquement OUI ou NON :`;
     allowedTypes.push('"🗓️ À VENIR"');
 
     const aiModelMain = settings.ai_model_main || 'gemini-3.1-pro-preview';
+    const aiModelBreaking = settings.ai_model_breaking || aiModelMain;
+    const aiModelStandard = settings.ai_model_standard || aiModelMain;
+    const aiModelDecrypt = settings.ai_model_decrypt || aiModelMain;
+    const searchBreaking = settings.google_search_breaking_enabled !== 'false';
+    const searchStandard = settings.google_search_standard_enabled !== 'false';
+    const searchDecrypt = settings.google_search_decrypt_enabled !== 'false';
     const sourceTrustMap = parseJsonSetting(settings.source_trust_map, DEFAULT_SOURCE_TRUST);
     const dedupOptions = {
         similarityThreshold: parseFloat(settings.dedup_similarity_threshold || '0.65'),
@@ -628,11 +639,78 @@ Réponds uniquement OUI ou NON :`;
 
     // ─── PHASE 1 : CERVEAU ÉDITORIAL ───
     console.log(`\n🧠 Analyse IA de ${batchToProcess.length} articles (Cerveau Éditorial v2)...`);
-    const aiResults = await rewriteBatchWithGemini(batchToProcess, maxArticles, dynamicPrompt, archiveContext, sourceTrustMap, aiModelMain, {
-        breaking: aiPromptBreaking,
-        decrypt: aiPromptDecrypt,
-        standard: aiPromptStandard
-    });
+    const strategies = [];
+    if (settings.ai_prompt_breaking_enabled !== 'false') {
+        strategies.push({
+            key: 'breaking',
+            model: aiModelBreaking,
+            useGoogleSearch: searchBreaking,
+            allowedTypes: ['"🔴 ALERTE INFO !"']
+        });
+    }
+    if (settings.ai_prompt_standard_enabled !== 'false') {
+        strategies.push({
+            key: 'standard',
+            model: aiModelStandard,
+            useGoogleSearch: searchStandard,
+            allowedTypes: ['"📌 LE FAIT DU JOUR"', '"🗓️ À VENIR"']
+        });
+    }
+    if (settings.ai_prompt_decrypt_enabled !== 'false') {
+        strategies.push({
+            key: 'decrypt',
+            model: aiModelDecrypt,
+            useGoogleSearch: searchDecrypt,
+            allowedTypes: ['"🔎 DÉCRYPTAGE"']
+        });
+    }
+
+    if (strategies.length === 0) {
+        strategies.push({
+            key: 'fallback',
+            model: aiModelMain,
+            useGoogleSearch: true,
+            allowedTypes
+        });
+    }
+
+    const mergedAiResults = [];
+    const handledById = new Set();
+
+    for (const strategy of strategies) {
+        const remaining = Math.max(0, maxArticles - mergedAiResults.length);
+        if (remaining <= 0) break;
+
+        const partial = await rewriteBatchWithGemini(
+            batchToProcess,
+            remaining,
+            dynamicPrompt,
+            archiveContext,
+            sourceTrustMap,
+            strategy.model,
+            {
+                breaking: aiPromptBreaking,
+                decrypt: aiPromptDecrypt,
+                standard: aiPromptStandard,
+                allowedTypes: strategy.allowedTypes
+            },
+            {
+                useGoogleSearch: strategy.useGoogleSearch,
+                allowedTypes: strategy.allowedTypes
+            }
+        );
+
+        if (!Array.isArray(partial)) continue;
+        for (const item of partial) {
+            if (!item || typeof item.id !== 'string') continue;
+            if (handledById.has(item.id)) continue;
+            handledById.add(item.id);
+            mergedAiResults.push(item);
+            if (mergedAiResults.length >= maxArticles) break;
+        }
+    }
+
+    const aiResults = mergedAiResults;
 
     if (aiResults && aiResults.length > 0) {
         let newItems = [];

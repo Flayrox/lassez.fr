@@ -48,6 +48,7 @@ function normalizePermissions(input: any, role: string) {
             studio: true,
             network: true,
             lab: true,
+            daemon: true,
             settings: true,
             users: true
         };
@@ -58,6 +59,7 @@ function normalizePermissions(input: any, role: string) {
         studio: false,
         network: false,
         lab: false,
+        daemon: false,
         settings: false,
         users: false
     };
@@ -109,6 +111,7 @@ export async function POST(req: Request) {
             studio: false,
             network: false,
             lab: false,
+            daemon: false,
             settings: false,
             users: false
         };
@@ -128,7 +131,7 @@ export async function POST(req: Request) {
                 `).run(
                     validUser,
                     hashPassword(validPwd),
-                    JSON.stringify({ radar: true, studio: true, network: true, lab: true, settings: true, users: true })
+                    JSON.stringify({ radar: true, studio: true, network: true, lab: true, daemon: true, settings: true, users: true })
                 );
             }
 
@@ -155,7 +158,7 @@ export async function POST(req: Request) {
                 isAuthenticated = true;
                 authUsername = validUser;
                 authRole = 'admin';
-                authPermissions = { radar: true, studio: true, network: true, lab: true, settings: true, users: true };
+                authPermissions = { radar: true, studio: true, network: true, lab: true, daemon: true, settings: true, users: true };
             }
         }
 

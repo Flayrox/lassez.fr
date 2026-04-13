@@ -22,6 +22,15 @@ export async function GET() {
         ytdlp: { status: 'loading', message: '' },
         scrapers: { status: 'loading', message: '' }
     };
+    let vitals: any = {
+        posts: {},
+        jobs: {},
+        nextScanAt: null,
+        lastScanAt: null,
+        nextElectionScanAt: null,
+        daemonRssEnabled: false,
+        daemonElectionsEnabled: false
+    };
 
     // 1. DATABASE + FTS5
     try {
@@ -218,5 +227,51 @@ export async function GET() {
         healthStatus.scrapers = { status: 'error', message: e.message };
     }
 
-    return NextResponse.json({ success: true, health: healthStatus });
+    // 11. VITALS (queues + scans)
+    try {
+        const db = getDb();
+
+        const postRows = db.prepare('SELECT status, COUNT(*) as c FROM radar_posts GROUP BY status').all() as any[];
+        const postCounts: Record<string, number> = {};
+        for (const row of postRows) postCounts[String(row.status || 'unknown')] = Number(row.c || 0);
+
+        const jobCounts: Record<string, number> = {};
+        try {
+            const jobRows = db.prepare('SELECT status, COUNT(*) as c FROM radar_jobs GROUP BY status').all() as any[];
+            for (const row of jobRows) jobCounts[String(row.status || 'unknown')] = Number(row.c || 0);
+        } catch (_) {
+            // optional table in some envs
+        }
+
+        const settingsRows = db.prepare(`
+            SELECT key, value
+            FROM radar_settings
+            WHERE key IN (
+                'next_scan_at',
+                'last_scan_at',
+                'next_election_scan_at',
+                'daemon_rss_enabled',
+                'daemon_elections_enabled'
+            )
+        `).all() as any[];
+
+        const settingsMap: Record<string, string> = {};
+        for (const row of settingsRows) settingsMap[String(row.key)] = String(row.value || '');
+
+        vitals = {
+            posts: postCounts,
+            jobs: jobCounts,
+            nextScanAt: settingsMap.next_scan_at || null,
+            lastScanAt: settingsMap.last_scan_at || null,
+            nextElectionScanAt: settingsMap.next_election_scan_at || null,
+            daemonRssEnabled: settingsMap.daemon_rss_enabled !== 'false',
+            daemonElectionsEnabled: settingsMap.daemon_elections_enabled === 'true'
+        };
+
+        db.close();
+    } catch (_) {
+        // keep default vitals payload
+    }
+
+    return NextResponse.json({ success: true, health: healthStatus, vitals });
 }

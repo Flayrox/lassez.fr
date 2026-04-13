@@ -33,7 +33,7 @@ const RevelationsClient: React.FC = () => {
     useEffect(() => {
         async function fetchTags() {
             try {
-                const res = await fetch('https://api.lassez.fr/wp-json/wp/v2/tags?per_page=30&orderby=count&order=desc');
+                const res = await fetch('/api/wp/tags?per_page=30&orderby=count&order=desc');
                 if (res.ok) {
                     const tags = await res.json();
                     setWpTags(tags.filter((t: WPTag) => t.count > 0));

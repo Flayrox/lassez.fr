@@ -1,7 +1,7 @@
 
 import useSWRInfinite from 'swr/infinite';
 import { WPPost } from '../types';
-import { fetcher, WP_API_URL } from '../lib/api';
+import { fetcher } from '../lib/api';
 
 const PER_PAGE = 10;
 
@@ -10,7 +10,7 @@ export function useInfinitePosts(baseParams: string = '') {
     if (previousPageData && previousPageData.length === 0) return null; // Reached the end
     const page = pageIndex + 1;
     const params = `per_page=${PER_PAGE}&page=${page}&_embed${baseParams ? `&${baseParams}` : ''}`;
-    return `${WP_API_URL}/posts?${params}`;
+    return `/api/wp/posts?${params}`;
   };
 
   const { data, error, isLoading, size, setSize, isValidating } = useSWRInfinite<WPPost[]>(getKey, fetcher);

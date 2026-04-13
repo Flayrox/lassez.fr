@@ -110,6 +110,13 @@ export default function SettingsPage() {
                         {activeTab === 'prompt' && (
                             <div className="space-y-6">
                                 <h3 className="text-xl font-black uppercase tracking-tighter font-headline mb-4">Moteur de Pensée</h3>
+                                <div className="p-4 bg-amber-50 border-4 border-stone-900 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                                    <div>
+                                        <p className="text-xs font-black uppercase tracking-widest">Nouveau cockpit daemon</p>
+                                        <p className="text-[10px] font-bold uppercase text-stone-500">Les controles avances daemon sont maintenant centralises sur la page dediee.</p>
+                                    </div>
+                                    <a href="/radar-admin/daemon" className="inline-block bg-stone-900 text-white px-4 py-2 border-2 border-stone-900 text-[10px] font-black uppercase tracking-widest">Ouvrir Daemon Center</a>
+                                </div>
                                 <div className="grid grid-cols-2 gap-6">
                                     <div>
                                         <label className="text-[10px] font-black uppercase text-stone-500 mb-1 block">Main Gemini Model</label>

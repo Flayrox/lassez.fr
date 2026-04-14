@@ -28,7 +28,10 @@ export async function getRadarConfig(): Promise<RadarConfig> {
     try {
         console.log(`[Radar Config] Fetching config from: ${configUrl}`);
         const res = await fetch(configUrl, {
-            next: { revalidate: 30 }
+            next: {
+                revalidate: 300,
+                tags: ['radar-config']
+            }
         });
 
         if (res.ok) {

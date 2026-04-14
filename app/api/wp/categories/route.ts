@@ -38,7 +38,13 @@ export async function GET(request: Request) {
 
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 8000);
-        const res = await fetch(url, { next: { revalidate: 900 }, signal: controller.signal });
+        const res = await fetch(url, {
+            next: {
+                revalidate: 900,
+                tags: ['wp-categories']
+            },
+            signal: controller.signal
+        });
         clearTimeout(timeout);
         const text = await res.text();
 

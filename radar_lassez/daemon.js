@@ -25,6 +25,7 @@
  */
 
 import { spawn } from 'child_process';
+import { createHmac, randomUUID } from 'crypto';
 import path from 'path';
 import fs from 'fs';
 import http from 'http';
@@ -86,6 +87,65 @@ function saveSetting(key, value) {
         db.close();
     } catch (e) {
         log(`⚠️  Impossible de sauvegarder ${key}: ${e.message}`);
+    }
+}
+
+const CACHE_SYNC_WEBHOOK_URL = process.env.RADAR_CACHE_SYNC_WEBHOOK_URL || '';
+const CACHE_SYNC_WEBHOOK_SECRET = process.env.RADAR_CACHE_SYNC_SECRET || '';
+
+function getCacheSyncPayload(event, extra = {}) {
+    return {
+        event,
+        source: 'radar-daemon',
+        sent_at: new Date().toISOString(),
+        ...extra
+    };
+}
+
+async function notifyCacheSync(event, extra = {}) {
+    if (!CACHE_SYNC_WEBHOOK_URL || !CACHE_SYNC_WEBHOOK_SECRET) {
+        return false;
+    }
+
+    const timestamp = Date.now().toString();
+    const nonce = randomUUID();
+    const payload = getCacheSyncPayload(event, extra);
+    const body = JSON.stringify(payload);
+    const signature = createHmac('sha256', CACHE_SYNC_WEBHOOK_SECRET)
+        .update(`${timestamp}.${nonce}.${body}`)
+        .digest('hex');
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10_000);
+
+    try {
+        const res = await fetch(CACHE_SYNC_WEBHOOK_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Radar-Timestamp': timestamp,
+                'X-Radar-Nonce': nonce,
+                'X-Radar-Signature': signature,
+                'X-Radar-Event': event,
+                'X-Radar-Source': 'radar-daemon'
+            },
+            body,
+            signal: controller.signal
+        });
+
+        if (!res.ok) {
+            const responseText = await res.text().catch(() => '');
+            log(`⚠️  Webhook cache-sync rejeté (${res.status}) ${responseText ? `→ ${responseText.slice(0, 200)}` : ''}`, 'WARN');
+            return false;
+        }
+
+        log(`🔁 Cache sync webhook envoyé pour ${event}.`);
+        return true;
+    } catch (error) {
+        log(`⚠️  Webhook cache-sync en échec: ${error.message}`, 'WARN');
+        return false;
+    } finally {
+        clearTimeout(timeout);
     }
 }
 
@@ -555,12 +615,22 @@ async function runPublisher() {
         db.close();
         db = null;
 
+        const publishedPostIds = [];
+
         for (const post of dueNow) {
             if (publishingIds.has(post.id)) continue;
             publishingIds.add(post.id);
             log(`📤 Publication automatique du post ID ${post.id}...`);
             await runScript('publishPost.js', [String(post.id)]);
+            publishedPostIds.push(post.id);
             publishingIds.delete(post.id);
+        }
+
+        if (publishedPostIds.length > 0) {
+            await notifyCacheSync('post.published', {
+                post_ids: publishedPostIds,
+                cache_scope: ['radar-config', 'wp-posts', 'wp-categories']
+            });
         }
 
     } catch (e) {

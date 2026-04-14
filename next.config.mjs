@@ -1,8 +1,9 @@
+import { withPayload } from '@payloadcms/next/withPayload';
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-    experimental: {
-        serverComponentsExternalPackages: ['better-sqlite3'],
-    },
+    serverExternalPackages: ['better-sqlite3', 'ffmpeg-static', 'pg'],
+    turbopack: {},
     images: {
         remotePatterns: [
             { protocol: 'https', hostname: 'admin.lassez.fr' },
@@ -11,16 +12,6 @@ const nextConfig = {
             { protocol: 'https', hostname: '**.lassez.fr' },
             { protocol: 'https', hostname: 'secure.gravatar.com' },
         ],
-    },
-    // ffmpeg-static fournit un binaire natif — ne pas bundler avec webpack
-    webpack: (config, { isServer }) => {
-        if (isServer) {
-            config.externals = [
-                ...(Array.isArray(config.externals) ? config.externals : [config.externals].filter(Boolean)),
-                'ffmpeg-static',
-            ];
-        }
-        return config;
     },
     // Ensure we don't block Matomo script and allow SharedArrayBuffer for FFmpeg.WASM
     async headers() {
@@ -89,4 +80,4 @@ const nextConfig = {
     },
 };
 
-export default nextConfig;
+export default withPayload(nextConfig);

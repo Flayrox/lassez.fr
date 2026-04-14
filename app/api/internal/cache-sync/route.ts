@@ -220,7 +220,7 @@ export async function POST(request: Request) {
 
     for (const tag of tags) {
         try {
-            revalidateTag(tag);
+            revalidateTag(tag, 'max');
         } catch (error: any) {
             errorToDaemon(`[CACHE-SYNC] revalidateTag(${tag}) a échoué:`, error);
         }

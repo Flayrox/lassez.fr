@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { WP_API_URL } from '@/lib/api';
+import { getCMSApiBaseUrl } from '@/lib/api';
+import { getCMSProvider } from '@/lib/cms-provider';
 
 export const dynamic = 'force-dynamic';
 
@@ -57,13 +58,59 @@ function sanitizePostsParams(searchParams: URLSearchParams) {
     return clean;
 }
 
+function toPayloadPostsQuery(searchParams: URLSearchParams) {
+    const clean = sanitizePostsParams(searchParams);
+    const payloadParams = new URLSearchParams();
+
+    if (clean.has('per_page')) payloadParams.set('limit', clean.get('per_page') || '10');
+    if (clean.has('page')) payloadParams.set('page', clean.get('page') || '1');
+    if (clean.has('search')) payloadParams.set('where[or][0][title][contains]', clean.get('search') || '');
+    if (clean.has('slug')) payloadParams.set('where[slug][equals]', clean.get('slug') || '');
+    if (clean.has('categories')) payloadParams.set('where[categories][contains]', clean.get('categories') || '');
+    if (clean.has('categories_exclude')) payloadParams.set('where[categories][not_in]', clean.get('categories_exclude') || '');
+    if (clean.has('tags')) payloadParams.set('where[tags][contains]', clean.get('tags') || '');
+    if (clean.has('exclude')) payloadParams.set('where[id][not_in]', clean.get('exclude') || '');
+    return payloadParams.toString();
+}
+
+function normalizePayloadPost(post: any) {
+    return {
+        id: post.id,
+        date: post.publishedAt || post.createdAt || new Date().toISOString(),
+        slug: post.slug,
+        title: { rendered: post.title || '' },
+        excerpt: { rendered: post.excerpt || '' },
+        content: { rendered: post.content || '' },
+        categories: Array.isArray(post.categories)
+            ? post.categories.map((category: any) => typeof category === 'object' ? category.id : category).filter(Boolean)
+            : [],
+        modified: post.updatedAt || post.publishedAt || post.createdAt,
+        acf: {
+            source_pdf_url: post.sourcePdfUrl || '',
+            security_level: post.securityLevel || 'PUBLIC',
+            chapitre_comprendre: post.chapitre_comprendre || '',
+            lecon_comprendre: post.lecon_comprendre || 0,
+        },
+        _embedded: {
+            'wp:term': [Array.isArray(post.categories)
+                ? post.categories
+                    .filter((category: any) => category && typeof category === 'object')
+                    .map((category: any) => ({ id: category.id, name: category.name, slug: category.slug }))
+                : []],
+        },
+    };
+}
+
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const qs = sanitizePostsParams(searchParams).toString();
     const cacheKey = qs || '__default__';
 
     try {
-        const url = `${WP_API_URL}/posts${qs ? `?${qs}` : ''}`;
+        const provider = getCMSProvider();
+        const url = provider === 'payload'
+            ? `${getCMSApiBaseUrl()}/posts${qs ? `?${toPayloadPostsQuery(searchParams)}` : ''}`
+            : `${getCMSApiBaseUrl()}/posts${qs ? `?${qs}` : ''}`;
 
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 8000);
@@ -76,10 +123,13 @@ export async function GET(request: Request) {
         });
         clearTimeout(timeout);
         const text = await res.text();
+        const body = provider === 'payload' && res.ok
+            ? JSON.stringify((Array.isArray(JSON.parse(text)) ? JSON.parse(text) : JSON.parse(text)?.docs || []).map(normalizePayloadPost))
+            : text;
 
         if (res.ok) {
             responseCache.set(cacheKey, {
-                body: text,
+                body,
                 contentType: res.headers.get('content-type') || 'application/json; charset=utf-8',
                 expiresAt: Date.now() + 10 * 60 * 1000,
             });
@@ -97,7 +147,7 @@ export async function GET(request: Request) {
             }
         }
 
-        return new NextResponse(text, {
+        return new NextResponse(body, {
             status: res.status,
             headers: {
                 'Content-Type': res.headers.get('content-type') || 'application/json; charset=utf-8',

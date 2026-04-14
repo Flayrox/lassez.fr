@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { WP_API_URL } from '@/lib/api';
+import { getCMSApiBaseUrl } from '@/lib/api';
+import { getCMSProvider } from '@/lib/cms-provider';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,13 +29,37 @@ function sanitizeCategoryParams(searchParams: URLSearchParams) {
     return clean;
 }
 
+function toPayloadCategoriesQuery(searchParams: URLSearchParams) {
+    const clean = sanitizeCategoryParams(searchParams);
+    const payloadParams = new URLSearchParams();
+    if (clean.has('per_page')) payloadParams.set('limit', clean.get('per_page') || '100');
+    if (clean.has('page')) payloadParams.set('page', clean.get('page') || '1');
+    if (clean.has('slug')) payloadParams.set('where[slug][equals]', clean.get('slug') || '');
+    if (clean.has('search')) payloadParams.set('where[or][0][name][contains]', clean.get('search') || '');
+    if (clean.has('orderby')) payloadParams.set('sort', clean.get('orderby') || 'sortOrder');
+    if (clean.has('order') && (clean.get('order') || '').toLowerCase() === 'desc') payloadParams.set('sort', '-sortOrder');
+    return payloadParams.toString();
+}
+
+function normalizePayloadCategory(category: any) {
+    return {
+        id: category.id,
+        name: category.name,
+        slug: category.slug,
+        count: category.count || 0,
+    };
+}
+
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const qs = sanitizeCategoryParams(searchParams).toString();
     const cacheKey = qs || '__default__';
 
     try {
-        const url = `${WP_API_URL}/categories${qs ? `?${qs}` : ''}`;
+        const provider = getCMSProvider();
+        const url = provider === 'payload'
+            ? `${getCMSApiBaseUrl()}/categories${qs ? `?${toPayloadCategoriesQuery(searchParams)}` : ''}`
+            : `${getCMSApiBaseUrl()}/categories${qs ? `?${qs}` : ''}`;
 
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 8000);
@@ -47,10 +72,13 @@ export async function GET(request: Request) {
         });
         clearTimeout(timeout);
         const text = await res.text();
+        const body = provider === 'payload' && res.ok
+            ? JSON.stringify((Array.isArray(JSON.parse(text)) ? JSON.parse(text) : JSON.parse(text)?.docs || []).map(normalizePayloadCategory))
+            : text;
 
         if (res.ok) {
             responseCache.set(cacheKey, {
-                body: text,
+                body,
                 contentType: res.headers.get('content-type') || 'application/json; charset=utf-8',
                 expiresAt: Date.now() + 30 * 60 * 1000,
             });
@@ -68,7 +96,7 @@ export async function GET(request: Request) {
             }
         }
 
-        return new NextResponse(text, {
+        return new NextResponse(body, {
             status: res.status,
             headers: {
                 'Content-Type': res.headers.get('content-type') || 'application/json; charset=utf-8',

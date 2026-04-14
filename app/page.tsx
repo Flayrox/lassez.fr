@@ -12,11 +12,23 @@ import { getArticleUrl } from '../lib/getArticleUrl';
 
 const WP_BASE = getServerWpApiBaseUrl();
 
-async function getPosts(): Promise<WPPost[]> {
+async function getCategoryIdBySlug(slug: string): Promise<number | null> {
     try {
-        // On exclut la catégorie 12 (Révélations / Radar) pour garantir qu'on reçoit
-        // bien nos Enquêtes et autres articles éditoriaux, même si le Daemon a beaucoup posté.
-        const res = await fetch(`${WP_BASE}/posts?categories_exclude=12&per_page=14&_embed`, {
+        const res = await fetch(`${WP_BASE}/categories?slug=${encodeURIComponent(slug)}&per_page=1`, {
+            next: { revalidate: 300 },
+        });
+        if (!res.ok) return null;
+        const categories = await res.json();
+        return Array.isArray(categories) && categories.length > 0 ? Number(categories[0].id) || null : null;
+    } catch {
+        return null;
+    }
+}
+
+async function getPosts(revelationsCategoryId: number | null): Promise<WPPost[]> {
+    try {
+        const categoryExclude = revelationsCategoryId ? `categories_exclude=${revelationsCategoryId}&` : '';
+        const res = await fetch(`${WP_BASE}/posts?${categoryExclude}per_page=14&_embed`, {
             next: { revalidate: 60 },
         });
         if (!res.ok) return [];
@@ -26,8 +38,10 @@ async function getPosts(): Promise<WPPost[]> {
     }
 }
 
-async function getRevelations(): Promise<WPPost[]> {
-    const res = await fetch(`${WP_BASE}/posts?categories=12&per_page=5&_embed`, {
+async function getRevelations(revelationsCategoryId: number | null): Promise<WPPost[]> {
+    if (!revelationsCategoryId) return [];
+
+    const res = await fetch(`${WP_BASE}/posts?categories=${revelationsCategoryId}&per_page=5&_embed`, {
         next: { revalidate: 30 },
     });
     if (!res.ok) return [];
@@ -40,7 +54,11 @@ export const metadata: Metadata = {
 };
 
 export default async function Home() {
-    const [posts, revelations] = await Promise.all([getPosts(), getRevelations()]);
+    const revelationsCategoryId = await getCategoryIdBySlug('revelations');
+    const [posts, revelations] = await Promise.all([
+        getPosts(revelationsCategoryId),
+        getRevelations(revelationsCategoryId),
+    ]);
 
     const filteredPosts = posts.filter(post => {
         const categories = post._embedded?.['wp:term']?.[0] || [];

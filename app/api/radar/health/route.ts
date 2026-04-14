@@ -18,6 +18,7 @@ export async function GET() {
         bluesky: { status: 'loading', message: '' },
         twitter: { status: 'loading', message: '' },
         daemon: { status: 'loading', message: '' },
+        cacheSync: { status: 'loading', message: '' },
         ffmpeg: { status: 'loading', message: '' },
         ytdlp: { status: 'loading', message: '' },
         scrapers: { status: 'loading', message: '' }
@@ -181,6 +182,28 @@ export async function GET() {
         }
     } catch (e: any) {
         healthStatus.daemon = { status: 'error', message: e.message };
+    }
+
+    // 8. FFMPEG
+    try {
+        const hasSecret = Boolean((process.env.RADAR_CACHE_SYNC_SECRET || '').trim());
+        const enforceIps = ['1', 'true'].includes((process.env.RADAR_CACHE_SYNC_ENFORCE_IPS || '').trim().toLowerCase());
+        const allowedIps = (process.env.RADAR_CACHE_SYNC_ALLOWED_IPS || '')
+            .split(',')
+            .map((v) => v.trim().replace(/^['"]|['"]$/g, ''))
+            .filter(Boolean);
+
+        if (!hasSecret) {
+            healthStatus.cacheSync = { status: 'error', message: 'Secret manquant' };
+        } else if (enforceIps && allowedIps.length === 0) {
+            healthStatus.cacheSync = { status: 'error', message: 'IP enforce active sans allowlist' };
+        } else if (!enforceIps && allowedIps.length === 0) {
+            healthStatus.cacheSync = { status: 'warning', message: 'Webhook signe actif (IP off)' };
+        } else {
+            healthStatus.cacheSync = { status: 'ok', message: `Signe + IPs (${allowedIps.length})` };
+        }
+    } catch (e: any) {
+        healthStatus.cacheSync = { status: 'error', message: e.message };
     }
 
     // 8. FFMPEG

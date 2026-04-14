@@ -44,11 +44,27 @@ function timingSafeEqualHex(expected: string, provided: string) {
     }
 }
 
-function getClientIp(request: Request) {
+function normalizeIp(value: string) {
+    const clean = String(value || '').trim();
+    if (!clean) return '';
+
+    // Common proxy format for IPv4 over IPv6 sockets.
+    if (clean.startsWith('::ffff:')) {
+        return clean.slice('::ffff:'.length);
+    }
+
+    return clean;
+}
+
+function getClientIps(request: Request) {
     const forwardedFor = request.headers.get('x-forwarded-for') || '';
     const realIp = request.headers.get('x-real-ip') || '';
-    const candidate = forwardedFor.split(',')[0]?.trim() || realIp.trim() || '';
-    return candidate;
+    const forwarded = forwardedFor
+        .split(',')
+        .map((value) => normalizeIp(value))
+        .filter(Boolean);
+    const candidates = [...forwarded, normalizeIp(realIp)].filter(Boolean);
+    return Array.from(new Set(candidates));
 }
 
 function getAllowedIps() {
@@ -99,9 +115,10 @@ export async function POST(request: Request) {
     }
 
     const allowedIps = getAllowedIps();
-    const clientIp = getClientIp(request);
-    if (allowedIps.length > 0 && (!clientIp || !allowedIps.includes(clientIp))) {
-        logToDaemon(`[CACHE-SYNC] Rejet IP non autorisée: ${clientIp || 'unknown'}`);
+    const clientIps = getClientIps(request);
+    const hasAllowedIp = allowedIps.some((ip) => clientIps.includes(ip));
+    if (allowedIps.length > 0 && !hasAllowedIp) {
+        logToDaemon(`[CACHE-SYNC] Rejet IP non autorisée: ${clientIps.join(',') || 'unknown'}`);
         return NextResponse.json({ success: false, error: 'ip_not_allowed' }, { status: 403 });
     }
 
@@ -135,7 +152,7 @@ export async function POST(request: Request) {
         .digest('hex');
 
     if (!timingSafeEqualHex(expectedSignature, signature)) {
-        logToDaemon(`[CACHE-SYNC] Signature invalide pour event=${event || 'unknown'} ip=${clientIp || 'unknown'}`);
+        logToDaemon(`[CACHE-SYNC] Signature invalide pour event=${event || 'unknown'} ips=${clientIps.join(',') || 'unknown'}`);
         return NextResponse.json({ success: false, error: 'invalid_signature' }, { status: 401 });
     }
 
@@ -167,7 +184,7 @@ export async function POST(request: Request) {
         }
     }
 
-    logToDaemon(`[CACHE-SYNC] Accepté event=${payload.event || event || 'unknown'} tags=${tags.join(',')} paths=${paths.join(',')} ip=${clientIp || 'unknown'}`);
+    logToDaemon(`[CACHE-SYNC] Accepté event=${payload.event || event || 'unknown'} tags=${tags.join(',')} paths=${paths.join(',')} ips=${clientIps.join(',') || 'unknown'}`);
 
     return NextResponse.json({
         success: true,

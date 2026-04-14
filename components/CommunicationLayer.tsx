@@ -38,7 +38,7 @@ export default function CommunicationLayer({ config }: CommunicationLayerProps) 
     };
 
     // Ne pas afficher la maintenance sur les pages admin (pour pouvoir désactiver le mode !)
-    const isAdminPage = pathname?.startsWith('/radar-admin') || pathname?.startsWith('/radar-login');
+    const isAdminPage = pathname?.startsWith('/radar-admin') || pathname?.startsWith('/radar-login') || pathname?.startsWith('/admin');
 
     return (
         <>

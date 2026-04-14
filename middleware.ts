@@ -8,10 +8,52 @@ const ipMap = new Map<string, { count: number, resetTime: number }>();
 const MAX_REQ_PER_WINDOW = 30; // 30 requêtes autorisées
 const WINDOW_MS = 60 * 1000; // par minute
 
+function normalizeHostname(value: string) {
+    return String(value || '')
+        .split(',')[0]
+        .trim()
+        .toLowerCase();
+}
+
+function stripWww(hostname: string) {
+    return hostname.replace(/^www\./, '');
+}
+
+function getPayloadOrigin(req: NextRequest, hostname: string) {
+    const explicit = String(process.env.PAYLOAD_SERVER_URL || '').trim().replace(/\/$/, '');
+    if (explicit) return explicit;
+
+    const cleanHostname = stripWww(normalizeHostname(hostname)).replace(/^studio\./, '').replace(/^api\./, '');
+    if (!cleanHostname || cleanHostname.includes('localhost') || cleanHostname.startsWith('127.')) {
+        return req.nextUrl.origin;
+    }
+
+    return `https://api.${cleanHostname}`;
+}
+
+function isPayloadRoute(pathname: string) {
+    return (
+        pathname === '/admin' ||
+        pathname.startsWith('/admin/') ||
+        pathname.startsWith('/api/payload') ||
+        pathname.startsWith('/api/payload-graphql') ||
+        pathname.startsWith('/api/payload-graphql-playground')
+    );
+}
+
+function withRequestContext(req: NextRequest) {
+    const headers = new Headers(req.headers);
+    headers.set('x-request-host', normalizeHostname(req.headers.get('x-forwarded-host') || req.headers.get('host') || ''));
+    headers.set('x-request-path', req.nextUrl.pathname);
+    return headers;
+}
+
 export async function middleware(req: NextRequest) {
     const { pathname } = req.nextUrl;
-    const hostname = req.headers.get('host') || '';
+    const hostname = normalizeHostname(req.headers.get('x-forwarded-host') || req.headers.get('host') || '');
     const radarSecret = process.env.RADAR_SESSION_SECRET;
+    const payloadOrigin = getPayloadOrigin(req, hostname);
+    const isApiDomain = hostname.startsWith('api.');
 
     // Détection du sous-domaine
     // En local ça sera "studio.localhost", en prod "studio.lassez.fr"
@@ -21,6 +63,34 @@ export async function middleware(req: NextRequest) {
         pathname.startsWith('/api/radar') ||
         pathname.startsWith('/radar-login') ||
         pathname.startsWith('/api/elections');
+
+    if (isApiDomain) {
+        if (pathname === '/') {
+            return NextResponse.redirect(new URL('/admin', payloadOrigin));
+        }
+
+        if (!isPayloadRoute(pathname)) {
+            return new NextResponse('Not Found', { status: 404 });
+        }
+
+        return NextResponse.next({
+            request: {
+                headers: withRequestContext(req),
+            },
+        });
+    }
+
+    if (isPayloadRoute(pathname)) {
+        if (payloadOrigin === req.nextUrl.origin) {
+            return NextResponse.next({
+                request: {
+                    headers: withRequestContext(req),
+                },
+            });
+        }
+
+        return NextResponse.redirect(new URL(`${pathname}${req.nextUrl.search}`, payloadOrigin));
+    }
 
     // ─── 0. SÉPARATION DES DOMAINES ───
     if (!isStudioDomain) {
@@ -43,7 +113,11 @@ export async function middleware(req: NextRequest) {
 
     // Les routes publiques passent uniquement sur le domaine public.
     if (!isStudioRoute) {
-        return NextResponse.next();
+        return NextResponse.next({
+            request: {
+                headers: withRequestContext(req),
+            },
+        });
     }
 
     // 1. RATE LIMITING SUR L'API RADAR (SAUF NAVIGATION)
@@ -184,7 +258,11 @@ export async function middleware(req: NextRequest) {
         return NextResponse.json({ success: false, error: 'Permission refusee.' }, { status: 403 });
     }
 
-    return NextResponse.next();
+    return NextResponse.next({
+        request: {
+            headers: withRequestContext(req),
+        },
+    });
 }
 
 export const config = {

@@ -8,12 +8,13 @@ import { tags } from './payload/collections/tags';
 import { authors } from './payload/collections/authors';
 import { media } from './payload/collections/media';
 import { posts } from './payload/collections/posts';
+import { getApiOrigin, getPublicSiteOrigin } from './lib/host-urls';
 
 const rootDir = path.dirname(new URL(import.meta.url).pathname);
 
 export default buildConfig({
     secret: process.env.PAYLOAD_SECRET || 'change-me-in-production',
-    serverURL: process.env.PAYLOAD_SERVER_URL || 'http://localhost:5173',
+    serverURL: process.env.PAYLOAD_SERVER_URL || getApiOrigin(),
     admin: {
         user: 'authors',
         meta: {
@@ -22,8 +23,8 @@ export default buildConfig({
     },
     cors: {
         origins: [
-            process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:5173',
-            process.env.PAYLOAD_SERVER_URL || 'http://localhost:5173',
+            getPublicSiteOrigin(),
+            getApiOrigin(),
             'http://api.localhost:5173',
             'https://lassez.fr',
             'https://api.lassez.fr',
@@ -31,8 +32,8 @@ export default buildConfig({
         headers: ['Content-Type', 'Authorization'],
     },
     csrf: [
-        process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:5173',
-        process.env.PAYLOAD_SERVER_URL || 'http://localhost:5173',
+        getPublicSiteOrigin(),
+        getApiOrigin(),
         'http://api.localhost:5173',
         'https://lassez.fr',
         'https://api.lassez.fr',

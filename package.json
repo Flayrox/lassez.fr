@@ -38,13 +38,16 @@
     "graphql": "^16.8.1",
     "next": "16.2.3",
     "payload": "3.82.1",
+    "postcss": "^8.4.31",
     "papaparse": "^5.5.3",
+    "autoprefixer": "^10.4.19",
     "react": "^19.2.1",
     "react-dom": "^19.2.1",
     "react-force-graph-2d": "^1.29.1",
     "sharp": "^0.34.5",
     "ssh2": "^1.17.0",
     "swr": "^2.2.5",
+    "tailwindcss": "^3.4.1",
     "text-to-svg": "^3.1.5"
   },
   "devDependencies": {
@@ -52,9 +55,6 @@
     "@types/papaparse": "^5.5.2",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
-    "autoprefixer": "^10.4.19",
-    "postcss": "^8.4.31",
-    "tailwindcss": "^3.4.1",
     "typescript": "~5.8.2"
   }
 }

@@ -1,7 +1,14 @@
 import type { CollectionConfig } from 'payload';
+import { authenticatedOrPublishedPostRead, isAuthenticated } from '../access';
 
 export const posts = {
     slug: 'posts',
+    access: {
+        read: authenticatedOrPublishedPostRead,
+        create: isAuthenticated,
+        update: isAuthenticated,
+        delete: isAuthenticated,
+    },
     admin: {
         useAsTitle: 'title',
         defaultColumns: ['title', 'slug', 'status', 'publishedAt'],

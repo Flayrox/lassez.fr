@@ -1,7 +1,14 @@
 import type { CollectionConfig } from 'payload';
+import { isAuthenticated, publicRead } from '../access';
 
 export const media = {
     slug: 'media',
+    access: {
+        read: publicRead,
+        create: isAuthenticated,
+        update: isAuthenticated,
+        delete: isAuthenticated,
+    },
     upload: {
         staticDir: 'media',
     },

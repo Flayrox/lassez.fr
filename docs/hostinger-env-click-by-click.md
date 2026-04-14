@@ -12,11 +12,12 @@ This is the exact setup for your current monolith architecture.
 
 ## 2. Add variables
 
-Create each key from .env.hostinger.example.
+Create keys from .env.example (canonical list), then apply Hostinger-specific overrides from .env.hostinger.example.
 
-Use this file as source:
+Use these files as sources:
 
-- [Copy values from here](.env.hostinger.example)
+- [Canonical keys](../.env.example)
+- [Hostinger overrides](../.env.hostinger.example)
 
 Minimum required keys to boot Payload:
 

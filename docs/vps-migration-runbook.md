@@ -31,8 +31,9 @@ sudo mkdir -p /var/www/lassez-prod
 sudo chown -R $USER:$USER /var/www/lassez-prod
 cd /var/www/lassez-prod
 git clone <YOUR_REPO_URL> .
-cp .env.vps.example .env
-# edit .env with real secrets
+cp .env.example .env
+# apply optional overrides from .env.vps.example
+# then edit .env with real secrets
 npm ci
 npm run build
 pm2 startOrReload ecosystem.config.cjs

@@ -2,10 +2,16 @@
 /* DO NOT MODIFY IT BECAUSE IT COULD BE REWRITTEN AT ANY TIME. */
 import config from '@payload-config';
 import '@payloadcms/next/css';
+import { getNavPrefs } from '@payloadcms/next/dist/elements/Nav/getNavPrefs.js';
+import { getRequestTheme } from '@payloadcms/next/dist/utilities/getRequestTheme.js';
 import { handleServerFunctions } from '@payloadcms/next/layouts';
 import { RootProvider, ProgressBar } from '@payloadcms/ui';
+import { getClientConfig } from '@payloadcms/ui/utilities/getClientConfig';
+import { rtlLanguages } from '@payloadcms/translations';
+import { initReq } from '@payloadcms/next/dist/utilities/initReq.js';
 import React from 'react';
 
+import { importMap } from './admin/importMap.js';
 import './custom.scss';
 
 type Args = {
@@ -21,32 +27,65 @@ const serverFunction = async (
 };
 
 const Layout = async ({ children }: Args) => {
-    const payloadConfig = await config;
-    const supportedLanguages = (payloadConfig.i18n?.supportedLanguages || {}) as Record<string, any>;
-    const fallbackLanguage = String(payloadConfig.i18n?.fallbackLanguage || 'en');
-    const chosenLanguage = supportedLanguages[fallbackLanguage] ? fallbackLanguage : (Object.keys(supportedLanguages)[0] || 'en');
-    const chosenLanguageConfig = supportedLanguages[chosenLanguage] || {};
+    const {
+        cookies,
+        headers,
+        languageCode,
+        permissions,
+        req,
+        req: {
+            payload: {
+                config: payloadConfig,
+            },
+        },
+    } = await initReq({
+        configPromise: config,
+        importMap,
+        key: 'PayloadLayoutWithoutNestedDocument',
+    });
 
-    const languageOptions = Object.entries(supportedLanguages).map(([value, langConfig]) => ({
-        label: String((langConfig as any)?.translations?.general?.thisLanguage || value),
-        value,
-    })) as any;
+    const theme = getRequestTheme({
+        config: payloadConfig,
+        cookies,
+        headers,
+    });
+
+    const _dir = rtlLanguages.includes(languageCode) ? 'RTL' : 'LTR';
+
+    const languageOptions = Object.entries(payloadConfig.i18n.supportedLanguages || {}).reduce((acc, [language, languageConfig]) => {
+        if (Object.keys(payloadConfig.i18n.supportedLanguages || {}).includes(language)) {
+            acc.push({
+                label: (languageConfig as any).translations.general.thisLanguage,
+                value: language,
+            });
+        }
+        return acc;
+    }, [] as any[]);
+
+    const navPrefs = await getNavPrefs(req);
+
+    const clientConfig = getClientConfig({
+        config: payloadConfig,
+        i18n: req.i18n,
+        importMap: req.payload.importMap,
+        user: req.user,
+    });
 
     return (
         <>
             <RootProvider
-                config={payloadConfig as any}
-                dateFNSKey={(chosenLanguageConfig as any)?.dateFNSKey || 'en-US'}
-                fallbackLang={payloadConfig.i18n?.fallbackLanguage}
-                isNavOpen={true}
-                languageCode={chosenLanguage}
+                config={clientConfig}
+                dateFNSKey={req.i18n.dateFNSKey}
+                fallbackLang={payloadConfig.i18n.fallbackLanguage}
+                isNavOpen={navPrefs?.open ?? true}
+                languageCode={languageCode}
                 languageOptions={languageOptions}
-                locale={undefined}
-                permissions={null}
+                locale={req.locale}
+                permissions={req.user ? permissions : null}
                 serverFunction={serverFunction}
-                theme={'light'}
-                translations={(chosenLanguageConfig as any)?.translations || {}}
-                user={null}
+                theme={theme}
+                translations={req.i18n.translations}
+                user={req.user}
             >
                 <ProgressBar />
                 {children}

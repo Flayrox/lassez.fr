@@ -74,6 +74,11 @@ function getAllowedIps() {
         .filter(Boolean);
 }
 
+function isIpAllowlistEnforced() {
+    const flag = (process.env.RADAR_CACHE_SYNC_ENFORCE_IPS || '').trim();
+    return flag === '1' || flag.toLowerCase() === 'true';
+}
+
 function getScopeTags(payload: CacheSyncPayload) {
     const tags = new Set<string>(DEFAULT_TAGS);
 
@@ -115,9 +120,10 @@ export async function POST(request: Request) {
     }
 
     const allowedIps = getAllowedIps();
+    const enforceIpAllowlist = isIpAllowlistEnforced();
     const clientIps = getClientIps(request);
     const hasAllowedIp = allowedIps.some((ip) => clientIps.includes(ip));
-    if (allowedIps.length > 0 && !hasAllowedIp) {
+    if (enforceIpAllowlist && allowedIps.length > 0 && !hasAllowedIp) {
         logToDaemon(`[CACHE-SYNC] Rejet IP non autorisée: ${clientIps.join(',') || 'unknown'}`);
         return NextResponse.json({ success: false, error: 'ip_not_allowed' }, { status: 403 });
     }

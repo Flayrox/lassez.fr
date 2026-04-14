@@ -13,6 +13,7 @@ type CacheSyncPayload = {
     source?: string;
     sent_at?: string;
     post_id?: number;
+    post_ids?: number[];
     cache_scope?: string[];
     tags?: string[];
     paths?: string[];
@@ -173,6 +174,10 @@ export async function POST(request: Request) {
         invalidated: {
             tags,
             paths,
+        },
+    }, {
+        headers: {
+            'Cache-Control': 'no-store',
         },
     });
 }

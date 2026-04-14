@@ -68,7 +68,7 @@ export default async function RootLayout({
 }: {
     children: React.ReactNode;
 }) {
-    const requestHeaders = headers();
+    const requestHeaders = await headers();
     const hostname = String(requestHeaders.get('x-request-host') || requestHeaders.get('host') || '').toLowerCase();
     const pathname = String(requestHeaders.get('x-request-path') || '/');
     const controlPlaneRequest = isControlPlaneRequest(hostname, pathname);
@@ -156,11 +156,7 @@ export default async function RootLayout({
                     </>
                 )}
 
-                {controlPlaneRequest && (
-                    <div id="root">
-                        {children}
-                    </div>
-                )}
+                {controlPlaneRequest && children}
             </body>
         </html>
     );

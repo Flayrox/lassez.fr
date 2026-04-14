@@ -17,6 +17,83 @@ function getDb() {
   return new Database(dbPath, { readonly: true });
 }
 
+function getStudioBaseUrl() {
+  const remoteUrl = process.env.RADAR_API_URL;
+  if (!remoteUrl) return null;
+  try {
+    const u = new URL(remoteUrl);
+    return `${u.protocol}//${u.host}`;
+  } catch {
+    return null;
+  }
+}
+
+async function fetchCityRowsFromStudio(codeInsee: string) {
+  const studioBase = getStudioBaseUrl();
+  if (!studioBase || process.env.IS_STUDIO) return null;
+
+  try {
+    const cityRes = await fetch(
+      `${studioBase}/api/elections/results?slug=municipales-2026&city_by_insee=1&insee=${encodeURIComponent(codeInsee)}`,
+      { cache: 'no-store' }
+    );
+    if (!cityRes.ok) return null;
+
+    const cityJson = await cityRes.json();
+    const city = cityJson?.city as { ville?: string; code_departement?: string } | null;
+    if (!city?.ville || !city?.code_departement) return null;
+
+    const rowsRes = await fetch(
+      `${studioBase}/api/elections/results?slug=municipales-2026&ville=${encodeURIComponent(city.ville)}&dep=${encodeURIComponent(city.code_departement)}`,
+      { cache: 'no-store' }
+    );
+    if (!rowsRes.ok) return null;
+
+    const rowsJson = await rowsRes.json();
+    const cityResult = Array.isArray(rowsJson?.results) ? rowsJson.results[0] : null;
+    if (!cityResult) return null;
+
+    const allRows: any[] = [];
+    const tours = Array.isArray(cityResult.tours) ? cityResult.tours : [];
+    for (const tourData of tours) {
+      const tour = Number(tourData?.tour || 0);
+      const candidats = Array.isArray(tourData?.candidats) ? tourData.candidats : [];
+      for (const c of candidats) {
+        allRows.push({
+          tour,
+          candidat: c?.candidat || '',
+          nuance: c?.nuance || null,
+          pct: Number(c?.pct || 0),
+          voix: Number(c?.voix || 0),
+          statut: c?.statut || 'elimine',
+          code_departement: city.code_departement,
+          ville: city.ville,
+        });
+      }
+    }
+
+    const deptRes = await fetch(
+      `${studioBase}/api/elections/results?slug=municipales-2026&list_cities=1&dep=${encodeURIComponent(city.code_departement)}`,
+      { cache: 'no-store' }
+    );
+    const deptJson = deptRes.ok ? await deptRes.json() : null;
+    const deptCommunes = Array.isArray(deptJson?.cities)
+      ? deptJson.cities.map((item: any) => ({
+          code_insee: String(item?.code_insee || ''),
+          ville: String(item?.ville || ''),
+        }))
+      : [];
+
+    return {
+      cityData: allRows[0] || null,
+      allRows,
+      deptCommunes,
+    };
+  } catch {
+    return null;
+  }
+}
+
 type Props = {
   params: { slug: string };
 };
@@ -28,7 +105,13 @@ export async function generateMetadata(
   const codeInsee = params.slug.split('-')[0];
   let db;
   try {
-    db = getDb();
+    const remote = await fetchCityRowsFromStudio(codeInsee);
+    if (remote?.cityData) {
+      cityData = remote.cityData;
+      allRows = remote.allRows;
+      deptCommunes = remote.deptCommunes;
+    } else {
+      db = getDb();
     const cityData = db.prepare(`
       SELECT code_insee as codeInsee, ville as nom, code_departement as departement
       FROM elections_officiel_cache 
@@ -63,26 +146,27 @@ export default async function CommunePage({ params }: Props) {
         throw new Error('Table elections_officiel_cache missing');
     }
 
-    allRows = db.prepare(`
-      SELECT * 
-      FROM elections_officiel_cache 
-      WHERE code_insee = ? AND election_slug = 'municipales-2026'
-      ORDER BY tour, pct DESC
-    `).all(codeInsee);
-
-    if (allRows.length > 0) {
-      cityData = allRows[0];
-      
-      // Fetch all other communes in the same department
-      deptCommunes = db.prepare(`
-        SELECT DISTINCT code_insee, ville 
+      allRows = db.prepare(`
+        SELECT * 
         FROM elections_officiel_cache 
-        WHERE code_departement = ? AND election_slug = 'municipales-2026'
-        ORDER BY ville
-      `).all(cityData.code_departement) as { code_insee: string, ville: string }[];
+        WHERE code_insee = ? AND election_slug = 'municipales-2026'
+        ORDER BY tour, pct DESC
+      `).all(codeInsee);
+
+      if (allRows.length > 0) {
+        cityData = allRows[0];
+
+        // Fetch all other communes in the same department
+        deptCommunes = db.prepare(`
+          SELECT DISTINCT code_insee, ville 
+          FROM elections_officiel_cache 
+          WHERE code_departement = ? AND election_slug = 'municipales-2026'
+          ORDER BY ville
+        `).all(cityData.code_departement) as { code_insee: string, ville: string }[];
+      }
     }
   } catch (e) {
-    console.error('Error fetching city data:', e);
+    // On reader/Hostinger env, local sqlite may be unavailable; fallback routing below handles this.
   } finally {
     if (db) db.close();
   }

@@ -93,6 +93,10 @@ function saveSetting(key, value) {
 const CACHE_SYNC_WEBHOOK_URL = process.env.RADAR_CACHE_SYNC_WEBHOOK_URL || '';
 const CACHE_SYNC_WEBHOOK_SECRET = process.env.RADAR_CACHE_SYNC_SECRET || '';
 
+function sleep(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function getCacheSyncPayload(event, extra = {}) {
     return {
         event,
@@ -109,43 +113,67 @@ async function notifyCacheSync(event, extra = {}) {
 
     const timestamp = Date.now().toString();
     const nonce = randomUUID();
-    const payload = getCacheSyncPayload(event, extra);
+    const requestId = randomUUID();
+    const payload = getCacheSyncPayload(event, { ...extra, request_id: requestId });
     const body = JSON.stringify(payload);
     const signature = createHmac('sha256', CACHE_SYNC_WEBHOOK_SECRET)
         .update(`${timestamp}.${nonce}.${body}`)
         .digest('hex');
 
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 10_000);
+    const headers = {
+        'Content-Type': 'application/json',
+        'X-Radar-Timestamp': timestamp,
+        'X-Radar-Nonce': nonce,
+        'X-Radar-Signature': signature,
+        'X-Radar-Event': event,
+        'X-Radar-Source': 'radar-daemon',
+        'X-Radar-Idempotency-Key': requestId
+    };
 
-    try {
-        const res = await fetch(CACHE_SYNC_WEBHOOK_URL, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-Radar-Timestamp': timestamp,
-                'X-Radar-Nonce': nonce,
-                'X-Radar-Signature': signature,
-                'X-Radar-Event': event,
-                'X-Radar-Source': 'radar-daemon'
-            },
-            body,
-            signal: controller.signal
-        });
+    const attemptDelays = [0, 250, 750];
 
-        if (!res.ok) {
-            const responseText = await res.text().catch(() => '');
-            log(`⚠️  Webhook cache-sync rejeté (${res.status}) ${responseText ? `→ ${responseText.slice(0, 200)}` : ''}`, 'WARN');
-            return false;
+    for (let attempt = 0; attempt < attemptDelays.length; attempt += 1) {
+        if (attemptDelays[attempt] > 0) {
+            await sleep(attemptDelays[attempt]);
         }
 
-        log(`🔁 Cache sync webhook envoyé pour ${event}.`);
-        return true;
-    } catch (error) {
-        log(`⚠️  Webhook cache-sync en échec: ${error.message}`, 'WARN');
-        return false;
-    } finally {
-        clearTimeout(timeout);
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 10_000);
+
+        try {
+            const res = await fetch(CACHE_SYNC_WEBHOOK_URL, {
+                method: 'POST',
+                headers,
+                body,
+                signal: controller.signal
+            });
+
+            if (res.ok) {
+                log(`🔁 Cache sync webhook envoyé pour ${event} (request_id=${requestId}).`);
+                return true;
+            }
+
+            const responseText = await res.text().catch(() => '');
+            const snippet = responseText ? ` → ${responseText.slice(0, 200)}` : '';
+
+            if (res.status >= 500 && attempt < attemptDelays.length - 1) {
+                log(`⚠️  Webhook cache-sync temporairement rejeté (${res.status})${snippet} [attempt ${attempt + 1}/${attemptDelays.length}]`, 'WARN');
+                continue;
+            }
+
+            log(`⚠️  Webhook cache-sync rejeté (${res.status})${snippet} [request_id=${requestId}]`, 'WARN');
+            return false;
+        } catch (error) {
+            if (attempt < attemptDelays.length - 1) {
+                log(`⚠️  Webhook cache-sync en échec (attempt ${attempt + 1}/${attemptDelays.length}): ${error.message}`, 'WARN');
+                continue;
+            }
+
+            log(`⚠️  Webhook cache-sync en échec: ${error.message}`, 'WARN');
+            return false;
+        } finally {
+            clearTimeout(timeout);
+        }
     }
 }
 

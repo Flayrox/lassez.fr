@@ -12,6 +12,7 @@ type CacheSyncPayload = {
     event?: string;
     source?: string;
     sent_at?: string;
+    request_id?: string;
     post_id?: number;
     post_ids?: number[];
     cache_scope?: string[];
@@ -20,7 +21,9 @@ type CacheSyncPayload = {
 };
 
 const seenNonces = new Map<string, number>();
+const seenRequests = new Map<string, { expiresAt: number; bodyHash: string; tags: string[]; paths: string[] }>();
 const NONCE_TTL_MS = 10 * 60 * 1000;
+const REQUEST_ID_TTL_MS = 30 * 60 * 1000;
 const MAX_CLOCK_SKEW_MS = 5 * 60 * 1000;
 const DEFAULT_TAGS = ['radar-config', 'wp-posts', 'wp-categories'];
 
@@ -28,6 +31,14 @@ function pruneNonces(now = Date.now()) {
     for (const [nonce, expiresAt] of seenNonces.entries()) {
         if (expiresAt <= now) {
             seenNonces.delete(nonce);
+        }
+    }
+}
+
+function pruneRequests(now = Date.now()) {
+    for (const [requestId, record] of seenRequests.entries()) {
+        if (record.expiresAt <= now) {
+            seenRequests.delete(requestId);
         }
     }
 }
@@ -112,6 +123,22 @@ function getScopePaths(payload: CacheSyncPayload) {
     return Array.from(paths);
 }
 
+function buildSuccessResponse(tags: string[], paths: string[], requestId: string) {
+    return NextResponse.json({
+        success: true,
+        invalidated: {
+            tags,
+            paths,
+        },
+        request_id: requestId || null,
+    }, {
+        headers: {
+            'Cache-Control': 'no-store',
+            'X-Radar-Request-Id': requestId || '',
+        },
+    });
+}
+
 export async function POST(request: Request) {
     const secret = process.env.RADAR_CACHE_SYNC_SECRET || '';
 
@@ -132,6 +159,7 @@ export async function POST(request: Request) {
     const nonce = request.headers.get('x-radar-nonce') || '';
     const signature = request.headers.get('x-radar-signature') || '';
     const event = (request.headers.get('x-radar-event') || '') as CacheSyncEvent;
+    const requestId = (request.headers.get('x-radar-idempotency-key') || '').trim();
 
     if (!timestamp || !nonce || !signature) {
         return NextResponse.json({ success: false, error: 'missing_security_headers' }, { status: 400 });
@@ -169,6 +197,22 @@ export async function POST(request: Request) {
         return NextResponse.json({ success: false, error: 'invalid_json' }, { status: 400 });
     }
 
+    const bodyHash = crypto.createHash('sha256').update(rawBody).digest('hex');
+
+    if (requestId) {
+        pruneRequests();
+        const previous = seenRequests.get(requestId);
+
+        if (previous) {
+            if (previous.bodyHash !== bodyHash) {
+                return NextResponse.json({ success: false, error: 'idempotency_key_conflict' }, { status: 409 });
+            }
+
+            logToDaemon(`[CACHE-SYNC] Rejeu idempotent request_id=${requestId} event=${payload.event || event || 'unknown'} ips=${clientIps.join(',') || 'unknown'}`);
+            return buildSuccessResponse(previous.tags, previous.paths, requestId);
+        }
+    }
+
     seenNonces.set(nonce, Date.now() + NONCE_TTL_MS);
 
     const tags = getScopeTags(payload);
@@ -192,15 +236,16 @@ export async function POST(request: Request) {
 
     logToDaemon(`[CACHE-SYNC] Accepté event=${payload.event || event || 'unknown'} tags=${tags.join(',')} paths=${paths.join(',')} ips=${clientIps.join(',') || 'unknown'}`);
 
-    return NextResponse.json({
-        success: true,
-        invalidated: {
+    const response = buildSuccessResponse(tags, paths, requestId);
+
+    if (requestId) {
+        seenRequests.set(requestId, {
+            expiresAt: Date.now() + REQUEST_ID_TTL_MS,
+            bodyHash,
             tags,
             paths,
-        },
-    }, {
-        headers: {
-            'Cache-Control': 'no-store',
-        },
-    });
+        });
+    }
+
+    return response;
 }

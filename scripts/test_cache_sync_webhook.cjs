@@ -21,10 +21,12 @@ if (!webhookUrl || !secret) {
 async function main() {
   const timestamp = Date.now().toString();
   const nonce = crypto.randomUUID();
+  const requestId = crypto.randomUUID();
   const payload = {
     event: 'manual.revalidate',
     source: 'manual-test',
     sent_at: new Date().toISOString(),
+    request_id: requestId,
     tags: ['radar-config', 'wp-posts', 'wp-categories'],
     paths: ['/'],
   };
@@ -44,6 +46,7 @@ async function main() {
       'X-Radar-Signature': signature,
       'X-Radar-Event': payload.event,
       'X-Radar-Source': payload.source,
+      'X-Radar-Idempotency-Key': requestId,
     },
     body,
   });

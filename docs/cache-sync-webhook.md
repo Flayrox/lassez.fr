@@ -27,6 +27,7 @@ Set where `radar_lassez/daemon.js` executes:
   - `X-Radar-Signature`: hex HMAC SHA-256 of `${timestamp}.${nonce}.${rawBody}`
   - `X-Radar-Event`: event name
   - `X-Radar-Source`: source identifier
+  - `X-Radar-Idempotency-Key`: stable UUID reused across retries for the same logical event
 - Body (JSON):
   - `event`: `post.published` | `config.updated` | `nav.updated` | `manual.revalidate`
   - `cache_scope` or `tags`: array of cache tags
@@ -60,6 +61,7 @@ Expected result:
 ## 5) Runtime notes
 
 - Daemon sends one webhook after a publishing cycle when at least one post is published.
+- Daemon retries transient 5xx/network failures with the same idempotency key.
 - Current default tags invalidated:
   - `radar-config`
   - `wp-posts`

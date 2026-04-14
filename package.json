@@ -8,6 +8,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "deploy:vps": "node scripts/deploy_vps_unified.cjs",
     "payload:seed": "payload run ./payload/seed.ts",
     "payload:migrate:create": "payload migrate:create",
     "payload:migrate": "payload migrate",

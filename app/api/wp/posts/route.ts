@@ -27,10 +27,17 @@ const ALLOWED_PARAMS = new Set([
 
 function sanitizePostsParams(searchParams: URLSearchParams) {
     const clean = new URLSearchParams();
+    const wantsEmbed = searchParams.has('_embed');
+
     for (const [key, value] of searchParams.entries()) {
         if (!ALLOWED_PARAMS.has(key)) continue;
+        if (key === '_embed') continue;
         if (!value) continue;
         clean.set(key, value);
+    }
+
+    if (wantsEmbed) {
+        clean.set('_embed', '1');
     }
 
     const perPageRaw = Number(clean.get('per_page') || '10');

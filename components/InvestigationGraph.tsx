@@ -5,10 +5,11 @@ import ForceGraph2D from 'react-force-graph-2d';
 import { useRouter } from 'next/navigation';
 import { usePosts } from '../hooks/usePosts';
 import { useCategories } from '../hooks/useCategories';
+import { getArticleUrl } from '../lib/getArticleUrl';
 
 const InvestigationGraph: React.FC = () => {
     // Fix: hooks return 'data', not 'posts'/'categories' directly
-    const { data: postsData, isLoading: postsLoading } = usePosts(null);
+    const { data: postsData, isLoading: postsLoading } = usePosts('per_page=50&_embed=1');
     const { categories: categoriesData, isLoading: categoriesLoading } = useCategories();
     const router = useRouter();
     const graphRef = useRef<any>(null);
@@ -31,7 +32,8 @@ const InvestigationGraph: React.FC = () => {
             group: post.categories ? post.categories[0] : 0,
             slug: post.slug,
             tags: post.tags || [], // Use TAGS for connections
-            categories: post.categories || []
+            categories: post.categories || [],
+            post
         }));
 
         const links: any[] = [];
@@ -66,9 +68,7 @@ const InvestigationGraph: React.FC = () => {
     const isLoading = postsLoading || categoriesLoading;
 
     const handleNodeClick = (node: any) => {
-        // /article/[slug] fait une redirection 301 vers /[categorie]/[slug]
-        // On garde ce pattern ici car le graphe n'a pas les données de catégorie enrichies (_embed)
-        router.push(`/article/${node.slug}`);
+        router.push(getArticleUrl(node.post));
     };
 
     const handleNodeHover = (node: any) => {

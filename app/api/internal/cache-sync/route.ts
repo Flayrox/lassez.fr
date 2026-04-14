@@ -70,7 +70,7 @@ function getClientIps(request: Request) {
 function getAllowedIps() {
     return (process.env.RADAR_CACHE_SYNC_ALLOWED_IPS || '')
         .split(',')
-        .map((value) => value.trim())
+    .map((value) => value.trim().replace(/^['"]|['"]$/g, ''))
         .filter(Boolean);
 }
 

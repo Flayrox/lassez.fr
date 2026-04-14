@@ -107,21 +107,24 @@ export async function generateMetadata(
   try {
     const remote = await fetchCityRowsFromStudio(codeInsee);
     if (remote?.cityData) {
-      cityData = remote.cityData;
-      allRows = remote.allRows;
-      deptCommunes = remote.deptCommunes;
-    } else {
-      db = getDb();
-    const cityData = db.prepare(`
+      return generateSeoMetadata({
+        codeInsee,
+        nom: remote.cityData.ville,
+        departement: remote.cityData.code_departement,
+      });
+    }
+
+    db = getDb();
+    const localCityData = db.prepare(`
       SELECT code_insee as codeInsee, ville as nom, code_departement as departement
       FROM elections_officiel_cache 
       WHERE code_insee = ? AND election_slug = 'municipales-2026'
       LIMIT 1
     `).get(codeInsee) as any;
 
-    if (!cityData) return { title: 'Ville non trouvée' };
+    if (!localCityData) return { title: 'Ville non trouvée' };
 
-    return generateSeoMetadata(cityData);
+    return generateSeoMetadata(localCityData);
   } catch (e) {
     return { title: 'Résultats Municipales 2026' };
   } finally {
@@ -138,13 +141,19 @@ export default async function CommunePage({ params }: Props) {
   let deptCommunes: { code_insee: string, ville: string }[] = [];
 
   try {
-    db = getDb();
-    
-    // Vérification de sécurité: si la table n'existe pas encore
-    const tableExists = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='elections_officiel_cache'").get();
-    if (!tableExists) {
-        throw new Error('Table elections_officiel_cache missing');
-    }
+    const remote = await fetchCityRowsFromStudio(codeInsee);
+    if (remote?.cityData) {
+      cityData = remote.cityData;
+      allRows = remote.allRows;
+      deptCommunes = remote.deptCommunes;
+    } else {
+      db = getDb();
+
+      // Vérification de sécurité: si la table n'existe pas encore
+      const tableExists = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='elections_officiel_cache'").get();
+      if (!tableExists) {
+          throw new Error('Table elections_officiel_cache missing');
+      }
 
       allRows = db.prepare(`
         SELECT * 

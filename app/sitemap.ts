@@ -68,58 +68,64 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
             const Database = (await import('better-sqlite3')).default;
             const dbPath = path.join(process.cwd(), 'radar_lassez', 'radar.db');
             const db = new Database(dbPath);
-            
-            const settingsRows = db.prepare(`
-                SELECT key, value FROM radar_settings
-                WHERE key IN ('election_front_display_slugs_json', 'election_analysis_target_slug')
-            `).all() as { key: string; value: string }[];
-            const settingsMap = Object.fromEntries(settingsRows.map(r => [String(r.key), String(r.value || '')]));
-            const displaySlugs = parseJsonArray(settingsMap.election_front_display_slugs_json, ['municipales-2026']);
-            const targetSlug = String(settingsMap.election_analysis_target_slug || 'municipales-2026');
 
-            const slugRootUrls = displaySlugs.map((slug) => ({
-                url: `${BASE_URL}/elections/${slug}`,
-                lastModified: new Date(),
-                changeFrequency: 'daily' as const,
-                priority: slug === targetSlug ? 1.0 : 0.95,
-            }));
+            const hasRadarSettingsTable = db
+                .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'radar_settings'")
+                .get();
 
-            const dynamicUrls: Array<{ url: string; lastModified: Date; changeFrequency: 'daily' | 'weekly'; priority: number }> = [];
+            if (hasRadarSettingsTable) {
+                const settingsRows = db.prepare(`
+                    SELECT key, value FROM radar_settings
+                    WHERE key IN ('election_front_display_slugs_json', 'election_analysis_target_slug')
+                `).all() as { key: string; value: string }[];
+                const settingsMap = Object.fromEntries(settingsRows.map(r => [String(r.key), String(r.value || '')]));
+                const displaySlugs = parseJsonArray(settingsMap.election_front_display_slugs_json, ['municipales-2026']);
+                const targetSlug = String(settingsMap.election_analysis_target_slug || 'municipales-2026');
 
-            for (const slug of displaySlugs) {
-                const departments = db.prepare(`
-                    SELECT DISTINCT code_departement FROM elections_officiel_cache 
-                    WHERE election_slug = ? AND code_departement IS NOT NULL
-                `).all(slug) as { code_departement: string }[];
+                const slugRootUrls = displaySlugs.map((slug) => ({
+                    url: `${BASE_URL}/elections/${slug}`,
+                    lastModified: new Date(),
+                    changeFrequency: 'daily' as const,
+                    priority: slug === targetSlug ? 1.0 : 0.95,
+                }));
 
-                for (const d of departments) {
-                    dynamicUrls.push({
-                        url: `${BASE_URL}/elections/${slug}/departement/${d.code_departement}`,
-                        lastModified: new Date(),
-                        changeFrequency: 'daily',
-                        priority: 0.9,
-                    });
+                const dynamicUrls: Array<{ url: string; lastModified: Date; changeFrequency: 'daily' | 'weekly'; priority: number }> = [];
+
+                for (const slug of displaySlugs) {
+                    const departments = db.prepare(`
+                        SELECT DISTINCT code_departement FROM elections_officiel_cache 
+                        WHERE election_slug = ? AND code_departement IS NOT NULL
+                    `).all(slug) as { code_departement: string }[];
+
+                    for (const d of departments) {
+                        dynamicUrls.push({
+                            url: `${BASE_URL}/elections/${slug}/departement/${d.code_departement}`,
+                            lastModified: new Date(),
+                            changeFrequency: 'daily',
+                            priority: 0.9,
+                        });
+                    }
+
+                    const cities = db.prepare(`
+                        SELECT DISTINCT code_insee, ville, updated_at FROM elections_officiel_cache 
+                        WHERE election_slug = ?
+                    `).all(slug) as { code_insee: string; ville: string; updated_at: string }[];
+
+                    for (const c of cities) {
+                        dynamicUrls.push({
+                            url: `${BASE_URL}/elections/${slug}/commune/${formatCommuneSlug(c.code_insee, c.ville)}`,
+                            lastModified: new Date(c.updated_at || new Date()),
+                            changeFrequency: 'weekly',
+                            priority: 0.8,
+                        });
+                    }
                 }
 
-                const cities = db.prepare(`
-                    SELECT DISTINCT code_insee, ville, updated_at FROM elections_officiel_cache 
-                    WHERE election_slug = ?
-                `).all(slug) as { code_insee: string; ville: string; updated_at: string }[];
-
-                for (const c of cities) {
-                    dynamicUrls.push({
-                        url: `${BASE_URL}/elections/${slug}/commune/${formatCommuneSlug(c.code_insee, c.ville)}`,
-                        lastModified: new Date(c.updated_at || new Date()),
-                        changeFrequency: 'weekly',
-                        priority: 0.8,
-                    });
-                }
+                electionUrls = [...slugRootUrls, ...dynamicUrls];
             }
-
-            electionUrls = [...slugRootUrls, ...dynamicUrls];
             db.close();
         } catch (dbErr) {
-            console.error('Sitemap DB fetch error:', dbErr);
+            console.warn('Sitemap DB enrichment skipped:', dbErr instanceof Error ? dbErr.message : String(dbErr));
         }
 
         return [...staticRoutes, ...categoryUrls, ...postUrls, ...electionUrls];

@@ -35,7 +35,7 @@ export default async function ArticleLegacyRedirect({ params }: Props) {
     // Cas spéciaux déjà existants
     const isRevelation = categories.some((cat: any) => cat.slug === 'revelations');
     if (isRevelation) {
-        redirect(`/revelations#${params.slug}`);
+        redirect(`/revelations/${params.slug}`);
     }
 
     const isComprendre = categories.some((cat: any) => cat.slug === 'comprendre' || cat.name === 'Comprendre');

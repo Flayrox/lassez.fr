@@ -1,0 +1,45 @@
+html,
+body {
+	background: #f3efe6;
+}
+
+body {
+	color: #141414;
+	font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+button,
+input,
+textarea,
+select {
+	border-radius: 0.75rem;
+}
+
+input,
+textarea,
+select {
+	border-color: rgba(20, 20, 20, 0.18);
+	background: #fffdf8;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+	box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.18);
+	border-color: #dc2626;
+}
+
+[data-payload] h1,
+[data-payload] h2,
+[data-payload] h3,
+[data-payload] h4 {
+	letter-spacing: -0.03em;
+}
+
+[data-payload] a {
+	color: #b91c1c;
+}
+
+[data-payload] a:hover {
+	color: #7f1d1d;
+}

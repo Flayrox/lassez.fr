@@ -2,7 +2,7 @@ import { WPPost } from '../types';
 
 /**
  * Retourne l'URL en silo d'un article : /[categorie]/[slug]
- * - Si catégorie = revelations → /revelations#[slug] (comportement existant)
+ * - Si catégorie = revelations → /revelations/[slug]
  * - Sinon → /[cat.slug]/[post.slug]
  * - Fallback si pas de catégorie → /article/[slug] (redirigé en 301)
  */
@@ -16,7 +16,7 @@ export function getArticleUrl(post: WPPost): string {
   const primaryCat = categories[0];
 
   if (primaryCat.slug === 'revelations') {
-    return `/revelations#${post.slug}`;
+    return `/revelations/${post.slug}`;
   }
 
   if (primaryCat.slug === 'comprendre') {

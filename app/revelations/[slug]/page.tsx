@@ -9,12 +9,12 @@ import Script from 'next/script';
 const WP_BASE = getServerWpApiBaseUrl();
 
 type Props = {
-    params: { categorie: string; slug: string };
+    params: { slug: string };
 };
 
 async function getPost(slug: string): Promise<WPPost | null> {
     const res = await fetch(`${WP_BASE}/posts?slug=${slug}&_embed`, {
-        next: { revalidate: 60 }
+        next: { revalidate: 60 },
     });
     if (!res.ok) return null;
     const data = await res.json();
@@ -23,7 +23,7 @@ async function getPost(slug: string): Promise<WPPost | null> {
 
 async function getRelatedPosts(categoryId: number, excludeId: number): Promise<WPPost[]> {
     const res = await fetch(`${WP_BASE}/posts?categories=${categoryId}&exclude=${excludeId}&per_page=3&_embed`, {
-        next: { revalidate: 60 }
+        next: { revalidate: 60 },
     });
     if (!res.ok) return [];
     return res.json();
@@ -36,7 +36,13 @@ export async function generateMetadata(
     const post = await getPost(params.slug);
 
     if (!post) {
-        return { title: '404 - Article Introuvable' };
+        return { title: '404 - Révélations Introuvable' };
+    }
+
+    const categories = post._embedded?.['wp:term']?.[0] || [];
+    const isRevelation = categories.some((cat: any) => cat.slug === 'revelations');
+    if (!isRevelation) {
+        return { title: '404 - Révélations Introuvable' };
     }
 
     const imageUrl = post._embedded?.['wp:featuredmedia']?.[0]?.source_url || `https://lassez.fr/android-chrome-512x512.png`;
@@ -52,14 +58,12 @@ export async function generateMetadata(
             type: 'article',
         },
         alternates: {
-            canonical: params.categorie === 'revelations'
-                ? `https://lassez.fr/revelations/${params.slug}`
-                : `https://lassez.fr/${params.categorie}/${params.slug}`,
+            canonical: `https://lassez.fr/revelations/${params.slug}`,
         },
     };
 }
 
-export default async function ArticleSiloPage({ params }: Props) {
+export default async function RevelationArticlePage({ params }: Props) {
     const post = await getPost(params.slug);
 
     if (!post) {
@@ -67,42 +71,42 @@ export default async function ArticleSiloPage({ params }: Props) {
     }
 
     const categories = post._embedded?.['wp:term']?.[0] || [];
-    const primaryCatSlug = categories[0]?.slug || 'article';
-    const primaryCatName = categories[0]?.name || 'Article';
+    const isRevelation = categories.some((cat: any) => cat.slug === 'revelations');
 
-    // Sécurité : si la catégorie WP ne correspond pas à l'URL demandée,
-    // on laisse passer quand même (Google peut indexer les 2, canonical pointe vers la bonne)
+    if (!isRevelation) {
+        notFound();
+    }
 
     const categoryId = categories[0]?.id;
     const relatedPosts = categoryId ? await getRelatedPosts(categoryId, post.id) : [];
 
     const breadcrumbSchema = {
-        "@context": "https://schema.org",
-        "@type": "BreadcrumbList",
-        "itemListElement": [
-            { "@type": "ListItem", "position": 1, "name": "Accueil", "item": "https://lassez.fr" },
-            { "@type": "ListItem", "position": 2, "name": primaryCatName, "item": primaryCatSlug === 'revelations' ? `https://lassez.fr/revelations` : `https://lassez.fr/${primaryCatSlug}` },
-            { "@type": "ListItem", "position": 3, "name": post.title.rendered, "item": primaryCatSlug === 'revelations' ? `https://lassez.fr/revelations/${post.slug}` : `https://lassez.fr/${primaryCatSlug}/${post.slug}` },
-        ]
+        '@context': 'https://schema.org',
+        '@type': 'BreadcrumbList',
+        itemListElement: [
+            { '@type': 'ListItem', position: 1, name: 'Accueil', item: 'https://lassez.fr' },
+            { '@type': 'ListItem', position: 2, name: 'Révélations', item: 'https://lassez.fr/revelations' },
+            { '@type': 'ListItem', position: 3, name: post.title.rendered, item: `https://lassez.fr/revelations/${post.slug}` },
+        ],
     };
 
     const articleSchema = {
-        "@context": "https://schema.org",
-        "@type": "NewsArticle",
-        "headline": post.title.rendered,
-        "image": [post._embedded?.['wp:featuredmedia']?.[0]?.source_url || `https://lassez.fr/android-chrome-512x512.png`],
-        "datePublished": post.date,
-        "dateModified": (post as any).modified || post.date,
-        "author": [{
-            "@type": "Person",
-            "name": post._embedded?.author?.[0]?.name || "Rédaction",
-            "url": "https://lassez.fr/apropos"
+        '@context': 'https://schema.org',
+        '@type': 'NewsArticle',
+        headline: post.title.rendered,
+        image: [post._embedded?.['wp:featuredmedia']?.[0]?.source_url || `https://lassez.fr/android-chrome-512x512.png`],
+        datePublished: post.date,
+        dateModified: (post as any).modified || post.date,
+        author: [{
+            '@type': 'Person',
+            name: post._embedded?.author?.[0]?.name || 'Rédaction',
+            url: 'https://lassez.fr/apropos',
         }],
-        "publisher": {
-            "@type": "Organization",
-            "name": "L'Assez",
-            "logo": { "@type": "ImageObject", "url": "https://lassez.fr/android-chrome-512x512.png" }
-        }
+        publisher: {
+            '@type': 'Organization',
+            name: 'L\'Assez',
+            logo: { '@type': 'ImageObject', url: 'https://lassez.fr/android-chrome-512x512.png' },
+        },
     };
 
     return (

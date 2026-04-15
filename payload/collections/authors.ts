@@ -5,6 +5,7 @@ export const authors = {
     auth: true,
     admin: {
         useAsTitle: 'name',
+        description: 'Auteurs et comptes éditoriaux du média.',
     },
     fields: [
         { name: 'name', type: 'text', required: true },

@@ -11,6 +11,7 @@ export const categories = {
     },
     admin: {
         useAsTitle: 'name',
+        description: 'Taxonomie éditoriale principale du front.',
     },
     fields: [
         { name: 'name', type: 'text', required: true },

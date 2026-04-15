@@ -12,6 +12,7 @@ export const posts = {
     admin: {
         useAsTitle: 'title',
         defaultColumns: ['title', 'slug', 'status', 'publishedAt'],
+        description: 'Dossier éditorial avec preview, SEO et taxonomies.',
     },
     versions: {
         drafts: true,

@@ -22,7 +22,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
             const catSlug = primaryCat?.slug || 'article';
             if (catSlug === 'revelations') {
                 return {
-                    url: `${BASE_URL}/revelations`,
+                    url: `${BASE_URL}/revelations/${post.slug}`,
                     lastModified: new Date(post.modified || post.date),
                     changeFrequency: 'daily' as const,
                     priority: 0.8,

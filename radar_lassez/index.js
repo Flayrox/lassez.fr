@@ -23,11 +23,7 @@ const db = new Database(path.join(__dirname, 'radar.db'));
 const CONFIG = {
     HISTORY_FILE: path.join(__dirname, 'historique.json'),
     GEMINI_API_KEY: process.env.GEMINI_API_KEY,
-    DISCORD_WEBHOOK_URL: process.env.DISCORD_WEBHOOK_URL,
-    WP_URL: (process.env.WP_URL || '').replace(/\/$/, ''),
-    WP_USER: process.env.WP_USER,
-    WP_PASSWORD: process.env.WP_PASSWORD,
-    WP_CATEGORY_ID: 12
+    DISCORD_WEBHOOK_URL: process.env.DISCORD_WEBHOOK_URL
 };
 
 const parser = new Parser({
@@ -43,37 +39,6 @@ const parser = new Parser({
     }
 });
 const genAI = new GoogleGenerativeAI(CONFIG.GEMINI_API_KEY);
-
-// -- 0. CORE WORDPRESS (JWT PUSH) --
-async function pushToWordPress(title, content) {
-    if (!CONFIG.WP_URL || !CONFIG.WP_USER || !CONFIG.WP_PASSWORD) {
-        console.error("⚠️ Identifiants WordPress manquants dans .env");
-        return null;
-    }
-
-    try {
-        const tokenResponse = await axios.post(`${CONFIG.WP_URL}/wp-json/jwt-auth/v1/token`, {
-            username: CONFIG.WP_USER,
-            password: CONFIG.WP_PASSWORD
-        });
-        const token = tokenResponse.data.token;
-
-        const postResponse = await axios.post(`${CONFIG.WP_URL}/wp-json/wp/v2/posts`, {
-            title: title,
-            content: content,
-            status: 'publish',
-            categories: [CONFIG.WP_CATEGORY_ID]
-        }, {
-            headers: { 'Authorization': `Bearer ${token}` }
-        });
-
-        console.log(`🚀 Article publié sur WordPress ! ID: ${postResponse.data.id}`);
-        return postResponse.data.id;
-    } catch (err) {
-        console.error("❌ Échec de publication WordPress :", err.response?.data?.message || err.message);
-        return null;
-    }
-}
 
 // -- 1. GESTION DE LA MEMOIRE (SQLite) --
 function getSettings() {
@@ -100,9 +65,9 @@ function isProcessed(sourceUrl) {
     return !!row;
 }
 
-function updatePostStatus(id, status, wpId = null) {
+function updatePostStatus(id, status, payloadId = null) {
     try {
-        db.prepare('UPDATE radar_posts SET status = ?, wp_id = ? WHERE id = ?').run(status, wpId, id);
+        db.prepare('UPDATE radar_posts SET status = ?, payload_id = ? WHERE id = ?').run(status, payloadId, id);
     } catch (e) {
         console.error("❌ Erreur SQL updatePostStatus:", e.message);
     }
@@ -139,7 +104,8 @@ async function fetchTelegramMessages(handle, videoOptions = {}) {
         console.log(`📡 Scraping Telegram : @${handle}...`);
         const url = `https://t.me/s/${handle}`;
         const response = await axios.get(url, {
-            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' }
+            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' },
+            timeout: 15000
         });
         const html = response.data;
 
@@ -256,7 +222,7 @@ function buildTwitterBridgeFeed(baseUrl, account) {
 }
 
 // -- 2. LE CERVEAU (Gemini 3 Pro avec JSON strict et confiance source) --
-async function rewriteBatchWithGemini(itemsBatch, maxArticles, customPrompt, archiveContext = '', sourceTrustMap = DEFAULT_SOURCE_TRUST, aiModelMain = 'gemini-2.5-pro-preview-05-06', specificPrompts = {}, options = {}) {
+async function rewriteBatchWithGemini(itemsBatch, maxArticles, customPrompt, archiveContext = '', sourceTrustMap = DEFAULT_SOURCE_TRUST, aiModelMain = 'gemini-3.1-pro-preview', specificPrompts = {}, options = {}, chunkOffset = 0) {
     const useGoogleSearch = options.useGoogleSearch !== false;
     const allowedTypes = Array.isArray(options.allowedTypes) && options.allowedTypes.length
         ? options.allowedTypes
@@ -272,7 +238,7 @@ async function rewriteBatchWithGemini(itemsBatch, maxArticles, customPrompt, arc
         const safeContent = item.content || "";
         const trustLevel = getSourceTrust(item.sourceTitle, item.id, sourceTrustMap);
         return `
-[ID_ARTICLE: BATCH_ITEM_${index}]
+[ID_ARTICLE: BATCH_ITEM_${index + chunkOffset}]
 Titre original: ${item.title}
 Source: ${item.sourceTitle} ${trustLevel === '🔴' ? '[⚠️ CONFIANCE BASSE — VÉRIFICATION OBLIGATOIRE VIA GOOGLE SEARCH]' : trustLevel === '🟢' ? '[✅ CONFIANCE HAUTE]' : '[🟡 CONFIANCE MOYENNE]'}
 Contenu: ${safeContent.substring(0, 1500)}
@@ -301,7 +267,7 @@ ${specificPrompts.standard ? `POUR LES FAITS DU JOUR : ${specificPrompts.standar
 1. Utilise impérativement le CONTENU FOURNI dans les articles ci-dessous comme base de ton analyse.
 2. Utilise GOOGLE SEARCH pour :
    - Vérifier les chiffres et les faits mentionnés.
-   - Extraire le "passif" ou les casseroles des protagonistes mentionnés (ministres, patrons, entreprises).
+   - Extraire le "passif" ou les casseroles des protagonistesmentionnés  (ministres, patrons, entreprises).
    - Trouver des éléments de contexte plus larges pour ton "tacle final".
    - OBLIGATOIRE pour les sources 🔴 CONFIANCE BASSE : cross-checker l'info.
 
@@ -338,7 +304,11 @@ ${articlesText}
 
     try {
         console.log(`[DEBUG] Envoi à Gemini (${aiModelMain}) | GoogleSearch=${useGoogleSearch ? 'ON' : 'OFF'}...`);
-        const result = await model.generateContent(prompt);
+        const TIMEOUT_MS = 60000;
+        const result = await Promise.race([
+            model.generateContent(prompt),
+            new Promise((_, reject) => setTimeout(() => reject(new Error(`Timeout de ${TIMEOUT_MS}ms atteint chez Gemini`)), TIMEOUT_MS))
+        ]);
         console.log(`[DEBUG] Gemini a répondu !`);
 
         const rawText = result.response.text();
@@ -397,7 +367,8 @@ async function notifyDiscordValidation(items, autoApprove = false, testMode = fa
                     
                     try {
                         await axios.post(CONFIG.DISCORD_WEBHOOK_URL, formData, {
-                            headers: formData.getHeaders()
+                            headers: formData.getHeaders(),
+                            timeout: 15000
                         });
                         console.log(`-> ✅ Message [TEST] envoyé pour : ${it.title}`);
                     } catch (err) {
@@ -408,7 +379,8 @@ async function notifyDiscordValidation(items, autoApprove = false, testMode = fa
                     
                     try {
                         await axios.post(CONFIG.DISCORD_WEBHOOK_URL, { embeds: [embed] }, {
-                            headers: { 'User-Agent': 'Mozilla/5.0' }
+                            headers: { 'User-Agent': 'Mozilla/5.0' },
+                            timeout: 15000
                         });
                         console.log(`-> ✅ Message [TEST] envoyé pour : ${it.title}`);
                     } catch (err) {
@@ -420,7 +392,8 @@ async function notifyDiscordValidation(items, autoApprove = false, testMode = fa
                 
                 try {
                     await axios.post(CONFIG.DISCORD_WEBHOOK_URL, { embeds: [embed] }, {
-                        headers: { 'User-Agent': 'Mozilla/5.0' }
+                        headers: { 'User-Agent': 'Mozilla/5.0' },
+                        timeout: 15000
                     });
                     console.log(`-> ✅ Message [TEST] envoyé pour : ${it.title}`);
                 } catch (err) {
@@ -444,7 +417,8 @@ async function notifyDiscordValidation(items, autoApprove = false, testMode = fa
 
     try {
         await axios.post(CONFIG.DISCORD_WEBHOOK_URL, { embeds: [introEmbed] }, {
-            headers: { 'User-Agent': 'Mozilla/5.0' }
+            headers: { 'User-Agent': 'Mozilla/5.0' },
+            timeout: 15000
         });
         console.log("-> ✅ Message intro envoyé sur Discord !");
     } catch (err) {
@@ -466,7 +440,8 @@ async function notifyDiscordValidation(items, autoApprove = false, testMode = fa
 
         try {
             await axios.post(CONFIG.DISCORD_WEBHOOK_URL, { embeds: [embed] }, {
-                headers: { 'User-Agent': 'Mozilla/5.0' }
+                headers: { 'User-Agent': 'Mozilla/5.0' },
+                timeout: 15000
             });
             console.log(`-> ✅ Flash envoyé : ${it.title}`);
         } catch (err) {
@@ -486,7 +461,29 @@ async function fetchFeedWithTimeout(feedUrl, timeoutMs) {
 async function main() {
     console.log("🚀 Démarrage du Radar L'Assez...");
 
-    const settings = getSettings();
+    let settings = getSettings();
+    let customConfig = null;
+
+    // Récupération de l'argument --config
+    const configArgIndex = process.argv.indexOf('--config');
+    if (configArgIndex !== -1 && process.argv[configArgIndex + 1]) {
+        try {
+            const configPath = path.resolve(process.cwd(), process.argv[configArgIndex + 1]);
+            const configContent = fs.readFileSync(configPath, 'utf-8');
+            customConfig = JSON.parse(configContent);
+            
+            // Override settings
+            Object.assign(settings, customConfig);
+            if (customConfig.maxArticles) settings.max_articles = String(customConfig.maxArticles);
+            if (customConfig.aiPrompt) settings.ai_prompt = customConfig.aiPrompt;
+            if (customConfig.webhook) CONFIG.DISCORD_WEBHOOK_URL = customConfig.webhook;
+            
+            console.log(`🔧 Configuration custom chargée depuis ${configPath}`);
+        } catch (e) {
+            console.error(`❌ Erreur lecture config custom:`, e.message);
+        }
+    }
+
     const envMaxArticles = parseInt(process.env.RADAR_MAX_ARTICLES_OVERRIDE || '', 10);
     const envLookbackHours = parseInt(process.env.RADAR_RSS_LOOKBACK_HOURS_OVERRIDE || '', 10);
     const maxArticles = Number.isFinite(envMaxArticles) && envMaxArticles > 0
@@ -514,6 +511,10 @@ async function main() {
     const defaultBreaking = "Rédige une alerte urgente et percutante (1 à 2 paragraphes courts). Va droit au but, souligne l'urgence de la situation sans formule de politesse.";
     const defaultDecrypt = "Rédige une analyse piquante (2 paragraphes). Utilise le contexte des archives fournies pour mettre en lumière les contradictions ou le 'passif' du politicien mentionné. Sois sarcastique et précis.";
     const defaultStandard = "Rédige une brève factuelle mais engagée (1 paragraphe). Résume l'information principale avec le ton caractéristique de L'Assez : direct, informatif, et qui ne prend pas de gants.";
+    
+    // allowDbSave pour contrôler l'insertion et l'archivage
+    const allowDbSave = customConfig && typeof customConfig.saveToDb !== 'undefined' ? customConfig.saveToDb : true;
+
     const defaultRelevance = `Tu es un filtre de pertinence pour un média d'investigation politique de gauche.
 Analyse ce message Telegram et réponds UNIQUEMENT par "OUI" ou "NON".
 La vidéo associée est-elle liée à un sujet politique, social, judiciaire, ou d'intérêt public majeur ?
@@ -535,7 +536,7 @@ Réponds uniquement OUI ou NON :`;
     if (settings.ai_prompt_decrypt_enabled !== 'false') allowedTypes.push('"🔎 DÉCRYPTAGE"');
     allowedTypes.push('"🗓️ À VENIR"');
 
-    const aiModelMain = settings.ai_model_main || 'gemini-3.1-pro-preview';
+    const aiModelMain = settings.ai_model_main || 'gemini-2.5-pro';
     const aiModelBreaking = settings.ai_model_breaking || aiModelMain;
     const aiModelStandard = settings.ai_model_standard || aiModelMain;
     const aiModelDecrypt = settings.ai_model_decrypt || aiModelMain;
@@ -549,10 +550,10 @@ Réponds uniquement OUI ou NON :`;
     };
     const videoOptions = {
         enabled: settings.video_ingest_enabled !== 'false',
-        prefilterModel: settings.video_prefilter_model || 'gemini-3-flash-preview',
+        prefilterModel: settings.video_prefilter_model || 'gemini-2.5-flash',
         prefilterPrompt: settings.video_prefilter_prompt || defaultRelevance,
         prefilterMinChars: parseInt(settings.video_prefilter_min_chars || '20', 10),
-        transcribeModel: settings.video_transcribe_model || 'gemini-3-flash-preview',
+        transcribeModel: settings.video_transcribe_model || 'gemini-2.5-flash',
         maxAudioMb: parseInt(settings.video_max_audio_mb || '20', 10)
     };
 
@@ -676,37 +677,47 @@ Réponds uniquement OUI ou NON :`;
 
     const mergedAiResults = [];
     const handledById = new Set();
+    const CHUNK_SIZE = 10;
 
     for (const strategy of strategies) {
-        const remaining = Math.max(0, maxArticles - mergedAiResults.length);
+        let remaining = Math.max(0, maxArticles - mergedAiResults.length);
         if (remaining <= 0) break;
 
-        const partial = await rewriteBatchWithGemini(
-            batchToProcess,
-            remaining,
-            dynamicPrompt,
-            archiveContext,
-            sourceTrustMap,
-            strategy.model,
-            {
-                breaking: aiPromptBreaking,
-                decrypt: aiPromptDecrypt,
-                standard: aiPromptStandard,
-                allowedTypes: strategy.allowedTypes
-            },
-            {
-                useGoogleSearch: strategy.useGoogleSearch,
-                allowedTypes: strategy.allowedTypes
-            }
-        );
+        for (let i = 0; i < batchToProcess.length; i += CHUNK_SIZE) {
+            remaining = Math.max(0, maxArticles - mergedAiResults.length);
+            if (remaining <= 0) break;
 
-        if (!Array.isArray(partial)) continue;
-        for (const item of partial) {
-            if (!item || typeof item.id !== 'string') continue;
-            if (handledById.has(item.id)) continue;
-            handledById.add(item.id);
-            mergedAiResults.push(item);
-            if (mergedAiResults.length >= maxArticles) break;
+            const chunk = batchToProcess.slice(i, i + CHUNK_SIZE);
+            console.log(`  -> 📦 Traitement du chunk de ${i} à ${i + chunk.length - 1}...`);
+
+            const partial = await rewriteBatchWithGemini(
+                chunk,
+                remaining,
+                dynamicPrompt,
+                archiveContext,
+                sourceTrustMap,
+                strategy.model,
+                {
+                    breaking: aiPromptBreaking,
+                    decrypt: aiPromptDecrypt,
+                    standard: aiPromptStandard,
+                    allowedTypes: strategy.allowedTypes
+                },
+                {
+                    useGoogleSearch: strategy.useGoogleSearch,
+                    allowedTypes: strategy.allowedTypes
+                },
+                i
+            );
+
+            if (!Array.isArray(partial)) continue;
+            for (const item of partial) {
+                if (!item || typeof item.id !== 'string') continue;
+                if (handledById.has(item.id)) continue;
+                handledById.add(item.id);
+                mergedAiResults.push(item);
+                if (mergedAiResults.length >= maxArticles) break;
+            }
         }
     }
 
@@ -728,7 +739,9 @@ Réponds uniquement OUI ou NON :`;
                     const fiabilite = result.fiabilite || 'haute';
                     const videoPath = original.videoPath || null;
                     
-                    enqueuePost(original.id, finalTitle, flash, original.imageUrl || result.imageKeyword, ingestStatus, geo, tags, result.punchline || "INFO EXCLUSIVE L'ASSEZ", typeOuverture, fiabilite, videoPath);
+                    if (allowDbSave) {
+                        enqueuePost(original.id, finalTitle, flash, original.imageUrl || result.imageKeyword, ingestStatus, geo, tags, result.punchline || "INFO EXCLUSIVE L'ASSEZ", typeOuverture, fiabilite, videoPath);
+                    }
                     
                     newItems.push({
                         title: finalTitle,
@@ -746,15 +759,19 @@ Réponds uniquement OUI ou NON :`;
         }
 
         // ─── PHASE 4 (suite) : ARCHIVAGE DES DÉCLARATIONS ───
-        archiveDeclarations(aiResults, batchToProcess, db);
+        if (allowDbSave) {
+            archiveDeclarations(aiResults, batchToProcess, db);
+        }
 
         const handledIds = aiResults.map(r => {
             const m = r.id.match(/\d+/);
             return m ? batchToProcess[parseInt(m[0], 10)]?.id : null;
         }).filter(id => id !== null);
 
-        for (const item of batchToProcess) {
-            if (!handledIds.includes(item.id)) markAsIgnored(item.id, item.sourceTitle);
+        if (allowDbSave) {
+            for (const item of batchToProcess) {
+                if (!handledIds.includes(item.id)) markAsIgnored(item.id, item.sourceTitle);
+            }
         }
 
         const label = autoApprove ? 'flash(s) auto-approuvé(s) ✈️' : 'flash(s) en attente de validation';
@@ -764,8 +781,10 @@ Réponds uniquement OUI ou NON :`;
             await notifyDiscordValidation(newItems, autoApprove, isTest);
         }
     } else {
-        console.log(`\n✅ Tout a été filtré par l'IA.`);
-        for (const item of batchToProcess) markAsIgnored(item.id, item.sourceTitle);
+        console.log("⚠️ Aucune info sélectionnée par l'IA ou erreur.");
+        if (allowDbSave) {
+            for (const item of batchToProcess) markAsIgnored(item.id, item.sourceTitle);
+        }
     }
 
     // Nettoyage des fichiers vidéo temporaires (>24h)

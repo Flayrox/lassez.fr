@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { exec } from 'child_process';
 import path from 'path';
+import fs from 'fs';
 import { logToDaemon, errorToDaemon } from '../../logger';
 
 export const dynamic = 'force-dynamic';
@@ -10,6 +11,7 @@ export async function POST(request: Request) {
     try {
         let action = 'scan';
         let electionSlugOverride = '';
+        let customScan: any = null;
         try {
             const body = await request.json();
             const raw = String(body?.action || '').toLowerCase();
@@ -17,6 +19,9 @@ export async function POST(request: Request) {
                 action = 'elections';
             }
             electionSlugOverride = String(body?.slug || '').trim();
+            if (body?.customScan) {
+                customScan = body.customScan;
+            }
         } catch (_) {
             // Empty body => default manual RSS scan
         }
@@ -25,8 +30,18 @@ export async function POST(request: Request) {
         const logPrefix = action === 'elections' ? 'MANUAL-ELECTIONS' : 'MANUAL-SCAN';
         const startLabel = action === 'elections' ? 'sync élections' : 'scan RSS/IA';
 
-        const scriptPath = path.join(process.cwd(), 'radar_lassez', scriptFile);
         const radarDir = path.join(process.cwd(), 'radar_lassez');
+        const scriptPath = path.join(radarDir, scriptFile);
+        let execCommand = `node "${scriptPath}"`;
+
+        if (action === 'scan' && customScan) {
+            const tempDir = path.join(radarDir, 'temp');
+            if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
+            const configFileName = `temp_scan_${Date.now()}.json`;
+            const configFilePath = path.join(tempDir, configFileName);
+            fs.writeFileSync(configFilePath, JSON.stringify(customScan));
+            execCommand += ` --config "temp/${configFileName}"`;
+        }
 
         const encoder = new TextEncoder();
 
@@ -45,7 +60,7 @@ export async function POST(request: Request) {
 
                 // Utilisation de exec au lieu de spawn pour Windows avec chemin contenant des espaces.
                 // On met node en dur et on encapsule le chemin complet entre guillemets.
-                const child = exec(`node "${scriptPath}"`, {
+                const child = exec(execCommand, {
                     cwd: radarDir,
                     env: cleanEnv
                 });

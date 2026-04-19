@@ -23,11 +23,11 @@ const db = new Database(path.join(__dirname, 'radar.db'));
 const CONFIG = {
     HISTORY_FILE: path.join(__dirname, 'historique.json'),
     GEMINI_API_KEY: process.env.GEMINI_API_KEY,
-    DISCORD_WEBHOOK_URL: process.env.DISCORD_WEBHOOK_URL,
-    WP_URL: (process.env.WP_URL || '').replace(/\/$/, ''),
-    WP_USER: process.env.WP_USER,
-    WP_PASSWORD: process.env.WP_PASSWORD,
-    WP_CATEGORY_ID: 12
+    PAYLOAD_SECRET: process.env.PAYLOAD_SECRET || 'your-secret-key-here',
+    PAYLOAD_URL: (process.env.PAYLOAD_URL || 'http://localhost:3001').replace(/\/$/, ''),
+    PAYLOAD_BOT_EMAIL: process.env.PAYLOAD_BOT_EMAIL || 'bot@lassez.fr',
+    PAYLOAD_BOT_PASSWORD: process.env.PAYLOAD_BOT_PASSWORD,
+    PAYLOAD_DEFAULT_CATEGORY: process.env.PAYLOAD_DEFAULT_CATEGORY || 12
 };
 
 const parser = new Parser({
@@ -44,36 +44,7 @@ const parser = new Parser({
 });
 const genAI = new GoogleGenerativeAI(CONFIG.GEMINI_API_KEY);
 
-// -- 0. CORE WORDPRESS (JWT PUSH) --
-async function pushToWordPress(title, content) {
-    if (!CONFIG.WP_URL || !CONFIG.WP_USER || !CONFIG.WP_PASSWORD) {
-        console.error("⚠️ Identifiants WordPress manquants dans .env");
-        return null;
-    }
-
-    try {
-        const tokenResponse = await axios.post(`${CONFIG.WP_URL}/wp-json/jwt-auth/v1/token`, {
-            username: CONFIG.WP_USER,
-            password: CONFIG.WP_PASSWORD
-        });
-        const token = tokenResponse.data.token;
-
-        const postResponse = await axios.post(`${CONFIG.WP_URL}/wp-json/wp/v2/posts`, {
-            title: title,
-            content: content,
-            status: 'publish',
-            categories: [CONFIG.WP_CATEGORY_ID]
-        }, {
-            headers: { 'Authorization': `Bearer ${token}` }
-        });
-
-        console.log(`🚀 Article publié sur WordPress ! ID: ${postResponse.data.id}`);
-        return postResponse.data.id;
-    } catch (err) {
-        console.error("❌ Échec de publication WordPress :", err.response?.data?.message || err.message);
-        return null;
-    }
-}
+// Les fonctions d'envoi vers Payload CMS sont gérées dans publishPost.js
 
 // -- 1. GESTION DE LA MEMOIRE (SQLite) --
 function getSettings() {
@@ -100,9 +71,9 @@ function isProcessed(sourceUrl) {
     return !!row;
 }
 
-function updatePostStatus(id, status, wpId = null) {
+function updatePostStatus(id, status, payloadId = null) {
     try {
-        db.prepare('UPDATE radar_posts SET status = ?, wp_id = ? WHERE id = ?').run(status, wpId, id);
+        db.prepare('UPDATE radar_posts SET status = ?, payload_id = ? WHERE id = ?').run(status, payloadId, id);
     } catch (e) {
         console.error("❌ Erreur SQL updatePostStatus:", e.message);
     }

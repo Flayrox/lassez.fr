@@ -182,7 +182,7 @@ async function publishPost(postId) {
         await broadcastToSocials(post.flash_content, imageResult?.localPath, articleUrl, skipLink, post.video_path);
 
         // Update de la base locale
-        db.prepare('UPDATE radar_posts SET status = ?, wp_id = ?, image_keyword = ? WHERE id = ?')
+        db.prepare('UPDATE radar_posts SET status = ?, payload_id = ?, image_keyword = ? WHERE id = ?')
             .run('PUBLISHED', newPostId, generatedImageUrl || post.image_keyword, postId);
 
         // Nettoyage du fichier vidéo après publication réussie

@@ -6,7 +6,7 @@ import { useRadarAdmin } from '../components/RadarAdminContext';
 import { Toggle } from '../components/UIComponents';
 
 type DaemonType = 'rss' | 'publisher';
-type RssTypeLabel = '🔴 ALERTE INFO !' | '📌 LE FAIT DU JOUR' | '🔎 DÉCRYPTAGE' | '🗓️ À VENIR';
+type RssTypeLabel = '🔴 ALERTE INFO !';
 type SocialTargetConfig = { mastodon: boolean; bluesky: boolean; twitter: boolean; discord: boolean };
 
 type TuningRule = {
@@ -50,7 +50,7 @@ type DaemonStatus = {
 };
 
 const DAY_LABELS = ['D', 'L', 'M', 'M', 'J', 'V', 'S'];
-const RSS_TYPE_LABELS: RssTypeLabel[] = ['🔴 ALERTE INFO !', '📌 LE FAIT DU JOUR', '🔎 DÉCRYPTAGE', '🗓️ À VENIR'];
+const RSS_TYPE_LABELS: RssTypeLabel[] = ['🔴 ALERTE INFO !'];
 
 function buildDefaultSocialTargets(settings: any): Record<RssTypeLabel, SocialTargetConfig> {
     const globalFallback: SocialTargetConfig = {
@@ -61,10 +61,7 @@ function buildDefaultSocialTargets(settings: any): Record<RssTypeLabel, SocialTa
     };
 
     const defaults: Record<RssTypeLabel, SocialTargetConfig> = {
-        '🔴 ALERTE INFO !': { ...globalFallback },
-        '📌 LE FAIT DU JOUR': { ...globalFallback },
-        '🔎 DÉCRYPTAGE': { ...globalFallback },
-        '🗓️ À VENIR': { ...globalFallback }
+        '🔴 ALERTE INFO !': { ...globalFallback }
     };
 
     try {
@@ -203,6 +200,7 @@ export default function DaemonPage() {
     const [tuningEnabled, setTuningEnabled] = useState(false);
     const [rules, setRules] = useState<TuningRule[]>([]);
     const [isTestingFlows, setIsTestingFlows] = useState(false);
+    const [expandedPipeline, setExpandedPipeline] = useState<RssTypeLabel | null>(null);
     const [cortexVars, setCortexVars] = useState({
         ai_model_main: 'gemini-2.5-pro',
         ai_prompt: '',
@@ -229,10 +227,7 @@ export default function DaemonPage() {
     const [scanStartedAt, setScanStartedAt] = useState<number | null>(null);
     const [scanEndedAt, setScanEndedAt] = useState<number | null>(null);
     const [socialTargetsByType, setSocialTargetsByType] = useState<Record<RssTypeLabel, SocialTargetConfig>>({
-        '🔴 ALERTE INFO !': { mastodon: true, bluesky: true, twitter: true, discord: false },
-        '📌 LE FAIT DU JOUR': { mastodon: true, bluesky: true, twitter: true, discord: false },
-        '🔎 DÉCRYPTAGE': { mastodon: true, bluesky: true, twitter: true, discord: false },
-        '🗓️ À VENIR': { mastodon: true, bluesky: true, twitter: true, discord: false },
+        '🔴 ALERTE INFO !': { mastodon: true, bluesky: true, twitter: true, discord: false }
     });
 
         const currentPayloadStr = useMemo(() => {
@@ -634,169 +629,6 @@ export default function DaemonPage() {
                     </div>
                 </section>
 
-                <section className="bg-white border-4 border-stone-900 shadow-[10px_10px_0px_0px_#1A1C1C] p-8 space-y-6">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center justify-between w-full">
-                            <h2 className="text-2xl font-black uppercase tracking-tighter font-headline flex items-center gap-3">
-                                Cerveau Cortex & Formats
-                            </h2>
-                            <button
-                                onClick={async () => {
-                                    setIsTestingFlows(true);
-                                    try {
-                                        const res = await fetch('/api/radar/test-flows', { method: 'POST' });
-                                        const data = await res.json();
-                                        if (data.success) alert(data.message);
-                                    } catch (e) {
-                                        console.error(e);
-                                    } finally {
-                                        setIsTestingFlows(false);
-                                    }
-                                }}
-                                disabled={isTestingFlows}
-                                className="bg-stone-900 text-white px-4 py-2 text-[10px] font-black uppercase tracking-widest hover:bg-stone-700 transition-colors"
-                            >
-                                {isTestingFlows ? 'Test en cours...' : 'Diagnostic Flux'}
-                            </button>
-                        </div>
-                    </div>
-
-                    <div className="bg-stone-50 border-4 border-stone-900 p-6 space-y-6">
-                         <h3 className="text-lg font-black uppercase tracking-tighter font-headline mb-4">Moteur De Pensee</h3>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                            <div className="space-y-4">
-                                <div>
-                                    <label className="text-[10px] font-black uppercase text-stone-500 mb-1 block">Modele Fallback (Defaut)</label>
-                                    <select
-                                        value={cortexVars.ai_model_main}
-                                        onChange={e => setCortexVars({ ...cortexVars, ai_model_main: e.target.value })}
-                                        className="w-full bg-white border-4 border-stone-900 p-3 font-black text-xs"
-                                    >
-                                        <option value="gemini-3.1-pro-preview">Gemini 3.1 Pro (Preview)</option>
-                                        <option value="gemini-3-flash-preview">Gemini 3.0 Flash</option>
-                                        <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
-                                        <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="text-[10px] font-black uppercase text-stone-500 mb-1 block">Prompt Systeme (Brain)</label>
-                                    <textarea
-                                        value={cortexVars.ai_prompt}
-                                        onChange={e => setCortexVars({ ...cortexVars, ai_prompt: e.target.value })}
-                                        rows={6}
-                                        placeholder="Directives systemes (ton, personnalite)"
-                                        className="w-full bg-white border-4 border-stone-900 p-3 text-xs"
-                                    />
-                                </div>
-                            </div>
-                            <div className="space-y-4">
-                                <div>
-                                    <label className="text-[10px] font-black uppercase text-stone-500 mb-1 flex items-center justify-between">
-                                        Pre-Filtre (Le Tamis) - Pertinence
-                                    </label>
-                                    <p className="text-[10px] font-bold text-stone-400 uppercase mb-2">Definit ce qu'il jette de ce qu'il garde (ROI = Oui/Non)</p>
-                                    <textarea
-                                        value={cortexVars.ai_prompt_relevance}
-                                        onChange={e => setCortexVars({ ...cortexVars, ai_prompt_relevance: e.target.value })}
-                                        rows={6}
-                                        placeholder="Le filtre a dechets entrants..."
-                                        className="w-full bg-white border-4 border-stone-900 p-3 text-xs"
-                                    />
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <h3 className="text-xl font-black uppercase tracking-tighter font-headline mt-6">Pipelines Editoriaux</h3>
-
-                    {/* Format Pipelines */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        {/* ALERTE INFO */}
-                        <div className="border-4 border-red-700 bg-white p-4 space-y-4">
-                            <div className="flex justify-between items-center bg-red-700 text-white px-3 py-2 -mx-4 -mt-4 mb-2">
-                                <h3 className="text-xs font-black uppercase tracking-widest">🔴 ALERTE INFO</h3>
-                                <Toggle checked={cortexVars.ai_prompt_breaking_enabled === 'true'} onChange={v => setCortexVars({ ...cortexVars, ai_prompt_breaking_enabled: v ? 'true' : 'false' })} />
-                            </div>
-                            <select
-                                value={cortexVars.ai_model_breaking}
-                                onChange={e => setCortexVars({ ...cortexVars, ai_model_breaking: e.target.value })}
-                                className="w-full bg-stone-50 border-2 border-stone-900 p-2 font-black text-[10px] uppercase"
-                            >
-                                <option value="gemini-3.1-pro-preview">Gemini 3.1 Pro</option>
-                                <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
-                                <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
-                            </select>
-                            <label className="flex items-center gap-2 text-[10px] font-black uppercase">
-                                <input type="checkbox" checked={cortexVars.google_search_breaking_enabled === 'true'} onChange={e => setCortexVars({ ...cortexVars, google_search_breaking_enabled: e.target.checked ? 'true' : 'false' })} />
-                                Activer Recherche Google Web 
-                            </label>
-                            <textarea
-                                value={cortexVars.ai_prompt_breaking}
-                                onChange={e => setCortexVars({ ...cortexVars, ai_prompt_breaking: e.target.value })}
-                                rows={8}
-                                disabled={cortexVars.ai_prompt_breaking_enabled !== 'true'}
-                                className="w-full bg-stone-50 border-2 border-stone-900 p-2 text-[10px] disabled:opacity-50"
-                            />
-                        </div>
-
-                        {/* FAIT DU JOUR */}
-                        <div className="border-4 border-blue-700 bg-white p-4 space-y-4">
-                            <div className="flex justify-between items-center bg-blue-700 text-white px-3 py-2 -mx-4 -mt-4 mb-2">
-                                <h3 className="text-xs font-black uppercase tracking-widest">📌 FAIT DU JOUR</h3>
-                                <Toggle checked={cortexVars.ai_prompt_standard_enabled === 'true'} onChange={v => setCortexVars({ ...cortexVars, ai_prompt_standard_enabled: v ? 'true' : 'false' })} />
-                            </div>
-                            <select
-                                value={cortexVars.ai_model_standard}
-                                onChange={e => setCortexVars({ ...cortexVars, ai_model_standard: e.target.value })}
-                                className="w-full bg-stone-50 border-2 border-stone-900 p-2 font-black text-[10px] uppercase"
-                            >
-                                <option value="gemini-3.1-pro-preview">Gemini 3.1 Pro</option>
-                                <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
-                                <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
-                            </select>
-                            <label className="flex items-center gap-2 text-[10px] font-black uppercase">
-                                <input type="checkbox" checked={cortexVars.google_search_standard_enabled === 'true'} onChange={e => setCortexVars({ ...cortexVars, google_search_standard_enabled: e.target.checked ? 'true' : 'false' })} />
-                                Activer Recherche Google Web 
-                            </label>
-                            <textarea
-                                value={cortexVars.ai_prompt_standard}
-                                onChange={e => setCortexVars({ ...cortexVars, ai_prompt_standard: e.target.value })}
-                                rows={8}
-                                disabled={cortexVars.ai_prompt_standard_enabled !== 'true'}
-                                className="w-full bg-stone-50 border-2 border-stone-900 p-2 text-[10px] disabled:opacity-50"
-                            />
-                        </div>
-
-                        {/* DECRYPTAGE */}
-                        <div className="border-4 border-stone-900 bg-white p-4 space-y-4">
-                            <div className="flex justify-between items-center bg-stone-900 text-white px-3 py-2 -mx-4 -mt-4 mb-2">
-                                <h3 className="text-xs font-black uppercase tracking-widest">🔎 DECRYPTAGE</h3>
-                                <Toggle checked={cortexVars.ai_prompt_decrypt_enabled === 'true'} onChange={v => setCortexVars({ ...cortexVars, ai_prompt_decrypt_enabled: v ? 'true' : 'false' })} />
-                            </div>
-                            <select
-                                value={cortexVars.ai_model_decrypt}
-                                onChange={e => setCortexVars({ ...cortexVars, ai_model_decrypt: e.target.value })}
-                                className="w-full bg-stone-50 border-2 border-stone-900 p-2 font-black text-[10px] uppercase"
-                            >
-                                <option value="gemini-3.1-pro-preview">Gemini 3.1 Pro</option>
-                                <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
-                                <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
-                            </select>
-                            <label className="flex items-center gap-2 text-[10px] font-black uppercase">
-                                <input type="checkbox" checked={cortexVars.google_search_decrypt_enabled === 'true'} onChange={e => setCortexVars({ ...cortexVars, google_search_decrypt_enabled: e.target.checked ? 'true' : 'false' })} />
-                                Activer Recherche Google Web 
-                            </label>
-                            <textarea
-                                value={cortexVars.ai_prompt_decrypt}
-                                onChange={e => setCortexVars({ ...cortexVars, ai_prompt_decrypt: e.target.value })}
-                                rows={8}
-                                disabled={cortexVars.ai_prompt_decrypt_enabled !== 'true'}
-                                className="w-full bg-stone-50 border-2 border-stone-900 p-2 text-[10px] disabled:opacity-50"
-                            />
-                        </div>
-                    </div>
-                </section>
-
                 <section className="bg-white border-4 border-stone-900 shadow-[10px_10px_0px_0px_#1A1C1C] p-8 space-y-8">
                     <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                         <h2 className="text-2xl font-black uppercase tracking-tighter font-headline">Runtime & Actions</h2>
@@ -868,12 +700,14 @@ export default function DaemonPage() {
                     </div>
 
                     <div className="space-y-4">
-                        <h3 className="text-sm font-black uppercase tracking-widest text-stone-500">Target Networks par type RSS</h3>
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-sm font-black uppercase tracking-widest text-stone-500">Pipelines & Cibles par flux RSS</h3>
+                        </div>
                         <div className="overflow-x-auto border-2 border-stone-900">
                             <table className="w-full text-xs">
                                 <thead>
                                     <tr className="bg-stone-900 text-white">
-                                        <th className="text-left p-3 font-black uppercase tracking-widest">Type</th>
+                                        <th className="text-left p-3 font-black uppercase tracking-widest">Type & Pipeline Cortex</th>
                                         <th className="p-3 font-black uppercase tracking-widest">Mastodon</th>
                                         <th className="p-3 font-black uppercase tracking-widest">Bluesky</th>
                                         <th className="p-3 font-black uppercase tracking-widest">Twitter/X</th>
@@ -881,19 +715,98 @@ export default function DaemonPage() {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {RSS_TYPE_LABELS.map((typeLabel) => (
-                                        <tr key={typeLabel} className="bg-white border-t-2 border-stone-200">
-                                            <td className="p-3 font-black uppercase tracking-tight">{typeLabel}</td>
-                                            <td className="p-3 text-center"><Toggle checked={socialTargetsByType[typeLabel].mastodon} onChange={(v) => setSocialTarget(typeLabel, 'mastodon', v)} /></td>
-                                            <td className="p-3 text-center"><Toggle checked={socialTargetsByType[typeLabel].bluesky} onChange={(v) => setSocialTarget(typeLabel, 'bluesky', v)} /></td>
-                                            <td className="p-3 text-center"><Toggle checked={socialTargetsByType[typeLabel].twitter} onChange={(v) => setSocialTarget(typeLabel, 'twitter', v)} /></td>
-                                            <td className="p-3 text-center"><Toggle checked={socialTargetsByType[typeLabel].discord} onChange={(v) => setSocialTarget(typeLabel, 'discord', v)} /></td>
-                                        </tr>
-                                    ))}
+                                    {RSS_TYPE_LABELS.map((typeLabel) => {
+                                        const pipelineConfigs: Record<string, any> = {
+                                            '🔴 ALERTE INFO !': { id: 'breaking', borderColor: 'border-red-700', bgColor: 'bg-red-700' }
+                                        };
+                                        const pipeline = pipelineConfigs[typeLabel];
+                                        const isExpanded = expandedPipeline === typeLabel;
+                                        
+                                        return (
+                                            <React.Fragment key={typeLabel}>
+                                                <tr 
+                                                    className="bg-white border-t-2 border-stone-200 cursor-pointer hover:bg-stone-50 transition-colors group"
+                                                    onClick={() => setExpandedPipeline(isExpanded ? null : typeLabel)}
+                                                >
+                                                    <td className="p-3 font-black uppercase tracking-tight flex items-center justify-between gap-4 group-hover:text-stone-600 transition-colors">
+                                                        <span>{typeLabel}</span>
+                                                        {pipeline && (
+                                                            <span className="text-[10px] text-stone-400 bg-stone-100 px-2 py-1 border border-stone-300 group-hover:bg-stone-900 group-hover:text-white transition-colors">
+                                                                {isExpanded ? "Fermer Cortex ▲" : "Éditer Cerveau ▼"}
+                                                            </span>
+                                                        )}
+                                                    </td>
+                                                    <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}><Toggle checked={socialTargetsByType[typeLabel]?.mastodon ?? false} onChange={(v) => setSocialTarget(typeLabel, 'mastodon', v)} /></td>
+                                                    <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}><Toggle checked={socialTargetsByType[typeLabel]?.bluesky ?? false} onChange={(v) => setSocialTarget(typeLabel, 'bluesky', v)} /></td>
+                                                    <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}><Toggle checked={socialTargetsByType[typeLabel]?.twitter ?? false} onChange={(v) => setSocialTarget(typeLabel, 'twitter', v)} /></td>
+                                                    <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}><Toggle checked={socialTargetsByType[typeLabel]?.discord ?? false} onChange={(v) => setSocialTarget(typeLabel, 'discord', v)} /></td>
+                                                </tr>
+                                                {isExpanded && pipeline && (
+                                                    <tr className="bg-stone-50 border-x-4 border-b-4 border-stone-900 shadow-[inset_0px_4px_10px_rgba(0,0,0,0.1)]">
+                                                        <td colSpan={5} className="p-6">
+                                                            {(() => {
+                                                                const enabledKey = 'ai_prompt_' + pipeline.id + '_enabled';
+                                                                const modelKey = 'ai_model_' + pipeline.id;
+                                                                const googleKey = 'google_search_' + pipeline.id + '_enabled';
+                                                                const promptKey = 'ai_prompt_' + pipeline.id;
+
+                                                                const isEnabled = cortexVars[enabledKey as keyof typeof cortexVars] === 'true';
+                                                                const modelValue = cortexVars[modelKey as keyof typeof cortexVars] || 'gemini-3.1-pro-preview';
+                                                                const googleEnabled = cortexVars[googleKey as keyof typeof cortexVars] === 'true';
+                                                                const promptValue = cortexVars[promptKey as keyof typeof cortexVars] || '';
+
+                                                                return (
+                                                                    <div className={'border-4 ' + pipeline.borderColor + ' bg-white p-4 space-y-4 max-w-3xl mx-auto'}>
+                                                                        <div className={'flex justify-between items-center ' + pipeline.bgColor + ' text-white px-3 py-2 -mx-4 -mt-4 mb-2'}>
+                                                                            <h3 className="text-xs font-black uppercase tracking-widest flex items-center gap-2">
+                                                                                <span>🧠 Pipeline Intelligence</span>
+                                                                                <span className="opacity-70">({pipeline.id})</span>
+                                                                            </h3>
+                                                                            <Toggle
+                                                                                checked={isEnabled}
+                                                                                onChange={v => setCortexVars({ ...cortexVars, [enabledKey]: v ? 'true' : 'false' })}
+                                                                            />
+                                                                        </div>
+                                                                        <select
+                                                                            value={modelValue}
+                                                                            onChange={e => setCortexVars({ ...cortexVars, [modelKey]: e.target.value })}
+                                                                            className="w-full bg-stone-50 border-2 border-stone-900 p-2 font-black text-[10px] uppercase"
+                                                                        >
+                                                                            <option value="gemini-3.1-pro-preview">Gemini 3.1 Pro (Preview)</option>
+                                                                            <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+                                                                            <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
+                                                                        </select>
+                                                                        <label className="flex items-center gap-2 text-[10px] font-black uppercase">
+                                                                            <input
+                                                                                type="checkbox"
+                                                                                checked={googleEnabled}
+                                                                                onChange={e => setCortexVars({ ...cortexVars, [googleKey]: e.target.checked ? 'true' : 'false' })}
+                                                                            />
+                                                                            Activer Recherche Google Web 
+                                                                        </label>
+                                                                        <textarea
+                                                                            value={promptValue}
+                                                                            onChange={e => setCortexVars({ ...cortexVars, [promptKey]: e.target.value })}
+                                                                            rows={8}
+                                                                            disabled={!isEnabled}
+                                                                            className="w-full bg-stone-50 border-2 border-stone-900 p-2 text-[10px] disabled:opacity-50"
+                                                                        />
+                                                                    </div>
+                                                                );
+                                                            })()}
+                                                        </td>
+                                                    </tr>
+                                                )}
+                                            </React.Fragment>
+                                        );
+                                    })}
                                 </tbody>
                             </table>
                         </div>
-                        <p className="text-[10px] font-bold uppercase text-stone-500">Ces cibles sont indépendantes pour chaque type RSS et remplacent la config globale Target Networks.</p>
+                        <p className="text-[10px] font-bold uppercase text-stone-500 mt-2 block">
+                            Ces cibles sont indépendantes pour chaque flux et remplacent la config globale.
+                            Cliquer sur une ligne permet de régler le modèle de pensée et le prompt qui seront appliqués.
+                        </p>
                     </div>
                 </section>
 

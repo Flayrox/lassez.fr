@@ -45,5 +45,5 @@ conn.on('ready', () => {
   host: '178.104.197.3',
   port: 22,
   username: 'root',
-  password: 'wung7vNXJePU'
+  privateKey: fs.readFileSync(`${process.env.USERPROFILE}/.ssh/id_ed25519`)
 });

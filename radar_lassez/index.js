@@ -23,7 +23,12 @@ const db = new Database(path.join(__dirname, 'radar.db'));
 const CONFIG = {
     HISTORY_FILE: path.join(__dirname, 'historique.json'),
     GEMINI_API_KEY: process.env.GEMINI_API_KEY,
-    DISCORD_WEBHOOK_URL: process.env.DISCORD_WEBHOOK_URL
+    DISCORD_WEBHOOK_URL: process.env.DISCORD_WEBHOOK_URL,
+    PAYLOAD_SECRET: process.env.PAYLOAD_SECRET || 'your-secret-key-here',
+    PAYLOAD_URL: (process.env.PAYLOAD_URL || 'http://localhost:3001').replace(/\/$/, ''),
+    PAYLOAD_BOT_EMAIL: process.env.PAYLOAD_BOT_EMAIL || 'bot@lassez.fr',
+    PAYLOAD_BOT_PASSWORD: process.env.PAYLOAD_BOT_PASSWORD,
+    PAYLOAD_DEFAULT_CATEGORY: process.env.PAYLOAD_DEFAULT_CATEGORY || 12
 };
 
 const parser = new Parser({
@@ -39,6 +44,8 @@ const parser = new Parser({
     }
 });
 const genAI = new GoogleGenerativeAI(CONFIG.GEMINI_API_KEY);
+
+// Les fonctions d'envoi vers Payload CMS sont gérées dans publishPost.js
 
 // -- 1. GESTION DE LA MEMOIRE (SQLite) --
 function getSettings() {

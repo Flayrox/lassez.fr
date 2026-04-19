@@ -17,7 +17,13 @@ const serverFunction = async (
 ) => {
     'use server';
 
-    return handleServerFunctions(...args);
+    const [serverFnArgs] = args;
+
+    return handleServerFunctions({
+        ...serverFnArgs,
+        config,
+        importMap,
+    });
 };
 
 const Layout = ({ children }: Args) =>

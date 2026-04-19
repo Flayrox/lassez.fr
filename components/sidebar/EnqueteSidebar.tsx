@@ -4,35 +4,69 @@ import React, { useMemo } from 'react';
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { LoaderIcon } from '../icons';
-import { useCategories } from '../../hooks/useCategories';
+import useSWR from 'swr';
+import type { Category } from '../../payload-types';
 
 interface EnqueteSidebarProps {
     onClose: () => void;
 }
 
-const TARGET_CATEGORY_IDS = [3, 4, 5, 6, 7, 8, 9];
+// Slugs exclus de la sidebar (silos séparés ou meta-catégories non éditoriales)
+const EXCLUDED_SLUGS = new Set(['revelations', 'enquetes']);
+
+const fetcher = (url: string) => fetch(url).then(r => r.json());
 
 const EnqueteSidebar: React.FC<EnqueteSidebarProps> = ({ onClose }) => {
-    const pathname = usePathname();
+    const pathname     = usePathname();
     const searchParams = useSearchParams();
-    const { categories, isLoading } = useCategories();
+
+    // Catégories depuis Payload
+    const { data: catsData, isLoading: isCatsLoading } = useSWR<any>(
+        '/api/categories?per_page=100',
+        fetcher,
+        { revalidateOnFocus: false, dedupingInterval: 300_000 }
+    );
+
+    // Tous les articles (léger, depth:0) pour savoir quelles catégories ont des articles
+    const { data: postsData } = useSWR<{ docs: any[] }>(
+        '/api/posts?per_page=200&depth=1',
+        fetcher,
+        { revalidateOnFocus: false, dedupingInterval: 120_000 }
+    );
+
+    // Calcul du count par catégorie à partir des articles
+    const countByCatId = useMemo(() => {
+        const counts = new Map<string, number>();
+        if (!postsData?.docs) return counts;
+        for (const p of postsData.docs) {
+            const cats = Array.isArray(p.categories) ? p.categories : [];
+            for (const c of cats) {
+                const id = typeof c === 'object' && c !== null ? c.id : c;
+                if (id) counts.set(String(id), (counts.get(String(id)) ?? 0) + 1);
+            }
+        }
+        return counts;
+    }, [postsData]);
 
     const { activeCategories, closedCategories } = useMemo(() => {
-        const filtered = categories.filter(cat => TARGET_CATEGORY_IDS.includes(cat.id));
-        const sorted = [...filtered].sort((a, b) => a.name.localeCompare(b.name));
+        const raw = Array.isArray(catsData) ? catsData : (catsData?.docs ?? []);
+        const filtered = (raw as any[]).filter((cat: any) => !EXCLUDED_SLUGS.has(cat.slug));
+        const sorted   = [...filtered].sort((a: any, b: any) => a.name.localeCompare(b.name));
 
         return {
-            activeCategories: sorted.filter(cat => cat.count > 0),
-            closedCategories: sorted.filter(cat => cat.count === 0)
+            activeCategories: sorted.filter((cat: any) => (countByCatId.get(String(cat.id)) ?? 0) > 0),
+            closedCategories: sorted.filter((cat: any) => (countByCatId.get(String(cat.id)) ?? 0) === 0),
         };
-    }, [categories]);
+    }, [catsData, countByCatId]);
+
+    const isLoading = isCatsLoading || !postsData;
 
     return (
         <>
-            {/* Desktop Title Area */}
+            {/* Desktop Title */}
             <div className="hidden lg:flex p-6 border-b-4 border-ink bg-ink/5 items-center justify-between">
                 <h2 className="font-black uppercase text-xl tracking-tighter text-ink">Enquêtes</h2>
-                <div className="w-3 h-3 bg-lassez-red rounded-full animate-pulse"></div>
+                <div className="w-3 h-3 bg-lassez-red rounded-full animate-pulse" />
             </div>
 
             <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
@@ -42,6 +76,7 @@ const EnqueteSidebar: React.FC<EnqueteSidebarProps> = ({ onClose }) => {
                         {isLoading && <LoaderIcon className="w-3 h-3 animate-spin" />}
                     </h3>
                     <ul className="space-y-2">
+                        {/* Toutes les enquêtes */}
                         <li>
                             <Link
                                 href="/enquetes?reset=1"
@@ -55,12 +90,15 @@ const EnqueteSidebar: React.FC<EnqueteSidebarProps> = ({ onClose }) => {
                                 `}
                             >
                                 <span>Toutes les enquêtes</span>
-                                <span className={`w-2 h-2 ${pathname === '/enquetes' && !searchParams?.get('secteur') ? 'bg-lassez-red' : 'bg-ink/20 group-hover:bg-ink'}`}></span>
+                                <span className={`w-2 h-2 ${pathname === '/enquetes' && !searchParams?.get('secteur') ? 'bg-lassez-red' : 'bg-ink/20 group-hover:bg-ink'}`} />
                             </Link>
                         </li>
-                        {activeCategories.map((cat) => {
-                            const path = `/enquetes?secteur=${cat.slug}`;
+
+                        {/* Catégories avec articles */}
+                        {activeCategories.map((cat: any) => {
+                            const path     = `/enquetes?secteur=${cat.slug}`;
                             const isActive = pathname === '/enquetes' && searchParams?.get('secteur') === cat.slug;
+                            const count    = countByCatId.get(String(cat.id)) ?? 0;
                             return (
                                 <li key={cat.id}>
                                     <Link
@@ -75,24 +113,34 @@ const EnqueteSidebar: React.FC<EnqueteSidebarProps> = ({ onClose }) => {
                                         `}
                                     >
                                         <span>{cat.name}</span>
-                                        <span className="font-mono text-[10px] opacity-60">[{cat.count.toString().padStart(2, '0')}]</span>
+                                        <span className="font-mono text-[10px] opacity-60">
+                                            [{count.toString().padStart(2, '0')}]
+                                        </span>
                                     </Link>
                                 </li>
                             );
                         })}
+
+                        {/* Placeholder pendant le chargement */}
+                        {isLoading && activeCategories.length === 0 && (
+                            <li className="text-[10px] font-mono text-ink/30 italic py-2">Chargement des secteurs...</li>
+                        )}
                     </ul>
                 </div>
 
+                {/* Catégories classifiées (sans articles) */}
                 {closedCategories.length > 0 && (
                     <div className="opacity-50 grayscale hover:grayscale-0 transition-all duration-300">
-                        <h3 className="font-bold font-mono uppercase tracking-widest text-[10px] mb-4 border-b-2 border-ink/20 pb-2 text-ink/60">Archives (Classifiées)</h3>
+                        <h3 className="font-bold font-mono uppercase tracking-widest text-[10px] mb-4 border-b-2 border-ink/20 pb-2 text-ink/60">
+                            Archives (Classifiées)
+                        </h3>
                         <ul className="space-y-2 pl-4 border-l-2 border-ink/10">
-                            {closedCategories.map((cat) => (
+                            {closedCategories.map((cat: any) => (
                                 <li key={cat.id} className="relative">
                                     <span className="text-xs font-serif italic text-ink/60 block py-1">
                                         {cat.name}
                                     </span>
-                                    <div className="absolute top-1/2 left-0 w-full h-[1px] bg-ink/40"></div>
+                                    <div className="absolute top-1/2 left-0 w-full h-[1px] bg-ink/40" />
                                 </li>
                             ))}
                         </ul>

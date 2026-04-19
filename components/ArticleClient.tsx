@@ -12,6 +12,9 @@ import CallToActionBlock from './CallToActionBlock';
 import ReadingProgress from './ReadingProgress';
 import GlitchImage from './GlitchImage';
 import Breadcrumb from './Breadcrumb';
+import { RichText } from '@payloadcms/richtext-lexical/react';
+import { sanitizeHtmlForRender } from '../lib/sanitizeHtmlForRender';
+import Image from 'next/image';
 
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
@@ -20,9 +23,44 @@ interface ArticleClientProps {
     post: WPPost;
     relatedPosts: WPPost[];
     slug: string;
+    isPreview?: boolean;
+    livePreviewServerURL: string;
+    variant?: 'full' | 'editorial';
 }
 
-const ArticleClient: React.FC<ArticleClientProps> = ({ post, relatedPosts, slug }) => {
+const ArticleClient: React.FC<ArticleClientProps> = ({ post: initialPost, relatedPosts, slug, isPreview = false, livePreviewServerURL, variant = 'full' }) => {
+    const [post, setPost] = useState<WPPost>(initialPost as any);
+    const [isLoading, setIsLoading] = useState(false);
+
+    useEffect(() => {
+        if (!isPreview) return;
+
+        const handleMessage = (event: MessageEvent) => {
+            if (event.data && event.data.type === 'payload-live-preview') {
+                if (event.data.data) {
+                    setPost((prev) => ({ ...prev, ...event.data.data }));
+                }
+            }
+        };
+
+        window.addEventListener('message', handleMessage);
+
+        const parent = window.opener || window.parent;
+        if (parent && parent !== window) {
+            parent.postMessage({ type: 'payload-live-preview', ready: true }, '*');
+        }
+
+        return () => window.removeEventListener('message', handleMessage);
+    }, [isPreview]);
+
+    useEffect(() => {
+        if (isPreview) {
+            console.log('[LIVE PREVIEW DEBUG] Current data:', { title: post?.title, hasContent: !!post?.content });
+        }
+    }, [post, isPreview]);
+
+    const isEditorialVariant = variant === 'editorial';
+
     const articleRef = useRef<HTMLElement>(null);
     const [shareFeedback, setShareFeedback] = useState('');
     const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
@@ -33,9 +71,11 @@ const ArticleClient: React.FC<ArticleClientProps> = ({ post, relatedPosts, slug 
         setActiveReaders(Math.floor(Math.random() * (150 - 20 + 1)) + 20);
     }, [slug]);
 
-    const imageUrl = post._embedded?.['wp:featuredmedia']?.[0]?.source_url || `https://picsum.photos/seed/${post.id}/1200/600`;
-    const author = post._embedded?.author[0]?.name || "Rédaction";
-    const categories: WPTerm[] = post._embedded?.['wp:term']?.[0] || [];
+    const imageUrl = (typeof post.featuredImage === 'object' && post.featuredImage?.url) ? post.featuredImage.url : `https://picsum.photos/seed/${post.id}/1200/600`;
+    const author = (typeof post.author === 'object' && post.author?.name) ? post.author.name : "Rédaction";
+    const categories = Array.isArray(post.categories) ? post.categories.filter((cat): cat is typeof post.categories[0] & object => typeof cat === 'object') as WPTerm[] : [];
+    const titleHtml = sanitizeHtmlForRender(post.title);
+    const bodyHtml = sanitizeHtmlForRender(post.content_html || post.excerpt || '');
 
     const rawKeyPoints = post.acf?.key_points;
     let keyPoints: string[] = [];
@@ -47,7 +87,7 @@ const ArticleClient: React.FC<ArticleClientProps> = ({ post, relatedPosts, slug 
     const handleShare = async () => {
         try {
             if (navigator.share) {
-                await navigator.share({ title: post.title.rendered, url: window.location.href });
+                await navigator.share({ title: post.title, url: window.location.href });
             } else {
                 await navigator.clipboard.writeText(window.location.href);
                 setShareFeedback('COPIÉ');
@@ -70,37 +110,48 @@ const ArticleClient: React.FC<ArticleClientProps> = ({ post, relatedPosts, slug 
 
     return (
         <div className={`max-w-4xl mx-auto relative pb-8 transition-all ${readerMode ? 'bg-paper-bright' : ''}`}>
-
-            <ReadingProgress />
-
-            <div className="flex justify-between items-end mb-3 mt-2 px-4 md:px-0">
-                <Breadcrumb items={[{ label: categories[0]?.name.toUpperCase() || 'DOSSIER', path: categories[0]?.slug && categories[0]?.slug !== 'revelations' ? `/enquetes?secteur=${categories[0].slug}` : undefined }]} />
-                <div className="flex items-center gap-1.5 text-[8px] font-mono uppercase bg-ink text-paper px-2 py-1 border border-lassez-border">
-                    <UsersIcon className="w-2.5 h-2.5 text-lassez-red animate-ping" />
-                    <span>{activeReaders} DIRECT</span>
+            {isPreview && !isEditorialVariant && (
+                <div className="sticky top-2 z-50 mx-4 md:mx-0 mb-3 flex justify-center">
+                    <div className="inline-flex items-center gap-2 rounded-full border-2 border-lassez-border bg-yellow-400 px-3 py-1 font-mono text-[10px] font-black uppercase tracking-widest text-ink shadow-hard-sm">
+                        <span>Preview brouillon</span>
+                        <span className="opacity-70">mode sécurisé</span>
+                    </div>
                 </div>
-            </div>
+            )}
+
+            {!isEditorialVariant && <ReadingProgress />}
+
+            {!isEditorialVariant && (
+                <div className="flex justify-between items-end mb-3 mt-2 px-4 md:px-0">
+                    <Breadcrumb items={[{ label: categories[0]?.name.toUpperCase() || 'DOSSIER', path: categories[0]?.slug && categories[0]?.slug !== 'revelations' ? `/enquetes?secteur=${categories[0].slug}` : undefined }]} />
+                    <div className="flex items-center gap-1.5 text-[8px] font-mono uppercase bg-ink text-paper px-2 py-1 border border-lassez-border">
+                        <UsersIcon className="w-2.5 h-2.5 text-lassez-red animate-ping" />
+                        <span>{activeReaders} DIRECT</span>
+                    </div>
+                </div>
+            )}
 
             <article
                 ref={articleRef}
                 className={`relative ${readerMode ? 'bg-paper-bright px-4 py-4 md:py-12' : 'bg-paper px-4 md:px-0'}`}
             >
                 <header className="text-center mb-6">
-                    <h1 className={`font-serif font-black text-ink leading-tight mb-4 ${readerMode ? 'text-2xl md:text-5xl' : 'text-xl sm:text-3xl md:text-6xl uppercase tracking-tighter'}`} dangerouslySetInnerHTML={{ __html: post.title.rendered }} />
+                    <h1 className={`font-serif font-black text-ink leading-tight mb-4 ${readerMode ? 'text-2xl md:text-5xl' : 'text-xl sm:text-3xl md:text-6xl uppercase tracking-tighter'}`} dangerouslySetInnerHTML={{ __html: isPreview ? post.title : titleHtml }} />
 
                     <div className="flex justify-center items-center gap-3 py-1.5 border-y border-lassez-border font-mono text-[8px] md:text-xs uppercase">
                         <div>PAR: <span className="font-black text-lassez-red">{author.toUpperCase()}</span></div>
                         <div className="opacity-20">|</div>
-                        <div>{format(new Date(post.date), 'dd.MM.yy', { locale: fr })}</div>
+                        <div>{format(new Date(post.publishedAt || post.createdAt || Date.now()), 'dd.MM.yy', { locale: fr })}</div>
                     </div>
                 </header>
 
                 {!readerMode && (
                     <figure className="relative border border-lassez-border shadow-hard mb-6 overflow-hidden">
-                        <GlitchImage src={imageUrl} alt={post.title.rendered} className="w-full max-h-[250px] md:max-h-[500px] object-cover filter contrast-125 saturate-50" />
+                        <GlitchImage src={imageUrl} alt={post.title} className="w-full max-h-[250px] md:max-h-[500px] object-cover filter contrast-125 saturate-50" />
                     </figure>
                 )}
 
+                {!isEditorialVariant && (
                 <div className="flex flex-col items-center gap-6 mb-8 no-print sticky top-24 z-30">
                     <div className="flex flex-wrap justify-center gap-4">
                         <button
@@ -151,13 +202,104 @@ const ArticleClient: React.FC<ArticleClientProps> = ({ post, relatedPosts, slug 
                         ))}
                     </div>
                 </div>
+                )}
 
                 {keyPoints.length > 0 && <div className="mb-6"><KeyPoints points={keyPoints} /></div>}
 
-                <div
-                    className={`prose prose-neutral prose-sm sm:prose-base max-w-none ${readerMode ? 'prose-p:text-justify font-serif' : 'text-ink'}`}
-                    dangerouslySetInnerHTML={{ __html: post.content.rendered || post.excerpt.rendered }}
-                />
+                {post.content ? (
+                    <div suppressHydrationWarning className={`max-w-none ${readerMode ? 'font-serif text-justify' : 'font-sans text-ink'}`}>
+                        <RichText 
+                            data={post.content as any} 
+                            converters={({ defaultConverters }: any) => ({
+                                ...defaultConverters,
+                                upload: ({ node }: any) => {
+                                    if (!node.value?.url) return null;
+                                    return (
+                                        <figure className="my-8 border-2 border-lassez-border shadow-hard bg-paper-bright p-1 relative group">
+                                            <Image 
+                                                src={node.value.url} 
+                                                alt={node.value.alt || ''}
+                                                  unoptimized={true} 
+                                                width={node.value.width || 1200} 
+                                                height={node.value.height || 800} 
+                                                className="w-full h-auto object-cover grayscale-[30%] contrast-125 group-hover:grayscale-0 transition-all duration-500"
+                                            />
+                                            {node.value.caption && (
+                                                <figcaption className="text-center font-mono text-[10px] uppercase py-2 text-ink opacity-70">
+                                                    {typeof node.value.caption === 'string' ? node.value.caption : 'MÉDIA ATTACHÉ'}
+                                                </figcaption>
+                                            )}
+                                        </figure>
+                                    );
+                                },
+                                quote: ({ node, nodesToJSX }: any) => {
+                                    return (
+                                        <div className="relative my-8 pl-6 pr-4 py-4 italic font-serif text-lg bg-paper-bright border-l-4 border-lassez-red shadow-hard-sm">
+                                            <span className="absolute -left-3 -top-3 text-3xl text-lassez-red font-black opacity-50 select-none">"</span>
+                                            <div className="text-ink">
+                                                {nodesToJSX({ nodes: node.children })}
+                                            </div>
+                                        </div>
+                                    );
+                                },
+                                horizontalrule: () => {
+                                    return <hr className="my-10 border-t-2 border-dashed border-lassez-border opacity-30" />;
+                                },
+                                link: ({ node, nodesToJSX }: any) => {
+                                    const fields = node.fields || {};
+                                    const newTabProps = fields.newTab ? { target: '_blank', rel: 'noopener noreferrer' } : {};
+                                    return (
+                                        <Link 
+                                            href={fields.url || '#'} 
+                                            className="text-lassez-red font-bold underline decoration-2 underline-offset-4 decoration-lassez-red/30 hover:bg-lassez-red hover:text-white transition-all"
+                                            {...newTabProps}
+                                        >
+                                            {nodesToJSX({ nodes: node.children })}
+                                        </Link>
+                                    );
+                                },
+                                heading: ({ node, nodesToJSX }: any) => {
+                                    const Tag = node.tag as 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6';
+                                    const classes = {
+                                        h1: "text-3xl md:text-5xl font-black uppercase text-ink mt-12 mb-6 tracking-tighter leading-none",
+                                        h2: "text-2xl md:text-3xl font-black uppercase tracking-tighter text-ink mt-10 mb-4 border-b-2 border-lassez-border pb-2",
+                                        h3: "text-xl md:text-2xl font-bold uppercase tracking-tight text-lassez-red mt-8 mb-3",
+                                        h4: "text-lg md:text-xl font-semibold text-ink mt-6 mb-2",
+                                        h5: "text-base font-bold font-mono text-ink mt-4 mb-2 uppercase",
+                                        h6: "text-sm font-bold font-mono text-ink mt-4 mb-2 uppercase opacity-50",
+                                    };
+                                    return (
+                                        <Tag className={classes[Tag] || ''} id={node.value?.id || undefined}>
+                                            {nodesToJSX({ nodes: node.children })}
+                                        </Tag>
+                                    );
+                                },
+                                list: ({ node, nodesToJSX }: any) => {
+                                    const Tag = node.tag === 'ol' ? 'ol' : 'ul';
+                                    const baseClass = "my-6 pl-8 space-y-2";
+                                    return (
+                                        <Tag className={`${baseClass} ${node.tag === 'ol' ? 'list-decimal font-mono text-sm' : 'list-disc'}`}>
+                                            {nodesToJSX({ nodes: node.children })}
+                                        </Tag>
+                                    );
+                                },
+                                paragraph: ({ node, nodesToJSX }: any) => {
+                                    if (node.children?.length === 0) return <br className="my-2" />;
+                                    return (
+                                        <p className="my-5 text-base md:text-lg leading-relaxed">
+                                            {nodesToJSX({ nodes: node.children })}
+                                        </p>
+                                    );
+                                }
+                            })}
+                        />
+                    </div>
+                ) : (
+                    <div
+                        className={`prose prose-neutral prose-sm sm:prose-base max-w-none ${readerMode ? 'prose-p:text-justify font-serif' : 'text-ink'}`}
+                        dangerouslySetInnerHTML={{ __html: bodyHtml }}
+                    />
+                )}
 
                 <div className="mt-10 md:mt-16 pt-6 border-t-4 border-double border-lassez-border text-center font-mono text-[8px] uppercase tracking-widest text-ink/20">
                     /// TRANSMISSION TERMINÉE ///
@@ -166,7 +308,7 @@ const ArticleClient: React.FC<ArticleClientProps> = ({ post, relatedPosts, slug 
 
             </article>
 
-            {!readerMode && (
+            {!readerMode && !isEditorialVariant && (
                 <div className="px-4 md:px-0 space-y-12">
                     <CallToActionBlock onShare={handleShare} />
 

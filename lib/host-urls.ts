@@ -10,7 +10,19 @@ function normalizeUrl(value: string) {
 }
 
 export function getPublicSiteOrigin() {
-    return normalizeUrl(process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:5173');
+    const previewOverride = normalizeUrl(
+        process.env.PAYLOAD_PREVIEW_SITE_URL || process.env.PAYLOAD_PUBLIC_SITE_URL || ''
+    );
+    if (previewOverride) return previewOverride;
+
+    const siteUrl = normalizeUrl(process.env.NEXT_PUBLIC_SITE_URL || '');
+
+    if (process.env.NODE_ENV !== 'production') {
+        if (!siteUrl) return 'http://localhost:5173';
+        return siteUrl || 'http://localhost:5173';
+    }
+
+    return siteUrl || 'http://localhost:5173';
 }
 
 export function getApiOrigin() {

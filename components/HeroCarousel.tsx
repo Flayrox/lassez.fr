@@ -81,7 +81,7 @@ export default function HeroCarousel({ posts }: HeroCarouselProps) {
                     >
                         {/* Article images + gradients */}
                         {posts.map((post, idx) => {
-                            const imgUrl = post._embedded?.['wp:featuredmedia']?.[0]?.source_url || `https://picsum.photos/seed/${post.id}/1200/800`;
+                            const imgUrl = (typeof post.featuredImage === 'object' && post.featuredImage?.url) ? post.featuredImage.url : `https://picsum.photos/seed/${post.id}/1200/800`;
                             const isActive = idx === currentIndex;
                             return (
                                 <div
@@ -91,7 +91,7 @@ export default function HeroCarousel({ posts }: HeroCarouselProps) {
                                 >
                                     <img
                                         src={imgUrl}
-                                        alt={post.title.rendered}
+                                        alt={post.title}
                                         className={`absolute inset-0 w-full h-full object-cover transition-transform duration-[10s] ease-out ${isActive ? 'scale-[1.04]' : 'scale-100'}`}
                                     />
                                     <div className="absolute inset-0 bg-gradient-to-br from-black/5 via-transparent to-black/50 pointer-events-none" />
@@ -146,7 +146,7 @@ export default function HeroCarousel({ posts }: HeroCarouselProps) {
 
                 {/* Article text overlays */}
                 {posts.map((post, idx) => {
-                    const catArr = post._embedded?.['wp:term']?.[0] || [];
+                    const categories = Array.isArray(post.categories) ? post.categories.filter((cat): cat is any => typeof cat === 'object') : [];
                     const isActive = idx === currentIndex;
                     return (
                         <Link
@@ -164,7 +164,7 @@ export default function HeroCarousel({ posts }: HeroCarouselProps) {
                                     <span
                                         className="font-serif font-black text-lg sm:text-xl md:text-3xl lg:text-[2rem] uppercase tracking-tight text-ink bg-paper group-hover/card:bg-yellow-100 transition-colors duration-300 px-2 py-[2px] sm:px-3 sm:py-[3px] md:px-4 md:py-[3px] box-decoration-clone"
                                     >
-                                        <span dangerouslySetInnerHTML={{ __html: post.title.rendered }} />
+                                        <span dangerouslySetInnerHTML={{ __html: post.title }} />
                                     </span>
                                 </h2>
 
@@ -173,13 +173,13 @@ export default function HeroCarousel({ posts }: HeroCarouselProps) {
 
                                 {/* Category & Date */}
                                 <div className="flex font-mono text-[8px] sm:text-[10px] md:text-xs items-end justify-end">
-                                    {catArr.length > 0 && (
+                                    {categories.length > 0 && (
                                         <span className="bg-paper text-ink px-2 py-1 sm:px-3 sm:py-1.5 md:px-4 md:py-2 inline-flex items-center font-black uppercase group-hover/card:bg-yellow-100 transition-colors duration-300">
-                                            {catArr[0].name}
+                                            {categories[0].name}
                                         </span>
                                     )}
                                     <span className="bg-ink text-paper px-2 py-1 sm:px-3 sm:py-1.5 md:px-4 md:py-2 inline-flex items-center font-bold tracking-widest uppercase">
-                                        {format(new Date(post.date), 'dd.MM.yyyy', { locale: fr })}
+                                        {format(new Date(post.publishedAt || post.createdAt), 'dd.MM.yyyy', { locale: fr })}
                                     </span>
                                 </div>
                             </div>

@@ -1,5 +1,25 @@
 import { withPayload } from '@payloadcms/next/withPayload';
 
+const isProd = process.env.NODE_ENV === 'production';
+const cspDirectives = [
+    "default-src 'self'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "frame-src 'self' https://lassez.fr https://*.lassez.fr http://localhost:5173 https://localhost:5173 http://127.0.0.1:5173 https://127.0.0.1:5173",
+    "frame-ancestors 'self' https://api.lassez.fr http://api.localhost:5173 https://api.localhost:5173 http://localhost:5173 https://localhost:5173",
+    "object-src 'none'",
+    "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://cdn.tailwindcss.com https://unpkg.com https://stats.lassez.fr http://stats.lassez.fr blob:",
+    "worker-src 'self' blob:",
+    "connect-src * 'self' blob: data:",
+    `img-src * 'self' blob: data:`,
+    `media-src * 'self' blob: data:`,
+    "font-src * 'self' data:",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.tailwindcss.com",
+    ...(isProd ? ['upgrade-insecure-requests'] : []),
+];
+
+const contentSecurityPolicy = `${cspDirectives.join('; ')};`;
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
     serverExternalPackages: ['better-sqlite3', 'ffmpeg-static', 'pg'],
@@ -21,10 +41,6 @@ const nextConfig = {
                 source: '/(.*)',
                 headers: [
                     {
-                        key: 'X-Frame-Options',
-                        value: 'SAMEORIGIN',
-                    },
-                    {
                         key: 'X-Content-Type-Options',
                         value: 'nosniff',
                     },
@@ -38,7 +54,7 @@ const nextConfig = {
                     },
                     {
                         key: 'Content-Security-Policy',
-                        value: "default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'; object-src 'none'; script-src 'self' 'unsafe-eval' 'unsafe-inline' https://cdn.tailwindcss.com https://unpkg.com https://stats.lassez.fr http://stats.lassez.fr blob:; worker-src 'self' blob:; connect-src 'self' https://api.lassez.fr https://unpkg.com https://stats.lassez.fr http://stats.lassez.fr https://fonts.googleapis.com https://fonts.gstatic.com blob: data:; img-src 'self' blob: data: https:; media-src 'self' blob: data: https:; font-src 'self' https://fonts.gstatic.com data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.tailwindcss.com; upgrade-insecure-requests;",
+                        value: contentSecurityPolicy,
 
                     }
                 ],

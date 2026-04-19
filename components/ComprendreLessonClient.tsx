@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { WPPost, WPTerm } from '../types';
 import Link from 'next/link';
 import ReadingProgress from './ReadingProgress';
@@ -11,15 +11,52 @@ import { SaveIcon } from './icons';
 
 interface Props {
     post: WPPost;
+    livePreviewServerURL?: string;
+    isPreview?: boolean;
 }
 
-const ComprendreLessonClient: React.FC<Props> = ({ post }) => {
+function getRenderedField(value: unknown): string {
+    if (typeof value === 'string') return value;
+    if (value && typeof value === 'object' && 'rendered' in value) {
+        const rendered = (value as { rendered?: unknown }).rendered;
+        return typeof rendered === 'string' ? rendered : '';
+    }
+    return '';
+}
+
+const ComprendreLessonClient: React.FC<Props> = ({ post: initialPost, livePreviewServerURL, isPreview = false }) => {
     const articleRef = useRef<HTMLElement>(null);
     const progress = useProgress();
 
+    const [post, setPost] = useState<WPPost>(initialPost as any);
+
+    useEffect(() => {
+        if (!isPreview) return;
+
+        const handleMessage = (event: MessageEvent) => {
+            if (event.data && event.data.type === 'payload-live-preview') {
+                if (event.data.data) {
+                    setPost((prev) => ({ ...prev, ...event.data.data }));
+                }
+            }
+        };
+
+        window.addEventListener('message', handleMessage);
+
+        const parent = window.opener || window.parent;
+        if (parent && parent !== window) {
+            parent.postMessage({ type: 'payload-live-preview', ready: true }, '*');
+        }
+
+        return () => window.removeEventListener('message', handleMessage);
+    }, [isPreview]);
+
     // Safety check just in case
-    const categories: WPTerm[] = post._embedded?.['wp:term']?.[0] || [];
+    const categories: WPTerm[] = (post as any)?._embedded?.['wp:term']?.[0] || [];
     const isCompleted = progress.isCompleted(post.id);
+    const titleHtml = getRenderedField((post as any).title);
+    const excerptHtml = getRenderedField((post as any).excerpt);
+    const contentHtml = getRenderedField((post as any).content);
 
     const handleMarkAsCompleted = () => {
         progress.markAsCompleted(post.id);
@@ -37,6 +74,15 @@ const ComprendreLessonClient: React.FC<Props> = ({ post }) => {
 
     return (
         <div className="max-w-3xl mx-auto relative pb-20 bg-paper min-h-screen font-serif text-ink">
+            {isPreview && (
+                <div className="sticky top-2 z-50 mx-4 md:mx-0 mb-4 flex justify-center">
+                    <div className="inline-flex items-center gap-2 rounded-full border-2 border-amber-300 bg-amber-300 px-3 py-1 font-mono text-[10px] font-black uppercase tracking-widest text-black shadow-hard-sm">
+                        <span>Preview brouillon</span>
+                        <span className="opacity-70">Comprendre</span>
+                    </div>
+                </div>
+            )}
+
             <ReadingProgress />
 
             {/* Barre de navigation minimaliste */}
@@ -63,19 +109,19 @@ const ComprendreLessonClient: React.FC<Props> = ({ post }) => {
                     </div>
                     <h1
                         className="font-black text-3xl sm:text-4xl md:text-5xl uppercase tracking-tighter leading-none text-ink mb-6"
-                        dangerouslySetInnerHTML={{ __html: post.title.rendered }}
+                        dangerouslySetInnerHTML={{ __html: titleHtml }}
                     />
                     <div className="h-1 w-12 bg-lassez-red mb-6" />
 
                     {/* Excerpt intro */}
                     <div
                         className="text-lg md:text-xl text-ink/70 italic leading-relaxed max-w-2xl text-left md:text-center"
-                        dangerouslySetInnerHTML={{ __html: post.excerpt.rendered }}
+                        dangerouslySetInnerHTML={{ __html: excerptHtml }}
                     />
                 </header>
 
                 <div className="prose prose-neutral prose-lg max-w-none text-ink prose-p:leading-relaxed prose-headings:font-black prose-headings:uppercase prose-headings:tracking-tighter prose-a:text-lassez-red prose-a:underline prose-a:decoration-2 prose-a:underline-offset-4 hover:prose-a:text-ink">
-                    <div dangerouslySetInnerHTML={{ __html: post.content.rendered }} />
+                    <div dangerouslySetInnerHTML={{ __html: contentHtml }} />
                 </div>
 
                 <div className="mt-20 pt-10 border-t-8 border-ink">

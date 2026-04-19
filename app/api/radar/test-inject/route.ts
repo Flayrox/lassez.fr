@@ -12,7 +12,7 @@ function getDb() {
 export async function POST(request: Request) {
     try {
         const db = getDb();
-        const testContent = "Ceci est un article de test généré manuellement depuis le Dashboard. Il sert à vérifier le bon fonctionnement de la publication, du cache visuel algorithmique et de l'intégration avec WordPress.";
+        const testContent = "Ceci est un article de test généré manuellement depuis le Dashboard. Il sert à vérifier le bon fonctionnement de la publication, du cache visuel algorithmique et de l'intégration avec Payload.";
 
         const timestamp = Date.now();
         const info = db.prepare(`

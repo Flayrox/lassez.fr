@@ -57,7 +57,7 @@ npm run build
 - Admin UI: https://api.lassez.fr/admin (or https://lassez.fr/admin)
 - REST test: https://api.lassez.fr/api/payload/posts
 - GraphQL: https://api.lassez.fr/api/payload-graphql
-- App bridge test: https://lassez.fr/api/wp/posts
+- App API test: https://lassez.fr/api/posts
 
 ## 6) Domain routing options
 
@@ -71,18 +71,10 @@ Option B (fallback): expose everything on lassez.fr.
 - Admin at /admin
 - API at /api/payload
 
-## 7) Safe rollback
-
-If needed, switch:
-
-CMS_PROVIDER=wordpress
-
-No code rollback required.
-
-## 8) Day-1 checklist
+## 7) Day-1 checklist
 
 - First admin account can log in
 - Categories seeded: enquetes, revelations, comprendre
 - /api/payload/posts returns 200
-- /api/wp/posts returns 200 with CMS_PROVIDER=payload
+- /api/posts returns 200
 - Cache invalidation webhook still works

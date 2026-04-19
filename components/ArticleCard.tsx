@@ -1,10 +1,11 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { WPPost, WPTerm } from '../types';
+import { WPPost, WPTerm, WPCategory } from '../types';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { getArticleUrl } from '../lib/getArticleUrl';
+import { sanitizeHtmlForRender } from '../lib/sanitizeHtmlForRender';
 
 interface ArticleCardProps {
     post: WPPost;
@@ -13,9 +14,11 @@ interface ArticleCardProps {
 }
 
 const ArticleCard: React.FC<ArticleCardProps> = ({ post, tag, featured = false }) => {
-    const imageUrl = post._embedded?.['wp:featuredmedia']?.[0]?.source_url || `https://picsum.photos/seed/${post.id}/800/600`;
-    const author = post._embedded?.author[0]?.name || "Rédaction";
-    const categories: WPTerm[] = post._embedded?.['wp:term']?.[0] || [];
+    const imageUrl = (typeof post.featuredImage === 'object' && post.featuredImage?.url) ? post.featuredImage.url : `https://picsum.photos/seed/${post.id}/800/600`;
+    const author = (typeof post.author === 'object' && post.author?.name) ? post.author.name : "Rédaction";
+    const categories = Array.isArray(post.categories) ? post.categories.filter((cat): cat is WPCategory => typeof cat === 'object') : [];
+    const titleHtml = sanitizeHtmlForRender(post.title);
+    const excerptHtml = sanitizeHtmlForRender(post.excerpt || '');
 
     return (
         <Link href={getArticleUrl(post)} className="block h-full group">
@@ -46,14 +49,14 @@ const ArticleCard: React.FC<ArticleCardProps> = ({ post, tag, featured = false }
                 <div className={`relative border-b-2 border-lassez-border bg-ink/5 scanline overflow-hidden ${featured ? 'h-64 sm:h-[450px]' : 'h-52'}`}>
                     <img
                         src={imageUrl}
-                        alt={post.title.rendered}
+                        alt={post.title}
                         className={`w-full h-full object-cover group-hover:scale-105 transition-all duration-500`}
                     />
                 </div>
 
                 <div className="p-3 md:p-4 flex flex-col flex-grow bg-paper-bright relative z-10">
                     <div className="mb-2 flex items-center text-[9px] font-mono font-bold uppercase tracking-widest text-ink/40 border-b border-ink/10 pb-1.5">
-                        <span>{format(new Date(post.date), 'dd.MM.yyyy', { locale: fr })}</span>
+                        <span>{format(new Date(post.publishedAt || post.createdAt), 'dd.MM.yyyy', { locale: fr })}</span>
                         <span className="mx-2">/</span>
                         <span className="text-lassez-red">{author.toUpperCase()}</span>
                     </div>
@@ -61,12 +64,12 @@ const ArticleCard: React.FC<ArticleCardProps> = ({ post, tag, featured = false }
                     <h3
                         className={`font-serif font-black leading-[1.1] text-ink transition-colors ${featured ? 'text-xl md:text-2xl lg:text-3xl tracking-tighter uppercase' : 'text-sm md:text-base tracking-tight uppercase'}`}
                     >
-                        <span className="text-highlight" dangerouslySetInnerHTML={{ __html: post.title.rendered }} />
+                        <span className="text-highlight" dangerouslySetInnerHTML={{ __html: titleHtml }} />
                     </h3>
 
                     <div
                         className={`mt-2 font-serif text-ink/70 line-clamp-2 leading-snug ${featured ? 'text-base md:text-lg border-l-4 border-lassez-border pl-4' : 'text-xs'}`}
-                        dangerouslySetInnerHTML={{ __html: post.excerpt.rendered }}
+                        dangerouslySetInnerHTML={{ __html: excerptHtml }}
                     />
 
                     <div className="mt-auto pt-4 flex items-center justify-between">

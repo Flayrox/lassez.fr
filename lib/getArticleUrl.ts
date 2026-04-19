@@ -1,4 +1,5 @@
-import { WPPost } from '../types';
+import { WPPost, WPCategory } from '../types';
+import { resolveCanonicalArticlePath } from '../payload/lib/editorial';
 
 /**
  * Retourne l'URL en silo d'un article : /[categorie]/[slug]
@@ -7,23 +8,13 @@ import { WPPost } from '../types';
  * - Fallback si pas de catégorie → /article/[slug] (redirigé en 301)
  */
 export function getArticleUrl(post: WPPost): string {
-  const categories = post._embedded?.['wp:term']?.[0] || [];
-
-  if (categories.length === 0) {
-    return `/article/${post.slug}`;
+  const categories = post.categories || [];
+  let primaryCategorySlug = null;
+  if (categories.length > 0) {
+    const cat = categories[0];
+    primaryCategorySlug = typeof cat === 'object' && cat !== null ? cat.slug : null;
   }
-
-  const primaryCat = categories[0];
-
-  if (primaryCat.slug === 'revelations') {
-    return `/revelations/${post.slug}`;
-  }
-
-  if (primaryCat.slug === 'comprendre') {
-    return `/comprendre/${post.slug}`;
-  }
-
-  return `/${primaryCat.slug}/${post.slug}`;
+  return resolveCanonicalArticlePath(post.slug, primaryCategorySlug) || `/article/${post.slug}`;
 }
 
 /**
@@ -31,7 +22,8 @@ export function getArticleUrl(post: WPPost): string {
  * Utilisé pour la page [categorie]/[slug] et le BreadcrumbList.
  */
 export function getArticleCategorySlug(post: WPPost): string {
-  const categories = post._embedded?.['wp:term']?.[0] || [];
+  const categories = post.categories || [];
   if (categories.length === 0) return 'article';
-  return categories[0].slug;
+  const cat = categories[0];
+  return (typeof cat === 'object' && cat !== null) ? cat.slug : 'article';
 }

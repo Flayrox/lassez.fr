@@ -13,7 +13,7 @@ export async function GET() {
     const healthStatus: any = {
         database: { status: 'loading', message: '' },
         gemini: { status: 'loading', message: '' },
-        wordpress: { status: 'loading', message: '' },
+        payload: { status: 'loading', message: '' },
         mastodon: { status: 'loading', message: '' },
         bluesky: { status: 'loading', message: '' },
         twitter: { status: 'loading', message: '' },
@@ -76,30 +76,30 @@ export async function GET() {
         healthStatus.gemini = { status: 'error', message: e.message };
     }
 
-    // 3. WORDPRESS
+    // 3. PAYLOAD CMS
     try {
-        if (!process.env.WP_URL || !process.env.WP_USER || !process.env.WP_PASSWORD) throw new Error("Identifiants / URL manquants");
+        if (!process.env.PAYLOAD_URL || !process.env.PAYLOAD_BOT_EMAIL || !process.env.PAYLOAD_BOT_PASSWORD) throw new Error("Identifiants Payload manquants (.env)");
         
-        const wpTokenEndpoint = `${process.env.WP_URL.replace(/\/$/, '')}/wp-json/jwt-auth/v1/token`;
-        const res = await fetch(wpTokenEndpoint, {
+        const tokenEndpoint = `${process.env.PAYLOAD_URL.replace(/\/$/, '')}/api/authors/login`;
+        const res = await fetch(tokenEndpoint, {
             method: 'POST',
             headers: { 
                 'Content-Type': 'application/json',
                 'User-Agent': 'lassez-radar/1.0'
             },
             body: JSON.stringify({
-                username: process.env.WP_USER,
-                password: process.env.WP_PASSWORD
+                email: process.env.PAYLOAD_BOT_EMAIL,
+                password: process.env.PAYLOAD_BOT_PASSWORD
             })
         });
         
         if (res.ok) {
-            healthStatus.wordpress = { status: 'ok', message: 'Connecté' };
+            healthStatus.payload = { status: 'ok', message: 'Connecté' };
         } else {
-            healthStatus.wordpress = { status: 'error', message: `Erreur HTTP ${res.status} (Accès refusé)` };
+            healthStatus.payload = { status: 'error', message: `Erreur HTTP ${res.status} (Accès refusé)` };
         }
     } catch (e: any) {
-        healthStatus.wordpress = { status: 'error', message: e.message };
+        healthStatus.payload = { status: 'error', message: e.message };
     }
 
     // 4. MASTODON

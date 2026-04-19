@@ -1,11 +1,17 @@
-
 import useSWR from 'swr';
-import { WPCategory } from '../types';
-import { fetcher } from '../lib/api';
+import type { Category } from '../payload-types';
 
+const fetcher = (url: string) => fetch(url).then(r => {
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    return r.json();
+});
+
+/**
+ * Hook de récupération des catégories Payload.
+ */
 export function useCategories() {
-    const { data, error, isLoading } = useSWR<WPCategory[]>(
-        `/api/wp/categories?per_page=100`,
+    const { data, error, isLoading } = useSWR<{ docs: Category[] }>(
+        '/api/categories?per_page=100',
         fetcher,
         {
             revalidateOnFocus: false,
@@ -14,8 +20,8 @@ export function useCategories() {
     );
 
     return {
-        categories: data || [],
+        categories: data?.docs ?? (Array.isArray(data) ? data : []),
         isLoading,
-        error
+        error,
     };
 }

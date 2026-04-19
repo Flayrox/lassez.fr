@@ -57,12 +57,8 @@ Run in project root once the app has env variables:
 1. https://api.lassez.fr/admin
 2. https://api.lassez.fr/api/payload/posts
 3. https://api.lassez.fr/api/payload-graphql
-4. https://lassez.fr/api/wp/posts
+4. https://lassez.fr/api/posts
 
-## 6. Quick fallback if needed
+## 6. Quick recovery if needed
 
-If something breaks in production, set:
-
-CMS_PROVIDER=wordpress
-
-Then restart Node.js app.
+If something breaks in production, verify required env vars first (PAYLOAD_SECRET, DATABASE_URL, PAYLOAD_SERVER_URL, NEXT_PUBLIC_SITE_URL), then restart the Node.js app.

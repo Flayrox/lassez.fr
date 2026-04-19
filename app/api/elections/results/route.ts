@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import Database from 'better-sqlite3';
 import path from 'path';
 import { logToDaemon, errorToDaemon } from '../../logger';
+import { fetchWithTimeout } from '@/lib/fetch-timeout';
 
 export const dynamic = 'force-dynamic';
 const syncLocks = new Map<string, Promise<void>>();
@@ -352,7 +353,11 @@ export async function GET(request: Request) {
     if (studioBase && !process.env.IS_STUDIO) {
         try {
             const qs = searchParams.toString();
-            const res = await fetch(`${studioBase}/api/elections/results${qs ? `?${qs}` : ''}`, { cache: 'no-store' });
+            const res = await fetchWithTimeout(
+                `${studioBase}/api/elections/results${qs ? `?${qs}` : ''}`,
+                { cache: 'no-store' },
+                1800
+            );
             const data = await res.json();
             return NextResponse.json(data, {
                 status: res.status,

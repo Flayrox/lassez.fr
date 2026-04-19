@@ -2,7 +2,7 @@ const { Client } = require('ssh2');
 const fs = require('fs');
 const path = require('path');
 
-const host = process.env.VPS_HOST || '116.203.158.47';
+const host = process.env.VPS_HOST || '178.104.197.3';
 const port = Number(process.env.VPS_PORT || 22);
 const username = process.env.VPS_USER || 'root';
 const password = process.env.VPS_PASSWORD || 'wung7vNXJePU';

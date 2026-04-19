@@ -1,0 +1,18 @@
+
+> ouiouiuiuoiuiu@0.0.0 payload:seed:fixtures
+> payload run ./payload/seed-generic-posts.ts
+
+[16:57:20] [33mWARN[39m: [36mNo email adapter provided. Email will be written to console. More info at https://payloadcms.com/docs/email/overview.[39m
+[16:57:20] [33mWARN[39m: [36mSkip fixture enquetes: category not found.[39m
+Generic post fixture seed failed.
+Error: You cannot use the lexicalHTML field because the linked lexical field does not have a HTMLConverterFeature
+    at hooks.afterRead (D:\Admin\Downloads\Archive 2\node_modules\@payloadcms\richtext-lexical\src\features\converters\lexicalToHtml_deprecated\field\index.ts:153:19)
+    at promise (D:\Admin\Downloads\Archive 2\node_modules\payload\src\fields\hooks\afterRead\promise.ts:319:37)
+    at <anonymous> (D:\Admin\Downloads\Archive 2\node_modules\payload\src\fields\hooks\afterRead\traverseFields.ts:96:7)
+    at Array.forEach (<anonymous>)
+    at traverseFields (D:\Admin\Downloads\Archive 2\node_modules\payload\src\fields\hooks\afterRead\traverseFields.ts:94:10)
+    at afterRead (D:\Admin\Downloads\Archive 2\node_modules\payload\src\fields\hooks\afterRead\index.ts:77:3)
+    at createOperation (D:\Admin\Downloads\Archive 2\node_modules\payload\src\collections\operations\create.ts:363:20)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async script (D:\Admin\Downloads\Archive 2\payload\seed-generic-posts.ts:161:13)
+    at async <anonymous> (D:\Admin\Downloads\Archive 2\payload\seed-generic-posts.ts:217:5)

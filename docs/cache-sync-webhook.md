@@ -9,7 +9,7 @@ This document enables the VPS -> public-site signed webhook flow for cache inval
 Set on the server where `radar-admin` runs:
 
 - `RADAR_CACHE_SYNC_SECRET`: shared HMAC secret (32+ random chars)
-- `RADAR_CACHE_SYNC_ALLOWED_IPS`: comma-separated VPS IP allowlist (example: `116.203.158.47`)
+- `RADAR_CACHE_SYNC_ALLOWED_IPS`: comma-separated VPS IP allowlist (example: `178.104.197.3`)
 
 ### VPS daemon side
 

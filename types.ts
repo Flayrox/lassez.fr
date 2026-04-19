@@ -1,57 +1,10 @@
+import type { Post as PayloadPost, Category as PayloadCategory, Tag as PayloadTag, Media as PayloadMedia, Author as PayloadAuthor } from './payload-types';
 
-export interface WPMedia {
-  source_url: string;
-}
-
-export interface WPAuthor {
-  name: string;
-  avatar_urls?: {
-    [key: string]: string;
-  };
-}
-
-export interface WPTerm {
-  id: number;
-  name: string;
-  slug: string;
-}
-
-export interface WPCategory {
-  id: number;
-  name: string;
-  slug: string;
-  count: number;
-}
-
-export interface WPPost {
-  id: number;
-  date: string;
-  slug: string;
-  title: {
-    rendered: string;
-  };
-  excerpt: {
-    rendered: string;
-  };
-  content: {
-    rendered: string;
-  };
-  _embedded?: {
-    author: WPAuthor[];
-    'wp:featuredmedia'?: WPMedia[];
-    'wp:term'?: WPTerm[][];
-  };
-  // Support for Advanced Custom Fields (ACF)
-  acf?: {
-    key_points?: string | string[]; // Can be a textarea string or array depending on setup
-    chart_data?: string; // JSON string for BarChart
-    source_pdf_url?: string;
-    security_level?: string;
-    chapitre_comprendre?: string;
-    lecon_comprendre?: number;
-  };
-  categories: number[];
-}
+export type WPPost = PayloadPost;
+export type WPCategory = PayloadCategory;
+export type WPTerm = PayloadTag;
+export type WPAuthor = PayloadAuthor;
+export type WPMedia = PayloadMedia;
 
 export interface NavItem {
   slug: string;

@@ -1,45 +1,175 @@
-html,
-body {
-	background: #f3efe6;
-}
-
-body {
-	color: #141414;
+[data-payload] {
 	font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+	--admin-link: #8b1f1a;
+	--admin-link-hover: #6b1713;
+	--admin-search-bg: var(--theme-elevation-100);
+	--admin-search-border: var(--theme-elevation-250);
+	--admin-search-icon: var(--theme-elevation-500);
+	--admin-search-placeholder: var(--theme-elevation-500);
 }
 
-button,
-input,
-textarea,
-select {
-	border-radius: 0.75rem;
+html[data-theme='light'] [data-payload] {
+
+	/* High-contrast editorial light theme tuned for Payload tokens */
+	--theme-bg: #f6f5f1;
+	--theme-text: #111111;
+	--theme-input-bg: #ffffff;
+	--theme-border-color: #d8d5cd;
+
+	--theme-elevation-0: #ffffff;
+	--theme-elevation-50: #f3f1ec;
+	--theme-elevation-100: #ebe8df;
+	--theme-elevation-150: #dfdbd1;
+	--theme-elevation-200: #d2cdc1;
+	--theme-elevation-250: #c3bdae;
+	--theme-elevation-300: #b1aa9a;
+	--theme-elevation-350: #9d9584;
+	--theme-elevation-400: #887f6e;
+	--theme-elevation-450: #756d5d;
+	--theme-elevation-500: #635c4f;
+	--theme-elevation-550: #565043;
+	--theme-elevation-600: #4a4439;
+	--theme-elevation-650: #403a30;
+	--theme-elevation-700: #353028;
+	--theme-elevation-750: #2c2721;
+	--theme-elevation-800: #23201b;
+	--theme-elevation-850: #1d1a16;
+	--theme-elevation-900: #171512;
+	--theme-elevation-950: #11100d;
+	--theme-elevation-1000: #0b0a08;
+
+	--theme-success-100: #d8f4e3;
+	--theme-success-150: #bff0d2;
+	--theme-success-200: #a2e7be;
+	--theme-success-400: #2b9b58;
+	--theme-success-500: #1f7d45;
+	--theme-success-600: #156235;
+
+	--theme-warning-100: #fff2d6;
+	--theme-warning-150: #ffe8bd;
+	--theme-warning-200: #ffdc96;
+	--theme-warning-400: #c27a11;
+	--theme-warning-600: #8a5206;
+
+	--theme-error-100: #ffe1df;
+	--theme-error-150: #ffc6c1;
+	--theme-error-200: #ffaca5;
+	--theme-error-400: #d1433a;
+	--theme-error-500: #b62f27;
+	--theme-error-600: #96221c;
+	--theme-error-800: #4f0d0a;
+
+	--admin-link: #8b1f1a;
+	--admin-link-hover: #6b1713;
+	--admin-search-bg: #ebe8df;
+	--admin-search-border: #d2cdc1;
+	--admin-search-icon: #635c4f;
+	--admin-search-placeholder: #756d5d;
 }
 
-input,
-textarea,
-select {
-	border-color: rgba(20, 20, 20, 0.18);
-	background: #fffdf8;
+html[data-theme='dark'] [data-payload] {
+	--admin-link: #f2b77d;
+	--admin-link-hover: #ffd6ae;
+	--admin-search-bg: var(--theme-elevation-100);
+	--admin-search-border: var(--theme-elevation-250);
+	--admin-search-icon: var(--theme-elevation-550);
+	--admin-search-placeholder: var(--theme-elevation-500);
 }
 
-input:focus,
-textarea:focus,
-select:focus {
-	box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.18);
-	border-color: #dc2626;
+[data-payload] .btn {
+	font-weight: 600;
+}
+
+[data-payload] .btn--style-primary {
+	--bg-color: var(--theme-elevation-900);
+	--color: var(--theme-elevation-0);
+	--hover-bg: var(--theme-elevation-800);
+	--hover-color: var(--theme-elevation-0);
+}
+
+html[data-theme='dark'] [data-payload] .btn--style-primary {
+	--bg-color: var(--theme-elevation-100);
+	--color: var(--theme-elevation-900);
+	--hover-bg: var(--theme-elevation-200);
+	--hover-color: var(--theme-elevation-900);
+}
+
+[data-payload] .btn--style-secondary {
+	--color: var(--theme-text);
+	--btn-border: 1px solid var(--theme-elevation-350);
+	--hover-color: var(--theme-text);
+	--hover-btn-border: 1px solid var(--theme-elevation-500);
+}
+
+[data-payload] .list-header__actions .btn,
+[data-payload] .no-results__actions .btn {
+	min-height: 34px;
+}
+
+[data-payload] .search-bar {
+	background-color: var(--admin-search-bg);
+	border: 1px solid var(--admin-search-border);
+	min-height: 44px;
+}
+
+[data-payload] .search-bar .icon--search {
+	width: 36px;
+	color: var(--admin-search-icon);
+}
+
+[data-payload] .search-bar .search-filter__input {
+	padding-top: 10px;
+	padding-bottom: 10px;
+	padding-inline-start: 40px;
+	padding-inline-end: 12px;
+	line-height: 1.2;
+	color: var(--theme-text);
+}
+
+[data-payload] .search-bar .search-filter__input::placeholder {
+	color: var(--admin-search-placeholder);
+	opacity: 1;
+}
+
+[data-payload] .search-bar__actions {
+	padding: 6px;
+	gap: 6px;
+}
+
+[data-payload] .nav-group__toggle,
+[data-payload] .nav a {
+	color: var(--theme-elevation-750);
+}
+
+[data-payload] .nav-group__toggle:hover,
+[data-payload] .nav a:hover {
+	color: var(--theme-elevation-950);
+}
+
+[data-payload] .table thead {
+	color: var(--theme-elevation-600);
 }
 
 [data-payload] h1,
 [data-payload] h2,
 [data-payload] h3,
 [data-payload] h4 {
-	letter-spacing: -0.03em;
+	letter-spacing: -0.02em;
 }
 
 [data-payload] a {
-	color: #b91c1c;
+	color: var(--admin-link);
 }
 
 [data-payload] a:hover {
-	color: #7f1d1d;
+	color: var(--admin-link-hover);
+}
+
+[data-payload] .btn:focus-visible,
+[data-payload] .search-bar .search-filter__input:focus-visible,
+[data-payload] input:focus-visible,
+[data-payload] textarea:focus-visible,
+[data-payload] [role='button']:focus-visible {
+	outline: 2px solid var(--admin-link);
+	outline-offset: 2px;
 }

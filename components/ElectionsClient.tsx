@@ -3,17 +3,18 @@
 import React, { useState } from 'react';
 import ElectionResultsLive from './ElectionResultsLive';
 import Link from 'next/link';
-import { WPPost } from '../types';
+import type { Post } from '../payload-types';
 import { getArticleUrl } from '../lib/getArticleUrl';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { regions, departments as deptNames } from '../lib/geo-data';
 import { formatCommuneSlug } from '../lib/seo-engine';
 import { formatElectionLabel } from '../lib/elections';
+import { sanitizeHtmlForRender } from '../lib/sanitizeHtmlForRender';
 
 interface ElectionsClientProps {
     electionSlug: string;
-    articles: WPPost[];
+    articles: Post[];
     departments?: string[];
     initialVille?: string;
     initialDep?: string;
@@ -133,8 +134,15 @@ export default function ElectionsClient({ electionSlug, articles, departments = 
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                         {articles.map(post => {
-                            const imageUrl = post._embedded?.['wp:featuredmedia']?.[0]?.source_url;
-                            const author = post._embedded?.author?.[0]?.name || 'Rédaction';
+                            const imageUrl = typeof post.featuredImage === 'object' && post.featuredImage?.url
+                                ? post.featuredImage.url
+                                : null;
+                            const author = typeof post.author === 'object' && post.author?.name
+                                ? post.author.name
+                                : 'Rédaction';
+                            const titleHtml = sanitizeHtmlForRender(post.title || '');
+                            const excerptText = sanitizeHtmlForRender(post.excerpt || '').replace(/<[^>]+>/g, '');
+                            const postDate = post.publishedAt || post.createdAt;
                             return (
                                 <Link
                                     key={post.id}
@@ -145,22 +153,22 @@ export default function ElectionsClient({ electionSlug, articles, departments = 
                                         <div className="h-36 overflow-hidden border-b-2 border-ink">
                                             <img
                                                 src={imageUrl}
-                                                alt={post.title.rendered}
+                                                alt={titleHtml}
                                                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                                             />
                                         </div>
                                     )}
                                     <div className="p-4">
                                         <div className="font-mono text-[9px] text-ink/40 uppercase font-black mb-2">
-                                            {format(new Date(post.date), 'dd.MM.yyyy', { locale: fr })} — {author.toUpperCase()}
+                                            {postDate ? format(new Date(postDate), 'dd.MM.yyyy', { locale: fr }) : ''} — {author.toUpperCase()}
                                         </div>
                                         <h3
                                             className="font-serif font-black text-sm uppercase leading-tight text-ink group-hover:underline decoration-lassez-red decoration-2 underline-offset-4"
-                                            dangerouslySetInnerHTML={{ __html: post.title.rendered }}
+                                            dangerouslySetInnerHTML={{ __html: titleHtml }}
                                         />
                                         <div
                                             className="font-serif text-xs text-ink/60 line-clamp-2 italic mt-2"
-                                            dangerouslySetInnerHTML={{ __html: post.excerpt.rendered.replace(/<[^>]+>/g, '') }}
+                                            dangerouslySetInnerHTML={{ __html: excerptText }}
                                         />
                                     </div>
                                 </Link>

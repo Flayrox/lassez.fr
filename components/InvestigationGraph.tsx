@@ -7,9 +7,25 @@ import { usePosts } from '../hooks/usePosts';
 import { useCategories } from '../hooks/useCategories';
 import { getArticleUrl } from '../lib/getArticleUrl';
 
+function getRenderedField(value: unknown): string {
+    if (typeof value === 'string') return value;
+    if (value && typeof value === 'object' && 'rendered' in value) {
+        const rendered = (value as { rendered?: unknown }).rendered;
+        return typeof rendered === 'string' ? rendered : '';
+    }
+    return '';
+}
+
+function toIdArray(values: unknown): number[] {
+    if (!Array.isArray(values)) return [];
+    return values
+        .map((item) => (typeof item === 'object' && item !== null ? (item as { id?: unknown }).id : item))
+        .map((id) => Number(id))
+        .filter((id) => Number.isFinite(id));
+}
+
 const InvestigationGraph: React.FC = () => {
-    // Fix: hooks return 'data', not 'posts'/'categories' directly
-    const { data: postsData, isLoading: postsLoading } = usePosts('per_page=50&_embed=1');
+    const { posts: postsData, isLoading: postsLoading } = usePosts({ perPage: 50, depth: 1 });
     const { categories: categoriesData, isLoading: categoriesLoading } = useCategories();
     const router = useRouter();
     const graphRef = useRef<any>(null);
@@ -27,12 +43,12 @@ const InvestigationGraph: React.FC = () => {
 
         const nodes = postsData.map((post: any) => ({
             id: post.id,
-            name: post.title.rendered,
+            name: getRenderedField(post.title),
             val: 1,
-            group: post.categories ? post.categories[0] : 0,
+            group: toIdArray(post.categories)[0] || 0,
             slug: post.slug,
-            tags: post.tags || [], // Use TAGS for connections
-            categories: post.categories || [],
+            tags: toIdArray(post.tags),
+            categories: toIdArray(post.categories),
             post
         }));
 

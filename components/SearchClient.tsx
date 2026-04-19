@@ -17,12 +17,16 @@ const SearchClientInner: React.FC = () => {
 
     const { categories } = useCategories();
 
-    let apiQuery = queryFromUrl ? `search=${encodeURIComponent(queryFromUrl)}&per_page=20&_embed` : null;
-    if (apiQuery && activeFilter) {
-        apiQuery += `&categories=${activeFilter}`;
-    }
-
-    const { data: results, isLoading, error } = usePosts(apiQuery);
+    const { posts: results, isLoading, error } = usePosts(
+        queryFromUrl
+            ? {
+                  search: queryFromUrl,
+                  perPage: 20,
+                  category: activeFilter ?? undefined,
+                  depth: 1,
+              }
+            : null
+    );
 
     useEffect(() => {
         setLocalQuery(queryFromUrl);

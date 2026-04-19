@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import Database from 'better-sqlite3';
 import path from 'path';
 import { formatElectionLabel, parseJsonArray } from '@/lib/elections';
+import { fetchWithTimeout } from '@/lib/fetch-timeout';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,7 +27,11 @@ export async function GET() {
     try {
         const studioBase = getStudioBaseUrl();
         if (studioBase && !process.env.IS_STUDIO) {
-            const res = await fetch(`${studioBase}/api/elections/meta?t=${Date.now()}`, { cache: 'no-store' });
+            const res = await fetchWithTimeout(
+                `${studioBase}/api/elections/meta?t=${Date.now()}`,
+                { cache: 'no-store' },
+                1800
+            );
             if (res.ok) {
                 const data = await res.json();
                 return NextResponse.json(data, { headers: { 'Cache-Control': 'public, max-age=60, stale-while-revalidate=120' } });

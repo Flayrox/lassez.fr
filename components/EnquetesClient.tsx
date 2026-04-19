@@ -1,256 +1,299 @@
 'use client';
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import useSWR from 'swr';
 import { useSearchParams } from 'next/navigation';
 import { usePosts } from '../hooks/usePosts';
 import { useCategories } from '../hooks/useCategories';
-import ArticleListItem from './ArticleListItem';
 import { AlertTriangleIcon, SearchIcon, XIcon, LoaderIcon, ChevronLeftIcon } from './icons';
+import { format, parseISO, isValid } from 'date-fns';
+import { fr } from 'date-fns/locale';
+import Link from 'next/link';
+import GlitchImage from './GlitchImage';
+import type { Post, Category } from '../payload-types';
 
 const PER_PAGE = 10;
 
+function safeDate(raw: string | null | undefined): Date | null {
+    if (!raw) return null;
+    try {
+        const d = parseISO(raw);
+        return isValid(d) ? d : null;
+    } catch {
+        return null;
+    }
+}
+
+function getArticleUrl(post: Post): string {
+    const cats = post.categories as Category[] | null;
+    const primarySlug = Array.isArray(cats) && cats.length > 0 && typeof cats[0] === 'object'
+        ? cats[0].slug
+        : null;
+    if (!primarySlug || primarySlug === 'revelations') return `/revelations/${post.slug}`;
+    return `/${primarySlug}/${post.slug}`;
+}
+
+// ─── Carte Article ─────────────────────────────────────────────────────────────────
+function PostCard({ post, index, page }: { post: Post; index: number; page: number }) {
+    const cats = (post.categories as Category[] | null) ?? [];
+    const typedCats = cats.filter((c): c is Category => typeof c === 'object');
+    const cover  = typeof post.featuredImage === 'object' && post.featuredImage?.url
+        ? post.featuredImage.url
+        : `https://picsum.photos/seed/${post.id}/400/300`;
+    const author = typeof post.author === 'object' && post.author?.name
+        ? post.author.name
+        : 'Rédaction';
+    const date   = safeDate(post.publishedAt) ?? safeDate(post.createdAt);
+
+    return (
+        <Link href={getArticleUrl(post)} className="block">
+            <article className="group relative flex flex-col md:flex-row bg-white border-2 border-black shadow-hard hover:shadow-hard-xl hover:-translate-y-1 hover:-translate-x-1 transition-all duration-200 cursor-pointer min-h-[200px]">
+                {/* Image */}
+                <div className="md:w-64 h-48 md:h-auto flex-shrink-0 border-b-2 md:border-b-0 md:border-r-2 border-black relative bg-gray-100 overflow-hidden">
+                    <div className="absolute top-0 left-0 flex flex-wrap gap-1 z-20">
+                        {typedCats.slice(0, 2).map(cat => (
+                            <div key={cat.id} className="bg-black text-white text-[8px] font-black uppercase px-2 py-0.5">
+                                {cat.name}
+                            </div>
+                        ))}
+                    </div>
+                    <div className="absolute inset-0 bg-lassez-red mix-blend-multiply opacity-0 group-hover:opacity-20 transition-opacity z-10 pointer-events-none" />
+                    <GlitchImage src={cover} alt={post.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                </div>
+
+                {/* Content */}
+                <div className="flex flex-col p-4 md:p-6 flex-grow justify-between relative">
+                    <div>
+                        <div className="flex items-center text-[10px] font-mono font-bold text-gray-500 mb-3 border-b-2 border-gray-100 pb-2 uppercase tracking-widest">
+                            <span>{date ? format(date, 'dd.MM.yy', { locale: fr }) : '—'}</span>
+                            <span className="mx-2 text-lassez-red">///</span>
+                            <span>Ag. {author.split(' ')[0]}</span>
+                        </div>
+
+                        <h3
+                            className="text-lg md:text-2xl font-serif font-black text-ink leading-tight mb-3 group-hover:text-lassez-red transition-colors uppercase"
+                            dangerouslySetInnerHTML={{ __html: post.title }}
+                        />
+                        <div
+                            className="text-gray-600 font-sans text-sm leading-relaxed line-clamp-3"
+                            dangerouslySetInnerHTML={{ __html: post.excerpt ?? '' }}
+                        />
+                    </div>
+
+                    <div className="flex items-center justify-end pt-4 mt-2">
+                        <span className="text-[10px] font-mono font-bold uppercase bg-white border-2 border-black px-3 py-1 group-hover:bg-black group-hover:text-white transition-colors shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] group-hover:shadow-none group-hover:translate-x-[2px] group-hover:translate-y-[2px]">
+                            Ouvrir le dossier
+                        </span>
+                    </div>
+                </div>
+            </article>
+        </Link>
+    );
+}
+
+// ─── Page principale Enquêtes ────────────────────────────────────────────────────
 const EnquetesClient: React.FC = () => {
-    const { categories, isLoading: isCatsLoading } = useCategories();
-
-    const mainCategory = categories.find(c => ['enquetes', 'enquete', 'dossiers'].includes(c.slug));
-    const mainCategoryId = mainCategory ? mainCategory.id : null;
-
     const searchParams = useSearchParams();
-    const secteurQuery = searchParams?.get('secteur');
+    const { categories } = useCategories();
 
-    const [selectedSubCategoryIds, setSelectedSubCategoryIds] = useState<number[]>([]);
-    const [searchTerm, setSearchTerm] = useState('');
-    const [currentPage, setCurrentPage] = useState(1);
+    // Secteur depuis l'URL (?secteur=slug), résolu en ID Payload
+    const secteurSlug = searchParams?.get('secteur') ?? null;
+    const selectedCategoryIdFromUrl = useMemo(() => {
+        if (!secteurSlug || categories.length === 0) return null;
+        const found = categories.find((c: any) => c.slug === secteurSlug);
+        return found ? String(found.id) : null;
+    }, [secteurSlug, categories]);
+
+    const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
 
     useEffect(() => {
-        if (isCatsLoading) return;
-        if (secteurQuery) {
-            const cat = categories.find(c => c.slug === secteurQuery);
-            if (cat) {
-                setSelectedSubCategoryIds([cat.id]);
-                setCurrentPage(1);
+        setSelectedCategoryId(selectedCategoryIdFromUrl);
+        setCurrentPage(1);
+    }, [selectedCategoryIdFromUrl]);
+
+    const [searchTerm, setSearchTerm]   = useState('');
+    const [currentPage, setCurrentPage] = useState(1);
+
+    const { posts, total, totalPages, isLoading, error } = usePosts({
+        page: currentPage,
+        perPage: PER_PAGE,
+        search: searchTerm.trim() || undefined,
+        category: selectedCategoryId ?? undefined,
+        depth: 1,
+    });
+
+    // Catégories qui ont au moins un article publié.
+    // On charge un max de 200 articles (depth:0 = IDs seules) pour extraire les cat IDs actifs.
+    const { data: allPostsData } = useSWR<{ docs: { categories: (Category | string | number)[] }[] }>(
+        '/api/posts?per_page=200&depth=1',
+        (url: string) => fetch(url).then(r => r.json()),
+        { revalidateOnFocus: false, dedupingInterval: 120_000 }
+    );
+
+    const activeCategoryIds = useMemo(() => {
+        if (!allPostsData?.docs) return null; // null = pas encore chargé, on n'a rien à filtrer
+        const ids = new Set<string>();
+        for (const p of allPostsData.docs) {
+            const cats = Array.isArray(p.categories) ? p.categories : [];
+            for (const c of cats) {
+                if (typeof c === 'object' && c !== null) ids.add(String((c as Category).id));
+                else if (typeof c === 'string') ids.add(c);
             }
-        } else if (searchParams?.has('reset')) {
-            setSelectedSubCategoryIds([]);
-            setCurrentPage(1);
         }
-    }, [secteurQuery, searchParams, categories, isCatsLoading]);
+        return ids;
+    }, [allPostsData]);
 
-    const queryParams = useMemo(() => {
-        if (isCatsLoading) return null;
-        if (!mainCategoryId) return null;
+    const availableCategories = useMemo(() => {
+        const filtered = categories.filter(c => c.slug !== 'revelations' && (c as any).enabled !== false);
+        // Si les données ne sont pas encore chargées, on montre tout (évite le flash)
+        if (activeCategoryIds === null) return filtered;
+        // Sinon, seulement les catégories qui ont au moins un article
+        return filtered.filter(c => activeCategoryIds.has(String(c.id)));
+    }, [categories, activeCategoryIds]);
 
-        const params = [`page=${currentPage}`, `per_page=${PER_PAGE}`, '_embed'];
-        params.push(`categories=${mainCategoryId}`);
-
-        if (searchTerm.trim()) {
-            params.push(`search=${encodeURIComponent(searchTerm.trim())}`);
-        }
-        return params.join('&');
-    }, [mainCategoryId, selectedSubCategoryIds, searchTerm, currentPage, isCatsLoading]);
-
-    const { data: posts = [], isLoading, error } = usePosts(queryParams || null);
-
-    const availableFilters = useMemo(() => {
-        if (!mainCategoryId || posts.length === 0) return [];
-        const allIds = posts.flatMap(p => p.categories);
-        const uniqueIds = Array.from(new Set(allIds));
-        return uniqueIds
-            .map(id => categories.find(c => c.id === id))
-            .filter(c => c && c.id !== mainCategoryId && c.id !== 1)
-            .sort((a, b) => a!.name.localeCompare(b!.name));
-    }, [posts, categories, mainCategoryId]);
-
-    const filteredPosts = useMemo(() => {
-        if (selectedSubCategoryIds.length === 0) return posts;
-        return posts.filter(post =>
-            selectedSubCategoryIds.some(id => post.categories.includes(id))
-        );
-    }, [posts, selectedSubCategoryIds]);
-
-    const toggleCategory = (id: number) => {
-        setSelectedSubCategoryIds(prev => prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]);
-    };
+    const handleCatToggle = useCallback((id: string) => {
+        setSelectedCategoryId(prev => prev === id ? null : id);
+        setCurrentPage(1);
+    }, []);
 
     const clearFilters = () => {
-        setSelectedSubCategoryIds([]);
+        setSelectedCategoryId(null);
         setSearchTerm('');
         setCurrentPage(1);
     };
 
-    const handlePageChange = (newPage: number) => {
-        setCurrentPage(newPage);
+    const handlePage = (p: number) => {
+        setCurrentPage(p);
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
-    const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setSearchTerm(e.target.value);
-        setCurrentPage(1);
-    };
-
-    const pageNumbers = useMemo(() => {
-        const pages = [];
-        const start = Math.max(1, currentPage - 2);
-        const end = posts.length === PER_PAGE ? currentPage + 2 : currentPage;
-        for (let i = start; i <= end; i++) pages.push(i);
-        return pages;
-    }, [currentPage, posts.length]);
-
     return (
         <div className="relative min-h-screen pb-12">
-            <div className="fixed top-0 right-0 w-32 md:w-64 h-32 md:h-64 border-l-4 border-b-4 border-lassez-border -z-10 opacity-10 md:opacity-20 pointer-events-none"></div>
-
+            {/* Header */}
             <div className="mb-6 md:mb-12 border-b-4 border-lassez-border pb-4 md:pb-8 relative">
-                <div className="hidden md:block absolute -top-6 left-0 bg-ink text-paper px-2 py-1 text-[10px] font-mono uppercase tracking-widest">
-                    Zone Archives - Indexation Paginale
-                </div>
-                <h1 className="text-3xl md:text-7xl font-black uppercase tracking-tightest mb-4 leading-none text-ink">
+                <h1 className="text-3xl md:text-7xl font-black uppercase tracking-tighter mb-4 leading-none text-ink">
                     Dossiers <br className="md:hidden" /><span className="text-lassez-red underline decoration-4 underline-offset-4">d'Enquête</span>
                 </h1>
                 <p className="text-base md:text-xl font-serif italic border-l-4 border-lassez-border pl-4 md:pl-6 py-2 max-w-3xl bg-paper-bright shadow-hard-sm text-ink">
-                    "Nous assemblons les pièces du puzzle que les puissants tentent de disperser."
+                    &laquo;&nbsp;Nous assemblons les pièces du puzzle que les puissants tentent de disperser.&nbsp;&raquo;
                 </p>
             </div>
 
-            <div className="flex flex-col gap-4 mb-8 md:mb-12 p-3 md:p-5 bg-paper-bright border-4 border-lassez-border shadow-hard sticky top-24 z-40">
+            {/* Filtres */}
+            <div className="flex flex-col gap-4 mb-8 p-4 bg-paper-bright border-4 border-lassez-border shadow-hard sticky top-24 z-40">
                 <div className="flex flex-col md:flex-row md:items-center gap-4">
-                    <div className="flex items-center justify-between font-mono font-bold text-[10px] md:text-xs uppercase md:border-r-2 md:border-lassez-border md:pr-4 text-ink">
-                        <span className="flex items-center gap-2">
-                            FILTRAGE_DYNAMIQUE {selectedSubCategoryIds.length > 0 && <span className="bg-lassez-red text-ink px-1 animate-pulse">{selectedSubCategoryIds.length}</span>}
-                        </span>
-                        {(selectedSubCategoryIds.length > 0 || searchTerm) && (
-                            <button onClick={clearFilters} className="md:hidden text-lassez-red underline text-[9px]">Réinitialiser</button>
+                    <span className="font-mono font-bold text-[10px] uppercase text-ink">
+                        SECTEUR
+                        {selectedCategoryId && (
+                            <span className="ml-2 bg-lassez-red text-ink px-1 animate-pulse">1</span>
                         )}
-                    </div>
+                    </span>
 
                     <div className="flex flex-wrap gap-2 flex-1">
-                        {isCatsLoading ? (
-                            <div className="flex items-center gap-2 text-ink/40 font-mono text-[10px]">
-                                <LoaderIcon className="w-3 h-3 animate-spin" /> CHARGEMENT DES SECTEURS...
-                            </div>
-                        ) : availableFilters.length === 0 && posts.length > 0 ? (
-                            <span className="text-xs text-gray-400 font-mono uppercase">Aucun sous-secteur détecté</span>
-                        ) : (
-                            availableFilters.map((cat) => {
-                                if (!cat) return null;
-                                const isSelected = selectedSubCategoryIds.includes(cat.id);
-                                return (
-                                    <button
-                                        key={cat.id}
-                                        onClick={() => toggleCategory(cat.id)}
-                                        className={`px-2 md:px-3 py-1 border-2 border-lassez-border text-[9px] md:text-xs font-black uppercase transition-all shadow-hard-sm active:translate-y-[1px] active:shadow-none ${isSelected ? 'bg-ink text-paper' : 'bg-paper text-ink hover:bg-ink hover:text-paper'}`}
-                                    >
-                                        {cat.name}
-                                    </button>
-                                );
-                            })
-                        )}
+                        {availableCategories.map(cat => (
+                            <button
+                                key={cat.id}
+                                onClick={() => handleCatToggle(String(cat.id))}
+                                className={`px-3 py-1 border-2 border-lassez-border text-[10px] font-black uppercase transition-all shadow-hard-sm ${selectedCategoryId === String(cat.id) ? 'bg-ink text-paper' : 'bg-paper text-ink hover:bg-ink hover:text-paper'}`}
+                            >
+                                {cat.name}
+                            </button>
+                        ))}
                     </div>
 
+                    {/* Recherche */}
                     <div className="flex items-center border-b-2 border-lassez-border bg-paper px-2 group focus-within:border-lassez-red transition-colors">
                         <SearchIcon className="w-4 h-4 mr-2 text-ink/40 group-focus-within:text-ink" />
                         <input
                             type="text"
                             placeholder="RECHERCHER..."
                             value={searchTerm}
-                            onChange={handleSearchChange}
-                            className="bg-transparent outline-none font-mono text-[10px] md:text-sm uppercase w-full md:w-48 placeholder:text-ink/30 py-2 text-ink"
+                            onChange={e => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+                            className="bg-transparent outline-none font-mono text-[10px] uppercase w-full md:w-48 placeholder:text-ink/30 py-2 text-ink"
                         />
-                        {searchTerm && (
-                            <button onClick={() => setSearchTerm('')}><XIcon className="w-4 h-4 text-ink/40 hover:text-ink" /></button>
-                        )}
+                        {searchTerm && <button onClick={() => setSearchTerm('')}><XIcon className="w-4 h-4 text-ink/40 hover:text-ink" /></button>}
                     </div>
 
-                    {(selectedSubCategoryIds.length > 0 || searchTerm) && (
-                        <button onClick={clearFilters} className="hidden md:flex items-center gap-1 bg-paper hover:bg-ink hover:text-paper border-2 border-lassez-border px-2 py-1 font-mono text-[9px] uppercase transition-colors text-ink">
+                    {(selectedCategoryId || searchTerm) && (
+                        <button onClick={clearFilters} className="flex items-center gap-1 bg-paper hover:bg-ink hover:text-paper border-2 border-lassez-border px-2 py-1 font-mono text-[9px] uppercase transition-colors text-ink">
                             <XIcon className="w-3 h-3" /> RESET
                         </button>
                     )}
                 </div>
             </div>
 
+            {/* État */}
             {isLoading && (
                 <div className="flex justify-center py-16 border-y-4 border-dashed border-lassez-border bg-lassez-red/5">
-                    <div className="text-sm md:text-xl font-black font-mono animate-pulse flex items-center uppercase tracking-tighter text-ink">
+                    <div className="text-xl font-black font-mono animate-pulse flex items-center uppercase tracking-tighter text-ink">
                         <span className="animate-spin mr-3">/</span> Accès aux dossiers chiffrés...
                     </div>
                 </div>
             )}
 
             {error && (
-                <div className="bg-lassez-red/10 border-4 border-lassez-red text-ink p-4 md:p-6 shadow-hard" role="alert">
-                    <h3 className="font-black text-lg md:text-xl uppercase flex items-center mb-2"><AlertTriangleIcon className="mr-3 w-5 h-5 md:w-6 md:h-6 text-lassez-red" /> Echec Protocole</h3>
-                    <p className="font-mono text-[10px] md:text-sm">Impossible d'accéder aux archives centrales. Vérifiez votre connexion au réseau.</p>
+                <div className="bg-lassez-red/10 border-4 border-lassez-red text-ink p-6 shadow-hard" role="alert">
+                    <h3 className="font-black text-xl uppercase flex items-center mb-2"><AlertTriangleIcon className="mr-3 w-6 h-6 text-lassez-red" /> Echec Protocole</h3>
+                    <p className="font-mono text-sm">Impossible d'accéder aux archives centrales.</p>
                 </div>
             )}
 
+            {/* Liste */}
             <div className="space-y-6 md:space-y-8">
-                {filteredPosts.map((post, index) => (
+                {posts.map((post, i) => (
                     <div key={post.id} className="relative pl-8 md:pl-20">
-                        <div className="absolute left-[15px] md:left-[39px] top-0 bottom-0 w-[1px] md:w-[2px] bg-lassez-border/10 border-l border-dashed border-lassez-border/30"></div>
-                        <div className="absolute left-1 md:left-6 top-8 w-5 h-5 md:w-6 md:h-6 bg-ink text-paper rounded-full flex items-center justify-center text-[9px] md:text-[10px] font-mono font-bold z-10 ring-2 md:ring-4 ring-paper shadow-hard-sm">
-                            {(currentPage - 1) * PER_PAGE + index + 1}
+                        <div className="absolute left-1 md:left-6 top-8 w-5 h-5 md:w-6 md:h-6 bg-ink text-paper rounded-full flex items-center justify-center text-[10px] font-mono font-bold z-10 ring-2 ring-paper shadow-hard-sm">
+                            {(currentPage - 1) * PER_PAGE + i + 1}
                         </div>
-                        <div className="hidden lg:block absolute left-0 top-20 -rotate-90 origin-center w-20 text-center">
-                            <span className="text-[10px] font-mono font-bold text-ink/30 tracking-widest">REF-{3902 + (currentPage * index)}</span>
-                        </div>
-                        <ArticleListItem post={post} />
+                        <PostCard post={post} index={i} page={currentPage} />
                     </div>
                 ))}
             </div>
 
-            {!isLoading && filteredPosts.length > 0 && (
-                <nav className="mt-16 flex flex-col items-center gap-6 border-t-4 border-lassez-border pt-12">
-                    <div className="font-mono text-[10px] uppercase font-bold tracking-widest text-ink/40 mb-2">
-                        Indexation des pages : Section {currentPage}
-                    </div>
+            {!isLoading && posts.length === 0 && (
+                <div className="text-center font-mono mt-8 border-2 border-lassez-border border-dashed p-12 bg-lassez-red/5 text-ink">
+                    <p className="font-bold text-sm uppercase">AUCUN DOSSIER TROUVÉ.</p>
+                </div>
+            )}
 
+            {/* Pagination */}
+            {!isLoading && totalPages > 1 && (
+                <nav className="mt-16 flex flex-col items-center gap-6 border-t-4 border-lassez-border pt-12">
+                    <div className="font-mono text-[10px] uppercase font-bold tracking-widest text-ink/40">
+                        Page {currentPage} / {totalPages} — {total} dossiers
+                    </div>
                     <div className="flex items-center gap-2">
                         <button
-                            onClick={() => handlePageChange(currentPage - 1)}
-                            disabled={currentPage === 1}
-                            className={`flex items-center gap-2 px-4 py-3 border-2 border-lassez-border font-black uppercase text-xs transition-all shadow-hard-sm ${currentPage === 1 ? 'opacity-20 cursor-not-allowed' : 'bg-paper-bright text-ink hover:bg-ink hover:text-paper active:translate-y-1 active:shadow-none'}`}
+                            onClick={() => handlePage(currentPage - 1)}
+                            disabled={currentPage <= 1}
+                            className={`flex items-center gap-2 px-4 py-3 border-2 border-lassez-border font-black uppercase text-xs transition-all shadow-hard-sm ${currentPage <= 1 ? 'opacity-20 cursor-not-allowed' : 'bg-paper-bright text-ink hover:bg-ink hover:text-paper'}`}
                         >
                             <ChevronLeftIcon className="w-4 h-4" /> Précédent
                         </button>
 
-                        <div className="flex items-center gap-1 mx-4">
-                            {pageNumbers.map(n => (
+                        {Array.from({ length: Math.min(5, totalPages) }, (_, k) => {
+                            const n = Math.max(1, currentPage - 2) + k;
+                            if (n > totalPages) return null;
+                            return (
                                 <button
                                     key={n}
-                                    onClick={() => handlePageChange(n)}
-                                    className={`w-10 h-10 flex items-center justify-center border-2 border-lassez-border font-mono font-black text-sm transition-all ${currentPage === n ? 'bg-lassez-red text-ink shadow-hard-sm -translate-y-1' : 'bg-paper-bright text-ink hover:bg-ink hover:text-paper shadow-none'}`}
+                                    onClick={() => handlePage(n)}
+                                    className={`w-10 h-10 flex items-center justify-center border-2 border-lassez-border font-mono font-black text-sm transition-all ${currentPage === n ? 'bg-lassez-red text-ink shadow-hard-sm -translate-y-1' : 'bg-paper-bright text-ink hover:bg-ink hover:text-paper'}`}
                                 >
                                     {n < 10 ? `0${n}` : n}
                                 </button>
-                            ))}
-                            {posts.length === PER_PAGE && !pageNumbers.includes(currentPage + 1) && (
-                                <span className="text-ink font-mono px-2">...</span>
-                            )}
-                        </div>
+                            );
+                        })}
 
                         <button
-                            onClick={() => handlePageChange(currentPage + 1)}
-                            disabled={posts.length < PER_PAGE}
-                            className={`flex items-center gap-2 px-4 py-3 border-2 border-lassez-border font-black uppercase text-xs transition-all shadow-hard-sm ${posts.length < PER_PAGE ? 'opacity-20 cursor-not-allowed' : 'bg-paper-bright text-ink hover:bg-ink hover:text-paper active:translate-y-1 active:shadow-none'}`}
+                            onClick={() => handlePage(currentPage + 1)}
+                            disabled={currentPage >= totalPages}
+                            className={`flex items-center gap-2 px-4 py-3 border-2 border-lassez-border font-black uppercase text-xs transition-all shadow-hard-sm ${currentPage >= totalPages ? 'opacity-20 cursor-not-allowed' : 'bg-paper-bright text-ink hover:bg-ink hover:text-paper'}`}
                         >
                             Suivant <span className="rotate-180"><ChevronLeftIcon className="w-4 h-4" /></span>
                         </button>
                     </div>
                 </nav>
-            )}
-
-            {!isLoading && !isCatsLoading && !mainCategoryId && (
-                <div className="text-center font-mono mt-8 border-4 border-lassez-red bg-lassez-red/10 p-8 md:p-12 text-ink">
-                    <h3 className="font-black text-xl uppercase mb-2">Configuration Requise</h3>
-                    <p className="font-bold text-xs md:text-sm uppercase mb-4">La catégorie "Enquêtes" (slug: enquetes) est introuvable.</p>
-                </div>
-            )}
-
-            {!isLoading && filteredPosts.length === 0 && mainCategoryId && (
-                <div className="text-center font-mono mt-8 border-2 border-lassez-border border-dashed p-8 md:p-12 bg-lassez-red/5 text-ink">
-                    <p className="font-bold text-xs md:text-sm uppercase">AUCUN DOSSIER TROUVÉ.</p>
-                </div>
             )}
         </div>
     );

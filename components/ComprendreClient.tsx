@@ -6,8 +6,17 @@ import { useCategories } from '../hooks/useCategories';
 import { useProgress } from '../hooks/useProgress';
 import Link from 'next/link';
 
+function getRenderedField(value: unknown): string {
+    if (typeof value === 'string') return value;
+    if (value && typeof value === 'object' && 'rendered' in value) {
+        const rendered = (value as { rendered?: unknown }).rendered;
+        return typeof rendered === 'string' ? rendered : '';
+    }
+    return '';
+}
+
 const ComprendreClient: React.FC = () => {
-    const { data: posts, isLoading } = usePosts('categories_exclude=1');
+    const { posts, isLoading } = usePosts({ perPage: 20, depth: 1 });
     const { categories } = useCategories();
     const [filter, setFilter] = useState('all');
     const [isLoaded, setIsLoaded] = useState(false);
@@ -201,6 +210,8 @@ const ComprendreClient: React.FC = () => {
                                         {groupedPosts[chapterName].map((post, index) => {
                                             const cat = categories?.find(c => post.categories.includes(c.id));
                                             const isCompleted = progress.isCompleted(post.id);
+                                            const titleHtml = getRenderedField((post as any).title);
+                                            const excerptHtml = getRenderedField((post as any).excerpt);
 
                                             // Alternate sides for timeline look on desktop
                                             const isEven = index % 2 === 0;
@@ -228,8 +239,8 @@ const ComprendreClient: React.FC = () => {
                                                                         {cat ? cat.name : 'Concept'}
                                                                     </span>
                                                                 </div>
-                                                                <h3 className={`text-2xl md:text-3xl font-black uppercase leading-[0.9] mb-4 ${isCompleted ? 'text-ink/80' : 'text-ink'}`} dangerouslySetInnerHTML={{ __html: post.title.rendered }} />
-                                                                <div className="font-serif text-ink/70 text-sm md:text-base leading-relaxed line-clamp-2" dangerouslySetInnerHTML={{ __html: post.excerpt.rendered }} />
+                                                                <h3 className={`text-2xl md:text-3xl font-black uppercase leading-[0.9] mb-4 ${isCompleted ? 'text-ink/80' : 'text-ink'}`} dangerouslySetInnerHTML={{ __html: titleHtml }} />
+                                                                <div className="font-serif text-ink/70 text-sm md:text-base leading-relaxed line-clamp-2" dangerouslySetInnerHTML={{ __html: excerptHtml }} />
                                                             </div>
 
                                                             <div className="mt-8 flex items-center gap-3 text-xs font-mono font-bold uppercase tracking-widest text-lassez-red">

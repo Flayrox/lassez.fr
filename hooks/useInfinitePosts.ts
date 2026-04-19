@@ -5,15 +5,21 @@ import { fetcher } from '../lib/api';
 
 const PER_PAGE = 10;
 
+type PostsPage = {
+  docs: WPPost[];
+  totalDocs?: number;
+  hasNextPage?: boolean;
+};
+
 export function useInfinitePosts(baseParams: string = '') {
-  const getKey = (pageIndex: number, previousPageData: WPPost[] | null) => {
-    if (previousPageData && previousPageData.length === 0) return null; // Reached the end
+  const getKey = (pageIndex: number, previousPageData: PostsPage | null) => {
+    if (previousPageData && previousPageData.hasNextPage === false) return null;
     const page = pageIndex + 1;
-    const params = `per_page=${PER_PAGE}&page=${page}&_embed${baseParams ? `&${baseParams}` : ''}`;
-    return `/api/wp/posts?${params}`;
+    const params = `per_page=${PER_PAGE}&page=${page}&depth=1${baseParams ? `&${baseParams}` : ''}`;
+    return `/api/posts?${params}`;
   };
 
-  const { data, error, isLoading, size, setSize, isValidating } = useSWRInfinite<WPPost[]>(
+  const { data, error, isLoading, size, setSize, isValidating } = useSWRInfinite<PostsPage>(
     getKey,
     fetcher,
     {
@@ -24,10 +30,10 @@ export function useInfinitePosts(baseParams: string = '') {
     }
   );
 
-  const posts = data ? ([] as WPPost[]).concat(...data) : [];
+  const posts = data ? data.flatMap((pageData) => pageData.docs || []) : [];
   const isLoadingMore = isLoading || (size > 0 && data && typeof data[size - 1] === 'undefined');
-  const isEmpty = data?.[0]?.length === 0;
-  const isReachingEnd = isEmpty || (data && (data[data.length - 1]?.length || 0) < PER_PAGE);
+  const isEmpty = (data?.[0]?.docs?.length || 0) === 0;
+  const isReachingEnd = isEmpty || (data ? data[data.length - 1]?.hasNextPage === false : false);
 
   return {
     posts,

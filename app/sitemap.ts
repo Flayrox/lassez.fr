@@ -1,43 +1,59 @@
 import { MetadataRoute } from 'next';
-import { getServerWpApiBaseUrl } from '../lib/wp-server-base';
+import { getPayloadClient } from '@/lib/payload';
 import { formatCommuneSlug } from '../lib/seo-engine';
 import { parseJsonArray } from '../lib/elections';
+import type { Post, Category } from '@/payload-types';
 
 const BASE_URL = 'https://lassez.fr';
-const WP_BASE = getServerWpApiBaseUrl();
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     try {
-        // Fetch posts avec embed pour récupérer les slugs de catégories
-        const postsRes = await fetch(`${WP_BASE}/posts?per_page=100&_embed`, { next: { revalidate: 3600 } });
-        const posts = await postsRes.json();
+        const payload = await getPayloadClient();
 
-        // Fetch categories
-        const categoriesRes = await fetch(`${WP_BASE}/categories?per_page=100`, { next: { revalidate: 3600 } });
-        const categories = await categoriesRes.json();
+        const [postsResult, categoriesResult] = await Promise.all([
+            payload.find({
+                collection: 'posts',
+                where: { status: { equals: 'published' } },
+                limit: 100,
+                page: 1,
+                depth: 1,
+                sort: '-publishedAt',
+            }),
+            payload.find({
+                collection: 'categories',
+                limit: 100,
+                page: 1,
+                depth: 0,
+                sort: 'name',
+            }),
+        ]);
+
+        const posts = postsResult.docs as Post[];
+        const categories = categoriesResult.docs as Category[];
 
         // URLs articles en silo /[categorie]/[slug]
-        const postUrls = Array.isArray(posts) ? posts.map((post: any) => {
-            const primaryCat = post._embedded?.['wp:term']?.[0]?.[0];
+        const postUrls = Array.isArray(posts) ? posts.map((post: Post) => {
+            const firstCategory = Array.isArray(post.categories) ? post.categories[0] : null;
+            const primaryCat = firstCategory && typeof firstCategory === 'object' ? firstCategory : null;
             const catSlug = primaryCat?.slug || 'article';
             if (catSlug === 'revelations') {
                 return {
                     url: `${BASE_URL}/revelations/${post.slug}`,
-                    lastModified: new Date(post.modified || post.date),
+                    lastModified: new Date(post.updatedAt || post.publishedAt || post.createdAt),
                     changeFrequency: 'daily' as const,
                     priority: 0.8,
                 };
             }
             return {
                 url: `${BASE_URL}/${catSlug}/${post.slug}`,
-                lastModified: new Date(post.modified || post.date),
+                lastModified: new Date(post.updatedAt || post.publishedAt || post.createdAt),
                 changeFrequency: 'weekly' as const,
                 priority: 0.8,
             };
         }) : [];
 
-        const categoryUrls = Array.isArray(categories) ? categories.map((cat: any) => ({
-            url: `${BASE_URL}/category/${cat.slug}`,
+        const categoryUrls = Array.isArray(categories) ? categories.map((cat: Category) => ({
+            url: `${BASE_URL}/enquetes?secteur=${cat.slug}`,
             lastModified: new Date(),
             changeFrequency: 'daily' as const,
             priority: 0.7,

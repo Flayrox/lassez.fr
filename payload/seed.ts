@@ -25,3 +25,13 @@ export const script = async (config: SanitizedConfig) => {
     payload.logger.info('Payload seed completed');
     process.exit(0);
 };
+
+try {
+    const configModule = await import('../payload.config');
+    const config = await Promise.resolve(configModule.default as SanitizedConfig | Promise<SanitizedConfig>);
+    await script(config);
+} catch (error) {
+    console.error('Payload seed failed.');
+    console.error(error);
+    process.exit(1);
+}

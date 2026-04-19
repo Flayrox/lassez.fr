@@ -1,12 +1,4 @@
 
-import { getCMSProvider, getPayloadApiUrl } from './cms-provider';
-
-export const WORDPRESS_API_URL = 'https://api.lassez.fr/wp-json/wp/v2';
-
-export function getCMSApiBaseUrl() {
-    return getCMSProvider() === 'payload' ? getPayloadApiUrl() : WORDPRESS_API_URL;
-}
-
 export const fetcher = async (url: string) => {
     const res = await fetch(url);
 

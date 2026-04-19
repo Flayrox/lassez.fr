@@ -1,20 +1,23 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { WPPost, WPTerm } from '../types';
+import { WPPost, WPTerm, WPCategory } from '../types';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import GlitchImage from './GlitchImage';
 import { getArticleUrl } from '../lib/getArticleUrl';
+import { sanitizeHtmlForRender } from '../lib/sanitizeHtmlForRender';
 
 interface ArticleListItemProps {
     post: WPPost;
 }
 
 const ArticleListItem: React.FC<ArticleListItemProps> = ({ post }) => {
-    const imageUrl = post._embedded?.['wp:featuredmedia']?.[0]?.source_url || `https://picsum.photos/seed/${post.id}/400/300`;
-    const author = post._embedded?.author[0]?.name || "Rédaction";
-    const categories: WPTerm[] = post._embedded?.['wp:term']?.[0] || [];
+    const imageUrl = (typeof post.featuredImage === 'object' && post.featuredImage?.url) ? post.featuredImage.url : `https://picsum.photos/seed/${post.id}/400/300`;
+    const author = (typeof post.author === 'object' && post.author?.name) ? post.author.name : "Rédaction";
+    const categories = Array.isArray(post.categories) ? post.categories.filter((cat): cat is WPCategory => typeof cat === 'object') : [];
+    const titleHtml = sanitizeHtmlForRender(post.title);
+    const excerptHtml = sanitizeHtmlForRender(post.excerpt || '');
 
     return (
         <Link href={getArticleUrl(post)} className="block">
@@ -34,7 +37,7 @@ const ArticleListItem: React.FC<ArticleListItemProps> = ({ post }) => {
                         <div className="absolute inset-0 bg-lassez-red mix-blend-multiply opacity-0 group-hover:opacity-20 transition-opacity z-10 pointer-events-none"></div>
                         <GlitchImage
                             src={imageUrl}
-                            alt={post.title.rendered}
+                            alt={post.title}
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                         />
                     </div>
@@ -48,19 +51,19 @@ const ArticleListItem: React.FC<ArticleListItemProps> = ({ post }) => {
 
                     <div>
                         <div className="flex items-center text-[10px] font-mono font-bold text-gray-500 mb-3 border-b-2 border-gray-100 pb-2 uppercase tracking-widest">
-                            <span>{format(new Date(post.date), 'dd.MM.yy', { locale: fr })}</span>
+                            <span>{format(new Date(post.publishedAt || post.createdAt), 'dd.MM.yy', { locale: fr })}</span>
                             <span className="mx-2 text-lassez-red">///</span>
                             <span>Ag. {author.split(' ')[0]}</span>
                         </div>
 
                         <h3
                             className="text-lg md:text-2xl font-serif font-black text-ink leading-tight mb-3 group-hover:text-lassez-red transition-colors uppercase"
-                            dangerouslySetInnerHTML={{ __html: post.title.rendered }}
+                            dangerouslySetInnerHTML={{ __html: titleHtml }}
                         />
 
                         <div
                             className="text-gray-600 font-sans text-sm leading-relaxed line-clamp-2 md:line-clamp-3"
-                            dangerouslySetInnerHTML={{ __html: post.excerpt.rendered }}
+                            dangerouslySetInnerHTML={{ __html: excerptHtml }}
                         />
                     </div>
 

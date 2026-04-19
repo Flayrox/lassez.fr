@@ -915,8 +915,8 @@ try {
     process.exit(1);
 }
 
+// BOUCLE 1 DEPLACEE DANS daemon_rss.js
 startPublisherLoop();
-startScanLoop();
 startElectionSyncLoop();
 startHeartbeatLoop();
 startJobLoop();

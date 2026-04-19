@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { Suspense } from 'react';
 import { BrutalSidebar } from './BrutalSidebar';
 import { BrutalHeader } from './BrutalHeader';
 
@@ -36,7 +36,9 @@ export function DashboardLayout({
 
     return (
         <div className="flex min-h-screen bg-stone-50 font-body selection:bg-red-700 selection:text-white">
-            <BrutalSidebar />
+            <Suspense fallback={null}>
+                <BrutalSidebar />
+            </Suspense>
             <main className="flex-1 relative overflow-x-hidden flex flex-col">
                 <div className="grain-overlay absolute inset-0 z-0 opacity-5 pointer-events-none"></div>
                 <BrutalHeader 

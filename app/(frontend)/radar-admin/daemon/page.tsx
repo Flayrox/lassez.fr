@@ -5,7 +5,9 @@ import { DashboardLayout } from '../components/DashboardLayout';
 import { useRadarAdmin } from '../components/RadarAdminContext';
 import { Toggle } from '../components/UIComponents';
 
-type DaemonType = 'rss' | 'publisher' | 'elections';
+type DaemonType = 'rss' | 'publisher';
+type RssTypeLabel = '🔴 ALERTE INFO !' | '📌 LE FAIT DU JOUR' | '🔎 DÉCRYPTAGE' | '🗓️ À VENIR';
+type SocialTargetConfig = { mastodon: boolean; bluesky: boolean; twitter: boolean; discord: boolean };
 
 type TuningRule = {
     id: string;
@@ -20,8 +22,7 @@ type TuningRule = {
         min_delay_min?: number;
         max_delay_min?: number;
         scan_interval_hours?: number;
-        election_interval_hours?: number;
-    };
+};
 };
 
 type DaemonProfile = {
@@ -30,7 +31,7 @@ type DaemonProfile = {
     min_delay_min: string;
     max_delay_min: string;
     scan_interval_hours: string;
-    election_interval_hours: string;
+
 };
 
 type DaemonStatus = {
@@ -42,13 +43,50 @@ type DaemonStatus = {
     jobCounts?: Record<string, number>;
     runtime?: {
         rssEnabled: boolean;
-        electionsEnabled: boolean;
+        
         autoPilotEnabled: boolean;
         autoApproveEnabled: boolean;
     };
 };
 
 const DAY_LABELS = ['D', 'L', 'M', 'M', 'J', 'V', 'S'];
+const RSS_TYPE_LABELS: RssTypeLabel[] = ['🔴 ALERTE INFO !', '📌 LE FAIT DU JOUR', '🔎 DÉCRYPTAGE', '🗓️ À VENIR'];
+
+function buildDefaultSocialTargets(settings: any): Record<RssTypeLabel, SocialTargetConfig> {
+    const globalFallback: SocialTargetConfig = {
+        mastodon: settings?.social_mastodon_enabled !== 'false',
+        bluesky: settings?.social_bluesky_enabled !== 'false',
+        twitter: settings?.social_twitter_enabled !== 'false',
+        discord: settings?.social_discord_enabled === 'true'
+    };
+
+    const defaults: Record<RssTypeLabel, SocialTargetConfig> = {
+        '🔴 ALERTE INFO !': { ...globalFallback },
+        '📌 LE FAIT DU JOUR': { ...globalFallback },
+        '🔎 DÉCRYPTAGE': { ...globalFallback },
+        '🗓️ À VENIR': { ...globalFallback }
+    };
+
+    try {
+        const parsed = settings?.social_targets_by_type_json ? JSON.parse(settings.social_targets_by_type_json) : null;
+        if (!parsed || typeof parsed !== 'object') return defaults;
+
+        for (const key of RSS_TYPE_LABELS) {
+            if (parsed[key] && typeof parsed[key] === 'object') {
+                defaults[key] = {
+                    mastodon: parsed[key].mastodon !== undefined ? Boolean(parsed[key].mastodon) : defaults[key].mastodon,
+                    bluesky: parsed[key].bluesky !== undefined ? Boolean(parsed[key].bluesky) : defaults[key].bluesky,
+                    twitter: parsed[key].twitter !== undefined ? Boolean(parsed[key].twitter) : defaults[key].twitter,
+                    discord: parsed[key].discord !== undefined ? Boolean(parsed[key].discord) : defaults[key].discord,
+                };
+            }
+        }
+    } catch (_) {
+        return defaults;
+    }
+
+    return defaults;
+}
 
 function parseTimes(raw: string): string[] {
     return String(raw || '')
@@ -76,7 +114,7 @@ function parseRules(raw: string): TuningRule[] {
                 id: String(rule.id || `rule-${i + 1}`),
                 name: String(rule.name || `Rule ${i + 1}`),
                 daemons: Array.isArray(rule.daemons)
-                    ? rule.daemons.filter((d: string) => ['rss', 'publisher', 'elections'].includes(String(d)))
+                    ? rule.daemons.filter((d: string) => ['rss', 'publisher'].includes(String(d)))
                     : ['rss'],
                 days: Array.isArray(rule.days)
                     ? rule.days.map((d: any) => Number(d)).filter((d: number) => Number.isInteger(d) && d >= 0 && d <= 6)
@@ -89,7 +127,6 @@ function parseRules(raw: string): TuningRule[] {
                     min_delay_min: rule?.overrides?.min_delay_min !== undefined ? Number(rule.overrides.min_delay_min) : undefined,
                     max_delay_min: rule?.overrides?.max_delay_min !== undefined ? Number(rule.overrides.max_delay_min) : undefined,
                     scan_interval_hours: rule?.overrides?.scan_interval_hours !== undefined ? Number(rule.overrides.scan_interval_hours) : undefined,
-                    election_interval_hours: rule?.overrides?.election_interval_hours !== undefined ? Number(rule.overrides.election_interval_hours) : undefined,
                 }
             }))
             .filter((r: TuningRule) => /^(\d{2}):(\d{2})$/.test(r.start) && /^(\d{2}):(\d{2})$/.test(r.end));
@@ -111,7 +148,7 @@ function toRulesJson(rules: TuningRule[]) {
             ...(r.overrides.min_delay_min !== undefined ? { min_delay_min: r.overrides.min_delay_min } : {}),
             ...(r.overrides.max_delay_min !== undefined ? { max_delay_min: r.overrides.max_delay_min } : {}),
             ...(r.overrides.scan_interval_hours !== undefined ? { scan_interval_hours: r.overrides.scan_interval_hours } : {}),
-            ...(r.overrides.election_interval_hours !== undefined ? { election_interval_hours: r.overrides.election_interval_hours } : {}),
+
         }
     })), null, 2);
 }
@@ -124,6 +161,7 @@ function formatDate(value?: string | null) {
 }
 
 export default function DaemonPage() {
+    const [initialPayloadStr, setInitialPayloadStr] = useState<string | null>(null);
     const { settings, fetchSettings, isDaemonRunning, countdown } = useRadarAdmin();
 
     const [loading, setLoading] = useState(true);
@@ -131,18 +169,19 @@ export default function DaemonPage() {
     const [status, setStatus] = useState<DaemonStatus | null>(null);
 
     const [daemonRssEnabled, setDaemonRssEnabled] = useState(true);
-    const [daemonElectionsEnabled, setDaemonElectionsEnabled] = useState(false);
+    
     const [autoPilotEnabled, setAutoPilotEnabled] = useState(false);
     const [autoApproveEnabled, setAutoApproveEnabled] = useState(false);
+    const [discordTestMode, setDiscordTestMode] = useState(false);
 
     const [scheduleEnabled, setScheduleEnabled] = useState(false);
     const [rssIntervalEnabled, setRssIntervalEnabled] = useState(true);
     const [scheduleTimes, setScheduleTimes] = useState<string[]>([]);
     const [newScheduleTime, setNewScheduleTime] = useState('08:00');
-    const [electionsScheduleEnabled, setElectionsScheduleEnabled] = useState(false);
-    const [electionsIntervalEnabled, setElectionsIntervalEnabled] = useState(true);
-    const [electionsScheduleTimes, setElectionsScheduleTimes] = useState<string[]>([]);
-    const [newElectionScheduleTime, setNewElectionScheduleTime] = useState('09:00');
+    
+    
+    
+    
 
     const [profilesOpen, setProfilesOpen] = useState(false);
     const [daemonProfiles, setDaemonProfiles] = useState<Record<DaemonType, DaemonProfile>>({
@@ -151,50 +190,101 @@ export default function DaemonPage() {
             rss_lookback_hours: '24',
             min_delay_min: '0',
             max_delay_min: '15',
-            scan_interval_hours: '2',
-            election_interval_hours: '0.5'
-        },
+            scan_interval_hours: '2'},
         publisher: {
             max_articles: '3',
             rss_lookback_hours: '24',
             min_delay_min: '0',
             max_delay_min: '15',
-            scan_interval_hours: '2',
-            election_interval_hours: '0.5'
-        },
-        elections: {
-            max_articles: '3',
-            rss_lookback_hours: '24',
-            min_delay_min: '0',
-            max_delay_min: '15',
-            scan_interval_hours: '2',
-            election_interval_hours: '0.5'
-        }
+            scan_interval_hours: '2'},
+        
     });
 
     const [tuningEnabled, setTuningEnabled] = useState(false);
     const [rules, setRules] = useState<TuningRule[]>([]);
+    const [isTestingFlows, setIsTestingFlows] = useState(false);
+    const [cortexVars, setCortexVars] = useState({
+        ai_model_main: 'gemini-2.5-pro',
+        ai_prompt: '',
+        ai_prompt_relevance: '',
+        ai_model_breaking: 'gemini-3.1-pro-preview',
+        ai_prompt_breaking_enabled: 'true',
+        google_search_breaking_enabled: 'true',
+        ai_prompt_breaking: '',
+        ai_model_standard: 'gemini-2.5-flash',
+        ai_prompt_standard_enabled: 'true',
+        google_search_standard_enabled: 'true',
+        ai_prompt_standard: '',
+        ai_model_decrypt: 'gemini-2.5-pro',
+        ai_prompt_decrypt_enabled: 'true',
+        google_search_decrypt_enabled: 'true',
+        ai_prompt_decrypt: ''
+    });
+
 
     const [modalOpen, setModalOpen] = useState(false);
     const [scanRunning, setScanRunning] = useState(false);
-    const [manualAction, setManualAction] = useState<'scan' | 'elections'>('scan');
+
     const [scanLogs, setScanLogs] = useState('');
     const [scanStartedAt, setScanStartedAt] = useState<number | null>(null);
     const [scanEndedAt, setScanEndedAt] = useState<number | null>(null);
+    const [socialTargetsByType, setSocialTargetsByType] = useState<Record<RssTypeLabel, SocialTargetConfig>>({
+        '🔴 ALERTE INFO !': { mastodon: true, bluesky: true, twitter: true, discord: false },
+        '📌 LE FAIT DU JOUR': { mastodon: true, bluesky: true, twitter: true, discord: false },
+        '🔎 DÉCRYPTAGE': { mastodon: true, bluesky: true, twitter: true, discord: false },
+        '🗓️ À VENIR': { mastodon: true, bluesky: true, twitter: true, discord: false },
+    });
+
+        const currentPayloadStr = useMemo(() => {
+        return JSON.stringify({
+            ...cortexVars,
+            daemon_rss_enabled: daemonRssEnabled ? 'true' : 'false',
+            auto_pilot_enabled: autoPilotEnabled ? 'true' : 'false',
+            auto_approve_enabled: autoApproveEnabled ? 'true' : 'false',
+            discord_test_mode: discordTestMode ? 'true' : 'false',
+            daemon_rss_interval_enabled: rssIntervalEnabled ? 'true' : 'false',
+            scan_interval_hours: daemonProfiles.rss.scan_interval_hours,
+            max_articles: daemonProfiles.rss.max_articles,
+            rss_lookback_hours: daemonProfiles.rss.rss_lookback_hours,
+            min_delay_min: daemonProfiles.publisher.min_delay_min,
+            max_delay_min: daemonProfiles.publisher.max_delay_min,
+            daemon_rss_schedule_enabled: scheduleEnabled ? 'true' : 'false',
+            daemon_rss_schedule_times: scheduleTimes.join(', '),
+            daemon_dynamic_tuning_enabled: tuningEnabled ? 'true' : 'false',
+            daemon_dynamic_tuning_rules: toRulesJson(rules),
+            social_targets_by_type_json: JSON.stringify(socialTargetsByType),
+            daemon_profiles_json: JSON.stringify(daemonProfiles)
+        });
+    }, [
+        cortexVars, daemonRssEnabled, autoPilotEnabled, autoApproveEnabled, discordTestMode,
+        rssIntervalEnabled, daemonProfiles, scheduleEnabled, scheduleTimes,
+        tuningEnabled, rules, socialTargetsByType
+    ]);
+
+    const isDirty = initialPayloadStr !== null && currentPayloadStr !== initialPayloadStr;
+
+    useEffect(() => {
+        if (!settings) return;
+        const timer = setTimeout(() => {
+            setInitialPayloadStr(currentPayloadStr);
+        }, 100);
+        return () => clearTimeout(timer);
+    }, [settings, currentPayloadStr]);
 
     useEffect(() => {
         if (!settings) return;
         setDaemonRssEnabled(settings.daemon_rss_enabled !== 'false');
-        setDaemonElectionsEnabled(settings.daemon_elections_enabled === 'true');
+        
         setAutoPilotEnabled(settings.auto_pilot_enabled === 'true');
         setAutoApproveEnabled(settings.auto_approve_enabled === 'true');
+        setDiscordTestMode(settings.discord_test_mode === 'true');
 
         setScheduleEnabled(settings.daemon_rss_schedule_enabled === 'true');
         setRssIntervalEnabled(settings.daemon_rss_interval_enabled !== 'false');
         setScheduleTimes(parseTimes(settings.daemon_rss_schedule_times || ''));
-        setElectionsScheduleEnabled(settings.daemon_elections_schedule_enabled === 'true');
-        setElectionsIntervalEnabled(settings.daemon_elections_interval_enabled !== 'false');
-        setElectionsScheduleTimes(parseTimes(settings.daemon_elections_schedule_times || ''));
+        
+        
+        
 
         const globalBasedProfiles: Record<DaemonType, DaemonProfile> = {
             rss: {
@@ -202,25 +292,14 @@ export default function DaemonPage() {
                 rss_lookback_hours: String(settings.rss_lookback_hours || '24'),
                 min_delay_min: String(settings.min_delay_min || '0'),
                 max_delay_min: String(settings.max_delay_min || '15'),
-                scan_interval_hours: String(settings.scan_interval_hours || '2'),
-                election_interval_hours: String(settings.election_interval_hours || '0.5')
-            },
+                scan_interval_hours: String(settings.scan_interval_hours || '2')},
             publisher: {
                 max_articles: String(settings.max_articles || '3'),
                 rss_lookback_hours: String(settings.rss_lookback_hours || '24'),
                 min_delay_min: String(settings.min_delay_min || '0'),
                 max_delay_min: String(settings.max_delay_min || '15'),
-                scan_interval_hours: String(settings.scan_interval_hours || '2'),
-                election_interval_hours: String(settings.election_interval_hours || '0.5')
-            },
-            elections: {
-                max_articles: String(settings.max_articles || '3'),
-                rss_lookback_hours: String(settings.rss_lookback_hours || '24'),
-                min_delay_min: String(settings.min_delay_min || '0'),
-                max_delay_min: String(settings.max_delay_min || '15'),
-                scan_interval_hours: String(settings.scan_interval_hours || '2'),
-                election_interval_hours: String(settings.election_interval_hours || '0.5')
-            }
+                scan_interval_hours: String(settings.scan_interval_hours || '2')},
+            
         };
         setDaemonProfiles(globalBasedProfiles);
 
@@ -235,10 +314,6 @@ export default function DaemonPage() {
                     publisher: {
                         ...globalBasedProfiles.publisher,
                         ...(parsed.publisher || {})
-                    },
-                    elections: {
-                        ...globalBasedProfiles.elections,
-                        ...(parsed.elections || {})
                     }
                 });
             }
@@ -248,7 +323,18 @@ export default function DaemonPage() {
 
         setTuningEnabled(settings.daemon_dynamic_tuning_enabled === 'true');
         setRules(parseRules(settings.daemon_dynamic_tuning_rules || ''));
+        setSocialTargetsByType(buildDefaultSocialTargets(settings));
     }, [settings]);
+
+    const setSocialTarget = (typeLabel: RssTypeLabel, network: keyof SocialTargetConfig, value: boolean) => {
+        setSocialTargetsByType(prev => ({
+            ...prev,
+            [typeLabel]: {
+                ...prev[typeLabel],
+                [network]: value
+            }
+        }));
+    };
 
     const fetchDaemonStatus = async () => {
         setLoading(true);
@@ -270,14 +356,14 @@ export default function DaemonPage() {
     }, []);
 
     const validationError = useMemo(() => {
-        for (const daemonKey of ['rss', 'publisher', 'elections'] as DaemonType[]) {
+        for (const daemonKey of ['rss', 'publisher'] as DaemonType[]) {
             const p = daemonProfiles[daemonKey];
             const maxA = Number(p.max_articles);
             const lookback = Number(p.rss_lookback_hours);
             const minDelay = Number(p.min_delay_min);
             const maxDelay = Number(p.max_delay_min);
             const scanInt = Number(p.scan_interval_hours);
-            const electionInt = Number(p.election_interval_hours);
+            
 
             if (!Number.isFinite(maxA) || maxA < 1 || maxA > 40) return `Max signals invalide pour ${daemonKey} (1-40).`;
             if (!Number.isFinite(lookback) || lookback < 1 || lookback > 240) return `Lookback invalide pour ${daemonKey} (1-240h).`;
@@ -285,15 +371,12 @@ export default function DaemonPage() {
             if (!Number.isFinite(maxDelay) || maxDelay < 0) return `Max delay invalide pour ${daemonKey}.`;
             if (minDelay > maxDelay) return `Min delay doit etre <= Max delay pour ${daemonKey}.`;
             if (!Number.isFinite(scanInt) || scanInt < 0.1) return `Scan interval invalide pour ${daemonKey} (min 0.1h).`;
-            if (!Number.isFinite(electionInt) || electionInt < 0.1) return `Elections interval invalide pour ${daemonKey} (min 0.1h).`;
         }
 
         if (daemonRssEnabled && !rssIntervalEnabled && !scheduleEnabled) return 'RSS: active au moins un declencheur (intervalle et/ou heures fixes).';
-        if (daemonElectionsEnabled && !electionsIntervalEnabled && !electionsScheduleEnabled) return 'Elections: active au moins un declencheur (intervalle et/ou heures fixes).';
         if (scheduleEnabled && scheduleTimes.length === 0) return 'Ajoute au moins une heure RSS en mode heures fixes.';
-        if (electionsScheduleEnabled && electionsScheduleTimes.length === 0) return 'Ajoute au moins une heure Elections en mode heures fixes.';
         return null;
-    }, [daemonProfiles, daemonRssEnabled, daemonElectionsEnabled, rssIntervalEnabled, scheduleEnabled, scheduleTimes, electionsIntervalEnabled, electionsScheduleEnabled, electionsScheduleTimes]);
+    }, [daemonProfiles, daemonRssEnabled, rssIntervalEnabled, scheduleEnabled, scheduleTimes]);
 
     const addScheduleTime = () => {
         if (!/^(\d{2}):(\d{2})$/.test(newScheduleTime)) return;
@@ -304,13 +387,10 @@ export default function DaemonPage() {
         setScheduleTimes(prev => prev.filter(x => x !== value));
     };
 
-    const addElectionScheduleTime = () => {
-        if (!/^(\d{2}):(\d{2})$/.test(newElectionScheduleTime)) return;
-        setElectionsScheduleTimes(prev => parseTimes([...prev, newElectionScheduleTime].join(',')));
-    };
+
 
     const removeElectionScheduleTime = (value: string) => {
-        setElectionsScheduleTimes(prev => prev.filter(x => x !== value));
+        
     };
 
     const updateDaemonProfile = (daemon: DaemonType, key: keyof DaemonProfile, value: string) => {
@@ -392,15 +472,14 @@ export default function DaemonPage() {
         setSaving(true);
         try {
             const payload = {
+                ...cortexVars,
                 daemon_rss_enabled: daemonRssEnabled ? 'true' : 'false',
-                daemon_elections_enabled: daemonElectionsEnabled ? 'true' : 'false',
                 auto_pilot_enabled: autoPilotEnabled ? 'true' : 'false',
                 auto_approve_enabled: autoApproveEnabled ? 'true' : 'false',
+                discord_test_mode: discordTestMode ? 'true' : 'false',
                 daemon_rss_interval_enabled: rssIntervalEnabled ? 'true' : 'false',
-                daemon_elections_interval_enabled: electionsIntervalEnabled ? 'true' : 'false',
 
                 scan_interval_hours: daemonProfiles.rss.scan_interval_hours,
-                election_interval_hours: daemonProfiles.elections.election_interval_hours,
                 max_articles: daemonProfiles.rss.max_articles,
                 rss_lookback_hours: daemonProfiles.rss.rss_lookback_hours,
                 min_delay_min: daemonProfiles.publisher.min_delay_min,
@@ -408,11 +487,10 @@ export default function DaemonPage() {
 
                 daemon_rss_schedule_enabled: scheduleEnabled ? 'true' : 'false',
                 daemon_rss_schedule_times: scheduleTimes.join(', '),
-                daemon_elections_schedule_enabled: electionsScheduleEnabled ? 'true' : 'false',
-                daemon_elections_schedule_times: electionsScheduleTimes.join(', '),
 
                 daemon_dynamic_tuning_enabled: tuningEnabled ? 'true' : 'false',
                 daemon_dynamic_tuning_rules: toRulesJson(rules),
+                social_targets_by_type_json: JSON.stringify(socialTargetsByType),
 
                 daemon_profiles_json: JSON.stringify(daemonProfiles)
             };
@@ -430,6 +508,7 @@ export default function DaemonPage() {
 
             await fetchSettings();
             await fetchDaemonStatus();
+            setInitialPayloadStr(currentPayloadStr);
             alert('Configuration daemon sauvegardee.');
         } catch (e) {
             console.error(e);
@@ -440,7 +519,7 @@ export default function DaemonPage() {
     };
 
     const runManualScan = async () => {
-        setManualAction('scan');
+
         setModalOpen(true);
         setScanRunning(true);
         setScanLogs('');
@@ -478,7 +557,7 @@ export default function DaemonPage() {
     };
 
     const runManualElectionSync = async () => {
-        setManualAction('elections');
+
         setModalOpen(true);
         setScanRunning(true);
         setScanLogs('');
@@ -555,6 +634,169 @@ export default function DaemonPage() {
                     </div>
                 </section>
 
+                <section className="bg-white border-4 border-stone-900 shadow-[10px_10px_0px_0px_#1A1C1C] p-8 space-y-6">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center justify-between w-full">
+                            <h2 className="text-2xl font-black uppercase tracking-tighter font-headline flex items-center gap-3">
+                                Cerveau Cortex & Formats
+                            </h2>
+                            <button
+                                onClick={async () => {
+                                    setIsTestingFlows(true);
+                                    try {
+                                        const res = await fetch('/api/radar/test-flows', { method: 'POST' });
+                                        const data = await res.json();
+                                        if (data.success) alert(data.message);
+                                    } catch (e) {
+                                        console.error(e);
+                                    } finally {
+                                        setIsTestingFlows(false);
+                                    }
+                                }}
+                                disabled={isTestingFlows}
+                                className="bg-stone-900 text-white px-4 py-2 text-[10px] font-black uppercase tracking-widest hover:bg-stone-700 transition-colors"
+                            >
+                                {isTestingFlows ? 'Test en cours...' : 'Diagnostic Flux'}
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="bg-stone-50 border-4 border-stone-900 p-6 space-y-6">
+                         <h3 className="text-lg font-black uppercase tracking-tighter font-headline mb-4">Moteur De Pensee</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="text-[10px] font-black uppercase text-stone-500 mb-1 block">Modele Fallback (Defaut)</label>
+                                    <select
+                                        value={cortexVars.ai_model_main}
+                                        onChange={e => setCortexVars({ ...cortexVars, ai_model_main: e.target.value })}
+                                        className="w-full bg-white border-4 border-stone-900 p-3 font-black text-xs"
+                                    >
+                                        <option value="gemini-3.1-pro-preview">Gemini 3.1 Pro (Preview)</option>
+                                        <option value="gemini-3-flash-preview">Gemini 3.0 Flash</option>
+                                        <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+                                        <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-black uppercase text-stone-500 mb-1 block">Prompt Systeme (Brain)</label>
+                                    <textarea
+                                        value={cortexVars.ai_prompt}
+                                        onChange={e => setCortexVars({ ...cortexVars, ai_prompt: e.target.value })}
+                                        rows={6}
+                                        placeholder="Directives systemes (ton, personnalite)"
+                                        className="w-full bg-white border-4 border-stone-900 p-3 text-xs"
+                                    />
+                                </div>
+                            </div>
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="text-[10px] font-black uppercase text-stone-500 mb-1 flex items-center justify-between">
+                                        Pre-Filtre (Le Tamis) - Pertinence
+                                    </label>
+                                    <p className="text-[10px] font-bold text-stone-400 uppercase mb-2">Definit ce qu'il jette de ce qu'il garde (ROI = Oui/Non)</p>
+                                    <textarea
+                                        value={cortexVars.ai_prompt_relevance}
+                                        onChange={e => setCortexVars({ ...cortexVars, ai_prompt_relevance: e.target.value })}
+                                        rows={6}
+                                        placeholder="Le filtre a dechets entrants..."
+                                        className="w-full bg-white border-4 border-stone-900 p-3 text-xs"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <h3 className="text-xl font-black uppercase tracking-tighter font-headline mt-6">Pipelines Editoriaux</h3>
+
+                    {/* Format Pipelines */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        {/* ALERTE INFO */}
+                        <div className="border-4 border-red-700 bg-white p-4 space-y-4">
+                            <div className="flex justify-between items-center bg-red-700 text-white px-3 py-2 -mx-4 -mt-4 mb-2">
+                                <h3 className="text-xs font-black uppercase tracking-widest">🔴 ALERTE INFO</h3>
+                                <Toggle checked={cortexVars.ai_prompt_breaking_enabled === 'true'} onChange={v => setCortexVars({ ...cortexVars, ai_prompt_breaking_enabled: v ? 'true' : 'false' })} />
+                            </div>
+                            <select
+                                value={cortexVars.ai_model_breaking}
+                                onChange={e => setCortexVars({ ...cortexVars, ai_model_breaking: e.target.value })}
+                                className="w-full bg-stone-50 border-2 border-stone-900 p-2 font-black text-[10px] uppercase"
+                            >
+                                <option value="gemini-3.1-pro-preview">Gemini 3.1 Pro</option>
+                                <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+                                <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
+                            </select>
+                            <label className="flex items-center gap-2 text-[10px] font-black uppercase">
+                                <input type="checkbox" checked={cortexVars.google_search_breaking_enabled === 'true'} onChange={e => setCortexVars({ ...cortexVars, google_search_breaking_enabled: e.target.checked ? 'true' : 'false' })} />
+                                Activer Recherche Google Web 
+                            </label>
+                            <textarea
+                                value={cortexVars.ai_prompt_breaking}
+                                onChange={e => setCortexVars({ ...cortexVars, ai_prompt_breaking: e.target.value })}
+                                rows={8}
+                                disabled={cortexVars.ai_prompt_breaking_enabled !== 'true'}
+                                className="w-full bg-stone-50 border-2 border-stone-900 p-2 text-[10px] disabled:opacity-50"
+                            />
+                        </div>
+
+                        {/* FAIT DU JOUR */}
+                        <div className="border-4 border-blue-700 bg-white p-4 space-y-4">
+                            <div className="flex justify-between items-center bg-blue-700 text-white px-3 py-2 -mx-4 -mt-4 mb-2">
+                                <h3 className="text-xs font-black uppercase tracking-widest">📌 FAIT DU JOUR</h3>
+                                <Toggle checked={cortexVars.ai_prompt_standard_enabled === 'true'} onChange={v => setCortexVars({ ...cortexVars, ai_prompt_standard_enabled: v ? 'true' : 'false' })} />
+                            </div>
+                            <select
+                                value={cortexVars.ai_model_standard}
+                                onChange={e => setCortexVars({ ...cortexVars, ai_model_standard: e.target.value })}
+                                className="w-full bg-stone-50 border-2 border-stone-900 p-2 font-black text-[10px] uppercase"
+                            >
+                                <option value="gemini-3.1-pro-preview">Gemini 3.1 Pro</option>
+                                <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+                                <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
+                            </select>
+                            <label className="flex items-center gap-2 text-[10px] font-black uppercase">
+                                <input type="checkbox" checked={cortexVars.google_search_standard_enabled === 'true'} onChange={e => setCortexVars({ ...cortexVars, google_search_standard_enabled: e.target.checked ? 'true' : 'false' })} />
+                                Activer Recherche Google Web 
+                            </label>
+                            <textarea
+                                value={cortexVars.ai_prompt_standard}
+                                onChange={e => setCortexVars({ ...cortexVars, ai_prompt_standard: e.target.value })}
+                                rows={8}
+                                disabled={cortexVars.ai_prompt_standard_enabled !== 'true'}
+                                className="w-full bg-stone-50 border-2 border-stone-900 p-2 text-[10px] disabled:opacity-50"
+                            />
+                        </div>
+
+                        {/* DECRYPTAGE */}
+                        <div className="border-4 border-stone-900 bg-white p-4 space-y-4">
+                            <div className="flex justify-between items-center bg-stone-900 text-white px-3 py-2 -mx-4 -mt-4 mb-2">
+                                <h3 className="text-xs font-black uppercase tracking-widest">🔎 DECRYPTAGE</h3>
+                                <Toggle checked={cortexVars.ai_prompt_decrypt_enabled === 'true'} onChange={v => setCortexVars({ ...cortexVars, ai_prompt_decrypt_enabled: v ? 'true' : 'false' })} />
+                            </div>
+                            <select
+                                value={cortexVars.ai_model_decrypt}
+                                onChange={e => setCortexVars({ ...cortexVars, ai_model_decrypt: e.target.value })}
+                                className="w-full bg-stone-50 border-2 border-stone-900 p-2 font-black text-[10px] uppercase"
+                            >
+                                <option value="gemini-3.1-pro-preview">Gemini 3.1 Pro</option>
+                                <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+                                <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
+                            </select>
+                            <label className="flex items-center gap-2 text-[10px] font-black uppercase">
+                                <input type="checkbox" checked={cortexVars.google_search_decrypt_enabled === 'true'} onChange={e => setCortexVars({ ...cortexVars, google_search_decrypt_enabled: e.target.checked ? 'true' : 'false' })} />
+                                Activer Recherche Google Web 
+                            </label>
+                            <textarea
+                                value={cortexVars.ai_prompt_decrypt}
+                                onChange={e => setCortexVars({ ...cortexVars, ai_prompt_decrypt: e.target.value })}
+                                rows={8}
+                                disabled={cortexVars.ai_prompt_decrypt_enabled !== 'true'}
+                                className="w-full bg-stone-50 border-2 border-stone-900 p-2 text-[10px] disabled:opacity-50"
+                            />
+                        </div>
+                    </div>
+                </section>
+
                 <section className="bg-white border-4 border-stone-900 shadow-[10px_10px_0px_0px_#1A1C1C] p-8 space-y-8">
                     <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                         <h2 className="text-2xl font-black uppercase tracking-tighter font-headline">Runtime & Actions</h2>
@@ -570,14 +812,14 @@ export default function DaemonPage() {
                                 disabled={scanRunning}
                                 className="bg-red-700 text-white px-5 py-3 border-4 border-stone-900 text-[10px] font-black uppercase tracking-widest disabled:opacity-60"
                             >
-                                {scanRunning && manualAction === 'scan' ? 'SCAN EN COURS...' : 'RUN MANUAL SCAN'}
+
                             </button>
                             <button
                                 onClick={runManualElectionSync}
                                 disabled={scanRunning}
                                 className="bg-amber-600 text-white px-5 py-3 border-4 border-stone-900 text-[10px] font-black uppercase tracking-widest disabled:opacity-60"
                             >
-                                {scanRunning && manualAction === 'elections' ? 'SYNC ELECTIONS...' : 'RUN MANUAL ELECTIONS'}
+
                             </button>
                             <button
                                 onClick={handleSave}
@@ -599,14 +841,7 @@ export default function DaemonPage() {
                         <div className="space-y-4">
                             <h3 className="text-sm font-black uppercase tracking-widest text-stone-500">Runtime Toggles</h3>
                             <div className="space-y-3">
-                                <div className="flex items-center justify-between p-3 bg-stone-50 border-2 border-stone-900">
-                                    <span className="text-xs font-black uppercase">Daemon RSS</span>
-                                    <Toggle checked={daemonRssEnabled} onChange={setDaemonRssEnabled} />
-                                </div>
-                                <div className="flex items-center justify-between p-3 bg-stone-50 border-2 border-stone-900">
-                                    <span className="text-xs font-black uppercase">Daemon Elections</span>
-                                    <Toggle checked={daemonElectionsEnabled} onChange={setDaemonElectionsEnabled} />
-                                </div>
+                                
                                 <div className="flex items-center justify-between p-3 bg-stone-50 border-2 border-stone-900">
                                     <span className="text-xs font-black uppercase">Auto Pilot</span>
                                     <Toggle checked={autoPilotEnabled} onChange={setAutoPilotEnabled} />
@@ -614,6 +849,10 @@ export default function DaemonPage() {
                                 <div className="flex items-center justify-between p-3 bg-stone-50 border-2 border-stone-900">
                                     <span className="text-xs font-black uppercase">Auto Approve</span>
                                     <Toggle checked={autoApproveEnabled} onChange={setAutoApproveEnabled} />
+                                </div>
+                                <div className="flex items-center justify-between p-3 bg-stone-50 border-2 border-stone-900">
+                                    <span className="text-xs font-black uppercase">Discord Test Mode</span>
+                                    <Toggle checked={discordTestMode} onChange={setDiscordTestMode} />
                                 </div>
                             </div>
                         </div>
@@ -627,94 +866,38 @@ export default function DaemonPage() {
                             </div>
                         </div>
                     </div>
-                </section>
 
-                <section className="bg-white border-4 border-stone-900 shadow-[10px_10px_0px_0px_#1A1C1C] p-8 space-y-6">
-                    <div className="flex items-center justify-between">
-                        <h2 className="text-2xl font-black uppercase tracking-tighter font-headline">Scheduling ET/OU</h2>
-                        <div className="text-[10px] font-black uppercase tracking-widest text-stone-500">Intervalle + Heures fixes peuvent coexister</div>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="border-2 border-stone-900 bg-stone-50 p-4 space-y-4">
-                            <div className="flex items-center justify-between">
-                                <h3 className="text-sm font-black uppercase tracking-widest">RSS</h3>
-                                <span className={`px-2 py-1 text-[10px] font-black uppercase border-2 ${rssIntervalEnabled && scheduleEnabled ? 'bg-red-700 text-white border-red-700' : (rssIntervalEnabled || scheduleEnabled ? 'bg-stone-900 text-white border-stone-900' : 'bg-white text-stone-500 border-stone-400')}`}>
-                                    {rssIntervalEnabled && scheduleEnabled ? 'HYBRID ET/OU' : (rssIntervalEnabled ? 'INTERVALLE' : (scheduleEnabled ? 'HEURES FIXES' : 'OFF'))}
-                                </span>
-                            </div>
-
-                            <div className="flex items-center justify-between p-3 bg-white border-2 border-stone-900">
-                                <span className="text-xs font-black uppercase">Intervalle RSS</span>
-                                <Toggle checked={rssIntervalEnabled} onChange={setRssIntervalEnabled} />
-                            </div>
-                            {rssIntervalEnabled && (
-                                <div>
-                                    <label className="text-[10px] font-black uppercase text-stone-500 mb-1 block">Toutes les x heures</label>
-                                    <input type="number" step="0.1" value={daemonProfiles.rss.scan_interval_hours} onChange={e => updateDaemonProfile('rss', 'scan_interval_hours', e.target.value)} className="w-full bg-white border-2 border-stone-900 p-2 font-black text-xs" />
-                                </div>
-                            )}
-
-                            <div className="flex items-center justify-between p-3 bg-white border-2 border-stone-900">
-                                <span className="text-xs font-black uppercase">Heures fixes RSS</span>
-                                <Toggle checked={scheduleEnabled} onChange={setScheduleEnabled} />
-                            </div>
-                            {scheduleEnabled && (
-                                <>
-                                    <div className="flex gap-2 items-end">
-                                        <input type="time" value={newScheduleTime} onChange={e => setNewScheduleTime(e.target.value)} className="bg-white border-2 border-stone-900 p-2 font-black text-xs" />
-                                        <button onClick={addScheduleTime} className="px-3 py-2 bg-stone-900 text-white border-2 border-stone-900 text-[10px] font-black uppercase">Ajouter</button>
-                                    </div>
-                                    <div className="flex flex-wrap gap-2">
-                                        {scheduleTimes.length === 0 && <span className="text-[10px] font-black uppercase text-stone-400">Aucune heure configuree</span>}
-                                        {scheduleTimes.map(t => (
-                                            <button key={`rss-main-${t}`} onClick={() => removeScheduleTime(t)} className="px-2 py-1 bg-stone-900 text-white border-2 border-stone-900 text-[10px] font-black uppercase">{t} ✕</button>
-                                        ))}
-                                    </div>
-                                </>
-                            )}
+                    <div className="space-y-4">
+                        <h3 className="text-sm font-black uppercase tracking-widest text-stone-500">Target Networks par type RSS</h3>
+                        <div className="overflow-x-auto border-2 border-stone-900">
+                            <table className="w-full text-xs">
+                                <thead>
+                                    <tr className="bg-stone-900 text-white">
+                                        <th className="text-left p-3 font-black uppercase tracking-widest">Type</th>
+                                        <th className="p-3 font-black uppercase tracking-widest">Mastodon</th>
+                                        <th className="p-3 font-black uppercase tracking-widest">Bluesky</th>
+                                        <th className="p-3 font-black uppercase tracking-widest">Twitter/X</th>
+                                        <th className="p-3 font-black uppercase tracking-widest">Discord</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {RSS_TYPE_LABELS.map((typeLabel) => (
+                                        <tr key={typeLabel} className="bg-white border-t-2 border-stone-200">
+                                            <td className="p-3 font-black uppercase tracking-tight">{typeLabel}</td>
+                                            <td className="p-3 text-center"><Toggle checked={socialTargetsByType[typeLabel].mastodon} onChange={(v) => setSocialTarget(typeLabel, 'mastodon', v)} /></td>
+                                            <td className="p-3 text-center"><Toggle checked={socialTargetsByType[typeLabel].bluesky} onChange={(v) => setSocialTarget(typeLabel, 'bluesky', v)} /></td>
+                                            <td className="p-3 text-center"><Toggle checked={socialTargetsByType[typeLabel].twitter} onChange={(v) => setSocialTarget(typeLabel, 'twitter', v)} /></td>
+                                            <td className="p-3 text-center"><Toggle checked={socialTargetsByType[typeLabel].discord} onChange={(v) => setSocialTarget(typeLabel, 'discord', v)} /></td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
                         </div>
-
-                        <div className="border-2 border-stone-900 bg-stone-50 p-4 space-y-4">
-                            <div className="flex items-center justify-between">
-                                <h3 className="text-sm font-black uppercase tracking-widest">Elections</h3>
-                                <span className={`px-2 py-1 text-[10px] font-black uppercase border-2 ${electionsIntervalEnabled && electionsScheduleEnabled ? 'bg-red-700 text-white border-red-700' : (electionsIntervalEnabled || electionsScheduleEnabled ? 'bg-stone-900 text-white border-stone-900' : 'bg-white text-stone-500 border-stone-400')}`}>
-                                    {electionsIntervalEnabled && electionsScheduleEnabled ? 'HYBRID ET/OU' : (electionsIntervalEnabled ? 'INTERVALLE' : (electionsScheduleEnabled ? 'HEURES FIXES' : 'OFF'))}
-                                </span>
-                            </div>
-
-                            <div className="flex items-center justify-between p-3 bg-white border-2 border-stone-900">
-                                <span className="text-xs font-black uppercase">Intervalle Elections</span>
-                                <Toggle checked={electionsIntervalEnabled} onChange={setElectionsIntervalEnabled} />
-                            </div>
-                            {electionsIntervalEnabled && (
-                                <div>
-                                    <label className="text-[10px] font-black uppercase text-stone-500 mb-1 block">Toutes les x heures</label>
-                                    <input type="number" step="0.1" value={daemonProfiles.elections.election_interval_hours} onChange={e => updateDaemonProfile('elections', 'election_interval_hours', e.target.value)} className="w-full bg-white border-2 border-stone-900 p-2 font-black text-xs" />
-                                </div>
-                            )}
-
-                            <div className="flex items-center justify-between p-3 bg-white border-2 border-stone-900">
-                                <span className="text-xs font-black uppercase">Heures fixes Elections</span>
-                                <Toggle checked={electionsScheduleEnabled} onChange={setElectionsScheduleEnabled} />
-                            </div>
-                            {electionsScheduleEnabled && (
-                                <>
-                                    <div className="flex gap-2 items-end">
-                                        <input type="time" value={newElectionScheduleTime} onChange={e => setNewElectionScheduleTime(e.target.value)} className="bg-white border-2 border-stone-900 p-2 font-black text-xs" />
-                                        <button onClick={addElectionScheduleTime} className="px-3 py-2 bg-stone-900 text-white border-2 border-stone-900 text-[10px] font-black uppercase">Ajouter</button>
-                                    </div>
-                                    <div className="flex flex-wrap gap-2">
-                                        {electionsScheduleTimes.length === 0 && <span className="text-[10px] font-black uppercase text-stone-400">Aucune heure configuree</span>}
-                                        {electionsScheduleTimes.map(t => (
-                                            <button key={`elections-main-${t}`} onClick={() => removeElectionScheduleTime(t)} className="px-2 py-1 bg-stone-900 text-white border-2 border-stone-900 text-[10px] font-black uppercase">{t} ✕</button>
-                                        ))}
-                                    </div>
-                                </>
-                            )}
-                        </div>
+                        <p className="text-[10px] font-bold uppercase text-stone-500">Ces cibles sont indépendantes pour chaque type RSS et remplacent la config globale Target Networks.</p>
                     </div>
                 </section>
+
+                
 
                 <section className="bg-white border-4 border-stone-900 shadow-[10px_10px_0px_0px_#1A1C1C] p-8 space-y-6">
                     <div className="flex items-center justify-between">
@@ -747,7 +930,7 @@ export default function DaemonPage() {
                                     <div>
                                         <label className="text-[10px] font-black uppercase text-stone-500 mb-1 block">Daemons</label>
                                         <div className="flex gap-2">
-                                            {(['rss', 'publisher', 'elections'] as DaemonType[]).map(d => (
+                                            {(['rss', 'publisher'] as DaemonType[]).map(d => (
                                                 <button
                                                     key={d}
                                                     onClick={() => toggleRuleDaemon(rule.id, d)}
@@ -798,7 +981,7 @@ export default function DaemonPage() {
                                     </div>
                                     <div>
                                         <label className="text-[10px] font-black uppercase text-stone-500 mb-1 block">elections interval h</label>
-                                        <input type="number" step="0.1" value={rule.overrides.election_interval_hours ?? ''} onChange={e => updateRuleOverride(rule.id, 'election_interval_hours', e.target.value)} className="w-full bg-white border-2 border-stone-900 p-2 font-black text-xs" />
+
                                     </div>
                                 </div>
                             </div>
@@ -812,7 +995,7 @@ export default function DaemonPage() {
                     <div className="w-full max-w-4xl bg-stone-50 border-4 border-stone-900 shadow-[12px_12px_0px_0px_#1A1C1C] p-6">
                         <div className="flex items-center justify-between mb-4">
                             <h3 className="text-lg font-black uppercase tracking-tighter">
-                                {manualAction === 'elections' ? 'Manual Elections Sync Live Logs' : 'Manual Scan Live Logs'}
+
                             </h3>
                             <button
                                 onClick={() => !scanRunning && setModalOpen(false)}
@@ -837,111 +1020,174 @@ export default function DaemonPage() {
             )}
 
             {profilesOpen && (
-                <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
-                    <div className="w-full max-w-6xl bg-stone-50 border-4 border-stone-900 shadow-[12px_12px_0px_0px_#1A1C1C] p-6 max-h-[90vh] overflow-auto">
-                        <div className="flex items-center justify-between mb-4">
-                            <h3 className="text-lg font-black uppercase tracking-tighter">Configuration individuelle par daemon</h3>
-                            <button onClick={() => setProfilesOpen(false)} className="px-3 py-1 border-2 border-stone-900 bg-white text-xs font-black uppercase">Fermer</button>
+                <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 backdrop-blur-sm">
+                    <div className="w-full max-w-5xl bg-stone-50 border-4 border-stone-900 shadow-[16px_16px_0px_0px_#1A1C1C] p-8 max-h-[90vh] overflow-y-auto">
+                        <div className="flex items-center justify-between mb-8 pb-4 border-b-4 border-stone-900">
+                            <div>
+                                <h3 className="text-2xl font-black uppercase tracking-tighter font-headline flex items-center gap-3">
+                                    <span className="text-xl">⚙️</span> Configuration Individuelle des Daemons
+                                </h3>
+                                <p className="text-xs font-bold text-stone-500 uppercase mt-2">Precision du Cycle de Vie (Scrape & Diffusion)</p>
+                            </div>
+                            <button onClick={() => setProfilesOpen(false)} className="px-6 py-2 bg-stone-900 text-white hover:bg-stone-700 transition-colors text-xs font-black uppercase tracking-widest border-2 border-stone-900 shadow-[4px_4px_0px_0px_#1A1C1C]">
+                                Sauvegarder & Fermer
+                            </button>
                         </div>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            {(['rss', 'publisher', 'elections'] as DaemonType[]).map((daemonKey) => (
-                                <div key={daemonKey} className="border-4 border-stone-900 bg-white p-4 space-y-3">
-                                    <h4 className="text-sm font-black uppercase tracking-widest">{daemonKey}</h4>
-                                    {daemonKey === 'rss' && (
-                                        <div className="space-y-2 p-3 border-2 border-stone-900 bg-stone-50">
-                                            <div className="flex items-center justify-between">
-                                                <span className="text-[10px] font-black uppercase">Intervalle RSS</span>
-                                                <Toggle checked={rssIntervalEnabled} onChange={setRssIntervalEnabled} />
-                                            </div>
-                                            {rssIntervalEnabled && (
-                                                <div>
-                                                    <label className="text-[10px] font-black uppercase text-stone-500 block mb-1">Scan toutes les x heures</label>
-                                                    <input type="number" step="0.1" value={daemonProfiles.rss.scan_interval_hours} onChange={e => updateDaemonProfile('rss', 'scan_interval_hours', e.target.value)} className="w-full bg-white border-2 border-stone-900 p-2 font-black text-xs" />
-                                                </div>
-                                            )}
-                                            <div className="flex items-center justify-between">
-                                                <span className="text-[10px] font-black uppercase">Heures fixes RSS</span>
-                                                <Toggle checked={scheduleEnabled} onChange={setScheduleEnabled} />
-                                            </div>
-                                            {scheduleEnabled && (
-                                                <>
-                                                    <div className="flex gap-2 items-end">
-                                                        <input type="time" value={newScheduleTime} onChange={e => setNewScheduleTime(e.target.value)} className="bg-white border-2 border-stone-900 p-2 font-black text-xs" />
-                                                        <button onClick={addScheduleTime} className="px-3 py-2 bg-stone-900 text-white border-2 border-stone-900 text-[10px] font-black uppercase">Ajouter</button>
-                                                    </div>
-                                                    <div className="flex flex-wrap gap-2">
-                                                        {scheduleTimes.map(t => (
-                                                            <button key={`rss-${t}`} onClick={() => removeScheduleTime(t)} className="px-2 py-1 bg-stone-900 text-white border-2 border-stone-900 text-[10px] font-black uppercase">{t} ✕</button>
-                                                        ))}
-                                                    </div>
-                                                </>
-                                            )}
+                        
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                            {/* RSS DAEMON - LE TRACTEUR */}
+                            <div className="bg-white border-4 border-stone-900 p-6 flex flex-col gap-6">
+                                <div className="bg-blue-600 text-white px-4 py-2 -mx-6 -mt-6 border-b-4 border-stone-900 mb-2 flex justify-between items-center">
+                                    <h4 className="text-lg font-black uppercase tracking-widest flex items-center gap-2">📡 Le Collecteur (RSS)</h4>
+                                    <span className="text-[10px] bg-stone-900 px-2 py-1 font-bold uppercase border-2 border-stone-900">Inbound</span>
+                                </div>
+                                <p className="text-[10px] text-stone-500 uppercase font-bold">Gere la frequence de balayage des sources et le volume absorbe.</p>
+
+                                <div className="space-y-4 bg-stone-50 border-2 border-stone-200 p-4">
+                                    <h5 className="text-[10px] font-black uppercase tracking-widest text-blue-700 border-b-2 border-stone-200 pb-2">📅 Planification du Crawl</h5>
+                                    
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-[10px] font-black uppercase">Intervalle Regulier</span>
+                                        <Toggle checked={rssIntervalEnabled} onChange={setRssIntervalEnabled} />
+                                    </div>
+                                    {rssIntervalEnabled && (
+                                        <div className="pl-4 border-l-4 border-blue-600 space-y-1">
+                                            <label className="text-[10px] font-black uppercase text-stone-500 block">Frequence (Heures)</label>
+                                            <div className="flex gap-4 items-center">
+      <input type="range" min="0.1" max="24" step="0.1" value={daemonProfiles.rss.scan_interval_hours} onChange={e => updateDaemonProfile('rss', 'scan_interval_hours', e.target.value)} className="flex-1 accent-stone-900 h-2 bg-stone-300 rounded-none cursor-pointer appearance-none" />
+      <div className="w-16 bg-white border-2 border-stone-900 p-2 text-center font-black text-xs">{daemonProfiles.rss.scan_interval_hours}h</div>
+  </div>
                                         </div>
                                     )}
 
-                                    {daemonKey === 'elections' && (
-                                        <div className="space-y-2 p-3 border-2 border-stone-900 bg-stone-50">
-                                            <div className="flex items-center justify-between">
-                                                <span className="text-[10px] font-black uppercase">Intervalle Elections</span>
-                                                <Toggle checked={electionsIntervalEnabled} onChange={setElectionsIntervalEnabled} />
-                                            </div>
-                                            {electionsIntervalEnabled && (
-                                                <div>
-                                                    <label className="text-[10px] font-black uppercase text-stone-500 block mb-1">Scan toutes les x heures</label>
-                                                    <input type="number" step="0.1" value={daemonProfiles.elections.election_interval_hours} onChange={e => updateDaemonProfile('elections', 'election_interval_hours', e.target.value)} className="w-full bg-white border-2 border-stone-900 p-2 font-black text-xs" />
+                                    <div className="flex items-center justify-between mt-4">
+                                        <span className="text-[10px] font-black uppercase">Heures Fixes (Horloge)</span>
+                                        <Toggle checked={scheduleEnabled} onChange={setScheduleEnabled} />
+                                    </div>
+                                    {scheduleEnabled && (
+                                        <div className="pl-4 border-l-4 border-blue-600 space-y-2">
+                                            <div className="flex gap-2 items-stretch">
+                                                <div className="flex-1">
+                                                    <label className="text-[10px] font-black uppercase text-stone-500 block mb-1">Nouvelle heure</label>
+                                                    <input type="time" value={newScheduleTime} onChange={e => setNewScheduleTime(e.target.value)} className="w-full bg-white border-2 border-stone-900 p-2 font-black text-xs" />
                                                 </div>
-                                            )}
-                                            <div className="flex items-center justify-between">
-                                                <span className="text-[10px] font-black uppercase">Heures fixes Elections</span>
-                                                <Toggle checked={electionsScheduleEnabled} onChange={setElectionsScheduleEnabled} />
+                                                <button onClick={addScheduleTime} className="px-4 py-2 mt-auto bg-stone-900 text-white font-black text-xs uppercase hover:bg-stone-700 transition-colors">+ Ajouter</button>
                                             </div>
-                                            {electionsScheduleEnabled && (
-                                                <>
-                                                    <div className="flex gap-2 items-end">
-                                                        <input type="time" value={newElectionScheduleTime} onChange={e => setNewElectionScheduleTime(e.target.value)} className="bg-white border-2 border-stone-900 p-2 font-black text-xs" />
-                                                        <button onClick={addElectionScheduleTime} className="px-3 py-2 bg-stone-900 text-white border-2 border-stone-900 text-[10px] font-black uppercase">Ajouter</button>
-                                                    </div>
-                                                    <div className="flex flex-wrap gap-2">
-                                                        {electionsScheduleTimes.map(t => (
-                                                            <button key={`elec-${t}`} onClick={() => removeElectionScheduleTime(t)} className="px-2 py-1 bg-stone-900 text-white border-2 border-stone-900 text-[10px] font-black uppercase">{t} ✕</button>
-                                                        ))}
-                                                    </div>
-                                                </>
-                                            )}
+                                            <div className="flex flex-wrap gap-2 pt-2">
+                                                {scheduleTimes.length === 0 && <span className="text-xs text-stone-400 italic">Aucune heure fixee</span>}
+                                                {scheduleTimes.map(t => (
+                                                    <button key={`rss-${t}`} onClick={() => removeScheduleTime(t)} className="px-3 py-1 bg-white hover:bg-red-100 hover:text-red-700 hover:border-red-700 text-stone-900 border-2 border-stone-900 text-[10px] font-black transition-colors group flex items-center gap-1">
+                                                        {t} <span className="text-stone-400 group-hover:text-red-700">✕</span>
+                                                    </button>
+                                                ))}
+                                            </div>
                                         </div>
                                     )}
+                                </div>
 
-                                    <div>
-                                        <label className="text-[10px] font-black uppercase text-stone-500 block mb-1">Max Signals/Scan</label>
-                                        <input type="number" value={daemonProfiles[daemonKey].max_articles} onChange={e => updateDaemonProfile(daemonKey, 'max_articles', e.target.value)} className="w-full bg-stone-50 border-2 border-stone-900 p-2 font-black text-xs" />
-                                    </div>
-                                    <div>
-                                        <label className="text-[10px] font-black uppercase text-stone-500 block mb-1">Lookback (h)</label>
-                                        <input type="number" value={daemonProfiles[daemonKey].rss_lookback_hours} onChange={e => updateDaemonProfile(daemonKey, 'rss_lookback_hours', e.target.value)} className="w-full bg-stone-50 border-2 border-stone-900 p-2 font-black text-xs" />
-                                    </div>
-                                    <div>
-                                        <label className="text-[10px] font-black uppercase text-stone-500 block mb-1">Min Delay (m)</label>
-                                        <input type="number" value={daemonProfiles[daemonKey].min_delay_min} onChange={e => updateDaemonProfile(daemonKey, 'min_delay_min', e.target.value)} className="w-full bg-stone-50 border-2 border-stone-900 p-2 font-black text-xs" />
-                                    </div>
-                                    <div>
-                                        <label className="text-[10px] font-black uppercase text-stone-500 block mb-1">Max Delay (m)</label>
-                                        <input type="number" value={daemonProfiles[daemonKey].max_delay_min} onChange={e => updateDaemonProfile(daemonKey, 'max_delay_min', e.target.value)} className="w-full bg-stone-50 border-2 border-stone-900 p-2 font-black text-xs" />
-                                    </div>
-                                    <div>
-                                        <label className="text-[10px] font-black uppercase text-stone-500 block mb-1">Scan Interval (h)</label>
-                                        <input type="number" step="0.1" value={daemonProfiles[daemonKey].scan_interval_hours} onChange={e => updateDaemonProfile(daemonKey, 'scan_interval_hours', e.target.value)} className="w-full bg-stone-50 border-2 border-stone-900 p-2 font-black text-xs" />
-                                    </div>
-                                    <div>
-                                        <label className="text-[10px] font-black uppercase text-stone-500 block mb-1">Elections Interval (h)</label>
-                                        <input type="number" step="0.1" value={daemonProfiles[daemonKey].election_interval_hours} onChange={e => updateDaemonProfile(daemonKey, 'election_interval_hours', e.target.value)} className="w-full bg-stone-50 border-2 border-stone-900 p-2 font-black text-xs" />
+                                <div className="space-y-4 bg-stone-50 border-2 border-stone-200 p-4">
+                                    <h5 className="text-[10px] font-black uppercase tracking-widest text-blue-700 border-b-2 border-stone-200 pb-2">🧱 Limites d'Absorption</h5>
+                                    
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="text-[10px] font-black uppercase text-stone-500 block mb-1">Max Articles / Scan</label>
+                                            <div className="flex gap-4 items-center">
+      <input type="range" min="1" max="500" step="1" value={daemonProfiles.rss.max_articles} onChange={e => updateDaemonProfile('rss', 'max_articles', e.target.value)} className="flex-1 accent-stone-900 h-2 bg-stone-300 rounded-none cursor-pointer appearance-none" />
+      <div className="w-16 bg-white border-2 border-stone-900 p-2 text-center font-black text-xs">{daemonProfiles.rss.max_articles}</div>
+  </div>
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] font-black uppercase text-stone-500 block mb-1">Lookback Historique (h)</label>
+                                            <div className="flex gap-4 items-center">
+      <input type="range" min="1" max="168" step="1" value={daemonProfiles.rss.rss_lookback_hours} onChange={e => updateDaemonProfile('rss', 'rss_lookback_hours', e.target.value)} className="flex-1 accent-stone-900 h-2 bg-stone-300 rounded-none cursor-pointer appearance-none" />
+      <div className="w-16 bg-white border-2 border-stone-900 p-2 text-center font-black text-xs">{daemonProfiles.rss.rss_lookback_hours}h</div>
+  </div>
+                                        </div>
                                     </div>
                                 </div>
-                            ))}
+                            </div>
+
+                            {/* PUBLISHER DAEMON - LA MACHINE A ECRIRE */}
+                            <div className="bg-white border-4 border-stone-900 p-6 flex flex-col gap-6">
+                                <div className="bg-emerald-600 text-white px-4 py-2 -mx-6 -mt-6 border-b-4 border-stone-900 mb-2 flex justify-between items-center">
+                                    <h4 className="text-lg font-black uppercase tracking-widest flex items-center gap-2">🚀 Le Diffuseur (Publisher)</h4>
+                                    <span className="text-[10px] bg-stone-900 px-2 py-1 font-bold uppercase border-2 border-stone-900">Outbound</span>
+                                </div>
+                                <p className="text-[10px] text-stone-500 uppercase font-bold">Gere la cadence de publication, les delais et le rythme d'ecriture.</p>
+
+                                <div className="space-y-4 bg-stone-50 border-2 border-stone-200 p-4">
+                                    <h5 className="text-[10px] font-black uppercase tracking-widest text-emerald-700 border-b-2 border-stone-200 pb-2">⚡ Cadence de Publication</h5>
+                                    
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase text-stone-500 block mb-1">Intervalle entre Cycles (h)</label>
+                                        <div className="flex gap-4 items-center">
+      <input type="range" min="0.1" max="24" step="0.1" value={daemonProfiles.publisher.scan_interval_hours} onChange={e => updateDaemonProfile('publisher', 'scan_interval_hours', e.target.value)} className="flex-1 accent-stone-900 h-2 bg-stone-300 rounded-none cursor-pointer appearance-none" />
+      <div className="w-16 bg-white border-2 border-stone-900 p-2 text-center font-black text-xs">{daemonProfiles.publisher.scan_interval_hours}h</div>
+  </div>
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase text-stone-500 block mb-1">Max Articles / Cycle (Limite Session)</label>
+                                        <div className="flex gap-4 items-center">
+      <input type="range" min="1" max="500" step="1" value={daemonProfiles.publisher.max_articles} onChange={e => updateDaemonProfile('publisher', 'max_articles', e.target.value)} className="flex-1 accent-stone-900 h-2 bg-stone-300 rounded-none cursor-pointer appearance-none" />
+      <div className="w-16 bg-white border-2 border-stone-900 p-2 text-center font-black text-xs">{daemonProfiles.publisher.max_articles}</div>
+  </div>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-4 bg-stone-50 border-2 border-stone-200 p-4">
+                                    <h5 className="text-[10px] font-black uppercase tracking-widest text-emerald-700 border-b-2 border-stone-200 pb-2">⏱ Delais & Anti-Spam</h5>
+                                    <p className="text-[9px] font-bold text-stone-400 mb-2 uppercase leading-tight">Assure une repartition organique des publications et simule une activite humaine.</p>
+                                    
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="text-[10px] font-black uppercase text-stone-500 block mb-1">Min Delay (minutes)</label>
+                                            <div className="flex gap-4 items-center">
+      <input type="range" min="1" max="60" step="1" value={daemonProfiles.publisher.min_delay_min} onChange={e => updateDaemonProfile('publisher', 'min_delay_min', e.target.value)} className="flex-1 accent-stone-900 h-2 bg-stone-300 rounded-none cursor-pointer appearance-none" />
+      <div className="w-16 bg-white border-2 border-stone-900 p-2 text-center font-black text-xs">{daemonProfiles.publisher.min_delay_min}m</div>
+  </div>
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] font-black uppercase text-stone-500 block mb-1">Max Delay (minutes)</label>
+                                            <div className="flex gap-4 items-center">
+      <input type="range" min="1" max="120" step="1" value={daemonProfiles.publisher.max_delay_min} onChange={e => updateDaemonProfile('publisher', 'max_delay_min', e.target.value)} className="flex-1 accent-stone-900 h-2 bg-stone-300 rounded-none cursor-pointer appearance-none" />
+      <div className="w-16 bg-white border-2 border-stone-900 p-2 text-center font-black text-xs">{daemonProfiles.publisher.max_delay_min}m</div>
+  </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
-                        <div className="mt-4 text-[10px] font-black uppercase text-stone-500">Les valeurs seront actives apres Enregistrer dans Runtime & Actions.</div>
+                        
+                        <div className="mt-6 bg-amber-50 border-4 border-amber-400 p-4 font-black flex items-center justify-center gap-2">
+                            <span className="text-xl">⚠️</span>
+                            <span className="text-[10px] uppercase text-amber-900 tracking-widest">
+                                N'oubliez pas : Les modifications prendront effet apres avoir clique sur "Enregistrer" dans la section principale.
+                            </span>
+                        </div>
                     </div>
                 </div>
             )}
+ 
+            {/* FLOATING SAVE BUTTON */}
+            <div 
+                className={`fixed bottom-8 right-8 z-[100] transition-all duration-500 ease-in-out ${isDirty ? 'translate-y-0 opacity-100' : 'translate-y-24 opacity-0 pointer-events-none'}`}
+            >
+                <div className="relative group">
+                    <div className="absolute -inset-1 bg-red-700 blur opacity-25 group-hover:opacity-75 transition duration-200"></div>
+                    <button
+                        onClick={handleSave}
+                        disabled={saving}
+                        className="relative flex items-center gap-3 bg-red-700 text-white px-6 py-4 border-4 border-stone-900 font-black uppercase tracking-widest shadow-[8px_8px_0px_0px_rgba(26,28,28,1)] hover:translate-x-[-4px] hover:translate-y-[-4px] hover:shadow-[12px_12px_0px_0px_rgba(26,28,28,1)] transition-all animate-pulse"
+                    >
+                        <span className="text-xl">⚠️</span>
+                        <div>
+                            <div>{saving ? 'SAUVEGARDE...' : 'CHANGEMENTS NON SAUVÉGARDÉS'}</div>
+                            <div className="text-[10px] text-red-200 font-bold">Cliquez pour appliquer la configuration</div>
+                        </div>
+                    </button>
+                </div>
+            </div>
+
         </DashboardLayout>
     );
 }

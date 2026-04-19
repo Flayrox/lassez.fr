@@ -13,7 +13,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         const [postsResult, categoriesResult] = await Promise.all([
             payload.find({
                 collection: 'posts',
-                where: { status: { equals: 'published' } },
+                where: { _status: { equals: 'published' } },
                 limit: 100,
                 page: 1,
                 depth: 1,

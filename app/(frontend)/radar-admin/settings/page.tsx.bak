@@ -61,7 +61,7 @@ const DEFAULT_DAEMON_CFG = {
 export default function SettingsPage() {
     const [isOverlayMode, setIsOverlayMode] = useState(false);
     const { settings, fetchSettings, isDaemonRunning, countdown } = useRadarAdmin();
-    const [activeTab, setActiveTab] = useState<'prompt' | 'logic' | 'sources' | 'users' | 'elections' | 'pipeline' | 'diffusion' | 'health' | 'comms'>('prompt');
+    const [activeTab, setActiveTab] = useState<'prompt' | 'logic' | 'sources' | 'elections' | 'pipeline' | 'diffusion' | 'health' | 'comms'>('prompt');
     const [advancedMode, setAdvancedMode] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [isDirty, setIsDirty] = useState(false);
@@ -82,41 +82,10 @@ export default function SettingsPage() {
     const [wizardCandidateFirst, setWizardCandidateFirst] = useState('');
     const [wizardCandidateSecond, setWizardCandidateSecond] = useState('');
 
-    const [users, setUsers] = useState<Array<{
-        id: number;
-        username: string;
-        role: 'admin' | 'editor' | 'viewer';
-        is_active: number;
-        permissions: Record<string, boolean>;
-        created_at: string;
-    }>>([]);
-    const [usersLoading, setUsersLoading] = useState(false);
-    const [usersSaving, setUsersSaving] = useState(false);
-    const [userForm, setUserForm] = useState({
-        username: '',
-        password: '',
-        role: 'viewer' as 'admin' | 'editor' | 'viewer',
-        permissions: {
-            radar: true,
-            studio: false,
-            network: false,
-            lab: false,
-            daemon: false,
-            settings: false,
-            users: false
-        },
-        is_active: true
-    });
-
     useEffect(() => {
         if (typeof window === 'undefined') return;
         const params = new URLSearchParams(window.location.search);
         setIsOverlayMode(params.get('overlay') === '1');
-
-        const tab = params.get('tab');
-        if (tab && ['prompt', 'logic', 'sources', 'users', 'elections', 'pipeline', 'diffusion', 'health', 'comms'].includes(tab)) {
-            setActiveTab(tab as 'prompt' | 'logic' | 'sources' | 'users' | 'elections' | 'pipeline' | 'diffusion' | 'health' | 'comms');
-        }
     }, []);
 
     const notifyParentStatus = (status: 'clean' | 'dirty' | 'saving' | 'saved') => {
@@ -350,131 +319,10 @@ export default function SettingsPage() {
         }
     };
 
-    const fetchUsers = async () => {
-        setUsersLoading(true);
-        try {
-            const res = await fetch('/api/radar/users');
-            const data = await res.json();
-            if (data.success) setUsers(data.users || []);
-        } catch (e) {
-            console.error(e);
-        } finally {
-            setUsersLoading(false);
-        }
-    };
-
-    useEffect(() => {
-        if (activeTab === 'users') {
-            fetchUsers();
-        }
-    }, [activeTab]);
-
-    const patchUserFormPermission = (key: string, value: boolean) => {
-        if (userForm.role === 'admin') return;
-        setUserForm(prev => ({ ...prev, permissions: { ...prev.permissions, [key]: value } }));
-    };
-
-    const onUserRoleChange = (role: 'admin' | 'editor' | 'viewer') => {
-        if (role === 'admin') {
-            setUserForm(prev => ({
-                ...prev,
-                role,
-                permissions: {
-                    radar: true,
-                    studio: true,
-                    network: true,
-                    lab: true,
-                    daemon: true,
-                    settings: true,
-                    users: true
-                }
-            }));
-            return;
-        }
-        setUserForm(prev => ({ ...prev, role }));
-    };
-
-    const createUser = async () => {
-        setUsersSaving(true);
-        try {
-            const res = await fetch('/api/radar/users', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(userForm)
-            });
-            const data = await res.json();
-            if (!data.success) {
-                alert(data.error || 'Creation impossible.');
-            } else {
-                setUserForm({
-                    username: '',
-                    password: '',
-                    role: 'viewer',
-                    permissions: {
-                        radar: true,
-                        studio: false,
-                        network: false,
-                        lab: false,
-                        daemon: false,
-                        settings: false,
-                        users: false
-                    },
-                    is_active: true
-                });
-                await fetchUsers();
-            }
-        } catch (e) {
-            console.error(e);
-            alert('Erreur reseau creation utilisateur.');
-        } finally {
-            setUsersSaving(false);
-        }
-    };
-
-    const updateUser = async (id: number, patch: any) => {
-        try {
-            const res = await fetch('/api/radar/users', {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ id, ...patch })
-            });
-            const data = await res.json();
-            if (!data.success) {
-                alert(data.error || 'Mise a jour impossible.');
-                return;
-            }
-            await fetchUsers();
-        } catch (e) {
-            console.error(e);
-            alert('Erreur reseau mise a jour utilisateur.');
-        }
-    };
-
-    const deleteUser = async (id: number) => {
-        if (!confirm('Supprimer cet utilisateur ?')) return;
-        try {
-            const res = await fetch('/api/radar/users', {
-                method: 'DELETE',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ id })
-            });
-            const data = await res.json();
-            if (!data.success) {
-                alert(data.error || 'Suppression impossible.');
-                return;
-            }
-            await fetchUsers();
-        } catch (e) {
-            console.error(e);
-            alert('Erreur reseau suppression utilisateur.');
-        }
-    };
-
     const tabs = [
         { key: 'prompt', label: 'Moteur IA', icon: 'psychology', advanced: false },
         { key: 'logic', label: 'Logique Édito', icon: 'neurology', advanced: false },
         { key: 'sources', label: 'Sources', icon: 'rss_feed', advanced: false },
-        { key: 'users', label: 'Users', icon: 'manage_accounts', advanced: false },
         { key: 'elections', label: 'Élections', icon: 'how_to_vote', advanced: false },
         { key: 'pipeline', label: 'Pipeline', icon: 'tune', advanced: true },
         { key: 'diffusion', label: 'Diffusion', icon: 'share', advanced: true },
@@ -535,9 +383,169 @@ export default function SettingsPage() {
 
                     {/* Settings Panel */}
                     <div className="flex-1 bg-white border-4 border-stone-900 shadow-[12px_12px_0px_0px_#1A1C1C] p-4 md:p-10 min-h-[600px]">
-                        
+                        {activeTab === 'prompt' && (
+                            <div className="space-y-6">
+                                <h3 className="text-xl font-black uppercase tracking-tighter font-headline mb-4">Moteur de Pensée</h3>
+                                <div className="p-4 bg-amber-50 border-4 border-stone-900 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                                    <div>
+                                        <p className="text-xs font-black uppercase tracking-widest">Nouveau cockpit daemon</p>
+                                        <p className="text-[10px] font-bold uppercase text-stone-500">Les controles avances daemon sont maintenant centralises sur la page dediee.</p>
+                                    </div>
+                                    <a href="/radar-admin/daemon" className="inline-block bg-stone-900 text-white px-4 py-2 border-2 border-stone-900 text-[10px] font-black uppercase tracking-widest">Ouvrir Daemon Center</a>
+                                </div>
+                                <div className="grid grid-cols-2 gap-6">
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase text-stone-500 mb-1 block">Modèle global fallback</label>
+                                        <select value={form.ai_model_main || 'gemini-2.5-pro'} onChange={e => updateForm('ai_model_main', e.target.value)} className="w-full bg-stone-50 border-4 border-stone-900 p-3 font-black text-xs">
+                                            {MODEL_OPTIONS.map(m => <option key={`main-${m}`} value={m}>{m}</option>)}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase text-stone-500 mb-1 block">Trust Mode</label>
+                                        <div className="p-3 bg-stone-50 border-4 border-stone-900 text-[10px] font-black uppercase">
+                                            RAG + Search + TrustMap Actif
+                                        </div>
+                                    </div>
+                                </div>
 
-                        
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase text-stone-500 mb-1 block">Modèle Alerte Info</label>
+                                        <select value={form.ai_model_breaking || 'gemini-3.1-pro-preview'} onChange={e => updateForm('ai_model_breaking', e.target.value)} className="w-full bg-stone-50 border-4 border-stone-900 p-3 font-black text-xs">
+                                            {MODEL_OPTIONS.map(m => <option key={`b-${m}`} value={m}>{m}</option>)}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase text-stone-500 mb-1 block">Modèle Fait du Jour</label>
+                                        <select value={form.ai_model_standard || 'gemini-2.5-flash'} onChange={e => updateForm('ai_model_standard', e.target.value)} className="w-full bg-stone-50 border-4 border-stone-900 p-3 font-black text-xs">
+                                            {MODEL_OPTIONS.map(m => <option key={`s-${m}`} value={m}>{m}</option>)}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase text-stone-500 mb-1 block">Modèle Décryptage</label>
+                                        <select value={form.ai_model_decrypt || 'gemini-2.5-pro'} onChange={e => updateForm('ai_model_decrypt', e.target.value)} className="w-full bg-stone-50 border-4 border-stone-900 p-3 font-black text-xs">
+                                            {MODEL_OPTIONS.map(m => <option key={`d-${m}`} value={m}>{m}</option>)}
+                                        </select>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-black uppercase text-stone-500 mb-1 block">Instructions de Base (Système)</label>
+                                    <textarea 
+                                        value={form.ai_prompt || ''} 
+                                        onChange={e => updateForm('ai_prompt', e.target.value)}
+                                        rows={15}
+                                        className="w-full bg-stone-50 border-4 border-stone-900 p-6 font-body text-sm leading-relaxed focus:bg-white focus:outline-none transition-all"
+                                    />
+                                </div>
+                                <p className="text-[10px] font-bold text-stone-400 uppercase">Ce prompt définit le comportement global de l'IA (le "Cerveau").</p>
+                                
+                                <div className="pt-8 border-t-4 border-stone-100">
+                                    <h3 className="text-xl font-black uppercase tracking-tighter font-headline mb-4">Diagnostic & Validation</h3>
+                                    <button 
+                                        onClick={handleTestFlows}
+                                        disabled={isTesting}
+                                        className="flex items-center gap-3 bg-stone-900 text-white px-6 py-3 border-4 border-stone-900 font-black uppercase tracking-widest hover:bg-white hover:text-stone-900 transition-all text-xs"
+                                    >
+                                        <span className="material-symbols-outlined">{isTesting ? 'sync' : 'biotech'}</span>
+                                        {isTesting ? 'Test en cours...' : 'Lancer un test flux complet (Discord)'}
+                                    </button>
+                                    <p className="mt-3 text-[10px] font-bold text-stone-400 uppercase">Simule un flux Twitter, Telegram et RSS pour vérifier la génération des formats et l'envoi Discord.</p>
+                                </div>
+                            </div>
+                        )}
+
+                        {activeTab === 'logic' && (
+                            <div className="space-y-8">
+                                <h3 className="text-xl font-black uppercase tracking-tighter font-headline">Intelligence de Tri & Formats</h3>
+
+                                <section className="space-y-4">
+                                    <header className="border-l-4 border-stone-900 pl-4">
+                                        <h4 className="text-sm font-black uppercase tracking-tight">Google Search par type</h4>
+                                        <p className="text-[10px] font-bold text-stone-400 uppercase">Active ou coupe la vérification web selon le type de news</p>
+                                    </header>
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                        <div className="flex items-center justify-between p-3 bg-stone-50 border-2 border-stone-900">
+                                            <span className="text-[10px] font-black uppercase">Alerte Info</span>
+                                            <Toggle checked={form.google_search_breaking_enabled !== 'false'} onChange={v => updateForm('google_search_breaking_enabled', v ? 'true' : 'false')} />
+                                        </div>
+                                        <div className="flex items-center justify-between p-3 bg-stone-50 border-2 border-stone-900">
+                                            <span className="text-[10px] font-black uppercase">Fait du Jour</span>
+                                            <Toggle checked={form.google_search_standard_enabled !== 'false'} onChange={v => updateForm('google_search_standard_enabled', v ? 'true' : 'false')} />
+                                        </div>
+                                        <div className="flex items-center justify-between p-3 bg-stone-50 border-2 border-stone-900">
+                                            <span className="text-[10px] font-black uppercase">Décryptage</span>
+                                            <Toggle checked={form.google_search_decrypt_enabled !== 'false'} onChange={v => updateForm('google_search_decrypt_enabled', v ? 'true' : 'false')} />
+                                        </div>
+                                    </div>
+                                </section>
+                                
+                                <section className="space-y-4">
+                                    <header className="border-l-4 border-red-600 pl-4">
+                                        <h4 className="text-sm font-black uppercase tracking-tight">1. Le Tamis (Filtre de Pertinence)</h4>
+                                        <p className="text-[10px] font-bold text-stone-400 uppercase">Instructions pour décider si une info est gardée ou jetée</p>
+                                    </header>
+                                    <textarea 
+                                        value={form.ai_prompt_relevance || ''} 
+                                        onChange={e => updateForm('ai_prompt_relevance', e.target.value)}
+                                        rows={6}
+                                        placeholder="Ex: Analyse si l'info est politique, sociale ou judiciaire. Réponds OUI/NON."
+                                        className="w-full bg-stone-50 border-4 border-stone-900 p-4 font-body text-xs"
+                                    />
+                                </section>
+
+                                <section className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div className="space-y-4">
+                                        <header className="border-l-4 border-stone-900 pl-4 flex justify-between items-center pr-2">
+                                            <div>
+                                                <h4 className="text-sm font-black uppercase tracking-tight">2. Alerte Info</h4>
+                                                <p className="text-[10px] font-bold text-stone-400 uppercase">Style Breaking News</p>
+                                            </div>
+                                            <Toggle checked={form.ai_prompt_breaking_enabled !== 'false'} onChange={v => updateForm('ai_prompt_breaking_enabled', v ? 'true' : 'false')} />
+                                        </header>
+                                        <textarea 
+                                            value={form.ai_prompt_breaking || ''} 
+                                            onChange={e => updateForm('ai_prompt_breaking', e.target.value)}
+                                            rows={5}
+                                            className={`w-full border-4 p-4 font-body text-xs transition-colors ${form.ai_prompt_breaking_enabled === 'false' ? 'bg-stone-200 border-stone-300 text-stone-400 cursor-not-allowed' : 'bg-stone-50 border-stone-900'}`}
+                                            disabled={form.ai_prompt_breaking_enabled === 'false'}
+                                        />
+                                    </div>
+                                    <div className="space-y-4">
+                                        <header className="border-l-4 border-stone-900 pl-4 flex justify-between items-center pr-2">
+                                            <div>
+                                                <h4 className="text-sm font-black uppercase tracking-tight">3. Décryptage</h4>
+                                                <p className="text-[10px] font-bold text-stone-400 uppercase">Style Analyse & Tacle</p>
+                                            </div>
+                                            <Toggle checked={form.ai_prompt_decrypt_enabled !== 'false'} onChange={v => updateForm('ai_prompt_decrypt_enabled', v ? 'true' : 'false')} />
+                                        </header>
+                                        <textarea 
+                                            value={form.ai_prompt_decrypt || ''} 
+                                            onChange={e => updateForm('ai_prompt_decrypt', e.target.value)}
+                                            rows={5}
+                                            className={`w-full border-4 p-4 font-body text-xs transition-colors ${form.ai_prompt_decrypt_enabled === 'false' ? 'bg-stone-200 border-stone-300 text-stone-400 cursor-not-allowed' : 'bg-stone-50 border-stone-900'}`}
+                                            disabled={form.ai_prompt_decrypt_enabled === 'false'}
+                                        />
+                                    </div>
+                                </section>
+
+                                <section className="space-y-4">
+                                    <header className="border-l-4 border-stone-900 pl-4 flex justify-between items-center pr-2">
+                                        <div>
+                                            <h4 className="text-sm font-black uppercase tracking-tight">4. Format Standard</h4>
+                                            <p className="text-[10px] font-bold text-stone-400 uppercase">Style Fait du Jour</p>
+                                        </div>
+                                        <Toggle checked={form.ai_prompt_standard_enabled !== 'false'} onChange={v => updateForm('ai_prompt_standard_enabled', v ? 'true' : 'false')} />
+                                    </header>
+                                    <textarea 
+                                        value={form.ai_prompt_standard || ''} 
+                                        onChange={e => updateForm('ai_prompt_standard', e.target.value)}
+                                        rows={5}
+                                        className={`w-full border-4 p-4 font-body text-xs transition-colors ${form.ai_prompt_standard_enabled === 'false' ? 'bg-stone-200 border-stone-300 text-stone-400 cursor-not-allowed' : 'bg-stone-50 border-stone-900'}`}
+                                        disabled={form.ai_prompt_standard_enabled === 'false'}
+                                    />
+                                </section>
+                            </div>
+                        )}
 
                         {activeTab === 'sources' && (
                             <div className="space-y-8">
@@ -611,98 +619,8 @@ export default function SettingsPage() {
                                         className="w-full bg-stone-50 border-4 border-stone-900 p-4 font-mono text-xs"
                                     />
                                 </section>
-                            </div>
-                        )}
 
-                        {activeTab === 'users' && (
-                            <div className="space-y-8">
-                                <h3 className="text-xl font-black uppercase tracking-tighter font-headline mb-6">Users</h3>
-
-                                <section className="bg-stone-50 border-4 border-stone-900 p-6 space-y-5">
-                                    <h4 className="text-sm font-black uppercase tracking-tight">Nouvel utilisateur</h4>
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                        <div>
-                                            <label className="text-[10px] font-black uppercase text-stone-500 mb-1 block">Username</label>
-                                            <input value={userForm.username} onChange={e => setUserForm(prev => ({ ...prev, username: e.target.value }))} className="w-full bg-white border-4 border-stone-900 p-3 font-mono text-xs" />
-                                        </div>
-                                        <div>
-                                            <label className="text-[10px] font-black uppercase text-stone-500 mb-1 block">Password</label>
-                                            <input type="password" value={userForm.password} onChange={e => setUserForm(prev => ({ ...prev, password: e.target.value }))} className="w-full bg-white border-4 border-stone-900 p-3 font-mono text-xs" />
-                                        </div>
-                                        <div>
-                                            <label className="text-[10px] font-black uppercase text-stone-500 mb-1 block">Role</label>
-                                            <select value={userForm.role} onChange={e => onUserRoleChange(e.target.value as 'admin' | 'editor' | 'viewer')} className="w-full bg-white border-4 border-stone-900 p-3 font-black text-xs uppercase">
-                                                <option value="admin">admin</option>
-                                                <option value="editor">editor</option>
-                                                <option value="viewer">viewer</option>
-                                            </select>
-                                        </div>
-                                    </div>
-
-                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                                        {['radar', 'studio', 'network', 'lab', 'daemon', 'settings', 'users'].map(key => (
-                                            <label key={key} className="flex items-center justify-between bg-white border-2 border-stone-900 p-2">
-                                                <span className="text-[10px] font-black uppercase">{key}</span>
-                                                <input type="checkbox" checked={Boolean((userForm.permissions as any)[key])} disabled={userForm.role === 'admin'} onChange={e => patchUserFormPermission(key, e.target.checked)} />
-                                            </label>
-                                        ))}
-                                    </div>
-
-                                    <button onClick={createUser} disabled={usersSaving} className="bg-red-700 text-white px-5 py-3 border-4 border-stone-900 text-xs font-black uppercase tracking-widest disabled:opacity-60">
-                                        {usersSaving ? 'Creation...' : 'Creer le compte'}
-                                    </button>
-                                </section>
-
-                                <section className="bg-white border-4 border-stone-900 p-6">
-                                    <h4 className="text-sm font-black uppercase tracking-tight mb-4">Comptes existants</h4>
-                                    {usersLoading ? (
-                                        <div className="text-xs font-black uppercase tracking-widest text-stone-500">Chargement...</div>
-                                    ) : users.length === 0 ? (
-                                        <div className="text-xs font-black uppercase tracking-widest text-stone-500">Aucun compte utilisateur en base.</div>
-                                    ) : (
-                                        <div className="space-y-4">
-                                            {users.map(user => (
-                                                <div key={user.id} className="border-4 border-stone-900 p-4 bg-stone-50">
-                                                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                                                        <div>
-                                                            <div className="text-sm font-black uppercase tracking-tight">{user.username}</div>
-                                                            <div className="text-[10px] font-bold uppercase tracking-widest text-stone-500">Role: {user.role}</div>
-                                                        </div>
-                                                        <div className="flex items-center gap-3">
-                                                            <label className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest">
-                                                                Actif
-                                                                <input type="checkbox" checked={user.is_active === 1} onChange={e => updateUser(user.id, { is_active: e.target.checked })} />
-                                                            </label>
-                                                            <button onClick={() => {
-                                                                const pwd = prompt(`Nouveau mot de passe pour ${user.username} (10+ caracteres)`);
-                                                                if (!pwd) return;
-                                                                updateUser(user.id, { password: pwd });
-                                                            }} className="px-3 py-2 bg-white border-2 border-stone-900 text-[10px] font-black uppercase">Reset pass</button>
-                                                            <button onClick={() => deleteUser(user.id)} className="px-3 py-2 bg-red-700 text-white border-2 border-stone-900 text-[10px] font-black uppercase">Supprimer</button>
-                                                        </div>
-                                                    </div>
-
-                                                    <div className="mt-3 grid grid-cols-2 md:grid-cols-4 gap-2">
-                                                        {['radar', 'studio', 'network', 'lab', 'daemon', 'settings', 'users'].map(key => (
-                                                            <label key={key} className="flex items-center justify-between bg-white border-2 border-stone-900 p-2">
-                                                                <span className="text-[10px] font-black uppercase">{key}</span>
-                                                                <input
-                                                                    type="checkbox"
-                                                                    checked={Boolean((user.permissions || {})[key]) || user.role === 'admin'}
-                                                                    disabled={user.role === 'admin'}
-                                                                    onChange={e => updateUser(user.id, { permissions: { ...(user.permissions || {}), [key]: e.target.checked } })}
-                                                                />
-                                                            </label>
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
-                                </section>
-                            </div>
-                        )}
-                        
+                                
                         {activeTab === 'elections' && (
                             <div className="space-y-8">
                                 <h3 className="text-xl font-black uppercase tracking-tighter font-headline mb-6">Élections</h3>
@@ -715,7 +633,18 @@ export default function SettingsPage() {
                                             <span className="text-[10px] font-black uppercase tracking-widest">Activation globale du Daemon Élections</span>
                                             <Toggle checked={form.daemon_elections_enabled !== 'false'} onChange={v => updateForm('daemon_elections_enabled', v ? 'true' : 'false')} />
                                         </div>
-                                        
+                                        <div className="flex items-center justify-between p-4 bg-stone-50 border-4 border-stone-900">
+                                            <span className="text-[10px] font-black uppercase tracking-widest">Intervalle régulier</span>
+                                            <Toggle checked={form.daemon_elections_interval_enabled !== 'false'} onChange={v => updateForm('daemon_elections_interval_enabled', v ? 'true' : 'false')} />
+                                        </div>
+                                        <div className="flex items-center justify-between p-4 bg-stone-50 border-4 border-stone-900">
+                                            <span className="text-[10px] font-black uppercase tracking-widest">Heures fixes programmées</span>
+                                            <Toggle checked={form.daemon_elections_schedule_enabled === 'true'} onChange={v => updateForm('daemon_elections_schedule_enabled', v ? 'true' : 'false')} />
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] font-black uppercase text-stone-500 mb-1 block">Heures programmées (ex: 08:00, 12:30)</label>
+                                            <input type="text" value={form.daemon_elections_schedule_times || ''} onChange={e => updateForm('daemon_elections_schedule_times', e.target.value)} placeholder="08:00, 12:30" className="w-full bg-stone-50 border-4 border-stone-900 p-3 font-mono text-xs" />
+                                        </div>
                                     </div>
 
                                     <button
@@ -778,10 +707,16 @@ export default function SettingsPage() {
                                                         <span className="text-[10px] font-black uppercase">Source URL directe</span>
                                                         <Toggle checked={wizardUseRawUrls} onChange={setWizardUseRawUrls} />
                                                     </div>
-                                                    
+                                                    <div className="flex items-center justify-between p-3 bg-stone-50 border-2 border-stone-900">
+                                                        <span className="text-[10px] font-black uppercase">Activer mode live</span>
+                                                        <Toggle checked={wizardLiveEnabled} onChange={setWizardLiveEnabled} />
+                                                    </div>
                                                 </div>
 
-                                                
+                                                <div>
+                                                    <label className="text-[10px] font-black uppercase text-stone-500 block mb-1">Pull interval live (minutes)</label>
+                                                    <input type="number" min="2" value={wizardPollMin} onChange={e => setWizardPollMin(Number(e.target.value || 2))} className="w-full bg-stone-50 border-2 border-stone-900 p-2 font-black text-xs" />
+                                                </div>
 
                                                 {wizardUseRawUrls ? (
                                                     <div>
@@ -891,7 +826,30 @@ export default function SettingsPage() {
                                                                 <span className="text-[10px] font-black uppercase">Daemon ON</span>
                                                                 <Toggle checked={daemonCfg.enabled === true || daemonCfg.enabled === 'true'} onChange={v => updateDaemonCfg(slug, 'enabled', v)} />
                                                             </div>
-                                                            
+                                                            <div className="flex items-center justify-between">
+                                                                <span className="text-[10px] font-black uppercase">Live minutes</span>
+                                                                <Toggle checked={daemonCfg.live_mode_enabled === true || daemonCfg.live_mode_enabled === 'true'} onChange={v => updateDaemonCfg(slug, 'live_mode_enabled', v)} />
+                                                            </div>
+                                                            <div>
+                                                                <label className="text-[10px] font-black uppercase text-stone-500 mb-1 block">Pull interval (min, min=2)</label>
+                                                                <input type="number" min="2" value={daemonCfg.poll_interval_minutes ?? 2} onChange={e => updateDaemonCfg(slug, 'poll_interval_minutes', Number(e.target.value || 2))} className="w-full bg-white border-2 border-stone-900 p-2 font-black text-xs" />
+                                                            </div>
+                                                            <div className="grid grid-cols-2 gap-2">
+                                                                <div className="flex items-center justify-between p-2 bg-white border-2 border-stone-900">
+                                                                    <span className="text-[10px] font-black uppercase">Intervalle h</span>
+                                                                    <Toggle checked={daemonCfg.interval_enabled === true || daemonCfg.interval_enabled === 'true'} onChange={v => updateDaemonCfg(slug, 'interval_enabled', v)} />
+                                                                </div>
+                                                                <div className="flex items-center justify-between p-2 bg-white border-2 border-stone-900">
+                                                                    <span className="text-[10px] font-black uppercase">Heures fixes</span>
+                                                                    <Toggle checked={daemonCfg.schedule_enabled === true || daemonCfg.schedule_enabled === 'true'} onChange={v => updateDaemonCfg(slug, 'schedule_enabled', v)} />
+                                                                </div>
+                                                            </div>
+                                                            <input type="number" step="0.1" min="0.1" value={daemonCfg.interval_hours ?? 0.5} onChange={e => updateDaemonCfg(slug, 'interval_hours', Number(e.target.value || 0.5))} placeholder="Intervalle en heures" className="w-full bg-white border-2 border-stone-900 p-2 font-black text-xs" />
+                                                            <input type="text" value={daemonCfg.schedule_times || ''} onChange={e => updateDaemonCfg(slug, 'schedule_times', e.target.value)} placeholder="HH:MM, HH:MM" className="w-full bg-white border-2 border-stone-900 p-2 font-mono text-xs" />
+                                                            <div className="flex items-center justify-between p-2 bg-white border-2 border-stone-900">
+                                                                <span className="text-[10px] font-black uppercase">Sync locked</span>
+                                                                <Toggle checked={daemonCfg.sync_locked === true || daemonCfg.sync_locked === 'true'} onChange={v => updateDaemonCfg(slug, 'sync_locked', v)} />
+                                                            </div>
                                                         </div>
                                                     </div>
 
@@ -904,6 +862,9 @@ export default function SettingsPage() {
                                         })}
                                     </div>
                                 </section>
+                            </div>
+                        )}
+
                             </div>
                         )}
 
@@ -999,12 +960,36 @@ export default function SettingsPage() {
                         {activeTab === 'diffusion' && (
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
                                 <section className="space-y-6">
-                                    <h4 className="text-xs font-black uppercase tracking-widest text-stone-400 mb-6">Automation Modes</h4>
-                                    <div className="p-5 bg-amber-50 border-4 border-stone-900 space-y-3">
-                                        <p className="text-xs font-black uppercase tracking-widest">Réglages déplacés vers Daemon</p>
-                                        <p className="text-[10px] font-bold uppercase text-stone-500">Auto Publish, Auto Approve et Discord Test Mode sont maintenant centralisés dans Daemon pour une configuration unique.</p>
-                                        <a href="/radar-admin/daemon" className="inline-block bg-stone-900 text-white px-4 py-2 border-2 border-stone-900 text-[10px] font-black uppercase tracking-widest">Ouvrir Daemon Center</a>
-                                    </div>
+                                    <h4 className="text-xs font-black uppercase tracking-widest text-stone-400 mb-6">Target Networks</h4>
+                                    {[
+                                        { key: 'social_mastodon_enabled', label: 'Mastodon' },
+                                        { key: 'social_bluesky_enabled', label: 'Bluesky' },
+                                        { key: 'social_twitter_enabled', label: 'Twitter / X' },
+                                        { key: 'social_discord_enabled', label: 'Discord Webhook' },
+                                    ].map(n => (
+                                        <div key={n.key} className="flex items-center justify-between p-4 bg-stone-50 border-2 border-stone-100">
+                                            <span className="font-bold uppercase text-xs">{n.label}</span>
+                                            <Toggle 
+                                                checked={form[n.key] === 'true'} 
+                                                onChange={v => updateForm(n.key, v ? 'true' : 'false')} 
+                                            />
+                                        </div>
+                                    ))}
+
+                                    <h4 className="text-xs font-black uppercase tracking-widest text-stone-400 mt-10 mb-4">Automation Modes</h4>
+                                    {[
+                                        { key: 'auto_pilot_enabled', label: 'Auto Publish (APPROVED queue)' },
+                                        { key: 'auto_approve_enabled', label: 'Auto Approve (Ghost mode)' },
+                                        { key: 'discord_test_mode', label: 'Discord Test Mode' },
+                                    ].map(n => (
+                                        <div key={n.key} className="flex items-center justify-between p-4 bg-stone-50 border-2 border-stone-100">
+                                            <span className="font-bold uppercase text-xs">{n.label}</span>
+                                            <Toggle
+                                                checked={form[n.key] === 'true'}
+                                                onChange={v => updateForm(n.key, v ? 'true' : 'false')}
+                                            />
+                                        </div>
+                                    ))}
                                 </section>
 
                                 <section className="space-y-6">

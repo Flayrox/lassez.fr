@@ -45,7 +45,7 @@ async function publishPost(postId) {
         return;
     }
 
-    const post = db.prepare('SELECT id, source_title, flash_content, image_keyword, tags, punchline, video_path FROM radar_posts WHERE id = ?').get(postId);
+    const post = db.prepare('SELECT id, source_title, flash_content, image_keyword, tags, punchline, video_path, type_ouverture FROM radar_posts WHERE id = ?').get(postId);
 
     if (!post) {
         console.error(`❌ Impossible de trouver le post ID ${postId} dans la DB.`);
@@ -179,7 +179,7 @@ async function publishPost(postId) {
         const frontendUrl = process.env.FRONTEND_URL || 'https://lassez.fr';
         let articleUrl = `${frontendUrl}/revelations/${newPostId}`;
 
-        await broadcastToSocials(post.flash_content, imageResult?.localPath, articleUrl, skipLink, post.video_path);
+        await broadcastToSocials(post.flash_content, imageResult?.localPath, articleUrl, skipLink, post.video_path, post.type_ouverture);
 
         // Update de la base locale
         db.prepare('UPDATE radar_posts SET status = ?, payload_id = ?, image_keyword = ? WHERE id = ?')

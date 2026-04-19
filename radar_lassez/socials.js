@@ -267,16 +267,64 @@ export async function postToDiscord(text, localImagePath, wpUrl, skipLink = fals
 // ============================================================================
 // GLOBAL CROSS-POSTING FUNCTION
 // ============================================================================
-export async function broadcastToSocials(text, localImagePath, wpUrl, skipLink = false, videoPath = null) {
+function normalizeTypeLabel(rawType) {
+    const s = String(rawType || '').trim();
+    if (s.includes('ALERTE INFO')) return '🔴 ALERTE INFO !';
+    if (s.includes('LE FAIT DU JOUR')) return '📌 LE FAIT DU JOUR';
+    if (s.includes('DÉCRYPTAGE') || s.includes('DECRYPTAGE')) return '🔎 DÉCRYPTAGE';
+    if (s.includes('À VENIR') || s.includes('A VENIR')) return '🗓️ À VENIR';
+    return '📌 LE FAIT DU JOUR';
+}
+
+function parseSocialTargetsByType(raw, globalTargets) {
+    const base = {
+        '🔴 ALERTE INFO !': { ...globalTargets },
+        '📌 LE FAIT DU JOUR': { ...globalTargets },
+        '🔎 DÉCRYPTAGE': { ...globalTargets },
+        '🗓️ À VENIR': { ...globalTargets }
+    };
+
+    if (!raw) return base;
+    try {
+        const parsed = JSON.parse(String(raw));
+        if (!parsed || typeof parsed !== 'object') return base;
+        for (const key of Object.keys(base)) {
+            if (parsed[key] && typeof parsed[key] === 'object') {
+                base[key] = {
+                    mastodon: parsed[key].mastodon !== undefined ? Boolean(parsed[key].mastodon) : base[key].mastodon,
+                    bluesky: parsed[key].bluesky !== undefined ? Boolean(parsed[key].bluesky) : base[key].bluesky,
+                    twitter: parsed[key].twitter !== undefined ? Boolean(parsed[key].twitter) : base[key].twitter,
+                    discord: parsed[key].discord !== undefined ? Boolean(parsed[key].discord) : base[key].discord
+                };
+            }
+        }
+        return base;
+    } catch (_) {
+        return base;
+    }
+}
+
+export async function broadcastToSocials(text, localImagePath, wpUrl, skipLink = false, videoPath = null, typeOuverture = null) {
     console.log('================================================');
     console.log(`🌐 [CROSS-POSTING] Lancement sur les réseaux...`);
     console.log('================================================');
 
     const settings = getSettings();
-    const useMastodon = settings.social_mastodon_enabled !== 'false';
-    const useBluesky = settings.social_bluesky_enabled !== 'false';
-    const useTwitter = settings.social_twitter_enabled !== 'false';
-    const useDiscord = settings.social_discord_enabled === 'true';
+    const globalTargets = {
+        mastodon: settings.social_mastodon_enabled !== 'false',
+        bluesky: settings.social_bluesky_enabled !== 'false',
+        twitter: settings.social_twitter_enabled !== 'false',
+        discord: settings.social_discord_enabled === 'true'
+    };
+
+    const targetsByType = parseSocialTargetsByType(settings.social_targets_by_type_json, globalTargets);
+    const normalizedType = normalizeTypeLabel(typeOuverture || text);
+    const selected = targetsByType[normalizedType] || globalTargets;
+
+    const useMastodon = selected.mastodon;
+    const useBluesky = selected.bluesky;
+    const useTwitter = selected.twitter;
+    const useDiscord = selected.discord;
 
     const tasks = [];
     if (useMastodon) tasks.push(postToMastodon(text, localImagePath, wpUrl, skipLink, videoPath));

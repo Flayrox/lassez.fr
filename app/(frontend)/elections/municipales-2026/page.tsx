@@ -157,12 +157,16 @@ export default async function ElectionsMunicipales2026({
 
     return (
         <Layout>
-            <Script id="json-ld-liveblog" type="application/ld+json" strategy="beforeInteractive">
-                {JSON.stringify(liveBlogSchema)}
-            </Script>
-            <Script id="json-ld-breadcrumb-elections" type="application/ld+json" strategy="beforeInteractive">
-                {JSON.stringify(breadcrumbSchema)}
-            </Script>
+            <script
+                id="json-ld-liveblog"
+                type="application/ld+json"
+                dangerouslySetInnerHTML={{ __html: JSON.stringify(liveBlogSchema) }}
+            />
+            <script
+                id="json-ld-breadcrumb-elections"
+                type="application/ld+json"
+                dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }}
+            />
             <ElectionsClient
                 electionSlug={ELECTION_SLUG}
                 articles={articles}

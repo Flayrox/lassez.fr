@@ -65,10 +65,30 @@ export async function POST(request: Request) {
                     env: cleanEnv
                 });
 
+                // Permet d'éviter l'erreur "Invalid state: Controller is already closed" si le client s'est déconnecté
+                let isClosed = false;
+
+                const safeEnqueue = (data: string) => {
+                    if (isClosed) return;
+                    try {
+                        controller.enqueue(encoder.encode(data));
+                    } catch (e) {
+                        isClosed = true;
+                    }
+                };
+
+                const safeClose = () => {
+                    if (isClosed) return;
+                    try {
+                        isClosed = true;
+                        controller.close();
+                    } catch (e) {}
+                };
+
                 if (child.stdout) {
                     child.stdout.on('data', (data) => {
                         const str = data.toString();
-                        controller.enqueue(encoder.encode(str));
+                        safeEnqueue(str);
                         logToDaemon(`[${logPrefix}] ${str.trim()}`);
                     });
                 }
@@ -76,24 +96,27 @@ export async function POST(request: Request) {
                 if (child.stderr) {
                     child.stderr.on('data', (data) => {
                         const str = data.toString();
-                        controller.enqueue(encoder.encode(str));
+                        safeEnqueue(str);
                         errorToDaemon(`[${logPrefix}] ${str.trim()}`);
                     });
                 }
 
                 child.on('close', (code) => {
                     if (code === 0) {
-                        controller.enqueue(encoder.encode(`\n✅ Opération terminée. Rafraîchissement de la liste...\n`));
+                        safeEnqueue(`\n✅ Opération terminée. Rafraîchissement de la liste...\n`);
                     } else {
-                        controller.enqueue(encoder.encode(`\n⚠️ Opération terminée avec avertissements (Code ${code}). Rafraîchissement...\n`));
+                        safeEnqueue(`\n⚠️ Opération terminée avec avertissements (Code ${code}). Rafraîchissement...\n`);
                     }
-                    controller.close();
+                    safeClose();
                 });
 
                 child.on('error', (err) => {
-                    controller.enqueue(encoder.encode(`\n❌ Erreur de Processus: ${err.message}\n`));
-                    controller.close();
+                    safeEnqueue(`\n❌ Erreur de Processus: ${err.message}\n`);
+                    safeClose();
                 });
+            },
+            cancel() {
+                // called when client disconnects
             }
         });
 

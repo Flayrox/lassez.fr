@@ -47,13 +47,12 @@ export async function PATCH(request: Request) {
             election_interval_hours,
             daemon_rss_enabled, daemon_elections_enabled,
             daemon_rss_interval_enabled, daemon_elections_interval_enabled,
-            daemon_rss_schedule_enabled, daemon_rss_schedule_times,
-            daemon_elections_schedule_enabled, daemon_elections_schedule_times,
+            daemon_rss_schedule_enabled, daemon_rss_schedule_times,            daemon_rss_model, daemon_rss_types, daemon_rss_prompt, daemon_rss_lookback_hours, daemon_rss_max_articles,            daemon_elections_schedule_enabled, daemon_elections_schedule_times,
             election_analysis_target_slug, election_front_display_slugs_json,
             election_sources_json, election_daemon_by_slug_json, election_last_used_source_json,
             daemon_dynamic_tuning_enabled, daemon_dynamic_tuning_rules,
             daemon_profiles_json,
-            social_mastodon_enabled, social_bluesky_enabled, social_twitter_enabled, social_discord_enabled,
+            social_mastodon_enabled, social_bluesky_enabled, social_twitter_enabled, social_discord_enabled, social_targets_by_type_json,
             discord_test_mode,
             rss_feeds, telegram_channels, rss_bridge_base_url, x_accounts, ai_prompt,
             ai_prompt_relevance, ai_prompt_breaking, ai_prompt_decrypt, ai_prompt_standard,
@@ -86,8 +85,11 @@ export async function PATCH(request: Request) {
         if (daemon_rss_interval_enabled !== undefined) updateStmt.run('daemon_rss_interval_enabled', String(daemon_rss_interval_enabled));
         if (daemon_elections_interval_enabled !== undefined) updateStmt.run('daemon_elections_interval_enabled', String(daemon_elections_interval_enabled));
         if (daemon_rss_schedule_enabled !== undefined) updateStmt.run('daemon_rss_schedule_enabled', String(daemon_rss_schedule_enabled));
-        if (daemon_rss_schedule_times !== undefined) updateStmt.run('daemon_rss_schedule_times', String(daemon_rss_schedule_times));
-        if (daemon_elections_schedule_enabled !== undefined) updateStmt.run('daemon_elections_schedule_enabled', String(daemon_elections_schedule_enabled));
+        if (daemon_rss_schedule_times !== undefined) updateStmt.run('daemon_rss_schedule_times', String(daemon_rss_schedule_times));        if (daemon_rss_model !== undefined) updateStmt.run('daemon_rss_model', String(daemon_rss_model));
+        if (daemon_rss_types !== undefined) updateStmt.run('daemon_rss_types', typeof daemon_rss_types === 'string' ? daemon_rss_types : JSON.stringify(daemon_rss_types));
+        if (daemon_rss_prompt !== undefined) updateStmt.run('daemon_rss_prompt', String(daemon_rss_prompt));
+        if (daemon_rss_lookback_hours !== undefined) updateStmt.run('daemon_rss_lookback_hours', String(daemon_rss_lookback_hours));
+        if (daemon_rss_max_articles !== undefined) updateStmt.run('daemon_rss_max_articles', String(daemon_rss_max_articles));        if (daemon_elections_schedule_enabled !== undefined) updateStmt.run('daemon_elections_schedule_enabled', String(daemon_elections_schedule_enabled));
         if (daemon_elections_schedule_times !== undefined) updateStmt.run('daemon_elections_schedule_times', String(daemon_elections_schedule_times));
         if (election_analysis_target_slug !== undefined) updateStmt.run('election_analysis_target_slug', String(election_analysis_target_slug));
         if (election_front_display_slugs_json !== undefined) updateStmt.run('election_front_display_slugs_json', String(election_front_display_slugs_json));
@@ -101,6 +103,7 @@ export async function PATCH(request: Request) {
         if (social_bluesky_enabled !== undefined) updateStmt.run('social_bluesky_enabled', String(social_bluesky_enabled));
         if (social_twitter_enabled !== undefined) updateStmt.run('social_twitter_enabled', String(social_twitter_enabled));
         if (social_discord_enabled !== undefined) updateStmt.run('social_discord_enabled', String(social_discord_enabled));
+        if (social_targets_by_type_json !== undefined) updateStmt.run('social_targets_by_type_json', String(social_targets_by_type_json));
         if (discord_test_mode !== undefined) updateStmt.run('discord_test_mode', String(discord_test_mode));
         
         if (rss_feeds !== undefined) updateStmt.run('rss_feeds', typeof rss_feeds === 'string' ? rss_feeds : JSON.stringify(rss_feeds));

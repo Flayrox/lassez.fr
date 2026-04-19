@@ -311,7 +311,7 @@ ${articlesText}
 
     try {
         console.log(`[DEBUG] Envoi à Gemini (${aiModelMain}) | GoogleSearch=${useGoogleSearch ? 'ON' : 'OFF'}...`);
-        const TIMEOUT_MS = 60000;
+        const TIMEOUT_MS = 120000; // Passage de 60s à 120s pour Gemini Pro Preview
         const result = await Promise.race([
             model.generateContent(prompt),
             new Promise((_, reject) => setTimeout(() => reject(new Error(`Timeout de ${TIMEOUT_MS}ms atteint chez Gemini`)), TIMEOUT_MS))
@@ -484,6 +484,7 @@ async function main() {
             if (customConfig.maxArticles) settings.max_articles = String(customConfig.maxArticles);
             if (customConfig.aiPrompt) settings.ai_prompt = customConfig.aiPrompt;
             if (customConfig.webhook) CONFIG.DISCORD_WEBHOOK_URL = customConfig.webhook;
+            if (customConfig.model) settings.ai_model_main = customConfig.model;
             
             console.log(`🔧 Configuration custom chargée depuis ${configPath}`);
         } catch (e) {
@@ -493,12 +494,21 @@ async function main() {
 
     const envMaxArticles = parseInt(process.env.RADAR_MAX_ARTICLES_OVERRIDE || '', 10);
     const envLookbackHours = parseInt(process.env.RADAR_RSS_LOOKBACK_HOURS_OVERRIDE || '', 10);
-    const maxArticles = Number.isFinite(envMaxArticles) && envMaxArticles > 0
-        ? envMaxArticles
-        : parseInt(settings.max_articles || '3', 10);
-    const rssLookbackHours = Number.isFinite(envLookbackHours) && envLookbackHours > 0
-        ? envLookbackHours
-        : parseInt(settings.rss_lookback_hours || '24', 10);
+    
+    // Détermination de maxArticles via customConfig, ou env var, ou settings par défaut
+    const maxArticles = (customConfig && typeof customConfig.maxArticles === 'number')
+        ? customConfig.maxArticles
+        : (Number.isFinite(envMaxArticles) && envMaxArticles > 0
+            ? envMaxArticles
+            : parseInt(settings.max_articles || '3', 10));
+
+    // Détermination de rssLookbackHours via customConfig, ou env var, ou settings par défaut
+    const rssLookbackHours = (customConfig && typeof customConfig.lookbackHours === 'number')
+        ? customConfig.lookbackHours
+        : (Number.isFinite(envLookbackHours) && envLookbackHours > 0
+            ? envLookbackHours
+            : parseInt(settings.rss_lookback_hours || '24', 10));
+
     const autoApprove = settings.auto_approve_enabled === 'true';
     const ingestStatus = autoApprove ? 'APPROVED' : 'PENDING';
     

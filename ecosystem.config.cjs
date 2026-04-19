@@ -11,13 +11,27 @@ module.exports = {
             min_uptime: '10s',
             max_restarts: 10,
             watch: false,
-            max_memory_restart: '300M',
-            env: {
-                NODE_ENV: 'production',
-                TZ: 'Europe/Paris'
-            },
+            max_memory_restart: '200M',
+            env: { NODE_ENV: 'production', TZ: 'Europe/Paris' },
             out_file: './logs/daemon.log',
             error_file: './logs/daemon-error.log',
+            log_date_format: 'YYYY-MM-DD HH:mm:ss'
+        },
+        {
+            name: 'radar-daemon-rss',
+            script: './radar_lassez/daemon_rss.js',
+            cwd: './',
+            instances: 1,
+            exec_mode: 'fork',
+            autorestart: true,
+            restart_delay: 5000,
+            min_uptime: '10s',
+            max_restarts: 10,
+            watch: false,
+            max_memory_restart: '150M',
+            env: { NODE_ENV: 'production', TZ: 'Europe/Paris' },
+            out_file: './logs/daemon-rss.log',
+            error_file: './logs/daemon-rss-error.log',
             log_date_format: 'YYYY-MM-DD HH:mm:ss'
         },
         {

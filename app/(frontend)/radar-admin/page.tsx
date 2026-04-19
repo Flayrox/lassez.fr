@@ -6,6 +6,8 @@ import { RadarCard } from './components/RadarCard';
 import { BrutalSidePanels } from './components/BrutalSidePanels';
 
 import { DashboardLayout } from './components/DashboardLayout';
+import { ManualScanModal } from './components/ManualScanModal';
+import { BulkActionBar } from './components/BulkActionBar';
 
 export default function RadarAdminPage() {
     const { posts, loading, fetchQueue, updateStatus, isDaemonRunning, countdown } = useRadarAdmin();
@@ -16,17 +18,16 @@ export default function RadarAdminPage() {
 
     // Modal State
     const [isScanModalOpen, setIsScanModalOpen] = useState(false);
-    const [scanConfig, setScanConfig] = useState({
-        model: 'gemini-3.1-pro-preview',
-        types: ['🔴 ALERTE INFO !', '📌 LE FAIT DU JOUR', '🔎 DÉCRYPTAGE', '🗓️ À VENIR'],
-        count: 10,
-        prompt: '',
-        saveDb: true
-    });
 
     useEffect(() => {
         fetchQueue(activeTab, geoFilter);
     }, [activeTab, geoFilter]);
+
+    useEffect(() => {
+        const handler = () => setIsScanModalOpen(true);
+        window.addEventListener('open-scan-modal', handler);
+        return () => window.removeEventListener('open-scan-modal', handler);
+    }, []);
 
     const handleBulkStatus = async (status: string) => {
         if (!confirm(`Appliquer "${status}" à ${selectedIds.length} signal(s) ?`)) return;
@@ -41,7 +42,7 @@ export default function RadarAdminPage() {
         } catch (e) { console.error(e); }
     };
 
-    const handleLaunchScan = async () => {
+    const handleLaunchScan = async (scanConfig: any) => {
         try {
             await fetch('/api/radar/trigger', {
                 method: 'POST',
@@ -164,126 +165,19 @@ export default function RadarAdminPage() {
             <BrutalSidePanels />
             </div>
 
-            {/* Modal de Configuration Scan */}
-            {isScanModalOpen && (
-                <div className="fixed inset-0 bg-stone-900/80 z-[200] flex items-center justify-center p-4">
-                    <div className="bg-stone-50 border-4 border-stone-900 w-full max-w-2xl shadow-[8px_8px_0px_0px_#1A1C1C] flex flex-col max-h-[90vh]">
-                        <div className="bg-stone-900 text-white p-4 flex justify-between items-center">
-                            <h2 className="font-black uppercase tracking-widest text-lg font-headline">Configurer le Scan</h2>
-                            <button onClick={() => setIsScanModalOpen(false)} className="material-symbols-outlined hover:text-red-500">close</button>
-                        </div>
-                        
-                        <div className="p-6 space-y-6 overflow-y-auto font-label">
-                            {/* Modèle */}
-                            <div className="flex flex-col gap-2">
-                                <label className="font-bold text-xs uppercase tracking-widest text-stone-600">Modèle IA</label>
-                                <select 
-                                    value={scanConfig.model}
-                                    onChange={e => setScanConfig({...scanConfig, model: e.target.value})}
-                                    className="border-4 border-stone-900 bg-white p-3 font-bold uppercase text-xs focus:outline-none"
-                                >
-                                    <option value="gemini-3.1-pro-preview">gemini-3.1-pro-preview</option>
-                                    <option value="gemini-2.5-pro">gemini-2.5-pro</option>
-                                    <option value="gemini-2.5-flash">gemini-2.5-flash</option>
-                                </select>
-                            </div>
-
-                            {/* Types d'info */}
-                            <div className="flex flex-col gap-2">
-                                <label className="font-bold text-xs uppercase tracking-widest text-stone-600">Type d&apos;info autorisé</label>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                    {['🔴 ALERTE INFO !', '📌 LE FAIT DU JOUR', '🔎 DÉCRYPTAGE', '🗓️ À VENIR'].map(type => (
-                                        <label key={type} className="flex items-center gap-3 border-4 border-stone-200 p-3 hover:border-stone-900 cursor-pointer transition-colors bg-white">
-                                            <input 
-                                                type="checkbox" 
-                                                checked={scanConfig.types.includes(type)}
-                                                onChange={e => {
-                                                    const newTypes = e.target.checked 
-                                                        ? [...scanConfig.types, type]
-                                                        : scanConfig.types.filter(t => t !== type);
-                                                    setScanConfig({...scanConfig, types: newTypes});
-                                                }}
-                                                className="w-5 h-5 accent-red-700" 
-                                            />
-                                            <span className="font-bold text-[10px] uppercase">{type}</span>
-                                        </label>
-                                    ))}
-                                </div>
-                            </div>
-
-                            {/* Nombre d'articles */}
-                            <div className="flex flex-col gap-2">
-                                <label className="font-bold text-xs uppercase tracking-widest text-stone-600">Nombre d&apos;articles (Max)</label>
-                                <input 
-                                    type="number" 
-                                    min="1" max="40"
-                                    value={scanConfig.count}
-                                    onChange={e => setScanConfig({...scanConfig, count: parseInt(e.target.value) || 10})}
-                                    className="border-4 border-stone-900 p-3 font-bold text-xs w-full focus:outline-none"
-                                />
-                            </div>
-
-                            {/* Prompt Modifié */}
-                            <div className="flex flex-col gap-2">
-                                <label className="font-bold text-xs uppercase tracking-widest text-stone-600">Prompt Modifié (Optionnel)</label>
-                                <textarea 
-                                    rows={4}
-                                    value={scanConfig.prompt}
-                                    onChange={e => setScanConfig({...scanConfig, prompt: e.target.value})}
-                                    placeholder="Surchargez ici le prompt standard..."
-                                    className="border-4 border-stone-900 p-3 text-xs w-full resize-y focus:outline-none font-mono"
-                                />
-                            </div>
-
-                            {/* Sauvegarder en BDD */}
-                            <label className="flex items-center gap-4 border-4 border-stone-900 p-4 bg-stone-100 cursor-pointer hover:bg-stone-200 transition-colors">
-                                <input 
-                                    type="checkbox" 
-                                    checked={scanConfig.saveDb}
-                                    onChange={e => setScanConfig({...scanConfig, saveDb: e.target.checked})}
-                                    className="w-6 h-6 accent-red-700"
-                                />
-                                <span className="font-black text-[10px] sm:text-xs uppercase tracking-widest text-stone-900">
-                                    Sauvegarder en BDD (Sinon test Discord unique)
-                                </span>
-                            </label>
-                        </div>
-                        
-                        <div className="p-4 bg-stone-200 border-t-4 border-stone-900 flex justify-end gap-4 mt-auto">
-                            <button 
-                                onClick={() => setIsScanModalOpen(false)}
-                                className="px-6 py-3 font-bold uppercase text-xs tracking-widest text-stone-600 hover:text-stone-900 transition-colors"
-                            >
-                                Annuler
-                            </button>
-                            <button 
-                                onClick={handleLaunchScan}
-                                className="bg-red-700 text-white px-8 py-3 font-black uppercase text-xs tracking-widest border-4 border-stone-900 shadow-[4px_4px_0px_0px_#1A1C1C] hover:translate-x-[-2px] hover:translate-y-[-2px] transition-all"
-                            >
-                                Lancer le Scan
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
             {/* Bulk Action Bar */}
-            {selectedIds.length > 0 && (
-                <div className="fixed bottom-8 left-1/2 -translate-x-1/2 bg-stone-900 text-white p-6 border-4 border-stone-900 shadow-[8px_8px_0px_0px_rgba(26,28,28,0.3)] z-[100] flex items-center gap-8 animate-in slide-in-from-bottom-10">
-                    <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 bg-red-700 flex items-center justify-center font-black text-xl brutal-border border-white/20">
-                            {selectedIds.length}
-                        </div>
-                        <div className="font-black uppercase text-[10px] tracking-widest text-stone-400">Signaux sélectionnés</div>
-                    </div>
-                    <div className="flex gap-3">
-                        <button onClick={() => handleBulkStatus('APPROVED')} className="px-6 py-2 bg-stone-800 border-2 border-stone-700 font-bold uppercase text-[10px] tracking-widest hover:border-white transition-all">Approuver</button>
-                        <button onClick={() => handleBulkStatus('REJECTED')} className="px-6 py-2 bg-stone-800 border-2 border-stone-700 font-bold uppercase text-[10px] tracking-widest hover:border-red-700 transition-all">Rejeter</button>
-                        <button onClick={() => handleBulkStatus('PUBLISHED')} className="px-8 py-2 bg-red-700 border-2 border-red-600 font-black uppercase text-[10px] tracking-widest hover:bg-red-600 transition-all">Publier 🚀</button>
-                        <button onClick={() => setSelectedIds([])} className="ml-4 material-symbols-outlined text-stone-500 hover:text-white transition-colors">close</button>
-                    </div>
-                </div>
-            )}
+            <BulkActionBar 
+                selectedIds={selectedIds} 
+                onStatusUpdate={handleBulkStatus} 
+                onClearSelection={() => setSelectedIds([])} 
+            />
+
+            {/* Modal de Configuration Scan */}
+            <ManualScanModal 
+                isOpen={isScanModalOpen} 
+                onClose={() => setIsScanModalOpen(false)} 
+                onLaunch={handleLaunchScan} 
+            />
         </DashboardLayout>
     );
 }

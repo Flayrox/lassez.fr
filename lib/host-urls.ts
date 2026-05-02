@@ -22,7 +22,7 @@ export function getPublicSiteOrigin() {
         return siteUrl || 'http://localhost:5173';
     }
 
-    return siteUrl || 'http://localhost:5173';
+    return siteUrl || 'https://lassez.fr';
 }
 
 export function getApiOrigin() {

@@ -69,6 +69,7 @@ cat > .env.local << 'EOF'
 DATABASE_URL=postgresql://postgres:wPwAMQTJwB1WTBXF@db.gdmvxijcxzcuassezrwy.supabase.co:5432/postgres
 # Utilisez une clé fixe en production pour éviter de déconnecter tout le monde à chaque push
 PAYLOAD_SECRET=lassez_prod_fixed_secret_32_chars_min
+PAYLOAD_SERVER_URL=https://api.lassez.fr
 CORS_URLS=https://lassez.fr,https://studio.lassez.fr
 FRONTEND_URL=https://lassez.fr
 PORT=3001

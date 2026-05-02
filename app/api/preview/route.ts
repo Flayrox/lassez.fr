@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { verifyPostPreviewToken } from '@/lib/preview-token';
+import { getPublicSiteOrigin } from '@/lib/host-urls';
 
 function cleanString(value: unknown) {
     return String(value || '').trim();
@@ -47,7 +48,8 @@ export async function GET(request: Request) {
         return NextResponse.json({ success: false, error: 'preview_path_mismatch' }, { status: 401 });
     }
 
-    const redirectUrl = new URL(path, request.url);
+    // Use getPublicSiteOrigin() instead of request.url to avoid redirecting to localhost behind Nginx proxy
+    const redirectUrl = new URL(path, getPublicSiteOrigin());
     redirectUrl.searchParams.set('preview_token', previewToken);
     redirectUrl.searchParams.set('preview_id', previewId);
 

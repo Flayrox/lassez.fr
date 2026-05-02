@@ -96,16 +96,9 @@ export const posts = {
             const previewPath = resolveEditorialPreviewPath(String(doc?.slug || '')) || await buildPostPreviewUrl(doc, req);
             if (!previewPath) return null;
 
-            // Use the req origin, but remove "api." prefix if Payload was accessed via a subdomain
-            // since Next.js preview route is always on the main frontend domain
-            let protocol = req?.headers?.get('x-forwarded-proto') || req?.protocol || 'http';
-            let host = req?.headers?.get('host') || 'localhost:5173';
-            
-            if (host.startsWith('api.')) {
-                host = host.substring(4);
-            }
-            
-            const origin = `${protocol}://${host}`;
+            // Always use the public production origin — never trust req.headers.host
+            // behind Nginx which resolves to localhost:3001
+            const origin = getPublicSiteOrigin();
 
             const normalizedPath = normalizePreviewPath(previewPath);
             if (!normalizedPath) return null;

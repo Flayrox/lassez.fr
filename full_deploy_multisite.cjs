@@ -25,6 +25,7 @@ mkdir -p /var/www/lassez-studio
 
 # 2. Clone/Pull du repository
 echo "[2/8] Mise à jour du repository..."
+export GIT_SSH_COMMAND="ssh -i ~/.ssh/id_ed25519_github -o StrictHostKeyChecking=no"
 cd /var/www
 if [ -d "lassez-repo" ] && [ -d "lassez-repo/.git" ]; then
   cd lassez-repo
@@ -33,7 +34,7 @@ if [ -d "lassez-repo" ] && [ -d "lassez-repo/.git" ]; then
   cd /var/www
 else
   rm -rf lassez-repo
-  git clone https://github.com/Flayrox/LASSEZ.git lassez-repo
+  git clone git@github.com:Flayrox/LASSEZ.git lassez-repo
 fi
 
 # 3. Copie des fichiers vers les répertoires appropriés

@@ -95,9 +95,9 @@ npm run build
 # 8. Lancement via PM2
 echo "[8/8] Lancement des services..."
 # On utilise --update-env pour être sûr que les nouvelles variables sont prises en compte
-pm2 start npm --cwd /var/www/lassez-api --name "radar-api" --update-env -- start
-pm2 start npm --cwd /var/www/lassez-front --name "radar-admin" --update-env -- start
-pm2 start npm --cwd /var/www/lassez-studio --name "radar-studio" --update-env -- start
+pm2 start npm --cwd /var/www/lassez-api --name "radar-api" --update-env -- start -- -p 3001
+pm2 start npm --cwd /var/www/lassez-front --name "radar-admin" --update-env -- start -- -p 3000
+pm2 start npm --cwd /var/www/lassez-studio --name "radar-studio" --update-env -- start -- -p 3002
 
 # Lancement des Daemons (depuis le dossier API ou Front, peu importe car ils partagent le même radar.db)
 echo "Lancement des Daemons Radar..."

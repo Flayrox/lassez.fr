@@ -14,7 +14,7 @@ import { settings } from './payload/globals/settings';
 import { about } from './payload/globals/about';
 import { legal } from './payload/globals/legal';
 import { seoPlugin } from '@payloadcms/plugin-seo';
-import { getApiOrigin, getPublicSiteOrigin } from './lib/host-urls';
+import { getApiOrigin } from './lib/host-urls';
 import { generateGeminiSeo } from './payload/hooks/seo-gemini';
 
 function extractSeoSource(doc: Record<string, any> | undefined) {
@@ -46,7 +46,9 @@ export default buildConfig({
             titleSuffix: 'Payload',
         },
         livePreview: {
-            url: getPublicSiteOrigin(),
+            // URL is defined per-collection in each collection's admin.livePreview.url
+            // Do NOT set a global url here — it would be evaluated statically at build-time
+            // and would override the per-collection runtime url functions.
             collections: ['posts', 'lessons', 'revelations'],
         },
     },

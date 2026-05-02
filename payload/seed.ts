@@ -49,7 +49,6 @@ export const script = async (config: SanitizedConfig) => {
         });
     }
 
-    // Helper to wrap text into a properly structured Lexical RichText
     const toLexical = (lines: string | string[]) => {
         const lineArray = Array.isArray(lines) ? lines : lines.split('\n').filter(l => l.trim() !== '');
         const children: any[] = [];
@@ -71,8 +70,19 @@ export const script = async (config: SanitizedConfig) => {
                 }
                 currentList.children.push({
                     type: 'listitem',
-                    children: [{ type: 'text', text: trimmed.substring(2), version: 1 }],
+                    children: [{ 
+                        type: 'text', 
+                        text: trimmed.substring(2), 
+                        version: 1,
+                        detail: 0,
+                        format: 0,
+                        mode: 'normal',
+                        style: '',
+                    }],
                     version: 1,
+                    direction: 'ltr',
+                    format: '',
+                    indent: 0,
                 });
             } else {
                 currentList = null;
@@ -81,7 +91,16 @@ export const script = async (config: SanitizedConfig) => {
                     format: '',
                     indent: 0,
                     version: 1,
-                    children: [{ type: 'text', text: trimmed, version: 1 }],
+                    direction: 'ltr',
+                    children: [{ 
+                        type: 'text', 
+                        text: trimmed, 
+                        version: 1,
+                        detail: 0,
+                        format: 0,
+                        mode: 'normal',
+                        style: '',
+                    }],
                 });
             }
         });
@@ -89,13 +108,24 @@ export const script = async (config: SanitizedConfig) => {
         return {
             root: {
                 type: 'root',
-                format: '' as any,
+                format: '',
                 indent: 0,
                 version: 1,
+                direction: 'ltr',
                 children: children.length > 0 ? children : [{
                     type: 'paragraph',
-                    format: '' as any,
-                    children: [{ type: 'text', text: '', version: 1 }],
+                    format: '',
+                    version: 1,
+                    direction: 'ltr',
+                    children: [{ 
+                        type: 'text', 
+                        text: '', 
+                        version: 1,
+                        detail: 0,
+                        format: 0,
+                        mode: 'normal',
+                        style: '',
+                    }],
                 }],
             },
         } as any;

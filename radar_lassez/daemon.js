@@ -926,7 +926,7 @@ const dummyServer = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
     res.end('DAEMON IS ALIVE\n');
 });
-const port = process.env.PORT || 3001; // Hostinger injecte process.env.PORT
+const port = process.env.PORT || 3005; // Utilisation du port 3005 pour éviter conflit avec Payload (3001)
 dummyServer.listen(port, () => {
     log(`🌐 Serveur "Dummy" Hostinger démarré sur le port ${port} pour maintenir le Daemon en vie.`);
 });

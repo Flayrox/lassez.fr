@@ -53,6 +53,7 @@ echo "[5/8] Build du Frontend..."
 cd /var/www/lassez-front
 npm install
 cat > .env.local << 'EOF'
+DATABASE_URL=postgresql://postgres:wPwAMQTJwB1WTBXF@db.gdmvxijcxzcuassezrwy.supabase.co:5432/postgres
 PAYLOAD_URL=http://localhost:3001
 FRONTEND_URL=https://lassez.fr
 PORT=3000
@@ -65,7 +66,7 @@ echo "[6/8] Build de l'API Payload..."
 cd /var/www/lassez-api
 npm install
 cat > .env.local << 'EOF'
-DATABASE_URI=postgresql://postgres:postgres@localhost:5432/lassez
+DATABASE_URL=postgresql://postgres:wPwAMQTJwB1WTBXF@db.gdmvxijcxzcuassezrwy.supabase.co:5432/postgres
 # Utilisez une clé fixe en production pour éviter de déconnecter tout le monde à chaque push
 PAYLOAD_SECRET=lassez_prod_fixed_secret_32_chars_min
 CORS_URLS=https://lassez.fr,https://studio.lassez.fr
@@ -81,6 +82,7 @@ echo "[7/8] Préparation du Studio Radar..."
 cd /var/www/lassez-studio
 npm install
 cat > .env.local << 'EOF'
+DATABASE_URL=postgresql://postgres:wPwAMQTJwB1WTBXF@db.gdmvxijcxzcuassezrwy.supabase.co:5432/postgres
 PAYLOAD_URL=https://api.lassez.fr
 FRONTEND_URL=https://lassez.fr
 STUDIO_URL=https://studio.lassez.fr

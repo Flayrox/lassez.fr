@@ -22,8 +22,8 @@ const contentSecurityPolicy = `${cspDirectives.join('; ')};`;
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-    serverExternalPackages: ['better-sqlite3', 'ffmpeg-static', 'pg'],
-    turbopack: {},
+    serverExternalPackages: ['better-sqlite3', 'ffmpeg-static', 'pg', '@google/generative-ai'],
+    // turbopack: {},
     images: {
         remotePatterns: [
             { protocol: 'https', hostname: 'admin.lassez.fr' },

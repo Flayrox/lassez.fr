@@ -8,8 +8,21 @@ const TRACKED_PROCESSES = ['radar-daemon-rss', 'radar-daemon', 'radar-admin'] as
 export const dynamic = 'force-dynamic';
 
 async function getPm2States() {
-    const { stdout } = await execAsync('npx pm2 jlist');
-    const list = JSON.parse(stdout || '[]');
+    const { stdout } = await execAsync('pm2 jlist');
+    
+    // Safety fallback: if pm2 prints warnings, find the first '['
+    let jsonStr = stdout || '[]';
+    const firstBracket = jsonStr.indexOf('[');
+    if (firstBracket !== -1) {
+        jsonStr = jsonStr.substring(firstBracket);
+    }
+    
+    let list = [];
+    try {
+        list = JSON.parse(jsonStr);
+    } catch(e) {
+        console.error('Failed to parse pm2 jlist', e);
+    }
 
     const states: Record<string, { online: boolean; status: string; pid: number | null }> = {};
     for (const name of TRACKED_PROCESSES) {
@@ -61,7 +74,7 @@ export async function POST(req: Request) {
             return NextResponse.json({ success: false, error: 'Target or action not allowed.' }, { status: 400 });
         }
 
-        const command = `npx pm2 ${action} ${target}`;
+        const command = `pm2 ${action} ${target}`;
         
         const { stdout, stderr } = await execAsync(command);
         

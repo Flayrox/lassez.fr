@@ -64,10 +64,10 @@ export const revelations: CollectionConfig = {
         livePreview: {
             url: async ({ data }: any) => {
                 const previewPath = data?.slug ? `/revelations/${data.slug}` : (data?.id ? `/revelations/${data.id}` : null);
-                if (!previewPath) return 'http://localhost:5173';
+                if (!previewPath) return getPublicSiteOrigin();
                 const origin = getPublicSiteOrigin();
                 const normalizedPath = normalizePreviewPath(previewPath);
-                if (!normalizedPath) return 'http://localhost:5173';
+                if (!normalizedPath) return getPublicSiteOrigin();
 
                 const previewId = String(data?.id || '').trim();
                 const slug = String(data?.slug || data?.id || '').trim();

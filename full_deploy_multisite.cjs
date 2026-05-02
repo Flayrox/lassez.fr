@@ -52,6 +52,7 @@ npm install
 cat > .env.local << 'EOF'
 PAYLOAD_URL=http://localhost:3001
 FRONTEND_URL=https://lassez.fr
+PORT=3000
 NODE_ENV=production
 EOF
 npm run build
@@ -62,12 +63,14 @@ cd /var/www/lassez-api
 npm install
 cat > .env.local << 'EOF'
 DATABASE_URI=postgresql://postgres:postgres@localhost:5432/lassez
-PAYLOAD_SECRET=\$(openssl rand -hex 32)
+# Utilisez une clé fixe en production pour éviter de déconnecter tout le monde à chaque push
+PAYLOAD_SECRET=lassez_prod_fixed_secret_32_chars_min
 CORS_URLS=https://lassez.fr,https://studio.lassez.fr
 FRONTEND_URL=https://lassez.fr
-PAYLOAD_PORT=3001
+PORT=3001
 NODE_ENV=production
 EOF
+npm run payload:migrate
 npm run build
 
 # 7. Installation de STUDIO (studio.lassez.fr - Radar)
@@ -79,15 +82,21 @@ PAYLOAD_URL=https://api.lassez.fr
 FRONTEND_URL=https://lassez.fr
 STUDIO_URL=https://studio.lassez.fr
 NEXT_PUBLIC_API_URL=https://api.lassez.fr
+PORT=3002
 NODE_ENV=production
 EOF
 npm run build
 
 # 8. Lancement via PM2
 echo "[8/8] Lancement des services..."
-pm2 start npm --cwd /var/www/lassez-api --name "radar-api" -- start
-pm2 start npm --cwd /var/www/lassez-front --name "radar-admin" -- start
-pm2 start npm --cwd /var/www/lassez-studio --name "radar-studio" -- start
+# On utilise --update-env pour être sûr que les nouvelles variables sont prises en compte
+pm2 start npm --cwd /var/www/lassez-api --name "radar-api" --update-env -- start
+pm2 start npm --cwd /var/www/lassez-front --name "radar-admin" --update-env -- start
+pm2 start npm --cwd /var/www/lassez-studio --name "radar-studio" --update-env -- start
+
+# Lancement des Daemons (depuis le dossier API ou Front, peu importe car ils partagent le même radar.db)
+echo "Lancement des Daemons Radar..."
+pm2 start ecosystem.config.cjs --only radar-daemon,radar-daemon-rss --update-env
 pm2 save
 
 echo ""

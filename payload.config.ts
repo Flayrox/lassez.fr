@@ -39,6 +39,8 @@ const rootDir = path.dirname(new URL(import.meta.url).pathname);
 export default buildConfig({
     secret: process.env.PAYLOAD_SECRET || 'change-me-in-production',
     serverURL: process.env.PAYLOAD_SERVER_URL || getApiOrigin(),
+    // Allow Payload to trust headers from Nginx proxy
+    trustProxy: true,
     admin: {
         user: 'authors',
         theme: 'all',
@@ -46,7 +48,7 @@ export default buildConfig({
             titleSuffix: 'Payload',
         },
         livePreview: {
-            url: 'http://localhost:5173',
+            url: getPublicSiteOrigin(),
             collections: ['posts', 'lessons', 'revelations'],
         },
     },
@@ -57,6 +59,8 @@ export default buildConfig({
             'http://api.localhost:5173',
             'https://lassez.fr',
             'https://api.lassez.fr',
+            'https://studio.lassez.fr',
+            'https://*.lassez.fr',
         ],
         headers: ['Content-Type', 'Authorization'],
     },
@@ -66,6 +70,8 @@ export default buildConfig({
         'http://api.localhost:5173',
         'https://lassez.fr',
         'https://api.lassez.fr',
+        'https://studio.lassez.fr',
+        'https://*.lassez.fr',
     ],
     telemetry: false,
     editor: lexicalEditor({

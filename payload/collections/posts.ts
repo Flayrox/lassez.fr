@@ -127,7 +127,7 @@ export const posts = {
         livePreview: {
             url: async ({ data, req }: any) => {
                 const previewPath = resolveEditorialPreviewPath(String(data?.slug || '')) || await buildPostPreviewUrl(data, req);
-                if (!previewPath) return 'http://localhost:5173';
+                if (!previewPath) return getPublicSiteOrigin();
                 
                 // Get correct origin dynamically from the request headers to support both localhost and IP access:
                 const protocol = req?.headers?.get('x-forwarded-proto') || req?.protocol || 'http';
@@ -140,7 +140,7 @@ export const posts = {
                 const origin = `${protocol}://${host}`;
                 
                 const normalizedPath = normalizePreviewPath(previewPath);
-                if (!normalizedPath) return 'http://localhost:5173';
+                if (!normalizedPath) return getPublicSiteOrigin();
 
                 const previewId = String(data?.id || '').trim();
                 const slug = String(data?.slug || '').trim();

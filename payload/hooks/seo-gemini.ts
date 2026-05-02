@@ -1,4 +1,4 @@
-import { BeforeValidateHook } from 'payload';
+import { CollectionBeforeValidateHook } from 'payload';
 import { GoogleGenAI } from '@google/genai';
 
 type SeoPayload = {
@@ -128,7 +128,7 @@ export async function generateGeminiSeo(options: GeminiSeoOptions): Promise<SeoP
     }
 }
 
-export function createGeminiSeoHook(options: HookOptions): BeforeValidateHook {
+export function createGeminiSeoHook(options: HookOptions): CollectionBeforeValidateHook {
     return async ({ data, originalDoc, req }) => {
         const current = { ...(data || {}) } as Record<string, any>;
         const previous = { ...(originalDoc || {}) } as Record<string, any>;

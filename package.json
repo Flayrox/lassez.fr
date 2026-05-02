@@ -61,6 +61,7 @@
     "text-to-svg": "^3.1.5"
   },
   "devDependencies": {
+    "@types/dotenv": "^6.1.1",
     "@types/node": "^22.14.0",
     "@types/papaparse": "^5.5.2",
     "@types/react": "^19.2.7",

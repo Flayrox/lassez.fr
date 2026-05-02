@@ -9,7 +9,10 @@ export default function robots(): MetadataRoute.Robots {
                 disallow: ['/api/', '/radar-admin/', '/radar-login/'],
             },
         ],
-        sitemap: 'https://lassez.fr/sitemap.xml',
+        sitemap: [
+            'https://lassez.fr/sitemap.xml',
+            'https://lassez.fr/news-sitemap.xml'
+        ],
     };
 }
 

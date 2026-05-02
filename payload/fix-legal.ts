@@ -1,5 +1,6 @@
 import payload from 'payload';
 import { SanitizedConfig } from 'payload';
+// @ts-ignore
 import * as dotenv from 'dotenv';
 import path from 'path';
 

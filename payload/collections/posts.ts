@@ -129,18 +129,10 @@ export const posts = {
                 const previewPath = resolveEditorialPreviewPath(String(data?.slug || '')) || await buildPostPreviewUrl(data, req);
                 if (!previewPath) return getPublicSiteOrigin();
                 
-                // Get correct origin dynamically from the request headers to support both localhost and IP access:
-                const protocol = req?.headers?.get('x-forwarded-proto') || req?.protocol || 'http';
-                let host = req?.headers?.get('host') || 'localhost:5173';
-                
-                if (host.startsWith('api.')) {
-                    host = host.substring(4);
-                }
-                
-                const origin = `${protocol}://${host}`;
+                const origin = getPublicSiteOrigin();
                 
                 const normalizedPath = normalizePreviewPath(previewPath);
-                if (!normalizedPath) return getPublicSiteOrigin();
+                if (!normalizedPath) return origin;
 
                 const previewId = String(data?.id || '').trim();
                 const slug = String(data?.slug || '').trim();

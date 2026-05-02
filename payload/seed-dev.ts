@@ -1,32 +1,32 @@
-﻿import payload from "payload";
+import payload from "payload";
 import type { SanitizedConfig } from "payload";
 
 function lexP(text: string): any {
     return { root: { type:"root",version:1,format:"",indent:0,direction:"ltr", children:[{ type:"paragraph",version:1,format:"",indent:0,direction:"ltr", children:[{type:"text",version:1,text,detail:0,format:0,mode:"normal",style:""}]}] } };
 }
-async function cat(name,slug,order=0) {
+async function cat(name: string, slug: string, order = 0) {
     const ex=await payload.find({collection:"categories",where:{slug:{equals:slug}},limit:1});
     if(ex.docs.length) return ex.docs[0];
     return payload.create({collection:"categories",overrideAccess:true,data:{name,slug,sortOrder:order,enabled:true}});
 }
-async function tag(name,slug) {
+async function tag(name: string, slug: string) {
     const ex=await payload.find({collection:"tags",where:{slug:{equals:slug}},limit:1});
     if(ex.docs.length) return ex.docs[0];
     return payload.create({collection:"tags",overrideAccess:true,data:{name,slug}});
 }
-async function post(d) {
+async function post(d: any) {
     const ex=await payload.find({collection:"posts",where:{slug:{equals:d.slug}},limit:1,overrideAccess:true});
     if(ex.docs.length){payload.logger.info("EXISTS "+d.slug);return;}
     await payload.create({collection:"posts",overrideAccess:true,data:{title:d.title,slug:d.slug,excerpt:d.excerpt,content:lexP(d.content),categories:[d.cat],tags:d.tags||[],status:"published",publishedAt:new Date().toISOString()}});
     payload.logger.info("CREATED "+d.slug);
 }
-async function rev(d) {
+async function rev(d: any) {
     const ex=await payload.find({collection:"revelations",where:{titre:{equals:d.titre}},limit:1,overrideAccess:true});
     if(ex.docs.length){payload.logger.info("EXISTS REV "+d.titre.substring(0,30));return;}
     await payload.create({collection:"revelations",overrideAccess:true,data:{titre:d.titre,contenu_rapide:lexP(d.contenu),niveau_alerte:d.alerte,status:"published"}});
     payload.logger.info("CREATED REV "+d.titre.substring(0,30));
 }
-export const script = async (config) => {
+export const script = async (config: any) => {
     await payload.init({config});
     await cat("Revelations","revelations",99);
     const pol=await cat("Politique","politique",2);

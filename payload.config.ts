@@ -39,8 +39,6 @@ const rootDir = path.dirname(new URL(import.meta.url).pathname);
 export default buildConfig({
     secret: process.env.PAYLOAD_SECRET || 'change-me-in-production',
     serverURL: process.env.PAYLOAD_SERVER_URL || getApiOrigin(),
-    // Allow Payload to trust headers from Nginx proxy
-    trustProxy: true,
     admin: {
         user: 'authors',
         theme: 'all',

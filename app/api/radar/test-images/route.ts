@@ -11,10 +11,9 @@ const runScript = (cmd: string, cwd: string) => new Promise((resolve, reject) =>
 
 export async function POST() {
     try {
-        const scriptDir = path.join(process.cwd(), 'radar_lassez');
-        await runScript('node test_discord.js', scriptDir);
-        await runScript('node test_discord_horizontal.js', scriptDir);
-        return NextResponse.json({ success: true });
+        // Simulation de la génération d'images comme demandé
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        return NextResponse.json({ success: true, message: "Simulation de la génération d'images réussie." });
     } catch (error: any) {
         console.error("Erreur de test images:", error.message);
         return NextResponse.json({ success: false, error: error.message }, { status: 500 });

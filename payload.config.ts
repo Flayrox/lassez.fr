@@ -11,8 +11,28 @@ import { posts } from './payload/collections/posts';
 import { lessons } from './payload/collections/lessons';
 import { revelations } from './payload/collections/revelations';
 import { settings } from './payload/globals/settings';
+import { about } from './payload/globals/about';
+import { legal } from './payload/globals/legal';
 import { seoPlugin } from '@payloadcms/plugin-seo';
 import { getApiOrigin, getPublicSiteOrigin } from './lib/host-urls';
+import { generateGeminiSeo } from './payload/hooks/seo-gemini';
+
+function extractSeoSource(doc: Record<string, any> | undefined) {
+    const source = doc || {};
+    const title = String(source.title || source.titre || source.seoTitle || source.meta?.title || '').trim();
+    const body = [
+        source.excerpt,
+        source.content,
+        source.content_html,
+        source.contenu_rapide,
+        source.contenu_rapide_html,
+    ]
+        .filter(Boolean)
+        .map(value => String(value).trim())
+        .join('\n\n');
+
+    return { title, body };
+}
 
 const rootDir = path.dirname(new URL(import.meta.url).pathname);
 
@@ -63,14 +83,32 @@ export default buildConfig({
         },
         migrationDir: path.resolve(process.cwd(), 'payload/migrations'),
     }),
-    globals: [settings],
+    globals: [settings, about, legal],
     collections: [categories, tags, authors, media, posts, lessons, revelations],
     plugins: [
         seoPlugin({
             collections: ['posts', 'lessons', 'revelations'],
             uploadsCollection: 'media',
-            generateTitle: ({ doc }: any) => `${doc?.title || doc?.titre || ''} - LASSEZ`,
-            generateDescription: ({ doc }: any) => doc?.excerpt || doc?.content || doc?.contenu_rapide || '',
+            generateTitle: async ({ doc, collectionSlug }: any) => {
+                const { title, body } = extractSeoSource(doc);
+                const seo = await generateGeminiSeo({
+                    collectionLabel: String(collectionSlug || 'content'),
+                    title,
+                    body,
+                });
+
+                return seo?.meta_title || seo?.seo_title || `${title || doc?.meta?.title || doc?.seoTitle || ''} | l'Assez`;
+            },
+            generateDescription: async ({ doc, collectionSlug }: any) => {
+                const { title, body } = extractSeoSource(doc);
+                const seo = await generateGeminiSeo({
+                    collectionLabel: String(collectionSlug || 'content'),
+                    title,
+                    body,
+                });
+
+                return seo?.meta_description || seo?.seo_description || String(doc?.meta?.description || doc?.seoDescription || doc?.excerpt || doc?.content || doc?.contenu_rapide || '').trim();
+            },
         }),
     ],
     typescript: {

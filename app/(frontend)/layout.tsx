@@ -4,9 +4,13 @@ import './globals.css';
 import { Inter, Playfair_Display, JetBrains_Mono, Newsreader, Space_Grotesk } from 'next/font/google';
 import { getNavItems } from '@/lib/db-nav';
 import { getRadarConfig } from '@/lib/radar-config';
-import { NavProvider } from '@/components/NavProvider';
-import CommunicationLayer from '@/components/CommunicationLayer';
 import ThemeInitializer from '@/components/ThemeInitializer';
+import { getSettings } from '@/lib/get-settings';
+import Footer from '@/components/Footer';
+import Header from '@/components/Header';
+import Sidebar from '@/components/Sidebar';
+import { SettingsProvider } from '@/components/SettingsProvider';
+import { UIProvider } from '@/components/UIProvider';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 const playfair = Playfair_Display({ subsets: ['latin'], variable: '--font-playfair' });
@@ -33,14 +37,14 @@ const DEFAULT_RADAR_CONFIG = {
     popup_link_label: '',
 };
 
-const matomoBootstrapScript = `
+const matomoBootstrapScript = (url: string, id: string) => `
   var _paq = window._paq = window._paq || [];
   _paq.push(['trackPageView']);
   _paq.push(['enableLinkTracking']);
   (function () {
-    var u = "//stats.lassez.fr/";
+    var u = "${url.endsWith('/') ? url : url + '/'}";
     _paq.push(['setTrackerUrl', u + 'matomo.php']);
-    _paq.push(['setSiteId', '1']);
+    _paq.push(['setSiteId', '${id}']);
     var d = document, g = d.createElement('script'), s = d.getElementsByTagName('script')[0];
     g.async = true; g.src = u + 'matomo.js'; s.parentNode.insertBefore(g, s);
   })();
@@ -75,22 +79,53 @@ const websiteJsonLd = {
 
 export const metadata: Metadata = {
     metadataBase: new URL('https://lassez.fr'),
-    title: "L'Assez - L'avenir est antifasciste",
-    description: "Journalisme d'investigation indépendant. Enquêtes, révélations et analyses pour comprendre le monde sans filtre.",
+    title: {
+        default: "L'Assez | Journalisme d'investigation indépendant",
+        template: "%s | L'Assez",
+    },
+    description: "L'Assez publie des enquêtes, des révélations et des analyses pour comprendre le monde sans filtre.",
+    keywords: [
+        "L'Assez",
+        "l'Assez media",
+        "journalisme d'investigation",
+        "révélations",
+        "enquêtes",
+        "actualité politique",
+        "analyse sociale",
+    ],
     icons: {
         icon: '/logo_lassez_white.svg',
         apple: '/logo_lassez_white.svg',
+    },
+    alternates: {
+        canonical: 'https://lassez.fr',
+    },
+    robots: {
+        index: true,
+        follow: true,
+        googleBot: {
+            index: true,
+            follow: true,
+            'max-image-preview': 'large',
+            'max-snippet': -1,
+            'max-video-preview': -1,
+        },
     },
     openGraph: {
         siteName: "L'Assez",
         locale: 'fr_FR',
         type: 'website',
+        url: 'https://lassez.fr',
     },
     twitter: {
         card: 'summary_large_image',
         site: '@lasse_media',
     },
 };
+
+import { NavProvider } from '@/components/NavProvider';
+import CommunicationLayer from '@/components/CommunicationLayer';
+import { HeaderWrapper, SidebarWrapper, FooterWrapper } from '@/components/LayoutWrappers';
 
 export default async function RootLayout({
     children,
@@ -99,6 +134,22 @@ export default async function RootLayout({
 }) {
     const navItems = await getNavItems();
     const config = await getRadarConfig();
+    const settings = await getSettings();
+
+    const socialSameAs = [
+        settings.socialLinks?.twitter,
+        settings.socialLinks?.bluesky,
+        settings.socialLinks?.mastodon,
+        settings.socialLinks?.instagram,
+        settings.socialLinks?.tiktok,
+        settings.socialLinks?.telegram,
+        settings.socialLinks?.linkedin,
+    ].filter(Boolean) as string[];
+
+    const orgLd = {
+        ...organizationJsonLd,
+        sameAs: socialSameAs.length > 0 ? socialSameAs : organizationJsonLd.sameAs,
+    };
 
     const bodyClassName = 'public-plane bg-paper text-ink bg-noise overflow-x-hidden paper-texture';
 
@@ -110,7 +161,7 @@ export default async function RootLayout({
                 <script
                     id="structured-data-org"
                     type="application/ld+json"
-                    dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd) }}
+                    dangerouslySetInnerHTML={{ __html: JSON.stringify(orgLd) }}
                 />
                 <script
                     id="structured-data-website"
@@ -119,18 +170,33 @@ export default async function RootLayout({
                 />
             </head>
             <body className={bodyClassName}>
-                <Script id="matomo-script" strategy="afterInteractive" dangerouslySetInnerHTML={{ __html: matomoBootstrapScript }} />
+                <Script 
+                    id="matomo-script" 
+                    strategy="afterInteractive" 
+                    dangerouslySetInnerHTML={{ 
+                        __html: matomoBootstrapScript(
+                            settings.matomoSettings?.matomoUrl || 'https://stats.lassez.fr/', 
+                            settings.matomoSettings?.matomoId || '1'
+                        ) 
+                    }} 
+                />
 
                 <ThemeInitializer />
 
 
                 <>
-                    <CommunicationLayer config={config} />
-                    <NavProvider initialNavItems={navItems as any}>
-                        <div id="root">
-                            {children}
-                        </div>
-                    </NavProvider>
+                    <SettingsProvider settings={settings}>
+                        <CommunicationLayer config={config} />
+                        <NavProvider initialNavItems={navItems as any}>
+                            <UIProvider>
+                                <div id="root" className="min-h-screen flex flex-col">
+                                    <HeaderWrapper />
+                                    {children}
+                                    <FooterWrapper />
+                                </div>
+                            </UIProvider>
+                        </NavProvider>
+                    </SettingsProvider>
                 </>
 
             </body>

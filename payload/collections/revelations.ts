@@ -3,6 +3,8 @@ import { authenticatedOrPublishedPostRead, isAuthenticated } from '../access';
 import { lexicalHTML } from '@payloadcms/richtext-lexical';
 import { getPublicSiteOrigin } from '../../lib/host-urls';
 import { createPostPreviewToken } from '../../lib/preview-token';
+import { slugifyEditorialValue } from '../lib/editorial';
+import { createGeminiSeoHook } from '../hooks/seo-gemini';
 
 function normalizePreviewPath(previewPath: string) {
     const raw = String(previewPath || '').trim();
@@ -43,12 +45,12 @@ export const revelations: CollectionConfig = {
         description: 'Silo Révélations : Live feed orienté action rapide.',
         preview: async ({ doc }: any) => {
             const origin = getPublicSiteOrigin();
-            const previewPath = doc?.id ? `/revelations/${doc.id}` : null;
+            const previewPath = doc?.slug ? `/revelations/${doc.slug}` : (doc?.id ? `/revelations/${doc.id}` : null);
             const normalizedPath = previewPath ? normalizePreviewPath(previewPath) : null;
             if (!normalizedPath) return null;
 
             const previewId = String(doc?.id || '').trim();
-            const slug = previewId;
+            const slug = String(doc?.slug || doc?.id || '').trim();
             const previewToken = createPostPreviewToken({ postId: previewId, slug });
 
             if (!previewId || !previewToken) return `${origin}${normalizedPath}`;
@@ -61,14 +63,14 @@ export const revelations: CollectionConfig = {
         },
         livePreview: {
             url: async ({ data }: any) => {
-                const previewPath = data?.id ? `/revelations/${data.id}` : null;
+                const previewPath = data?.slug ? `/revelations/${data.slug}` : (data?.id ? `/revelations/${data.id}` : null);
                 if (!previewPath) return 'http://localhost:5173';
                 const origin = getPublicSiteOrigin();
                 const normalizedPath = normalizePreviewPath(previewPath);
                 if (!normalizedPath) return 'http://localhost:5173';
 
                 const previewId = String(data?.id || '').trim();
-                const slug = previewId;
+                const slug = String(data?.slug || data?.id || '').trim();
 
                 if (!previewId) {
                     return `${origin}${normalizedPath}`;
@@ -83,6 +85,23 @@ export const revelations: CollectionConfig = {
             },
         },
     },
+    hooks: {
+        beforeValidate: [
+            async ({ data }: any) => {
+                const nextData = { ...(data || {}) };
+                if (!nextData.slug && nextData.titre) {
+                    nextData.slug = slugifyEditorialValue(nextData.titre);
+                }
+                return nextData;
+            },
+            createGeminiSeoHook({
+                collectionLabel: 'revelations',
+                titleFields: ['titre'],
+                bodyFields: ['contenu_rapide', 'contenu_rapide_html'],
+                outputMode: 'meta',
+            }),
+        ],
+    },
     versions: {
         drafts: true,
     },
@@ -91,6 +110,15 @@ export const revelations: CollectionConfig = {
             name: 'titre',
             type: 'text',
             required: true,
+        },
+        {
+            name: 'slug',
+            type: 'text',
+            required: true,
+            unique: true,
+            admin: {
+                description: 'Slug URL de la révélation, généré depuis le titre si vide.',
+            },
         },
         {
             name: 'contenu_rapide',

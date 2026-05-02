@@ -4,8 +4,11 @@ import EnquetesClient from '@/components/EnquetesClient';
 import Layout from '@/components/Layout';
 
 export const metadata: Metadata = {
-    title: "Les Dossiers | L'Assez",
-    description: "Accédez à l'intégralité de nos enquêtes et archives classifiées.",
+    title: "Enquêtes | L'Assez",
+    description: "Accédez aux enquêtes, dossiers et archives publiés par L'Assez.",
+    alternates: {
+        canonical: 'https://lassez.fr/enquetes',
+    },
 };
 
 export default function EnquetesPage() {

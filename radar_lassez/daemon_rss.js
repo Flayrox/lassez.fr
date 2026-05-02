@@ -52,6 +52,59 @@ function parseDailySchedule(raw) {
     return String(raw).split(/[\n,;|\s]+/).map(x => x.trim()).filter(Boolean);
 }
 
+function getNextScheduledDate(scheduleTimes, now = new Date()) {
+    if (!scheduleTimes.length) return null;
+    const valid = scheduleTimes
+        .map((hhmm) => {
+            const m = String(hhmm).match(/^(\d{1,2}):(\d{2})$/);
+            if (!m) return null;
+            const h = Number(m[1]);
+            const mm = Number(m[2]);
+            if (h < 0 || h > 23 || mm < 0 || mm > 59) return null;
+            return { h, mm };
+        })
+        .filter(Boolean);
+
+    if (!valid.length) return null;
+
+    for (let dayOffset = 0; dayOffset <= 1; dayOffset++) {
+        const day = new Date(now);
+        day.setHours(0, 0, 0, 0);
+        day.setDate(day.getDate() + dayOffset);
+
+        for (const slot of valid) {
+            const candidate = new Date(day);
+            candidate.setHours(slot.h, slot.mm, 0, 0);
+            if (candidate > now) return candidate;
+        }
+    }
+
+    return null;
+}
+
+function computeNextScanAt(settings, now = new Date()) {
+    const scheduleEnabled = settings.daemon_rss_schedule_enabled === 'true';
+    const scheduleTimes = parseDailySchedule(settings.daemon_rss_schedule_times);
+    const intervalEnabled = settings.daemon_rss_interval_enabled !== 'false';
+    const intervalHours = parseFloat(settings.scan_interval_hours || '2');
+
+    const candidates = [];
+
+    if (scheduleEnabled && scheduleTimes.length > 0) {
+        const nextScheduled = getNextScheduledDate(scheduleTimes, now);
+        if (nextScheduled) candidates.push(nextScheduled);
+    }
+
+    if (intervalEnabled && intervalHours > 0) {
+        const lastScan = settings.last_scan_at ? new Date(settings.last_scan_at) : new Date(0);
+        const nextByInterval = new Date(lastScan.getTime() + intervalHours * 60 * 60 * 1000);
+        candidates.push(nextByInterval);
+    }
+
+    if (!candidates.length) return null;
+    return new Date(Math.min(...candidates.map(d => d.getTime())));
+}
+
 let scanRunning = false;
 
 function buildCustomConfig(settings) {
@@ -98,7 +151,8 @@ async function runScan(settings) {
             const child = spawn('node', ['index.js', '--config', `temp/${configFileName}`], {
                 cwd: __dirname,
                 env: { ...process.env, FORCE_COLOR: '0' },
-                stdio: 'pipe'
+                stdio: 'pipe',
+                windowsHide: true
             });
 
             child.stdout.on('data', data => log(`[Node] ${data.toString().trim()}`));
@@ -134,6 +188,11 @@ function checkAndRun() {
 
     const now = new Date();
     let shouldRun = false;
+
+    const nextScanAt = computeNextScanAt(settings, now);
+    if (nextScanAt) {
+        saveSetting('next_scan_at', nextScanAt.toISOString());
+    }
 
     // 1. HORAIRES SPÉCIFIQUES (Schedule)
     const scheduleEnabled = settings.daemon_rss_schedule_enabled === 'true';

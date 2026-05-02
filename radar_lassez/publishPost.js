@@ -15,6 +15,8 @@ dotenv.config({ path: path.join(__dirname, '..', '.env') });
 
 const db = new Database(path.join(__dirname, 'radar.db'));
 
+const API_PREFIX = process.env.PAYLOAD_API_URL || (process.env.PAYLOAD_SERVER_URL ? process.env.PAYLOAD_SERVER_URL + '/api/payload' : process.env.PAYLOAD_URL + '/api');
+
 async function uploadMediaToPayload(token, localImagePath, fileName) {
     if (!fs.existsSync(localImagePath)) return null;
 
@@ -23,7 +25,7 @@ async function uploadMediaToPayload(token, localImagePath, fileName) {
         formData.append('file', fs.createReadStream(localImagePath), fileName);
 
         console.log(`[PAYLOAD-PUBLISH] Upload de l'image sur Payload...`);
-        const response = await axios.post(`${process.env.PAYLOAD_URL}/api/media`, formData, {
+        const response = await axios.post(`${API_PREFIX}/media`, formData, {
             headers: {
                 ...formData.getHeaders(),
                 'Authorization': `JWT ${token}`,
@@ -40,7 +42,7 @@ async function uploadMediaToPayload(token, localImagePath, fileName) {
 }
 
 async function publishPost(postId) {
-    if (!process.env.PAYLOAD_URL || !process.env.PAYLOAD_BOT_EMAIL || !process.env.PAYLOAD_BOT_PASSWORD) {
+    if (!API_PREFIX || !process.env.PAYLOAD_BOT_EMAIL || !process.env.PAYLOAD_BOT_PASSWORD) {
         console.error("⚠️ Identifiants Payload manquants dans le .env du radar.");
         return;
     }
@@ -54,7 +56,7 @@ async function publishPost(postId) {
 
     try {
         console.log(`[PAYLOAD-PUBLISH] Récupération du token Payload...`);
-        const tokenResponse = await axios.post(`${process.env.PAYLOAD_URL}/api/authors/login`, {
+        const tokenResponse = await axios.post(`${API_PREFIX}/authors/login`, {
             email: process.env.PAYLOAD_BOT_EMAIL,
             password: process.env.PAYLOAD_BOT_PASSWORD
         }, {
@@ -66,29 +68,46 @@ async function publishPost(postId) {
             throw new Error("Token d'authentification nul retourné par l'API Payload");
         }
 
-        // 1. Génération de l'image (Smart Cache)
+        // 1. Image handling: prefer an existing local image path, else try smart generation
         let featuredMediaId = null;
         let generatedImageUrl = '';
+        let imageResult = null;
 
-        // post.image_keyword contient l'URL source si elle existe, ou sinon le keyword de backup IA
-        const imageResult = await generateSmartCacheImage(post.image_keyword, post.source_title, post.source_title, post.punchline);
+        // If image_keyword is already a local file path (studio tmp or similar), upload it directly
+        try {
+            if (post.image_keyword && fs.existsSync(post.image_keyword)) {
+                console.log(`[PAYLOAD-PUBLISH] Found local image at ${post.image_keyword}, uploading directly.`);
+                const fileName = path.basename(post.image_keyword);
+                featuredMediaId = await uploadMediaToPayload(token, post.image_keyword, fileName);
+                generatedImageUrl = post.image_keyword;
+            }
+        } catch (e) {
+            // ignore and fallback to generation
+        }
 
-        if (imageResult) {
-            // 2. Upload sur Payload
-            const fileName = path.basename(imageResult.localPath);
-            featuredMediaId = await uploadMediaToPayload(token, imageResult.localPath, fileName);
-            generatedImageUrl = imageResult.publicUrl; // Nom dans le dossier public/
+        // If no local image was uploaded, try to generate or fetch via smart cache
+        if (!featuredMediaId) {
+            imageResult = await generateSmartCacheImage(post.image_keyword, post.source_title, post.source_title, post.punchline);
+            if (imageResult) {
+                const fileName = path.basename(imageResult.localPath);
+                featuredMediaId = await uploadMediaToPayload(token, imageResult.localPath, fileName);
+                generatedImageUrl = imageResult.publicUrl; // Nom dans le dossier public/
+            }
         }
 
         // 3. Publication de l'Article
         console.log(`[PAYLOAD-PUBLISH] Publication de l'article sur Payload...`);
         
-        // On extrait la première ligne pour le titre (souvent l'accroche avec emoji)
-        const lines = post.flash_content.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-        const firstLineAsTitle = lines.length > 0 ? lines[0] : `RADAR: ${post.source_title}`;
+        // Séparer titre et contenu : 
+        // - Titre = première ligne/paragraphe (avec emoji alerte)
+        // - Contenu = tout le reste
+        const contentParagraphs = post.flash_content
+            .split('\n\n')
+            .map(p => p.trim())
+            .filter(p => p.length > 0);
         
-        // Le contenu Payload : on enlève la première ligne si c'est elle qui sert de titre
-        const remainingContent = lines.length > 1 ? lines.slice(1).join('\n\n') : post.flash_content;
+        const firstLineAsTitle = contentParagraphs.length > 0 ? contentParagraphs[0] : `RADAR: ${post.source_title}`;
+        const remainingContent = contentParagraphs.length > 1 ? contentParagraphs.slice(1).join('\n\n') : '';
 
         // Résoudre les tags Payload depuis les tags locaux
         let payloadTagIds = [];
@@ -97,7 +116,7 @@ async function publishPost(postId) {
             for (const tagName of localTags) {
                 try {
                     // Chercher si le tag existe déjà
-                    const searchRes = await axios.get(`${process.env.PAYLOAD_URL}/api/tags`, {
+                    const searchRes = await axios.get(`${API_PREFIX}/tags`, {
                         params: { 'where[name][equals]': tagName, limit: 1 },
                         headers: { 
                             'Authorization': `JWT ${token}`,
@@ -109,7 +128,7 @@ async function publishPost(postId) {
                         payloadTagIds.push(existing.id);
                     } else {
                         // Créer le tag
-                        const createRes = await axios.post(`${process.env.PAYLOAD_URL}/api/tags`,
+                        const createRes = await axios.post(`${API_PREFIX}/tags`,
                             { name: tagName },
                             { headers: { 'Authorization': `JWT ${token}` } }
                         );
@@ -128,18 +147,21 @@ async function publishPost(postId) {
                 format: "",
                 indent: 0,
                 version: 1,
-                children: remainingContent.split('\n\n').map(paragraph => ({
-                    type: "paragraph",
-                    format: "",
-                    indent: 0,
-                    version: 1,
-                    children: [{
-                        mode: "normal",
-                        text: paragraph,
-                        type: "text",
-                        version: 1
-                    }]
-                }))
+                children: remainingContent
+                    .split('\n\n')
+                    .filter(p => p.trim().length > 0)
+                    .map(paragraph => ({
+                        type: "paragraph",
+                        format: "",
+                        indent: 0,
+                        version: 1,
+                        children: [{
+                            mode: "normal",
+                            text: paragraph,
+                            type: "text",
+                            version: 1
+                        }]
+                    }))
             }
         };
 
@@ -159,7 +181,7 @@ async function publishPost(postId) {
             postPayload.meta.image = featuredMediaId;
         }
 
-        const payloadResponse = await axios.post(`${process.env.PAYLOAD_URL}/api/revelations`, postPayload, {
+        const payloadResponse = await axios.post(`${API_PREFIX}/revelations`, postPayload, {
             headers: {
                 'Authorization': `JWT ${token}`,
                 'User-Agent': 'lassez-radar/1.0'
@@ -179,7 +201,8 @@ async function publishPost(postId) {
         const frontendUrl = process.env.FRONTEND_URL || 'https://lassez.fr';
         let articleUrl = `${frontendUrl}/revelations/${newPostId}`;
 
-        await broadcastToSocials(post.flash_content, imageResult?.localPath, articleUrl, skipLink, post.video_path, post.type_ouverture);
+        const localImageForBroadcast = imageResult?.localPath || (post.image_keyword && fs.existsSync(post.image_keyword) ? post.image_keyword : null);
+        await broadcastToSocials(post.flash_content, localImageForBroadcast, articleUrl, skipLink, post.video_path, post.type_ouverture);
 
         // Update de la base locale
         db.prepare('UPDATE radar_posts SET status = ?, payload_id = ?, image_keyword = ? WHERE id = ?')

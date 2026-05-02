@@ -4,8 +4,11 @@ import RevelationsClient from '@/components/RevelationsClient';
 import Layout from '@/components/Layout';
 
 export const metadata: Metadata = {
-    title: "Flux Révélations | L'Assez",
-    description: "Fil d'actualité en temps réel. Informations brutes, sources protégées.",
+    title: "Révélations | L'Assez",
+    description: "Flux en temps réel des révélations et alertes publiées par L'Assez.",
+    alternates: {
+        canonical: 'https://lassez.fr/revelations',
+    },
 };
 
 export default function RevelationsPage() {

@@ -3,6 +3,7 @@ import { authenticatedOrPublishedPostRead, isAuthenticated } from '../access';
 import { lexicalHTML } from '@payloadcms/richtext-lexical';
 import { getPublicSiteOrigin } from '../../lib/host-urls';
 import { createPostPreviewToken } from '../../lib/preview-token';
+import { createGeminiSeoHook } from '../hooks/seo-gemini';
 
 function normalizePreviewPath(previewPath: string) {
     const raw = String(previewPath || '').trim();
@@ -82,6 +83,14 @@ export const lessons: CollectionConfig = {
                 });
             },
         },
+    },
+    hooks: {
+        beforeValidate: [createGeminiSeoHook({
+            collectionLabel: 'lessons',
+            titleFields: ['title', 'chapitre'],
+            bodyFields: ['content', 'content_html', 'chapitre'],
+            outputMode: 'meta',
+        })],
     },
     versions: {
         drafts: true,

@@ -22,14 +22,18 @@ function getStudioBaseUrl() {
     }
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+    const isProxied = request.headers.get('x-radar-proxy') === '1';
     let db: any = null;
     try {
         const studioBase = getStudioBaseUrl();
-        if (studioBase && !process.env.IS_STUDIO) {
+        if (studioBase && !process.env.IS_STUDIO && !isProxied) {
             const res = await fetchWithTimeout(
                 `${studioBase}/api/elections/meta?t=${Date.now()}`,
-                { cache: 'no-store' },
+                { 
+                    cache: 'no-store',
+                    headers: { 'x-radar-proxy': '1' }
+                },
                 1800
             );
             if (res.ok) {

@@ -41,7 +41,7 @@ function StudioPageContent() {
     const [showJsonImport, setShowJsonImport] = useState(false);
 
     const { loadFFmpeg, exportProgress, setExportProgress } = useFFmpeg();
-    const { handleExport, handleExportAll, handleExportJSON } = useStudioExport(exportRef, loadFFmpeg, setExportProgress);
+    const { handleExport, handleExportAll, handleExportJSON } = useStudioExport(exportRef, loadFFmpeg, setExportProgress, postId);
     const { aiGenerateDeck } = useStudioAI();
 
     // ── Initial Load ─────────────────────────

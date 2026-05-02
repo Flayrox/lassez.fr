@@ -64,8 +64,8 @@ export async function generateMetadata(
     }
 
     const imageUrl = (post as any)?._embedded?.['wp:featuredmedia']?.[0]?.source_url || `${getPublicSiteOrigin()}/android-chrome-512x512.png`;
-    const renderedTitle = typeof (post as any).title === 'string' ? (post as any).title : (post as any).title?.rendered || '';
-    const renderedExcerpt = typeof (post as any).excerpt === 'string' ? (post as any).excerpt : (post as any).excerpt?.rendered || '';
+    const renderedTitle = (post as any)?.meta?.title || (typeof (post as any).title === 'string' ? (post as any).title : (post as any).title?.rendered || '');
+    const renderedExcerpt = (post as any)?.meta?.description || (typeof (post as any).excerpt === 'string' ? (post as any).excerpt : (post as any).excerpt?.rendered || '');
     const cleanExcerpt = renderedExcerpt.replace(/<[^>]*>?/gm, '').slice(0, 160);
 
     return {
@@ -75,6 +75,10 @@ export async function generateMetadata(
             title: `Leçon : ${renderedTitle} | L'Assez`,
             description: cleanExcerpt,
             images: [{ url: imageUrl }],
+            type: 'article',
+        },
+        alternates: {
+            canonical: `https://lassez.fr/comprendre/${slug}`,
         },
     };
 }

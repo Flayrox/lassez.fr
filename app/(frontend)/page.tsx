@@ -9,10 +9,25 @@ import Layout from '@/components/Layout';
 import TacticalNewsletter from '@/components/TacticalNewsletter';
 import { getArticleUrl } from '@/lib/getArticleUrl';
 import { getPayloadClient } from '@/lib/payload';
+import { FlashInfoTicker } from '@/components/FlashInfoTicker';
 
 export const metadata: Metadata = {
-    title: "L'Assez - L'avenir est antifasciste",
-    description: "Média d’investigation indépendant en lutte pour la vérité.",
+    title: {
+        default: "L'Assez | Média d'investigation indépendant",
+        template: "%s | L'Assez",
+    },
+    description: "L'Assez publie des enquêtes, des révélations et des décryptages politiques pour comprendre l'actualité sans filtre.",
+    keywords: [
+        "L'Assez",
+        "l'Assez media",
+        "journalisme d'investigation",
+        "révélations",
+        "enquêtes",
+        "actualité politique",
+    ],
+    alternates: {
+        canonical: 'https://lassez.fr',
+    },
 };
 
 export default async function Home() {
@@ -21,6 +36,7 @@ export default async function Home() {
     // 1. Fetch main posts (Enquêtes & Dossiers - which are now strictly in the 'posts' collection)
     const postsRes = await payload.find({
         collection: 'posts',
+        where: { _status: { equals: 'published' } },
         limit: 14,
         depth: 1,
         sort: '-publishedAt',
@@ -30,6 +46,7 @@ export default async function Home() {
     // 2. Fetch revelations from the new dedicated 'revelations' collection
     const revRes = await payload.find({
         collection: 'revelations',
+        where: { _status: { equals: 'published' } },
         limit: 5,
         depth: 1,
         sort: '-createdAt',
@@ -54,18 +71,7 @@ export default async function Home() {
                         )}
                     </div>
 
-                    {/* Ticker */}
-                    <div className="bg-ink text-paper py-2.5 border-y-4 border-lassez-red overflow-hidden relative group w-full shadow-hard-sm">
-                        <div className="flex whitespace-nowrap animate-[marquee_60s_linear_infinite] md:animate-[marquee_40s_linear_infinite] hover:[animation-play-state:paused]">
-                            {[1, 2, 3, 4].map(i => (
-                                <div key={i} className="flex items-center gap-6 md:gap-8 px-4">
-                                    <span className="font-mono font-black text-lassez-red text-[10px] md:text-xs shrink-0">FLASH INFO :</span>
-                                    <span className="font-mono text-[10px] md:text-xs uppercase tracking-widest">+++ L'INVESTIGATION NE S'ARRÊTE JAMAIS +++</span>
-                                    <span className="font-mono text-[10px] md:text-xs uppercase tracking-widest">--- SOURCE CONFIDENTIELLE CONFIRMÉE ---</span>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
+                    <FlashInfoTicker />
 
                     {/* Tactical Newsletter Entry Point */}
                     <div className="w-full">
@@ -122,7 +128,7 @@ export default async function Home() {
                                 {revelations.length > 0 ? revelations.map((post: any, i: number) => (
                                     <Link
                                         key={post.id}
-                                        href={`/revelations#${post.id}`}
+                                        href={`/revelations/${(post as any).slug || post.id}`}
                                         className="group block relative"
                                         style={{
                                             transform: `rotate(${(i % 2 === 0 ? 0.2 : -0.2) * (i + 1)}deg)`,

@@ -15,6 +15,7 @@ export interface RadarPost {
   fiabilite: string | null;
   video_path: string | null;
   created_at: string;
+    scheduled_at?: string | null;
 }
 
 export function RadarCard({ post, onUpdate, activeTab, isSelected, onToggleSelect }: {
@@ -175,6 +176,16 @@ export function RadarCard({ post, onUpdate, activeTab, isSelected, onToggleSelec
                                     {post.fiabilite || 'VERIFYING'}
                                 </div>
                             </div>
+                            {activeTab === 'APPROVED' && (
+                                <div>
+                                    <span className="text-[10px] font-black text-stone-400 uppercase tracking-widest block mb-2">PUBLISH TIME</span>
+                                    <div className="inline-block px-3 py-1 border-2 border-stone-900 font-black text-[10px] uppercase bg-stone-900 text-white">
+                                        {post.scheduled_at
+                                            ? new Date(post.scheduled_at).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+                                            : 'NON PLANIFIE'}
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
 

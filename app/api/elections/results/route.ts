@@ -348,14 +348,18 @@ export interface VilleResult {
 
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
+    const isProxied = request.headers.get('x-radar-proxy') === '1';
 
     const studioBase = getStudioBaseUrl();
-    if (studioBase && !process.env.IS_STUDIO) {
+    if (studioBase && !process.env.IS_STUDIO && !isProxied) {
         try {
             const qs = searchParams.toString();
             const res = await fetchWithTimeout(
                 `${studioBase}/api/elections/results${qs ? `?${qs}` : ''}`,
-                { cache: 'no-store' },
+                { 
+                    cache: 'no-store',
+                    headers: { 'x-radar-proxy': '1' }
+                },
                 1800
             );
             const data = await res.json();

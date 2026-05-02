@@ -61,6 +61,8 @@ export function DaemonRssConfigModal({ isOpen, onClose, settings, onSave }: Daem
                             className="border-4 border-stone-900 bg-white p-3 font-bold uppercase text-xs focus:outline-none"
                         >
                             <option value="gemini-3.1-pro-preview">gemini-3.1-pro-preview (Recommandé)</option>
+                            <option value="gemini-3.1-flash-lite-preview">gemini-3.1-flash-lite-preview</option>
+                            <option value="gemini-3-flash-preview">gemini-3-flash-preview</option>
                             <option value="gemini-2.5-pro">gemini-2.5-pro</option>
                             <option value="gemini-2.5-flash">gemini-2.5-flash</option>
                         </select>

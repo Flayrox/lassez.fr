@@ -18,9 +18,14 @@ type Props = {
 async function fetchPost(slug: string, previewContext: any) {
     const payload = await getPayloadClient();
 
+    const whereObj: any = { slug: { equals: slug } };
+    if (!previewContext) {
+        whereObj._status = { equals: 'published' };
+    }
+
     const res = await payload.find({
         collection: 'posts',
-        where:  { slug: { equals: slug } },
+        where:  whereObj,
         limit:  1,
         depth:  2,       // depth 2 pour avoir les objets catégorie complets
         overrideAccess: !!previewContext,
@@ -67,17 +72,18 @@ export async function generateMetadata(
 
     if (!post) return { title: '404 – Article Introuvable' };
 
-    const title = post.title ?? slug;
+    const title = post.meta?.title ?? post.title ?? slug;
     const imageUrl = (typeof post.featuredImage === 'object' && post.featuredImage?.url)
         ? post.featuredImage.url
         : 'https://lassez.fr/android-chrome-512x512.png';
+    const description = post.meta?.description ?? post.excerpt ?? undefined;
 
     return {
         title: `${title} | L'Assez`,
-        description: post.excerpt ?? undefined,
+        description,
         openGraph: {
             title: `${title} | L'Assez`,
-            description: post.excerpt ?? undefined,
+            description,
             images:      [{ url: imageUrl }],
             type:        'article',
         },
@@ -95,7 +101,7 @@ export default async function CentralizedArticlePage({ params, searchParams }: P
 
     if (!post) notFound();
 
-    const title      = post.title ?? slug;
+    const title      = post.meta?.title ?? post.title ?? slug;
     const relatedRaw = await fetchRelated(post);
     const publishedHref = `${getPublicSiteOrigin()}/${category}/${slug}`;
     const livePreviewServerURL = getApiOrigin();
@@ -107,6 +113,7 @@ export default async function CentralizedArticlePage({ params, searchParams }: P
     const imageUrl  = (typeof post.featuredImage === 'object' && post.featuredImage?.url)
         ? post.featuredImage.url
         : `${siteUrl}/android-chrome-512x512.png`;
+    const description = post.meta?.description ?? post.excerpt ?? '';
     const authorName = (typeof post.author === 'object' && post.author?.name) ? post.author.name : 'Rédaction';
 
     const breadcrumbSchema = {
@@ -132,6 +139,7 @@ export default async function CentralizedArticlePage({ params, searchParams }: P
             name:    "L'Assez",
             logo:    { '@type': 'ImageObject', url: `${siteUrl}/android-chrome-512x512.png` },
         },
+        description,
     };
 
     const article = (

@@ -235,12 +235,6 @@ async function rewriteBatchWithGemini(itemsBatch, maxArticles, customPrompt, arc
         ? options.allowedTypes
         : (specificPrompts.allowedTypes || ['"🔴 ALERTE INFO !"', '"📌 LE FAIT DU JOUR"', '"🔎 DÉCRYPTAGE"', '"🗓️ À VENIR"']);
 
-    const model = genAI.getGenerativeModel({
-        model: aiModelMain,
-        tools: useGoogleSearch ? [{ googleSearch: {} }] : [],
-        generationConfig: { responseMimeType: "application/json" }
-    });
-
     const articlesText = itemsBatch.map((item, index) => {
         const safeContent = item.content || "";
         const trustLevel = getSourceTrust(item.sourceTitle, item.id, sourceTrustMap);
@@ -309,31 +303,45 @@ Voici les articles à analyser (Source principale) :
 ${articlesText}
     `;
 
-    try {
-        console.log(`[DEBUG] Envoi à Gemini (${aiModelMain}) | GoogleSearch=${useGoogleSearch ? 'ON' : 'OFF'}...`);
-        const TIMEOUT_MS = 120000; // Passage de 60s à 120s pour Gemini Pro Preview
-        const result = await Promise.race([
-            model.generateContent(prompt),
-            new Promise((_, reject) => setTimeout(() => reject(new Error(`Timeout de ${TIMEOUT_MS}ms atteint chez Gemini`)), TIMEOUT_MS))
-        ]);
-        console.log(`[DEBUG] Gemini a répondu !`);
+    const fallbackModels = [
+        aiModelMain,
+        'gemini-3.1-pro-preview',
+        'gemini-3.1-flash-lite-preview',
+        'gemini-3-flash-preview'
+    ].filter((m, idx, arr) => arr.indexOf(m) === idx);
 
-        const rawText = result.response.text();
-
-        let jsonResponse;
+    for (let i = 0; i < fallbackModels.length; i++) {
+        const modelName = fallbackModels[i];
         try {
-            let cleanText = rawText.replace(/```json/i, '').replace(/```/g, '').trim();
-            jsonResponse = JSON.parse(cleanText);
-        } catch (parseErr) {
-            console.error("[DEBUG] JSON Parse Failed:", parseErr.message);
-            return [];
-        }
+            const useTools = useGoogleSearch;
+            const retryModel = genAI.getGenerativeModel({
+                model: modelName,
+                tools: useTools ? [{ googleSearch: {} }] : [],
+                generationConfig: { responseMimeType: 'application/json' }
+            });
 
-        return jsonResponse;
-    } catch (error) {
-        console.error("Erreur Gemini lors du traitement :", error.message);
-        return [];
+            console.log(`[DEBUG] Envoi à Gemini (${modelName}) | GoogleSearch=${useTools ? 'ON' : 'OFF'}...`);
+            const result = await retryModel.generateContent(prompt);
+            console.log(`[DEBUG] Gemini a répondu (${modelName}) !`);
+
+            const rawText = result.response.text();
+
+            try {
+                const cleanText = rawText.replace(/```json/i, '').replace(/```/g, '').trim();
+                return JSON.parse(cleanText);
+            } catch (parseErr) {
+                throw new Error(`JSON Parse Failed: ${parseErr.message}`);
+            }
+        } catch (error) {
+            console.error(`ERR: Erreur Gemini (${modelName}) lors du traitement :`, error.message);
+            const isLastAttempt = i === fallbackModels.length - 1;
+            if (isLastAttempt) return [];
+            console.log(`[DEBUG] Retry sur modèle de secours: ${fallbackModels[i + 1]} dans 5 secondes...`);
+            await new Promise(resolve => setTimeout(resolve, 5000)); // Pause de 5 secondes avant le retry pour limiter les erreurs 503
+        }
     }
+
+    return [];
 }
 
 // -- 3. LA DIFFUSION (Webhook Discord Administratif) --
@@ -695,44 +703,66 @@ Réponds uniquement OUI ou NON :`;
     const mergedAiResults = [];
     const handledById = new Set();
     const CHUNK_SIZE = 10;
+    const CHUNK_CONCURRENCY = Math.max(1, Math.min(8, parseInt(settings.ai_chunk_concurrency || '3', 10)));
 
     for (const strategy of strategies) {
         let remaining = Math.max(0, maxArticles - mergedAiResults.length);
         if (remaining <= 0) break;
 
+        const chunkStarts = [];
         for (let i = 0; i < batchToProcess.length; i += CHUNK_SIZE) {
+            chunkStarts.push(i);
+        }
+
+        for (let cursor = 0; cursor < chunkStarts.length; cursor += CHUNK_CONCURRENCY) {
             remaining = Math.max(0, maxArticles - mergedAiResults.length);
             if (remaining <= 0) break;
 
-            const chunk = batchToProcess.slice(i, i + CHUNK_SIZE);
-            console.log(`  -> 📦 Traitement du chunk de ${i} à ${i + chunk.length - 1}...`);
+            const wave = chunkStarts.slice(cursor, cursor + CHUNK_CONCURRENCY);
+            if (wave.length > 1) {
+                console.log(`  ⚡ Envoi parallèle de ${wave.length} chunks (concurrency=${CHUNK_CONCURRENCY})...`);
+            }
 
-            const partial = await rewriteBatchWithGemini(
-                chunk,
-                remaining,
-                dynamicPrompt,
-                archiveContext,
-                sourceTrustMap,
-                strategy.model,
-                {
-                    breaking: aiPromptBreaking,
-                    decrypt: aiPromptDecrypt,
-                    standard: aiPromptStandard,
-                    allowedTypes: strategy.allowedTypes
-                },
-                {
-                    useGoogleSearch: strategy.useGoogleSearch,
-                    allowedTypes: strategy.allowedTypes
-                },
-                i
+            const waveResults = await Promise.all(
+                wave.map(async (startIndex) => {
+                    const chunk = batchToProcess.slice(startIndex, startIndex + CHUNK_SIZE);
+                    console.log(`  -> 📦 Traitement du chunk de ${startIndex} à ${startIndex + chunk.length - 1}...`);
+
+                    const partial = await rewriteBatchWithGemini(
+                        chunk,
+                        remaining,
+                        dynamicPrompt,
+                        archiveContext,
+                        sourceTrustMap,
+                        strategy.model,
+                        {
+                            breaking: aiPromptBreaking,
+                            decrypt: aiPromptDecrypt,
+                            standard: aiPromptStandard,
+                            allowedTypes: strategy.allowedTypes
+                        },
+                        {
+                            useGoogleSearch: strategy.useGoogleSearch,
+                            allowedTypes: strategy.allowedTypes
+                        },
+                        startIndex
+                    );
+
+                    return { startIndex, partial };
+                })
             );
 
-            if (!Array.isArray(partial)) continue;
-            for (const item of partial) {
-                if (!item || typeof item.id !== 'string') continue;
-                if (handledById.has(item.id)) continue;
-                handledById.add(item.id);
-                mergedAiResults.push(item);
+            waveResults.sort((a, b) => a.startIndex - b.startIndex);
+
+            for (const { partial } of waveResults) {
+                if (!Array.isArray(partial)) continue;
+                for (const item of partial) {
+                    if (!item || typeof item.id !== 'string') continue;
+                    if (handledById.has(item.id)) continue;
+                    handledById.add(item.id);
+                    mergedAiResults.push(item);
+                    if (mergedAiResults.length >= maxArticles) break;
+                }
                 if (mergedAiResults.length >= maxArticles) break;
             }
         }

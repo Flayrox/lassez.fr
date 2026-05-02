@@ -34,7 +34,7 @@ export function BrutalSidePanels() {
                         </span>
                     </div>
                     <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold uppercase text-stone-600">Auto Pilot</span>
+                        <span className="text-xs font-bold uppercase text-stone-600">Auto Publication</span>
                         <span className={`text-[10px] font-black uppercase px-2 py-1 border-2 ${autoPilotEnabled ? 'bg-emerald-700 text-white border-emerald-700' : 'bg-stone-200 text-stone-700 border-stone-300'}`}>
                             {autoPilotEnabled ? 'ON' : 'OFF'}
                         </span>

@@ -3,6 +3,7 @@ import { authenticatedOrPublishedPostRead, isAuthenticated } from '../access';
 import { getPublicSiteOrigin } from '../../lib/host-urls';
 import { createPostPreviewToken } from '../../lib/preview-token';
 import { buildPostPreviewUrl, getPublishedAtDefault, resolveCanonicalArticlePath, resolvePrimaryCategorySlug, slugifyEditorialValue } from '../lib/editorial';
+import { createGeminiSeoHook } from '../hooks/seo-gemini';
 import { lexicalHTML } from '@payloadcms/richtext-lexical';
 
 function normalizePreviewPath(previewPath: string) {
@@ -65,8 +66,19 @@ async function ensurePostDefaults({ data, req, originalDoc }: any) {
         nextData.canonicalUrl = resolveCanonicalArticlePath(String(nextData.slug || originalDoc?.slug || ''), primaryCategorySlug) || nextData.canonicalUrl;
     }
 
+    if (nextData.featuredImage && (!nextData.meta || !nextData.meta.image)) {
+        nextData.meta = { ...(nextData.meta || {}), image: nextData.featuredImage };
+    }
+
     return nextData;
 }
+
+const generatePostsSeo = createGeminiSeoHook({
+    collectionLabel: 'posts',
+    titleFields: ['title'],
+    bodyFields: ['excerpt', 'content', 'content_html'],
+    outputMode: 'meta',
+});
 
 export const posts = {
     slug: 'posts',
@@ -147,7 +159,7 @@ export const posts = {
         },
     },
     hooks: {
-        beforeValidate: [ensurePostDefaults],
+        beforeValidate: [ensurePostDefaults, generatePostsSeo],
     },
     versions: {
         drafts: true,

@@ -1,0 +1,10 @@
+{
+  "model": "gemini-3.1-pro-preview",
+  "types": [
+    "🔴 ALERTE INFO !"
+  ],
+  "count": 20,
+  "lookbackHours": 10,
+  "prompt": "",
+  "saveDb": true
+}

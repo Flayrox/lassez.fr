@@ -41,7 +41,7 @@ export default async function ArticleLegacyRedirect({ params, searchParams }: Pr
     // Cas spéciaux déjà existants
     const isRevelation = categories.some(cat => cat.slug === 'revelations');
     if (isRevelation) {
-        redirect(withPreviewQuery(`/revelations/${slug}`, previewContext));
+        redirect(withPreviewQuery(`/revelations/${(post as any).slug || slug}`, previewContext));
     }
 
     const isComprendre = categories.some(cat => cat.slug === 'comprendre' || cat.name === 'Comprendre');

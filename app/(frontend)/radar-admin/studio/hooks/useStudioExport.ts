@@ -3,10 +3,12 @@
 import { useState } from 'react';
 import { toPng } from 'html-to-image';
 import { useStudio, SlideType } from '../components/StudioContext';
+import { publishToRadar } from './useStudioPublish';
 import { fetchFile } from '@ffmpeg/util';
 
-export function useStudioExport(exportRef: React.RefObject<HTMLDivElement | null>, loadFFmpeg: () => Promise<any>, setExportProgress: (p: string | null) => void) {
+export function useStudioExport(exportRef: React.RefObject<HTMLDivElement | null>, loadFFmpeg: () => Promise<any>, setExportProgress: (p: string | null) => void, postId?: string | null) {
     const { deck, activeId, setActiveId, activeSlide } = useStudio();
+    const { articleInput } = useStudio();
 
     const embedImages = async (node: HTMLElement) => {
         const imgs = Array.from(node.querySelectorAll<HTMLImageElement>('img'));
@@ -157,25 +159,42 @@ export function useStudioExport(exportRef: React.RefObject<HTMLDivElement | null
                 overlays.forEach(el => el.style.display = 'none');
                 const dataUrl = await toPng(exportRef.current, { quality: 1, pixelRatio: 2, canvasWidth: 1080, canvasHeight: 1350 });
                 overlays.forEach(el => el.style.display = '');
-                const a = document.createElement('a');
-                a.download = `lassez-${activeSlide.label.replace(/\s+/g, '-').toLowerCase()}.png`;
-                a.href = dataUrl; a.click();
+                    const a = document.createElement('a');
+                    a.download = `lassez-${activeSlide.label.replace(/\s+/g, '-').toLowerCase()}.png`;
+                    a.href = dataUrl; a.click();
+
+                    // If this export is linked to a Radar post, send to publish endpoint
+                    if (postId) {
+                        try {
+                            const title = (articleInput || activeSlide.state.headline || '').split('\n')[0] || null;
+                            const content = articleInput || null;
+                            publishToRadar(postId, title, content, dataUrl);
+                        } catch (e) { /* ignore */ }
+                    }
             } catch (e) { }
             if (liveZone) liveZone.style.display = prevLive;
             if (staticZone) staticZone.style.display = prevStatic;
             return;
         }
 
-        try {
-            await embedImages(exportRef.current);
-            const overlays = exportRef.current.querySelectorAll<HTMLElement>('.edit-overlay,.edit-sticker,.brut-tb');
-            overlays.forEach(el => el.style.display = 'none');
-            const dataUrl = await toPng(exportRef.current, { quality: 1, pixelRatio: 2, canvasWidth: 1080, canvasHeight: 1350 });
-            overlays.forEach(el => el.style.display = '');
-            const a = document.createElement('a');
-            a.download = `lassez-${activeSlide.label.replace(/\s+/g, '-').toLowerCase()}.png`;
-            a.href = dataUrl; a.click();
-        } catch (e) { }
+            try {
+                await embedImages(exportRef.current);
+                const overlays = exportRef.current.querySelectorAll<HTMLElement>('.edit-overlay,.edit-sticker,.brut-tb');
+                overlays.forEach(el => el.style.display = 'none');
+                const dataUrl = await toPng(exportRef.current, { quality: 1, pixelRatio: 2, canvasWidth: 1080, canvasHeight: 1350 });
+                overlays.forEach(el => el.style.display = '');
+                const a = document.createElement('a');
+                a.download = `lassez-${activeSlide.label.replace(/\s+/g, '-').toLowerCase()}.png`;
+                a.href = dataUrl; a.click();
+
+                if (postId) {
+                    try {
+                        const title = (articleInput || activeSlide.state.headline || '').split('\n')[0] || null;
+                        const content = articleInput || null;
+                        publishToRadar(postId, title, content, dataUrl);
+                    } catch (e) { /* ignore */ }
+                }
+            } catch (e) { }
     };
 
     const handleExportAll = async () => {

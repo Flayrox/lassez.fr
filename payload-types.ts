@@ -99,9 +99,13 @@ export interface Config {
   fallbackLocale: null;
   globals: {
     settings: Setting;
+    about: About;
+    legal: Legal;
   };
   globalsSelect: {
     settings: SettingsSelect<false> | SettingsSelect<true>;
+    about: AboutSelect<false> | AboutSelect<true>;
+    legal: LegalSelect<false> | LegalSelect<true>;
   };
   locale: null;
   widgets: {
@@ -155,6 +159,10 @@ export interface Category {
   seoDescription?: string | null;
   sortOrder?: number | null;
   enabled?: boolean | null;
+  /**
+   * Afficher cette catégorie dans le menu de navigation principal.
+   */
+  showInHeader?: boolean | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -400,6 +408,10 @@ export interface Revelation {
   id: number;
   titre: string;
   /**
+   * Slug URL de la révélation, généré depuis le titre si vide.
+   */
+  slug: string;
+  /**
    * Le contenu brut de la révélation.
    */
   contenu_rapide: {
@@ -548,6 +560,7 @@ export interface CategoriesSelect<T extends boolean = true> {
   seoDescription?: T;
   sortOrder?: T;
   enabled?: T;
+  showInHeader?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -674,6 +687,7 @@ export interface LessonsSelect<T extends boolean = true> {
  */
 export interface RevelationsSelect<T extends boolean = true> {
   titre?: T;
+  slug?: T;
   contenu_rapide?: T;
   contenu_rapide_html?: T;
   niveau_alerte?: T;
@@ -739,9 +753,37 @@ export interface PayloadMigrationsSelect<T extends boolean = true> {
 export interface Setting {
   id: number;
   /**
-   * Texte affiché dans le Flash Info Ticker.
+   * Modèle Gemini utilisé pour générer automatiquement les métadonnées SEO.
+   */
+  seoGeminiModel?:
+    | (
+        | 'gemini-3.1-pro-preview'
+        | 'gemini-3.1-flash-lite-preview'
+        | 'gemini-3-flash-preview'
+        | 'gemini-2.5-flash'
+        | 'gemini-2.5-flash-lite'
+        | 'gemini-2.5-pro'
+      )
+    | null;
+  displaySettings?: {
+    flashInfoEnabled?: boolean | null;
+    showHeader?: boolean | null;
+    showFooter?: boolean | null;
+  };
+  /**
+   * Texte par défaut si la liste ci-dessous est vide.
    */
   flashInfoText?: string | null;
+  /**
+   * Liste des messages défilants. Si actif, ils apparaîtront dans le bandeau.
+   */
+  tickerItems?:
+    | {
+        text: string;
+        active?: boolean | null;
+        id?: string | null;
+      }[]
+    | null;
   /**
    * Activer le mode maintenance au public.
    */
@@ -750,7 +792,143 @@ export interface Setting {
     twitter?: string | null;
     telegram?: string | null;
     instagram?: string | null;
+    bluesky?: string | null;
+    mastodon?: string | null;
+    tiktok?: string | null;
+    linkedin?: string | null;
   };
+  /**
+   * Réglages Matomo pour les statistiques de visite.
+   */
+  matomoSettings?: {
+    matomoId?: string | null;
+    matomoUrl?: string | null;
+  };
+  /**
+   * Configuration du manifest Web (PWA).
+   */
+  manifest: {
+    siteName: string;
+    shortName?: string | null;
+    description?: string | null;
+    themeColor?: string | null;
+    backgroundColor?: string | null;
+  };
+  /**
+   * Configurez les liens du menu principal dans le header.
+   */
+  navigation?:
+    | {
+        label: string;
+        enabled?: boolean | null;
+        badge?: string | null;
+        linkType?: ('custom' | 'category') | null;
+        customUrl?: string | null;
+        category?: (number | null) | Category;
+        id?: string | null;
+      }[]
+    | null;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
+ * Éditez le Manifeste et la présentation de l’équipe.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "about".
+ */
+export interface About {
+  id: number;
+  title: string;
+  version?: string | null;
+  introText: string;
+  manifestoSections?:
+    | {
+        title: string;
+        content: {
+          root: {
+            type: string;
+            children: {
+              type: any;
+              version: number;
+              [k: string]: unknown;
+            }[];
+            direction: ('ltr' | 'rtl') | null;
+            format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+            indent: number;
+            version: number;
+          };
+          [k: string]: unknown;
+        };
+        variant?: ('red' | 'black') | null;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Citation mise en avant (bloc jaune).
+   */
+  quote?: string | null;
+  signature?: {
+    line1?: string | null;
+    line2?: string | null;
+  };
+  team?:
+    | {
+        name: string;
+        role: string;
+        avatar?: (number | null) | Media;
+        id?: string | null;
+      }[]
+    | null;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
+ * Éditez les informations légales et la politique de confidentialité.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "legal".
+ */
+export interface Legal {
+  id: number;
+  title: string;
+  lastUpdated?: string | null;
+  sections?:
+    | {
+        title: string;
+        content: {
+          root: {
+            type: string;
+            children: {
+              type: any;
+              version: number;
+              [k: string]: unknown;
+            }[];
+            direction: ('ltr' | 'rtl') | null;
+            format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+            indent: number;
+            version: number;
+          };
+          [k: string]: unknown;
+        };
+        highlightBox?: {
+          root: {
+            type: string;
+            children: {
+              type: any;
+              version: number;
+              [k: string]: unknown;
+            }[];
+            direction: ('ltr' | 'rtl') | null;
+            format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+            indent: number;
+            version: number;
+          };
+          [k: string]: unknown;
+        } | null;
+        id?: string | null;
+      }[]
+    | null;
   updatedAt?: string | null;
   createdAt?: string | null;
 }
@@ -759,7 +937,22 @@ export interface Setting {
  * via the `definition` "settings_select".
  */
 export interface SettingsSelect<T extends boolean = true> {
+  seoGeminiModel?: T;
+  displaySettings?:
+    | T
+    | {
+        flashInfoEnabled?: T;
+        showHeader?: T;
+        showFooter?: T;
+      };
   flashInfoText?: T;
+  tickerItems?:
+    | T
+    | {
+        text?: T;
+        active?: T;
+        id?: T;
+      };
   maintenanceMode?: T;
   socialLinks?:
     | T
@@ -767,6 +960,90 @@ export interface SettingsSelect<T extends boolean = true> {
         twitter?: T;
         telegram?: T;
         instagram?: T;
+        bluesky?: T;
+        mastodon?: T;
+        tiktok?: T;
+        linkedin?: T;
+      };
+  matomoSettings?:
+    | T
+    | {
+        matomoId?: T;
+        matomoUrl?: T;
+      };
+  manifest?:
+    | T
+    | {
+        siteName?: T;
+        shortName?: T;
+        description?: T;
+        themeColor?: T;
+        backgroundColor?: T;
+      };
+  navigation?:
+    | T
+    | {
+        label?: T;
+        enabled?: T;
+        badge?: T;
+        linkType?: T;
+        customUrl?: T;
+        category?: T;
+        id?: T;
+      };
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "about_select".
+ */
+export interface AboutSelect<T extends boolean = true> {
+  title?: T;
+  version?: T;
+  introText?: T;
+  manifestoSections?:
+    | T
+    | {
+        title?: T;
+        content?: T;
+        variant?: T;
+        id?: T;
+      };
+  quote?: T;
+  signature?:
+    | T
+    | {
+        line1?: T;
+        line2?: T;
+      };
+  team?:
+    | T
+    | {
+        name?: T;
+        role?: T;
+        avatar?: T;
+        id?: T;
+      };
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "legal_select".
+ */
+export interface LegalSelect<T extends boolean = true> {
+  title?: T;
+  lastUpdated?: T;
+  sections?:
+    | T
+    | {
+        title?: T;
+        content?: T;
+        highlightBox?: T;
+        id?: T;
       };
   updatedAt?: T;
   createdAt?: T;

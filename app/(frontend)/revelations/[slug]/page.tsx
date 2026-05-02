@@ -17,19 +17,33 @@ type Props = {
 async function getPost(id: string, previewContext: ReturnType<typeof getPreviewContext> extends Promise<infer T> ? T : never): Promise<WPPost | null> {
     const payload = await getPayloadClient();
     try {
-        const doc = await payload.findByID({
+        let doc: any = null;
+
+        const slugMatch = await payload.find({
             collection: 'revelations',
-            id,
+            where: { slug: { equals: id } },
+            limit: 1,
             draft: !!previewContext,
             overrideAccess: !!previewContext,
         });
-        
+
+        doc = slugMatch.docs?.[0] || null;
+
+        if (!doc && /^\d+$/.test(id)) {
+            doc = await payload.findByID({
+                collection: 'revelations',
+                id,
+                draft: !!previewContext,
+                overrideAccess: !!previewContext,
+            });
+        }
+
         if (!doc) return null;
 
         return {
             id: doc.id as any,
             date: String(doc.createdAt),
-            slug: doc.id,
+            slug: doc.slug || doc.id,
             title: { rendered: doc.titre as string },
             excerpt: { rendered: '' },
             content: { rendered: doc.contenu_rapide_html as string || '' },
@@ -67,8 +81,11 @@ export async function generateMetadata(
 
     // Not checking WP categories anymore since it's an explicit Revelation from DB
 
-    const imageUrl = `${getPublicSiteOrigin()}/android-chrome-512x512.png`;
-    const description = "Une révélation confidentielle L'Assez";
+    const contentSnippet = (post as any).content?.rendered 
+        ? (post as any).content.rendered.replace(/<[^>]*>/g, '').slice(0, 160) + '...'
+        : "Une révélation exclusive de L'Assez";
+
+    const description = (post as any)?.meta?.description || contentSnippet;
     const renderedTitle = typeof (post as any).title === 'string' ? (post as any).title : (post as any).title?.rendered || '';
 
     return {
@@ -81,7 +98,7 @@ export async function generateMetadata(
             type: 'article',
         },
         alternates: {
-            canonical: `https://lassez.fr/revelations/${slug}`,
+            canonical: `https://lassez.fr/revelations/${(post as any).slug || slug}`,
         },
     };
 }
@@ -100,7 +117,7 @@ export default async function RevelationArticlePage({ params, searchParams }: Pr
     const featuredImage = (post as any)?._embedded?.['wp:featuredmedia']?.[0]?.source_url || `https://lassez.fr/android-chrome-512x512.png`;
     const authorName = (post as any)?._embedded?.author?.[0]?.name || 'Rédaction';
     const publishedDate = (post as any).date || String((post as any).createdAt || new Date().toISOString());
-    const publishedHref = `${getPublicSiteOrigin()}/revelations/${slug}`;
+    const publishedHref = `${getPublicSiteOrigin()}/revelations/${(post as any).slug || slug}`;
     const livePreviewServerURL = getApiOrigin();
     const isPreview = !!previewContext;
 

@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { usePathname } from 'next/navigation';
+import { useSettings } from './SettingsProvider';
 
 interface CommunicationLayerProps {
     config: {
@@ -18,7 +19,11 @@ interface CommunicationLayerProps {
 
 export default function CommunicationLayer({ config }: CommunicationLayerProps) {
     const pathname = usePathname();
+    const settings = useSettings();
     const [showPopup, setShowPopup] = useState(false);
+
+    const isMaintenanceActive = config.maintenance_mode || settings.maintenanceMode;
+    const maintenanceMessage = settings.maintenanceMode ? "Le système Payload est en maintenance." : config.maintenance_message;
 
     useEffect(() => {
         // Logique de la Pop-up
@@ -44,7 +49,7 @@ export default function CommunicationLayer({ config }: CommunicationLayerProps) 
         <>
             {/* 🛠 MODE MAINTENANCE */}
             <AnimatePresence>
-                {config.maintenance_mode && !isAdminPage && (
+                {isMaintenanceActive && !isAdminPage && (
                     <motion.div
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
@@ -59,7 +64,7 @@ export default function CommunicationLayer({ config }: CommunicationLayerProps) 
                                 Maintenance en cours
                             </h1>
                             <p className="text-stone-500 font-medium leading-relaxed">
-                                {config.maintenance_message || "L'Assez revient très bientôt."}
+                                {maintenanceMessage || "L'Assez revient très bientôt."}
                             </p>
                             <div className="pt-8 flex flex-col items-center gap-4">
                                 <div className="flex gap-2">
@@ -78,7 +83,7 @@ export default function CommunicationLayer({ config }: CommunicationLayerProps) 
 
             {/* ✨ POP-UP PROMO / INFO */}
             <AnimatePresence>
-                {showPopup && !config.maintenance_mode && (
+                {showPopup && !isMaintenanceActive && (
                     <div className="fixed inset-0 z-[9998] flex items-center justify-center p-4 bg-stone-900/40 backdrop-blur-sm">
                         <motion.div
                             initial={{ opacity: 0, scale: 0.9, y: 20 }}

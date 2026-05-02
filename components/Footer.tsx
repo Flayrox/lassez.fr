@@ -3,17 +3,19 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { TwitterIcon, MastodonIcon, InstagramIcon, TikTokIcon, BlueskyIcon, LockIcon } from './icons';
 import NewsletterModal from './NewsletterModal';
+import { useSettings } from './SettingsProvider';
 
 const Footer: React.FC = () => {
   const [isNewsletterOpen, setIsNewsletterOpen] = useState(false);
+  const settings = useSettings();
 
   const socialLinks = [
-    { name: 'X / Twitter', icon: <TwitterIcon className="w-5 h-5" />, url: 'https://x.com/lassezmedia' },
-    { name: 'Bluesky', icon: <BlueskyIcon className="w-5 h-5" />, url: 'https://bsky.app/profile/lassez.fr' },
-    { name: 'Mastodon', icon: <MastodonIcon className="w-5 h-5" />, url: 'https://mastodon.social/@lassezmedia', rel: 'me' },
-    { name: 'Instagram', icon: <InstagramIcon className="w-5 h-5" />, url: 'https://www.instagram.com/lassezmedia/' },
-    { name: 'TikTok', icon: <TikTokIcon className="w-5 h-5" />, url: 'https://www.tiktok.com/@lassezmedia' },
-  ];
+    { name: 'X / Twitter', icon: <TwitterIcon className="w-5 h-5" />, url: settings.socialLinks?.twitter },
+    { name: 'Bluesky', icon: <BlueskyIcon className="w-5 h-5" />, url: settings.socialLinks?.bluesky },
+    { name: 'Mastodon', icon: <MastodonIcon className="w-5 h-5" />, url: settings.socialLinks?.mastodon, rel: 'me' },
+    { name: 'Instagram', icon: <InstagramIcon className="w-5 h-5" />, url: settings.socialLinks?.instagram },
+    { name: 'TikTok', icon: <TikTokIcon className="w-5 h-5" />, url: settings.socialLinks?.tiktok },
+  ].filter(link => !!link.url);
 
   return (
     <>

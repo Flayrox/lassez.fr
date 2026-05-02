@@ -39,7 +39,7 @@ export async function GET(request: Request) {
         db = getDb();
 
         // Query dynamique avec filtres optionnels
-        let query = `SELECT id, source_url, source_title, flash_content, image_keyword, status, geo, tags, type_ouverture, fiabilite, video_path, created_at FROM radar_posts WHERE status = ?`;
+        let query = `SELECT id, source_url, source_title, flash_content, image_keyword, status, geo, tags, type_ouverture, fiabilite, video_path, created_at, scheduled_at FROM radar_posts WHERE status = ?`;
         const params: any[] = [status];
 
         if (geo && geo !== 'all') {

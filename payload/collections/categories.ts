@@ -1,6 +1,7 @@
 import type { CollectionConfig } from 'payload';
 import { isAuthenticated, publicRead } from '../access';
 import { slugifyEditorialValue } from '../lib/editorial';
+import { createGeminiSeoHook } from '../hooks/seo-gemini';
 
 async function ensureCategorySlug({ data, originalDoc }: any) {
     const nextData = { ...(data || {}) };
@@ -23,7 +24,12 @@ export const categories = {
         description: 'Taxonomie éditoriale principale du front.',
     },
     hooks: {
-        beforeValidate: [ensureCategorySlug],
+        beforeValidate: [ensureCategorySlug, createGeminiSeoHook({
+            collectionLabel: 'categories',
+            titleFields: ['name'],
+            bodyFields: ['description'],
+            outputMode: 'legacy',
+        })],
     },
     fields: [
         {
@@ -54,5 +60,13 @@ export const categories = {
         { name: 'seoDescription', type: 'textarea' },
         { name: 'sortOrder', type: 'number', defaultValue: 0 },
         { name: 'enabled', type: 'checkbox', defaultValue: true },
+        { 
+            name: 'showInHeader', 
+            type: 'checkbox', 
+            defaultValue: false,
+            admin: {
+                description: 'Afficher cette catégorie dans le menu de navigation principal.',
+            }
+        },
     ],
 } satisfies CollectionConfig;

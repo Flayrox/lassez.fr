@@ -3,8 +3,11 @@ import PodcastsClient from '@/components/PodcastsClient';
 import Layout from '@/components/Layout';
 
 export const metadata: Metadata = {
-    title: "Interceptions Audio | L'Assez",
-    description: "Écoutez les enregistrements audio bruts : le son de l'investigation sans filtres.",
+    title: "Podcasts | L'Assez",
+    description: "Écoutez les formats audio, entretiens et archives sonores de L'Assez.",
+    alternates: {
+        canonical: 'https://lassez.fr/podcasts',
+    },
 };
 
 export default function PodcastsPage() {

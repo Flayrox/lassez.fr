@@ -1,107 +1,86 @@
+import { NavItem } from '@/types';
+import { getSettings } from './get-settings';
+import { Category } from '@/payload-types';
+import { getPayloadClient } from './payload';
 import Database from 'better-sqlite3';
 import path from 'path';
-import { NavItem } from '@/types';
 
 /**
  * Fetch navigation items.
- * On the Studio (Hetzner), it reads from the local SQLite database.
- * On the Reader (Hostinger), it fetches from the Studio API via RADAR_API_URL.
- * 
- * @param all If true, returns all items including disabled ones.
- * @returns Array of NavItem
+ * Prioritizes Payload CMS settings.
+ * Falls back to local SQLite if Payload nav is empty.
  */
 export async function getNavItems(all: boolean = false): Promise<NavItem[]> {
-    // 1. Check if we should use the Remote API (Hostinger case)
-    const remoteUrl = process.env.RADAR_API_URL;
-    if (remoteUrl && !process.env.IS_STUDIO) {
-        try {
-            const res = await fetch(`${remoteUrl}${all ? '?all=true' : ''}`, {
-                next: { revalidate: 60 }
-            });
-            if (res.ok) {
-                const data = await res.json();
-                return data.navItems || [];
-            }
-        } catch (error) {
-            console.error('Failed to fetch remote nav items:', error);
-            // Fallback to local logic/hardcoded if API is down
-        }
-    }
-
-    // 2. Local SQLite Logic (Hetzner Studio case)
-    let db: any = null;
     try {
-        const dbPath = path.join(process.cwd(), 'radar_lassez', 'radar.db');
-        db = new Database(dbPath);
+        const settings = await getSettings();
+        
+        // 1. Explicit navigation from Settings
+        if (settings.navigation && settings.navigation.length > 0) {
+            return settings.navigation
+                .filter(item => item.enabled !== false) // Default to true if undefined
+                .map((item, index) => {
+                    let path = item.customUrl || '/';
+                    
+                    if (item.linkType === 'category' && typeof item.category === 'object' && item.category !== null) {
+                        const cat = item.category as Category;
+                        path = `/${cat.slug}`;
+                    }
 
-        // Ensure table exists (idempotent)
-        db.exec(`
-            CREATE TABLE IF NOT EXISTS radar_nav_config (
-                slug TEXT PRIMARY KEY,
-                label TEXT NOT NULL,
-                path TEXT NOT NULL,
-                enabled INTEGER DEFAULT 1,
-                badge TEXT,
-                sort_order INTEGER DEFAULT 99
-            )
-        `);
-
-        // Seed if empty
-        const countRow = db.prepare('SELECT COUNT(*) as c FROM radar_nav_config').get() as { c: number };
-        if (countRow && countRow.c === 0) {
-            const insert = db.prepare(`
-                INSERT OR IGNORE INTO radar_nav_config (slug, label, path, enabled, badge, sort_order)
-                VALUES (?, ?, ?, ?, ?, ?)
-            `);
-            
-            const defaults = [
-                ['la-une', 'La Une', '/', 1, null, 0],
-                ['enquetes', 'Enquêtes', '/enquetes', 1, null, 1],
-                ['revelations', 'Flux Révélation', '/revelations', 1, null, 2],
-                ['investigation', 'Investigation', '/investigation', 1, null, 3],
-                ['comprendre', 'Comprendre', '/comprendre', 1, null, 4],
-                ['elections', 'Élections', '/elections', 1, 'LIVE', 5],
-                ['soutenir', 'Soutenir', '/soutenir', 1, null, 6],
-            ];
-
-            const transaction = db.transaction((items: any[][]) => {
-                for (const d of items) {
-                    insert.run(...d);
-                }
-            });
-            transaction(defaults);
+                    return {
+                        slug: `nav-${index}`,
+                        label: item.label,
+                        path: path,
+                        enabled: true,
+                        badge: item.badge || null,
+                        sort_order: index,
+                    };
+                });
         }
 
-        const query = all
-            ? 'SELECT * FROM radar_nav_config ORDER BY sort_order ASC'
-            : 'SELECT * FROM radar_nav_config WHERE enabled = 1 ORDER BY sort_order ASC';
+        // 2. Automatic categories if no explicit nav
+        const payload = await getPayloadClient();
+        const cats = await payload.find({
+            collection: 'categories',
+            where: {
+                and: [
+                    { enabled: { equals: true } },
+                    { showInHeader: { equals: true } },
+                ]
+            },
+            sort: 'sortOrder',
+            limit: 20,
+        });
 
-        const rows = db.prepare(query).all() as any[];
-        
-        return rows.map((r: any) => ({
-            slug: r.slug,
-            label: r.label,
-            path: r.slug === 'elections' ? '/elections' : r.path,
-            enabled: r.enabled === 1,
-            badge: r.badge || null,
-            sort_order: r.sort_order,
-        }));
+        if (cats.docs.length > 0) {
+            const navItems: NavItem[] = cats.docs.map((cat: any, index: number) => ({
+                slug: cat.slug,
+                label: cat.name,
+                path: `/${cat.slug}`,
+                enabled: true,
+                badge: null,
+                sort_order: index,
+            }));
+
+            return [
+                { slug: 'la-une', label: 'La Une', path: '/', enabled: true, badge: null, sort_order: -1 },
+                ...navItems
+            ];
+        }
+
     } catch (error) {
-        console.error('Error in getNavItems:', error);
-        // Fallback hardcoded for safety
-        const fallback: NavItem[] = [
-            { slug: 'la-une', label: 'La Une', path: '/', enabled: true, badge: null, sort_order: 0 },
-            { slug: 'enquetes', label: 'Enquêtes', path: '/enquetes', enabled: true, badge: null, sort_order: 1 },
-            { slug: 'revelations', label: 'Flux Révélation', path: '/revelations', enabled: true, badge: null, sort_order: 2 },
-            { slug: 'investigation', label: 'Investigation', path: '/investigation', enabled: true, badge: null, sort_order: 3 },
-            { slug: 'comprendre', label: 'Comprendre', path: '/comprendre', enabled: true, badge: null, sort_order: 4 },
-            { slug: 'elections', label: 'Élections', path: '/elections', enabled: true, badge: 'LIVE', sort_order: 5 },
-            { slug: 'soutenir', label: 'Soutenir', path: '/soutenir', enabled: true, badge: null, sort_order: 6 },
-        ];
-        
-        if (all) return fallback;
-        return fallback.filter(item => item.enabled);
-    } finally {
-        if (db) db.close();
+        console.error('[Nav] Failed to fetch settings/categories for navigation:', error);
     }
+
+    // FINAL HARDCODED FALLBACK (If Payload returns nothing)
+    const fallback: NavItem[] = [
+        { slug: 'la-une', label: 'La Une', path: '/', enabled: true, badge: null, sort_order: 0 },
+        { slug: 'enquetes', label: 'Enquêtes', path: '/enquetes', enabled: true, badge: null, sort_order: 1 },
+        { slug: 'revelations', label: 'Flux Révélation', path: '/revelations', enabled: true, badge: null, sort_order: 2 },
+        { slug: 'investigation', label: 'Investigation', path: '/investigation', enabled: true, badge: null, sort_order: 3 },
+        { slug: 'comprendre', label: 'Comprendre', path: '/comprendre', enabled: true, badge: null, sort_order: 4 },
+        { slug: 'elections', label: 'Élections', path: '/elections', enabled: true, badge: 'LIVE', sort_order: 5 },
+        { slug: 'soutenir', label: 'Soutenir', path: '/soutenir', enabled: true, badge: null, sort_order: 6 },
+    ];
+    
+    return all ? fallback : fallback.filter(item => item.enabled);
 }

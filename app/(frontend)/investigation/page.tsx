@@ -3,8 +3,11 @@ import Layout from '@/components/Layout';
 import InvestigationGraphClient from '@/components/InvestigationGraphClient';
 
 export const metadata: Metadata = {
-    title: "Investigation Mode | L'Assez",
-    description: "Explorez les connexions entre nos enquêtes.",
+    title: "Investigation | L'Assez",
+    description: "Explorez les connexions, les réseaux et les relations entre nos enquêtes.",
+    alternates: {
+        canonical: 'https://lassez.fr/investigation',
+    },
 };
 
 export default function InvestigationPage() {

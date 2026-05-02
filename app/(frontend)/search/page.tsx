@@ -5,6 +5,10 @@ import Layout from '@/components/Layout';
 export const metadata: Metadata = {
     title: "Index des Dossiers | L'Assez",
     description: "Fouillez dans la base de données de nos enquêtes exclusives.",
+    robots: {
+        index: false,
+        follow: false,
+    },
 };
 
 export default function SearchPage() {

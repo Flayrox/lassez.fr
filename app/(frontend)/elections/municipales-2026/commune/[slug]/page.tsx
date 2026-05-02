@@ -296,9 +296,10 @@ export default async function CommunePage({ params }: Props) {
   return (
     <Layout>
       <div className="container mx-auto px-4 py-8 max-w-5xl space-y-12">
-        <Script id={`json-ld-commune-${slug}`} type="application/ld+json" strategy="beforeInteractive">
-          {JSON.stringify(jsonLd)}
-        </Script>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
         
         {/* Barre de recherche omniprésente */}
         <div className="mb-8">

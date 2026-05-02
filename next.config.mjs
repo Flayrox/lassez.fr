@@ -31,6 +31,8 @@ const nextConfig = {
             { protocol: 'https', hostname: 'lassez.fr' },
             { protocol: 'https', hostname: '**.lassez.fr' },
             { protocol: 'https', hostname: 'secure.gravatar.com' },
+            { protocol: 'https', hostname: 'picsum.photos' },
+            { protocol: 'https', hostname: 'fastly.picsum.photos' },
         ],
     },
     // Ensure we don't block Matomo script and allow SharedArrayBuffer for FFmpeg.WASM

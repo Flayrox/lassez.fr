@@ -5,6 +5,9 @@ import Layout from '@/components/Layout';
 export const metadata: Metadata = {
     title: "Soutenir L'Assez",
     description: "Rejoignez la résistance. L'information est une arme, aidez-nous à la diffuser.",
+    alternates: {
+        canonical: 'https://lassez.fr/soutenir',
+    },
 };
 
 export default function SoutenirPage() {

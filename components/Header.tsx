@@ -167,7 +167,7 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
               >
                 {item.label}
                 {item.badge && (
-                  <span className="absolute -top-1 -right-1 bg-lassez-red text-paper text-[7px] font-black px-1 py-0.5 leading-none animate-pulse">
+                  <span className="absolute top-0 right-0 bg-lassez-red text-paper text-[7px] font-black px-1 py-0.5 leading-none animate-pulse z-10 shadow-sm">
                     {item.badge}
                   </span>
                 )}

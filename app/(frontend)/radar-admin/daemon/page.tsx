@@ -49,6 +49,14 @@ type DaemonStatus = {
     };
 };
 
+type Pm2ProcessState = {
+    online: boolean;
+    status: string;
+    pid: number | null;
+};
+
+type Pm2States = Record<string, Pm2ProcessState>;
+
 const DAY_LABELS = ['D', 'L', 'M', 'M', 'J', 'V', 'S'];
 const RSS_TYPE_LABELS: RssTypeLabel[] = ['🔴 ALERTE INFO !'];
 
@@ -164,6 +172,8 @@ export default function DaemonPage() {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [status, setStatus] = useState<DaemonStatus | null>(null);
+    const [pm2States, setPm2States] = useState<Pm2States>({});
+    const [pm2Loading, setPm2Loading] = useState(false);
 
     const [daemonRssEnabled, setDaemonRssEnabled] = useState(true);
     
@@ -344,9 +354,28 @@ export default function DaemonPage() {
         }
     };
 
+    const fetchPm2Status = async () => {
+        setPm2Loading(true);
+        try {
+            const res = await fetch('/api/radar/system');
+            const data = await res.json();
+            if (data.success && data.states) {
+                setPm2States(data.states);
+            }
+        } catch (e) {
+            console.error(e);
+        } finally {
+            setPm2Loading(false);
+        }
+    };
+
     useEffect(() => {
         fetchDaemonStatus();
-        const id = setInterval(fetchDaemonStatus, 15000);
+        fetchPm2Status();
+        const id = setInterval(() => {
+            fetchDaemonStatus();
+            fetchPm2Status();
+        }, 15000);
         return () => clearInterval(id);
     }, []);
 
@@ -460,7 +489,7 @@ export default function DaemonPage() {
             return;
         }
 
-        if (autoPilotEnabled && !confirm('Auto Pilot va publier automatiquement les posts APPROVED. Continuer ?')) {
+        if (autoPilotEnabled && !confirm('Auto Publication va publier automatiquement les posts APPROVED. Continuer ?')) {
             return;
         }
 
@@ -513,7 +542,8 @@ export default function DaemonPage() {
         }
     };
 
-    const runManualScan = async () => {
+    const runSysCommand = async (action: string, target: string) => {
+        if (!confirm(`Es-tu sûr de vouloir faire un '${action}' sur '${target}' ?`)) return;
 
         setModalOpen(true);
         setScanRunning(true);
@@ -522,74 +552,29 @@ export default function DaemonPage() {
         setScanEndedAt(null);
 
         try {
-            const res = await fetch('/api/radar/trigger', { method: 'POST' });
-            if (!res.ok || !res.body) {
-                const text = await res.text().catch(() => '');
-                setScanLogs(prev => prev + `\n❌ Impossible de lancer le scan. ${text}`);
-                setScanRunning(false);
-                setScanEndedAt(Date.now());
-                return;
-            }
-
-            const reader = res.body.getReader();
-            const decoder = new TextDecoder();
-
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
-                const chunk = decoder.decode(value, { stream: true });
-                setScanLogs(prev => prev + chunk);
-            }
-
-            setScanLogs(prev => prev + '\n✅ Scan termine.');
-        } catch (e: any) {
-            setScanLogs(prev => prev + `\n❌ Erreur: ${e.message}`);
-        } finally {
-            setScanRunning(false);
-            setScanEndedAt(Date.now());
-            fetchDaemonStatus();
-        }
-    };
-
-    const runManualElectionSync = async () => {
-
-        setModalOpen(true);
-        setScanRunning(true);
-        setScanLogs('');
-        setScanStartedAt(Date.now());
-        setScanEndedAt(null);
-
-        try {
-            const res = await fetch('/api/radar/trigger', {
+            setScanLogs(`Executing PM2 ${action} on ${target}...\n`);
+            const res = await fetch('/api/radar/system', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'elections' })
+                body: JSON.stringify({ action: action, target: target })
             });
-            if (!res.ok || !res.body) {
-                const text = await res.text().catch(() => '');
-                setScanLogs(prev => prev + `\n❌ Impossible de lancer la sync elections. ${text}`);
-                setScanRunning(false);
-                setScanEndedAt(Date.now());
-                return;
+            const data = await res.json();
+            
+            if (data.success) {
+                setScanLogs(prev => prev + `\n✅ Success:\n${data.stdout}`);
+                if (data.stderr) {
+                    setScanLogs(prev => prev + `\n⚠️ STDERR:\n${data.stderr}`);
+                }
+            } else {
+                setScanLogs(prev => prev + `\n❌ Failed: ${data.error}`);
             }
-
-            const reader = res.body.getReader();
-            const decoder = new TextDecoder();
-
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
-                const chunk = decoder.decode(value, { stream: true });
-                setScanLogs(prev => prev + chunk);
-            }
-
-            setScanLogs(prev => prev + '\n✅ Sync elections terminee.');
         } catch (e: any) {
-            setScanLogs(prev => prev + `\n❌ Erreur: ${e.message}`);
+            setScanLogs(prev => prev + `\n❌ Request Error: ${e.message}`);
         } finally {
             setScanRunning(false);
             setScanEndedAt(Date.now());
             fetchDaemonStatus();
+            fetchPm2Status();
         }
     };
 
@@ -631,7 +616,22 @@ export default function DaemonPage() {
 
                 <section className="bg-white border-4 border-stone-900 shadow-[10px_10px_0px_0px_#1A1C1C] p-8 space-y-8">
                     <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                        <h2 className="text-2xl font-black uppercase tracking-tighter font-headline">Runtime & Actions</h2>
+                        <div className="space-y-2">
+                            <h2 className="text-2xl font-black uppercase tracking-tighter font-headline">Runtime & Actions</h2>
+                            <div className="flex flex-wrap gap-2">
+                                <span className={`px-2 py-1 border-2 text-[10px] font-black uppercase tracking-widest ${pm2States['radar-daemon-rss']?.online ? 'bg-emerald-700 text-white border-emerald-700' : 'bg-red-700 text-white border-red-700'}`}>
+                                    PM2 RSS: {pm2Loading ? 'CHECKING' : (pm2States['radar-daemon-rss']?.online ? 'ONLINE' : 'OFFLINE')}
+                                </span>
+                                <span className="px-2 py-1 border-2 border-stone-900 text-[10px] font-black uppercase tracking-widest bg-white text-stone-900">
+                                    PM2 Status: {pm2States['radar-daemon-rss']?.status || 'unknown'}
+                                </span>
+                                {pm2States['radar-daemon-rss']?.pid ? (
+                                    <span className="px-2 py-1 border-2 border-stone-900 text-[10px] font-black uppercase tracking-widest bg-white text-stone-900">
+                                        PID: {pm2States['radar-daemon-rss'].pid}
+                                    </span>
+                                ) : null}
+                            </div>
+                        </div>
                         <div className="flex gap-3">
                             <button
                                 onClick={() => setProfilesOpen(true)}
@@ -640,18 +640,11 @@ export default function DaemonPage() {
                                 Config par daemon
                             </button>
                             <button
-                                onClick={runManualScan}
+                                onClick={() => runSysCommand('restart', 'radar-daemon-rss')}
                                 disabled={scanRunning}
-                                className="bg-red-700 text-white px-5 py-3 border-4 border-stone-900 text-[10px] font-black uppercase tracking-widest disabled:opacity-60"
+                                className="bg-amber-600 text-white px-5 py-3 border-4 border-stone-900 text-[10px] font-black uppercase tracking-widest disabled:opacity-60 hover:bg-amber-500 transition-colors"
                             >
-
-                            </button>
-                            <button
-                                onClick={runManualElectionSync}
-                                disabled={scanRunning}
-                                className="bg-amber-600 text-white px-5 py-3 border-4 border-stone-900 text-[10px] font-black uppercase tracking-widest disabled:opacity-60"
-                            >
-
+                                REDÉMARRER LE DÉMON RSS (PM2)
                             </button>
                             <button
                                 onClick={handleSave}
@@ -675,11 +668,11 @@ export default function DaemonPage() {
                             <div className="space-y-3">
                                 
                                 <div className="flex items-center justify-between p-3 bg-stone-50 border-2 border-stone-900">
-                                    <span className="text-xs font-black uppercase">Auto Pilot</span>
+                                    <span className="text-xs font-black uppercase">Auto Publication (Approved)</span>
                                     <Toggle checked={autoPilotEnabled} onChange={setAutoPilotEnabled} />
                                 </div>
                                 <div className="flex items-center justify-between p-3 bg-stone-50 border-2 border-stone-900">
-                                    <span className="text-xs font-black uppercase">Auto Approve</span>
+                                    <span className="text-xs font-black uppercase">Auto Validation IA</span>
                                     <Toggle checked={autoApproveEnabled} onChange={setAutoApproveEnabled} />
                                 </div>
                                 <div className="flex items-center justify-between p-3 bg-stone-50 border-2 border-stone-900">
@@ -773,6 +766,8 @@ export default function DaemonPage() {
                                                                             className="w-full bg-stone-50 border-2 border-stone-900 p-2 font-black text-[10px] uppercase"
                                                                         >
                                                                             <option value="gemini-3.1-pro-preview">Gemini 3.1 Pro (Preview)</option>
+                                                                            <option value="gemini-3.1-flash-lite-preview">Gemini 3.1 Flash Lite (Preview)</option>
+                                                                            <option value="gemini-3-flash-preview">Gemini 3 Flash (Preview)</option>
                                                                             <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
                                                                             <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
                                                                         </select>

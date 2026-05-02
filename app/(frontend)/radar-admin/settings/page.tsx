@@ -6,6 +6,7 @@ import { DashboardLayout } from '../components/DashboardLayout';
 
 const MODEL_OPTIONS = [
     'gemini-3.1-pro-preview',
+    'gemini-3.1-flash-lite-preview',
     'gemini-3-flash-preview',
     'gemini-2.5-flash',
     'gemini-2.5-flash-lite',
@@ -61,7 +62,7 @@ const DEFAULT_DAEMON_CFG = {
 export default function SettingsPage() {
     const [isOverlayMode, setIsOverlayMode] = useState(false);
     const { settings, fetchSettings, isDaemonRunning, countdown } = useRadarAdmin();
-    const [activeTab, setActiveTab] = useState<'prompt' | 'logic' | 'sources' | 'users' | 'elections' | 'pipeline' | 'diffusion' | 'health' | 'comms'>('prompt');
+    const [activeTab, setActiveTab] = useState<'sources' | 'users' | 'elections' | 'pipeline' | 'diffusion' | 'health' | 'comms'>('sources');
     const [advancedMode, setAdvancedMode] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [isDirty, setIsDirty] = useState(false);
@@ -114,8 +115,8 @@ export default function SettingsPage() {
         setIsOverlayMode(params.get('overlay') === '1');
 
         const tab = params.get('tab');
-        if (tab && ['prompt', 'logic', 'sources', 'users', 'elections', 'pipeline', 'diffusion', 'health', 'comms'].includes(tab)) {
-            setActiveTab(tab as 'prompt' | 'logic' | 'sources' | 'users' | 'elections' | 'pipeline' | 'diffusion' | 'health' | 'comms');
+        if (tab && ['sources', 'users', 'elections', 'pipeline', 'diffusion', 'health', 'comms'].includes(tab)) {
+            setActiveTab(tab as 'sources' | 'users' | 'elections' | 'pipeline' | 'diffusion' | 'health' | 'comms');
         }
     }, []);
 
@@ -471,8 +472,6 @@ export default function SettingsPage() {
     };
 
     const tabs = [
-        { key: 'prompt', label: 'Moteur IA', icon: 'psychology', advanced: false },
-        { key: 'logic', label: 'Logique Édito', icon: 'neurology', advanced: false },
         { key: 'sources', label: 'Sources', icon: 'rss_feed', advanced: false },
         { key: 'users', label: 'Users', icon: 'manage_accounts', advanced: false },
         { key: 'elections', label: 'Élections', icon: 'how_to_vote', advanced: false },
@@ -485,7 +484,7 @@ export default function SettingsPage() {
 
     useEffect(() => {
         if (!advancedMode && ['pipeline', 'diffusion', 'health', 'comms'].includes(activeTab)) {
-            setActiveTab('prompt');
+            setActiveTab('sources');
         }
     }, [advancedMode, activeTab]);
 
@@ -1002,7 +1001,7 @@ export default function SettingsPage() {
                                     <h4 className="text-xs font-black uppercase tracking-widest text-stone-400 mb-6">Automation Modes</h4>
                                     <div className="p-5 bg-amber-50 border-4 border-stone-900 space-y-3">
                                         <p className="text-xs font-black uppercase tracking-widest">Réglages déplacés vers Daemon</p>
-                                        <p className="text-[10px] font-bold uppercase text-stone-500">Auto Publish, Auto Approve et Discord Test Mode sont maintenant centralisés dans Daemon pour une configuration unique.</p>
+                                        <p className="text-[10px] font-bold uppercase text-stone-500">Auto Publication (Approved), Auto Validation IA et Discord Test Mode sont maintenant centralisés dans Daemon pour une configuration unique.</p>
                                         <a href="/radar-admin/daemon" className="inline-block bg-stone-900 text-white px-4 py-2 border-2 border-stone-900 text-[10px] font-black uppercase tracking-widest">Ouvrir Daemon Center</a>
                                     </div>
                                 </section>

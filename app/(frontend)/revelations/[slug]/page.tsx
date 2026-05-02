@@ -86,6 +86,7 @@ export async function generateMetadata(
         : "Une révélation exclusive de L'Assez";
 
     const description = (post as any)?.meta?.description || contentSnippet;
+    const imageUrl = (post as any)?._embedded?.['wp:featuredmedia']?.[0]?.source_url || `https://lassez.fr/android-chrome-512x512.png`;
     const renderedTitle = typeof (post as any).title === 'string' ? (post as any).title : (post as any).title?.rendered || '';
 
     return {

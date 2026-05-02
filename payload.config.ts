@@ -14,7 +14,7 @@ import { settings } from './payload/globals/settings';
 import { about } from './payload/globals/about';
 import { legal } from './payload/globals/legal';
 import { seoPlugin } from '@payloadcms/plugin-seo';
-import { getApiOrigin } from './lib/host-urls';
+import { getApiOrigin, getPublicSiteOrigin } from './lib/host-urls';
 import { generateGeminiSeo } from './payload/hooks/seo-gemini';
 
 function extractSeoSource(doc: Record<string, any> | undefined) {

@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { Suspense } from 'react';
 import Script from 'next/script';
 import './globals.css';
 import { Inter, Playfair_Display, JetBrains_Mono, Newsreader, Space_Grotesk } from 'next/font/google';
@@ -190,9 +191,13 @@ export default async function RootLayout({
                         <NavProvider initialNavItems={navItems as any}>
                             <UIProvider>
                                 <div id="root" className="min-h-screen flex flex-col">
-                                    <HeaderWrapper />
+                                    <Suspense fallback={null}>
+                                        <HeaderWrapper />
+                                    </Suspense>
                                     {children}
-                                    <FooterWrapper />
+                                    <Suspense fallback={null}>
+                                        <FooterWrapper />
+                                    </Suspense>
                                 </div>
                             </UIProvider>
                         </NavProvider>

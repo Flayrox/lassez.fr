@@ -2,21 +2,24 @@
  * Utility to handle image URLs safely within the Studio.
  * Bypasses CORS and COEP (require-corp) issues by using our internal proxy.
  */
-export function getSafeImageUrl(url: string | undefined): string {
-    if (!url) return '';
+export function getSafeImageUrl(url: string | undefined | null): string {
+    if (!url || typeof url !== 'string') return '';
     
+    const trimmed = url.trim();
+    if (!trimmed) return '';
+
     // If it's already a data URL, blob, or internal upload, return as is
-    if (url.startsWith('data:') || url.startsWith('blob:') || url.startsWith('/uploads/')) {
-        return url;
+    if (trimmed.startsWith('data:') || trimmed.startsWith('blob:') || trimmed.startsWith('/uploads/')) {
+        return trimmed;
     }
 
     // If it's an external URL, use our proxy
-    if (url.startsWith('http')) {
+    if (trimmed.startsWith('http')) {
         // We avoid double proxying
-        if (url.includes('/api/proxy-image?url=')) return url;
+        if (trimmed.includes('/api/proxy-image?url=')) return trimmed;
         
-        return `/api/proxy-image?url=${encodeURIComponent(url)}`;
+        return `/api/proxy-image?url=${encodeURIComponent(trimmed)}`;
     }
 
-    return url;
+    return trimmed;
 }

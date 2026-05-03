@@ -85,6 +85,7 @@ export function useStudioExport(exportRef: React.RefObject<HTMLDivElement | null
                     overlayBase64 = await toPng(exportRef.current, {
                         quality: 1, pixelRatio: 2, canvasWidth: 1080, canvasHeight: 1350,
                         backgroundColor: 'rgba(0,0,0,0)', style: { margin: '0' },
+                        skipFonts: true,
                         filter: (node: Node) => !(node instanceof HTMLElement && (node.tagName === 'VIDEO' || node.tagName === 'IFRAME')),
                     });
 
@@ -164,7 +165,7 @@ export function useStudioExport(exportRef: React.RefObject<HTMLDivElement | null
             try {
                 const overlays = exportRef.current.querySelectorAll<HTMLElement>('.edit-overlay,.edit-sticker,.brut-tb');
                 overlays.forEach(el => el.style.display = 'none');
-                const dataUrl = await toPng(exportRef.current, { quality: 1, pixelRatio: 2, canvasWidth: 1080, canvasHeight: 1350 });
+                const dataUrl = await toPng(exportRef.current, { quality: 1, pixelRatio: 2, canvasWidth: 1080, canvasHeight: 1350, skipFonts: true });
                 overlays.forEach(el => el.style.display = '');
                     const a = document.createElement('a');
                     a.download = `lassez-${activeSlide.label.replace(/\s+/g, '-').toLowerCase()}.png`;
@@ -197,6 +198,7 @@ export function useStudioExport(exportRef: React.RefObject<HTMLDivElement | null
                     canvasWidth: 1080, 
                     canvasHeight: 1350,
                     cacheBust: true,
+                    skipFonts: true,
                 });
                 
                 overlays.forEach(el => el.style.display = '');
@@ -214,7 +216,9 @@ export function useStudioExport(exportRef: React.RefObject<HTMLDivElement | null
                 }
             } catch (e: any) { 
                 console.error('[Studio Export] PNG Error:', e);
-                alert(`Erreur d'export : ${e instanceof Error ? e.message : 'Problème de ressources (images/polices)'}`);
+                // If the error is an event, it's almost certainly a broken resource
+                const msg = (e instanceof Error) ? e.message : "Une ressource (image ou police) n'a pas pu être chargée. Vérifie tes URLs d'images.";
+                alert(`Erreur d'export : ${msg}`);
             }
     };
 
@@ -230,7 +234,7 @@ export function useStudioExport(exportRef: React.RefObject<HTMLDivElement | null
             await embedImages(exportRef.current);
             const overlays = exportRef.current.querySelectorAll<HTMLElement>('.edit-overlay,.edit-sticker,.brut-tb');
             overlays.forEach(el => el.style.display = 'none');
-            const dataUrl = await toPng(exportRef.current, { quality: 1, pixelRatio: 2, canvasWidth: 1080, canvasHeight: 1350 });
+            const dataUrl = await toPng(exportRef.current, { quality: 1, pixelRatio: 2, canvasWidth: 1080, canvasHeight: 1350, skipFonts: true });
             overlays.forEach(el => el.style.display = '');
             const b64 = dataUrl.split(',')[1];
             zip.file(`slide-${String(i + 1).padStart(2, '0')}-${deck[i].type.toLowerCase()}.png`, b64, { base64: true });

@@ -17,9 +17,16 @@ export async function GET(request: NextRequest) {
 
     try {
         const res = await fetch(url, {
-            headers: { 'User-Agent': 'lassez-proxy/1.0' }
+            headers: { 
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8'
+            }
         });
-        if (!res.ok) return NextResponse.json({ error: 'Fetch failed' }, { status: 502 });
+        
+        if (!res.ok) {
+            console.error(`[Proxy Image] Fetch failed for ${url}: ${res.status} ${res.statusText}`);
+            return NextResponse.json({ error: `Remote server responded with ${res.status} ${res.statusText}` }, { status: res.status === 404 ? 404 : 502 });
+        }
 
         const contentType = res.headers.get('content-type') || 'image/jpeg';
         const buffer = await res.arrayBuffer();

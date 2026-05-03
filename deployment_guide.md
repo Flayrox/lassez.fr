@@ -26,7 +26,7 @@ Le projet est divisé en 5 processus principaux sur le VPS :
 | :--- | :--- | :--- |
 | `radar-front` | **3000** | Le site public (lassez.fr) |
 | `radar-api` | **3001** | L'API Payload et l'Admin (api.lassez.fr) |
-| `radar-studio` | **3002** | L'interface de curation (studio.lassez.fr) |
+| `radar-studio` | **3002** | interface de curation, d'automatisation & de workflow (studio.lassez.fr) |
 | `radar-daemon` | **3005** | Daemon principal (Publisher, Élections, Heartbeat) |
 | `radar-daemon-rss` | **3006** | Daemon de scan RSS et Telegram |
 

@@ -62,7 +62,8 @@ export async function proxy(req: NextRequest) {
         pathname.startsWith('/radar-admin') ||
         pathname.startsWith('/api/radar') ||
         pathname.startsWith('/radar-login') ||
-        pathname.startsWith('/api/elections');
+        pathname.startsWith('/api/elections') ||
+        pathname.startsWith('/templates');
 
     if (isApiDomain) {
         if (pathname === '/') {
@@ -95,7 +96,7 @@ export async function proxy(req: NextRequest) {
     // ─── 0. SÉPARATION DES DOMAINES ───
     if (!isStudioDomain) {
         // Le domaine public (lassez.fr) ne DOIT PAS accéder au back-end
-        if (pathname.startsWith('/radar-admin') || pathname.startsWith('/radar-login')) {
+        if (pathname.startsWith('/radar-admin') || pathname.startsWith('/radar-login') || pathname.startsWith('/templates')) {
             return NextResponse.redirect(new URL('/', req.url));
         }
         if (pathname.startsWith('/api/radar')) {
@@ -152,11 +153,10 @@ export async function proxy(req: NextRequest) {
         if (pathname.startsWith('/api/radar') && pathname !== '/api/radar/nav' && pathname !== '/api/radar/config') {
             return NextResponse.json({ success: false, error: 'Radar auth is not configured.' }, { status: 503 });
         }
-        if (pathname.startsWith('/radar-admin') || pathname.startsWith('/radar-login')) {
+        if (pathname.startsWith('/radar-admin') || pathname.startsWith('/radar-login') || pathname.startsWith('/templates')) {
             return NextResponse.redirect(new URL('/', req.url));
         }
     }
-
     const secretKeyStr = radarSecret as string;
     const sessionCookie = req.cookies.get('radar_session')?.value;
 
@@ -210,7 +210,7 @@ export async function proxy(req: NextRequest) {
     // 4. GESTION DES REJETS
     if (!isAuthenticated) {
         // Redirection UI pour le Dashboard
-        if (pathname.startsWith('/radar-admin')) {
+        if (pathname.startsWith('/radar-admin') || pathname.startsWith('/templates')) {
             const loginUrl = new URL('/radar-login', req.url);
             // On nettoie le cookie potentiellement invalide ou expiré
             const response = NextResponse.redirect(loginUrl);
@@ -237,7 +237,7 @@ export async function proxy(req: NextRequest) {
             if (tab === 'users') return 'users';
             return 'settings';
         }
-        if (pathname.startsWith('/radar-admin/studio')) return 'studio';
+        if (pathname.startsWith('/radar-admin/studio') || pathname.startsWith('/templates')) return 'studio';
         if (pathname.startsWith('/radar-admin/network')) return 'network';
         if (pathname.startsWith('/radar-admin/lab')) return 'lab';
         if (pathname.startsWith('/radar-admin')) return 'radar';

@@ -34,6 +34,7 @@ const StudioContext = createContext<StudioContextType | undefined>(undefined);
 const nid = () => Math.random().toString(36).slice(2, 9);
 
 import { DEFAULTS } from './constants';
+import { getTemplate, TemplateRegistry } from '../registry';
 
 export function StudioProvider({ children, initialDeck, initialActiveId }: { children: React.ReactNode, initialDeck?: Slide[], initialActiveId?: string }) {
     const [deck, setDeck] = useState<Slide[]>(initialDeck || []);
@@ -49,11 +50,16 @@ export function StudioProvider({ children, initialDeck, initialActiveId }: { chi
 
     const addSlide = (type: SlideType) => {
         const idx = deck.length + 1;
+        const modularTemplate = getTemplate(type);
+        const initialState = modularTemplate 
+            ? JSON.parse(JSON.stringify(modularTemplate.defaultState)) 
+            : JSON.parse(JSON.stringify(DEFAULTS[type] || {}));
+
         const newSlide: Slide = { 
             id: nid(), 
             type, 
-            label: `Slide ${idx} — ${type}`, 
-            state: JSON.parse(JSON.stringify(DEFAULTS[type] || {})) 
+            label: `Slide ${idx} — ${modularTemplate?.name || type}`, 
+            state: initialState
         };
         setDeck(d => [...d, newSlide]);
         setActiveId(newSlide.id);

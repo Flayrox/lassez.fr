@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 
 import { StudioProvider, useStudio } from './components/StudioContext';
 import { StudioSidebar } from './components/StudioSidebar';
+import { StudioPropertiesPanel } from './components/StudioPropertiesPanel';
 import { StudioCanvas } from './components/StudioCanvas';
 import { StudioToolbar } from './components/StudioToolbar';
 import { StudioExportBar } from './components/StudioExportBar';
@@ -87,7 +88,7 @@ function StudioPageContent() {
     }, [deck]);
 
     return (
-        <div className="bg-zinc-900 text-white h-screen overflow-hidden flex flex-col sg">
+        <div className="h-screen overflow-hidden flex flex-col" style={{ background: '#1b1b1b', fontFamily: 'Inter, system-ui, sans-serif', color: '#fff' }}>
             <style dangerouslySetInnerHTML={{ __html: CSS }} />
 
             <StudioToolbar 
@@ -99,12 +100,32 @@ function StudioPageContent() {
             />
 
             <div className="flex flex-1 overflow-hidden">
+                {/* SIDEBAR GAUCHE */}
                 <StudioSidebar />
                 
-                <main className="flex-1 bg-[#111] overflow-hidden relative flex items-center justify-center p-12">
-                    <div className="absolute inset-0 halftone opacity-5 pointer-events-none"></div>
-                    <StudioCanvas exportRef={exportRef} />
+                {/* CANVAS CENTRAL */}
+                <main className="flex-1 overflow-hidden flex flex-col" style={{ background: '#111' }}>
+                    {/* Breadcrumb bar */}
+                    <div style={{ background: '#1a1a1a', borderBottom: '1px solid #2a2a2a', height: 40 }} className="flex items-center px-6 gap-3 shrink-0">
+                        <span style={{ fontSize: 11, color: '#666', fontFamily: 'Inter, sans-serif' }}>Studio</span>
+                        <span style={{ color: '#333' }}>/</span>
+                        <span style={{ fontSize: 11, color: '#999', fontFamily: 'Inter, sans-serif' }}>Slide Editor</span>
+                        <div className="ml-auto">
+                            <span style={{ fontSize: 10, color: '#444', fontFamily: 'Inter, sans-serif' }}>560 × 700 px</span>
+                        </div>
+                    </div>
+
+                    <div className="flex-1 overflow-auto flex items-center justify-center p-10" style={{ 
+                        background: '#111',
+                        backgroundImage: 'radial-gradient(circle, #222 1px, transparent 1px)',
+                        backgroundSize: '24px 24px'
+                    }}>
+                        <StudioCanvas exportRef={exportRef} />
+                    </div>
                 </main>
+
+                {/* PANNEAU DROITE — PROPRIÉTÉS */}
+                <StudioPropertiesPanel />
             </div>
 
             <StudioExportBar progress={exportProgress} />

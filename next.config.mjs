@@ -76,6 +76,20 @@ const nextConfig = {
                 ],
             },
             {
+                // Headers hyper stricts UNIQUEMENT pour le Studio (FFmpeg.wasm nécessite SharedArrayBuffer)
+                source: '/templates(.*)',
+                headers: [
+                    {
+                        key: 'Cross-Origin-Opener-Policy',
+                        value: 'same-origin',
+                    },
+                    {
+                        key: 'Cross-Origin-Embedder-Policy',
+                        value: 'require-corp',
+                    },
+                ],
+            },
+            {
                 // Evite l'indexation des surfaces Studio
                 source: '/radar-admin/:path*',
                 headers: [

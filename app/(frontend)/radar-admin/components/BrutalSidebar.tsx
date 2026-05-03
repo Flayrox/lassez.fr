@@ -7,7 +7,7 @@ import { usePathname } from 'next/navigation';
 const sidebarLinks = [
     { name: 'Radar', icon: 'radar', href: '/radar-admin', activePattern: /^\/radar-admin(\/)?$/ },
     { name: 'Daemon', icon: 'memory', href: '/radar-admin/daemon', activePattern: /^\/radar-admin\/daemon/ },
-    { name: 'Studio', icon: 'settings_input_component', href: '/studio', activePattern: /^\/studio/ },
+    { name: 'Templates IG', icon: 'settings_input_component', href: '/templates', activePattern: /^\/templates/ },
     { name: 'Lab', icon: 'terminal', href: '/radar-admin/lab', activePattern: /^\/radar-admin\/lab/ },
     { name: 'Settings', icon: 'settings', href: '/radar-admin/settings', activePattern: /^\/radar-admin\/settings/ },
 ];

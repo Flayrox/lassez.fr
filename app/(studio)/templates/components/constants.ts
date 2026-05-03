@@ -190,29 +190,52 @@ export const ICONS: Record<string, string> = {
 };
 
 export const CSS = `
-@import url('https://fonts.googleapis.com/css2?family=Anton&family=Archivo+Black&family=Inter:wght@400;700;900&family=Space+Mono:wght@400;700&family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
-.sg{font-family:'Space Grotesk',sans-serif}.pd{font-family:'Playfair Display',serif}.ab{font-family:'Archivo Black',sans-serif}.ir{font-family:'Inter',sans-serif}.sm{font-family:'Space Mono',monospace}
+@import url('https://fonts.googleapis.com/css2?family=Anton&family=Archivo+Black&family=Inter:wght@400;500;600;700;900&family=Space+Mono:wght@400;700&family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
+
+/* ── FONT ALIASES ─────────────────────────────────── */
+.sg{font-family:'Space Grotesk',sans-serif}
+.pd{font-family:'Playfair Display',serif}
+.ab{font-family:'Archivo Black',sans-serif}
+.ir{font-family:'Inter',sans-serif}
+.sm{font-family:'Space Mono',monospace}
+
+/* ── EDIT ZONES (template canvas interaction) ─────── */
 .edit-zone{position:relative}
-.edit-overlay{position:absolute;inset:0;border:2px dashed #DC2626;opacity:0;pointer-events:none;z-index:50;transition:opacity .15s}
+.edit-overlay{position:absolute;inset:0;border:1px dashed rgba(255,255,255,0.18);opacity:0;pointer-events:none;z-index:50;transition:opacity .12s ease}
 .edit-zone:hover .edit-overlay,.edit-zone:focus-within .edit-overlay{opacity:1}
-.edit-zone:focus-within .edit-overlay{border-style:solid}
-.edit-sticker{position:absolute;background:#000;color:#fff;padding:2px 5px;font-family:'Space Mono',monospace;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;display:flex;align-items:center;gap:3px;z-index:60;border:1px solid rgba(255,255,255,0.15);cursor:pointer}
-.edit-sticker:hover{background:#fff;color:#000}
-.edit-zone:focus-within .edit-sticker{background:#DC2626;color:#fff}
-.edit-zone:focus-within .edit-sticker:hover{background:#fff;color:#000}
+.edit-zone:focus-within .edit-overlay{border-style:solid;border-color:rgba(255,255,255,0.35)}
+.edit-sticker{position:absolute;background:#09090b;color:#71717a;padding:2px 6px;font-family:'Space Mono',monospace;font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;display:flex;align-items:center;gap:3px;z-index:60;border:1px solid #27272a;cursor:pointer;transition:all .1s ease}
+.edit-sticker:hover{background:#18181b;color:#a1a1aa;border-color:#3f3f46}
+.edit-zone:focus-within .edit-sticker{background:#DC2626;color:#fff;border-color:#DC2626}
+.edit-zone:focus-within .edit-sticker:hover{background:#b91c1c;color:#fff}
 [contenteditable]{outline:none}
-.brut-tb{position:fixed;transform:translateX(-50%);background:#0a0a0a;border:1px solid rgba(255,255,255,0.2);display:flex;align-items:center;height:34px;z-index:9999;white-space:nowrap;box-shadow:4px 4px 0 rgba(220,38,38,.35)}
-.brut-tb::after{content:'';position:absolute;top:100%;left:50%;transform:translateX(-50%);border:5px solid transparent;border-top-color:rgba(255,255,255,.2)}
-.tb-btn{height:100%;padding:0 8px;background:transparent;border:none;border-right:1px solid rgba(255,255,255,.1);color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .1s;font-family:'Space Mono',monospace;font-size:11px;font-weight:700}
-.tb-btn:last-child{border-right:none}.tb-btn:hover{background:rgba(220,38,38,.65)}
-.tb-sel{height:100%;padding:0 6px;background:#111;border:none;border-right:1px solid rgba(255,255,255,.1);color:#fff;font-family:'Space Mono',monospace;font-size:9px;cursor:pointer;outline:none}
-.halftone{background-image:radial-gradient(circle,#000 1px,transparent 1.5px);background-size:4px 4px;pointer-events:none}
-.noise-overlay{position:absolute;inset:0;pointer-events:none;z-index:40;opacity:0.25;background-image:url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAyBAMAAADsEZWCAAAAGFBMVEUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/HlFvAAAABnRSTlMAf0D/2t91y7UCAAAAfklEQVQ4y2NgQAX8DIwgwsDAwMgAkkLUA0QhSoEUgyIjyEAQxagIVw2imKxAMphqEMVMCpC0M1QxSCxIM0gxyFIIZpCokGZwaRCwAqkGiQkJK+BSyMogxSDNICEh0QBRDKYaxKQQzCBRIdUgmEFiQZpBqkH8AhgIqQUAP/1l+9b3w9YAAAAASUVORK5CYII=");background-repeat:repeat;background-size:64px 64px;}
+
+/* ── FLOATING TEXT TOOLBAR ────────────────────────── */
+.brut-tb{position:fixed;transform:translateX(-50%);background:#09090b;border:1px solid #27272a;display:flex;align-items:center;height:32px;z-index:9999;white-space:nowrap}
+.brut-tb::after{content:'';position:absolute;top:100%;left:50%;transform:translateX(-50%);border:4px solid transparent;border-top-color:#27272a}
+.tb-btn{height:100%;padding:0 9px;background:transparent;border:none;border-right:1px solid #1c1c1e;color:#71717a;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .1s ease;font-family:'Space Mono',monospace;font-size:10px;font-weight:700}
+.tb-btn:last-child{border-right:none}
+.tb-btn:hover{background:#18181b;color:#e4e4e7}
+.tb-sel{height:100%;padding:0 7px;background:#09090b;border:none;border-right:1px solid #1c1c1e;color:#71717a;font-family:'Space Mono',monospace;font-size:9px;cursor:pointer;outline:none}
+
+/* ── SCROLLBAR ────────────────────────────────────── */
+.sb::-webkit-scrollbar{width:2px}
+.sb::-webkit-scrollbar-track{background:transparent}
+.sb::-webkit-scrollbar-thumb{background:#27272a}
+.sb::-webkit-scrollbar-thumb:hover{background:#3f3f46}
+
+/* ── FORM INPUTS ──────────────────────────────────── */
+.si{width:100%;background:#09090b;border:1px solid #1e1e20;color:#e4e4e7;font-size:11px;padding:6px 8px;outline:none;transition:border-color .12s ease;font-family:'Space Mono',monospace;border-radius:0}
+.si:focus{border-color:#3f3f46}
+
+/* ── RANGE INPUT ──────────────────────────────────── */
+input[type=range]{-webkit-appearance:none;appearance:none;background:#18181b;height:2px;border-radius:0;outline:none;width:100%}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;height:10px;width:3px;background:#71717a;border:none;border-radius:0;cursor:pointer;transition:background .1s ease}
+input[type=range]::-webkit-slider-thumb:hover{background:#e4e4e7}
+
+/* ── MISC ─────────────────────────────────────────── */
+.noise-overlay{position:absolute;inset:0;pointer-events:none;z-index:40;opacity:0.08;background-image:url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAyBAMAAADsEZWCAAAAGFBMVEUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/HlFvAAAABnRSTlMAf0D/2t91y7UCAAAAfklEQVQ4y2NgQAX8DIwgwsDAwMgAkkLUA0QhSoEUgyIjyEAQxagIVw2imKxAMphqEMVMCpC0M1QxSCxIM0gxyFIIZpCokGZwaRCwAqkGiQkJK+BSyMogxSDNICEh0QBRDKYaxKQQzCBRIdUgmEFiQZpBqkH8AhgIqQUAP/1l+9b3w9YAAAAASUVORK5CYII=");background-repeat:repeat;background-size:64px 64px;}
 .split-bg{background:linear-gradient(to right,#fff 50%,#e5e5e5 50%)}
-.sb::-webkit-scrollbar{width:4px}.sb::-webkit-scrollbar-track{background:#0a0a0a}.sb::-webkit-scrollbar-thumb{background:#333}.sb::-webkit-scrollbar-thumb:hover{background:var(--ac)}
-.si{width:100%;background:#111;border:1px solid rgba(255,255,255,.1);color:#fff;font-size:11px;padding:5px 7px;outline:none;transition:border-color .15s;font-family:'Space Grotesk',sans-serif}.si:focus{border-color:var(--ac)}
-input[type=range]{-webkit-appearance:none;appearance:none;background:#2a2a2a;height:3px;border-radius:2px;outline:none;width:100%}
-input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;height:13px;width:13px;background:#fff;border:2px solid var(--ac,#DC2626);border-radius:50%;cursor:pointer}
 .maxtext-body ul,.maxtext-body ol{list-style:none;padding-left:0;margin:4px 0}
-.maxtext-body li::before{content:'■';color:#DC2626;font-weight:900;margin-right:5px}
+.maxtext-body li::before{content:'—';color:#DC2626;font-weight:700;margin-right:6px}
 `;

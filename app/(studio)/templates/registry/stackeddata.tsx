@@ -8,7 +8,7 @@ export const StackedDataTemplate: StudioTemplate = {
     name: 'Données Empilées',
     category: 'Données',
     description: 'Un graphique complexe montrant la distribution de données par catégories et sous-catégories.',
-    
+
     defaultState: {
         headline: "L'INFOGRAPHIE BRUTE DES DISCRIMINATIONS SYSTÉMIQUES",
         subheadline: "ANALYSE DES INCIDENTS SIGNALÉS ET DES RÉPONSES INSTITUTIONNELLES (2023-2024)",
@@ -29,31 +29,27 @@ export const StackedDataTemplate: StudioTemplate = {
         brand: "L'ASSEZ",
         accent: "#BC0100",
     },
-    
+
     schema: [
         { key: 'accent', label: 'Couleur Accent', type: 'color', group: 'Style' },
         { key: 'headline', label: 'Titre Principal', type: 'text', group: 'Contenu' },
         { key: 'subheadline', label: 'Sous-titre', type: 'text', group: 'Contenu' },
         { key: 'source', label: 'Source', type: 'text', group: 'Contenu' },
     ],
-    
-    shadowStyle: (state) => ({
-        boxShadow: `0 0 40px rgba(0,0,0,0.2), 0 0 10px ${state.accent}33`
-    }),
-    
+
     Component: ({ state, patch }) => {
         const rows = state.rows || [];
         const columns = state.columns || [];
 
         return (
             <div className="w-full h-full bg-[#F9F9F9] overflow-hidden border-4 border-black flex flex-col relative">
-                
-                
+
+
                 <div className="bg-black text-white px-5 pt-5 pb-3 shrink-0 z-10">
                     <EditZone html={state.headline} onChange={h => patch({ headline: h })} label="TITRE" stickerPos="-top-5 right-0"
                         className="ab block text-white font-black uppercase leading-tight tracking-tight" style={{ fontSize: 'clamp(0.95rem, 4vw, 1.4rem)' }} />
                 </div>
-                
+
                 <div className="bg-[#F9F9F9] px-5 py-2 border-b-4 border-black shrink-0 z-10">
                     <EditZone html={state.subheadline} onChange={h => patch({ subheadline: h })} label="SOUS-TITRE" stickerPos="top-0 right-0"
                         className="sm block font-bold uppercase" style={{ fontSize: '0.57rem', color: '#1A1C1C' }} />

@@ -8,7 +8,7 @@ export const SocialCostTemplate: StudioTemplate = {
     name: 'Coût Social (Calculette)',
     category: 'Analyse',
     description: 'Une calculette d\'impact montrant les pertes financières ou sociales.',
-    
+
     defaultState: {
         headline: "LE COÛT RÉEL DE L'INACTION CLIMATIQUE",
         targetAudience: "CONTRIBUABLE FRANÇAIS",
@@ -19,7 +19,7 @@ export const SocialCostTemplate: StudioTemplate = {
         brand: "L'ASSEZ",
         accent: "#BC0100",
     },
-    
+
     schema: [
         { key: 'accent', label: 'Couleur Accent', type: 'color', group: 'Style' },
         { key: 'headline', label: 'Titre Principal', type: 'text', group: 'Contenu' },
@@ -29,16 +29,12 @@ export const SocialCostTemplate: StudioTemplate = {
         { key: 'consequence', label: 'Conséquence', type: 'text', group: 'Contenu' },
         { key: 'note', label: 'Note de bas de page', type: 'text', group: 'Contenu' },
     ],
-    
-    shadowStyle: (state) => ({
-        boxShadow: `0 0 40px rgba(0,0,0,0.1), 0 0 10px ${state.accent}22`
-    }),
-    
+
     Component: ({ state, patch }) => {
         return (
             <div className="w-full h-full bg-white overflow-hidden border-4 border-black flex flex-col relative">
-                
-                
+
+
                 <div className="bg-black px-7 pt-6 pb-5 shrink-0 border-b-4 border-black">
                     <div className="flex items-center gap-2 mb-2">
                         <div className="w-3.5 h-3.5 bg-white flex items-center justify-center shrink-0"><div className="w-2 h-0.5 bg-black"></div></div>

@@ -8,7 +8,7 @@ export const InfoTemplate: StudioTemplate = {
     name: 'Fiche Information',
     category: 'Analyse',
     description: 'Une fiche détaillée avec deux blocs de texte et un tag de catégorie.',
-    
+
     defaultState: {
         headline: "DÉCORTIQUER<br/>LE SYSTÈME",
         brand: "L'ASSEZ",
@@ -21,7 +21,7 @@ export const InfoTemplate: StudioTemplate = {
         actionMeta: "Dossier #12.04 — Secteur 4",
         footerHandle: "@LASSEZmedia",
     },
-    
+
     schema: [
         { key: 'accent', label: 'Couleur Accent', type: 'color', group: 'Style' },
         { key: 'tag', label: 'Étiquette', type: 'text', group: 'Meta' },
@@ -33,11 +33,7 @@ export const InfoTemplate: StudioTemplate = {
         { key: 'actionMeta', label: 'Meta Alerte', type: 'text', group: 'Alerte' },
         { key: 'footerHandle', label: 'Handle Footer', type: 'text', group: 'Meta' },
     ],
-    
-    shadowStyle: (state) => ({
-        boxShadow: `0 0 50px rgba(0,0,0,0.1), 10px 10px 0 ${state.accent}33`
-    }),
-    
+
     Component: ({ state, patch }) => {
         return (
             <div className="w-full h-full overflow-hidden border-4 border-black flex flex-col relative" style={{ backgroundColor: '#F3F4F6' }}>
@@ -51,9 +47,9 @@ export const InfoTemplate: StudioTemplate = {
                     <div style={{ position: 'absolute', top: '15%', left: 0, width: '100%', height: 8, backgroundColor: '#000', transform: 'rotate(-1deg)' }}></div>
                     <div style={{ position: 'absolute', bottom: '10%', left: 0, width: '100%', height: 16, backgroundColor: '#000', transform: 'rotate(1deg)' }}></div>
                 </div>
-                
-                
-                
+
+
+
                 <header className="relative z-20 px-8 pt-10 pb-4 flex justify-between items-end border-b-4 border-black bg-white shrink-0">
                     <div className="flex flex-col">
                         <span className="sm text-[10px] uppercase tracking-widest font-bold mb-1" style={{ color: state.accent }}>{state.tag}</span>
@@ -65,7 +61,7 @@ export const InfoTemplate: StudioTemplate = {
                         <div className="sm text-[9px] uppercase text-gray-400">Slide</div>
                     </div>
                 </header>
-                
+
                 <main className="relative z-20 flex-grow p-7 flex flex-col justify-between gap-5">
                     <div className="relative bg-white border-2 border-black p-5 flex-grow flex flex-col justify-center" style={{ boxShadow: '8px 8px 0 0 #000' }}>
                         <EditZone html={state.body} onChange={h => patch({ body: h })} label="CORPS" stickerPos="-top-5 right-0"
@@ -73,7 +69,7 @@ export const InfoTemplate: StudioTemplate = {
                         <EditZone html={state.bodyMono} onChange={h => patch({ bodyMono: h })} label="CORPS 2" stickerPos="-top-5 left-0"
                             className="sm text-[11px] leading-relaxed text-gray-700 text-justify border-l-4 pl-3" style={{ borderColor: state.accent }} />
                     </div>
-                    
+
                     <div className="relative">
                         <div className="absolute -top-4 -right-2 px-2 py-1 sm text-[9px] font-bold uppercase z-20 border-2 border-white bg-black text-white" style={{ transform: 'rotate(2deg)' }}>Warning</div>
                         <div className="p-5 border-4 border-black relative" style={{
@@ -88,7 +84,7 @@ export const InfoTemplate: StudioTemplate = {
                         </div>
                     </div>
                 </main>
-                
+
                 <footer className="relative z-20 bg-black text-white px-5 py-3 flex justify-between items-center mt-auto border-t-4 shrink-0" style={{ borderColor: state.accent }}>
                     <div className="flex items-center gap-2">
                         <div className="w-4 h-4 rounded-full border border-white" style={{ backgroundColor: state.accent }}></div>

@@ -8,7 +8,7 @@ export const ImpactQuoteTemplate: StudioTemplate = {
     name: 'Citation d\'Impact',
     category: 'Analyse',
     description: 'Une citation mise en valeur sur fond sombre pour un impact maximum.',
-    
+
     defaultState: {
         largeQuote: "NOUS NE POUVONS PAS RESTER SPECTATEURS DE NOTRE PROPRE DÉPOSSESSION.",
         author: "ANONYME",
@@ -16,23 +16,19 @@ export const ImpactQuoteTemplate: StudioTemplate = {
         brand: "L'ASSEZ",
         accent: "#BC0100",
     },
-    
+
     schema: [
         { key: 'accent', label: 'Couleur Accent', type: 'color', group: 'Style' },
         { key: 'largeQuote', label: 'La Citation', type: 'text', group: 'Contenu' },
         { key: 'author', label: 'Auteur', type: 'text', group: 'Contenu' },
         { key: 'context', label: 'Contexte / Source', type: 'text', group: 'Contenu' },
     ],
-    
-    shadowStyle: (state) => ({
-        boxShadow: `0 0 50px rgba(0,0,0,0.5), 0 0 20px ${state.accent}33`
-    }),
-    
+
     Component: ({ state, patch }) => {
         return (
             <div className="w-full h-full bg-[#111] overflow-hidden border-4 border-black flex flex-col relative">
-                
-                
+
+
                 <div className="flex items-center gap-2 px-6 pt-5 pb-4 border-b-2 shrink-0 z-10" style={{ borderColor: state.accent + '50' }}>
                     <div className="w-3.5 h-3.5 bg-white flex items-center justify-center shrink-0"><div className="w-2 h-0.5 bg-black"></div></div>
                     <span className="ab font-bold uppercase tracking-widest text-white" style={{ fontSize: '0.6rem' }}>{state.brand}</span>

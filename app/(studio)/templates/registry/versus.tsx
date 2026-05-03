@@ -7,7 +7,7 @@ export const VersusTemplate: StudioTemplate = {
     name: 'Comparatif Versus',
     category: 'Analyse',
     description: 'Compare deux points de vue ou deux réalités contradictoires.',
-    
+
     defaultState: {
         headline: "DISCOURS VS RÉALITÉ",
         leftTitle: "CE QU'ILS DISENT",
@@ -17,7 +17,7 @@ export const VersusTemplate: StudioTemplate = {
         brand: "L'ASSEZ",
         accent: "#DC2626"
     },
-    
+
     schema: [
         { key: 'accent', label: 'Couleur Accent', type: 'color', group: 'Style' },
         { key: 'headline', label: 'Bandeau Titre', type: 'text', group: 'Contenu' },
@@ -26,11 +26,7 @@ export const VersusTemplate: StudioTemplate = {
         { key: 'rightTitle', label: 'Titre Droite', type: 'text', group: 'Droite' },
         { key: 'rightBody', label: 'Texte Droite', type: 'text', group: 'Droite' },
     ],
-    
-    shadowStyle: (state) => ({
-        boxShadow: `0 0 40px rgba(0,0,0,0.3), 12px 12px 0 #000`
-    }),
-    
+
     Component: ({ state, patch }) => {
         return (
             <div className="w-full h-full overflow-hidden border-4 border-black flex flex-col relative">
@@ -56,18 +52,18 @@ export const VersusTemplate: StudioTemplate = {
                         </div>
                     </div>
                 </div>
-                
+
                 {/* VS Badge */}
                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30">
                     <div className="w-20 h-20 bg-black border-4 border-white flex items-center justify-center ab text-4xl text-white italic transform -rotate-12 shadow-2xl">VS</div>
                 </div>
-                
+
                 {/* Headline Banner */}
                 <div className="absolute top-0 left-0 w-full z-10 p-3 pointer-events-none">
                     <EditZone html={state.headline} onChange={h => patch({ headline: h })} label="BANNER" stickerPos="top-5 right-5"
                         className="sm text-[8px] font-black uppercase tracking-[0.4em] text-center bg-white/10 backdrop-blur-sm py-1 border border-black/10 text-gray-500" />
                 </div>
-                
+
                 <div className="absolute bottom-5 left-5 ab text-[12px] opacity-20 pointer-events-none">L'ASSEZ / DECODAGE</div>
             </div>
         );

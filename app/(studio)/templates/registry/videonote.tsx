@@ -9,7 +9,7 @@ export const VideoNoteTemplate: StudioTemplate = {
     name: 'Note Vidéo',
     category: 'Média',
     description: 'Une capture vidéo annotée pour une analyse visuelle.',
-    
+
     defaultState: {
         headline: "ANALYSE DE LA SÉQUENCE #32",
         videoUrl: "",
@@ -20,7 +20,7 @@ export const VideoNoteTemplate: StudioTemplate = {
         brand: "L'ASSEZ",
         accent: "#BC0100",
     },
-    
+
     schema: [
         { key: 'accent', label: 'Couleur Accent', type: 'color', group: 'Style' },
         { key: 'headline', label: 'Titre de l\'analyse', type: 'text', group: 'Contenu' },
@@ -28,18 +28,14 @@ export const VideoNoteTemplate: StudioTemplate = {
         { key: 'videoZoom', label: 'Zoom Vidéo', type: 'number', group: 'Média' },
         { key: 'annotation', label: 'Annotation', type: 'text', group: 'Contenu' },
     ],
-    
-    shadowStyle: (state) => ({
-        boxShadow: `0 0 50px rgba(0,0,0,0.6), 0 0 20px ${state.accent}44`
-    }),
-    
+
     Component: ({ state, patch }) => {
         const isYt = (state.videoUrl || '').includes('youtube') || (state.videoUrl || '').includes('youtu.be');
 
         return (
             <div className="w-full h-full bg-black overflow-hidden border-4 border-black flex flex-col relative">
-                
-                
+
+
                 <div className="px-6 pt-5 pb-4 border-b-4 border-white/10 shrink-0 z-10 flex items-center gap-3">
                     <div className="w-3.5 h-3.5 bg-white flex items-center justify-center shrink-0"><div className="w-2 h-0.5 bg-black"></div></div>
                     <span className="ab font-bold uppercase tracking-widest text-white" style={{ fontSize: '0.6rem' }}>{state.brand}</span>
@@ -59,10 +55,10 @@ export const VideoNoteTemplate: StudioTemplate = {
                                 src={`https://www.youtube.com/embed/${state.videoUrl.split('v=')[1]?.split('&')[0] || state.videoUrl.split('/').pop()}?autoplay=1&mute=1&controls=0&loop=1`}
                             />
                         ) : (
-                            <DraggableVideo 
-                                src={state.videoUrl} zoom={state.videoZoom || 1} 
-                                posX={state.videoX || 0} posY={state.videoY || 0} 
-                                onPosChange={(x,y) => patch({ videoX: x, videoY: y })} 
+                            <DraggableVideo
+                                src={state.videoUrl} zoom={state.videoZoom || 1}
+                                posX={state.videoX || 0} posY={state.videoY || 0}
+                                onPosChange={(x, y) => patch({ videoX: x, videoY: y })}
                             />
                         )
                     ) : (

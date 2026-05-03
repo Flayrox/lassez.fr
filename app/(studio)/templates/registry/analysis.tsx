@@ -1,6 +1,7 @@
 import React from 'react';
 import { StudioTemplate } from '../core/types';
 import { EditZone } from '../components/EditZone';
+import { getSafeImageUrl } from '../core/utils';
 
 export const AnalysisTemplate: StudioTemplate = {
     id: 'ANALYSIS',
@@ -47,7 +48,7 @@ export const AnalysisTemplate: StudioTemplate = {
             <div className="w-full h-full bg-[#0F0F0F] overflow-hidden border-2 border-white/10 flex flex-col group relative">
                 <div className="absolute inset-0 z-0">
                     {state.imageUrl && (
-                        <img alt="Background" className="w-full h-full object-cover opacity-30" style={{ filter: 'grayscale(1) contrast(1.25)' }} src={state.imageUrl} crossOrigin="anonymous" />
+                        <img alt="Background" className="w-full h-full object-cover opacity-30" style={{ filter: 'grayscale(1) contrast(1.25)' }} src={getSafeImageUrl(state.imageUrl)} crossOrigin="anonymous" />
                     )}
                 </div>
 

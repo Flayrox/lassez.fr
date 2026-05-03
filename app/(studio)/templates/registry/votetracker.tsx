@@ -2,6 +2,7 @@ import React from 'react';
 import { StudioTemplate } from '../core/types';
 import { EditZone } from '../components/EditZone';
 import { Aesthetics } from '../core/Aesthetics';
+import { getSafeImageUrl } from '../core/utils';
 
 export const VoteTrackerTemplate: StudioTemplate = {
     id: 'VOTE_TRACKER',
@@ -88,7 +89,7 @@ export const VoteTrackerTemplate: StudioTemplate = {
                 <div className="relative bg-white border-b-4 border-black shrink-0 overflow-hidden z-10">
                     {state.imageUrl && (
                         <div className="absolute top-0 right-0 w-36 h-44 overflow-hidden" style={{ filter: 'grayscale(100%) contrast(1.4)' }}>
-                            <img src={state.imageUrl} alt="" className="w-full h-full object-cover object-top" crossOrigin="anonymous" />
+                            <img src={getSafeImageUrl(state.imageUrl)} alt="" className="w-full h-full object-cover object-top" crossOrigin="anonymous" />
                             <div className="absolute inset-0" style={{ background: 'linear-gradient(to left, transparent 30%, white 85%)' }}></div>
                         </div>
                     )}

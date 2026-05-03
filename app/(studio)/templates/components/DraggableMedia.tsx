@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useRef, useEffect } from 'react';
+import { getSafeImageUrl } from '../core/utils';
 
 export function DraggableImage({ src, zoom, grayscale, posX, posY, onPosChange }: {
     src: string; zoom: number; grayscale: number;
@@ -47,7 +48,7 @@ export function DraggableImage({ src, zoom, grayscale, posX, posY, onPosChange }
             }}
         >
             <img
-                crossOrigin="anonymous" alt="" src={src} draggable={false}
+                crossOrigin="anonymous" alt="" src={getSafeImageUrl(src)} draggable={false}
                 style={{
                     width: '100%', height: '100%',
                     objectFit: 'cover',

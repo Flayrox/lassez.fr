@@ -94,25 +94,9 @@ async function run() {
             npm install --production=false
             npm run build
             
-            echo "--- Restarting Services ---"
-            # API (3001)
+            echo "--- Restarting All Services (PM2) ---"
             cd ${REMOTE_PATHS.api}
-            pm2 delete radar-api || true
-            pm2 start "npm start -- -p 3001" --name radar-api
-            
-            # Front (3000)
-            cd ${REMOTE_PATHS.front}
-            pm2 delete radar-front || true
-            pm2 start "npm start -- -p 3000" --name radar-front
-            
-            # Studio (3002)
-            cd ${REMOTE_PATHS.studio}
-            pm2 delete radar-studio || true
-            pm2 start "npm start -- -p 3002" --name radar-studio
-            
-            # Daemons
-            cd ${REMOTE_PATHS.api}
-            pm2 restart radar-daemon radar-daemon-rss || pm2 start ecosystem.config.cjs
+            pm2 startOrReload ecosystem.config.cjs --update-env
             
             echo "--- Cleanup ---"
             rm /tmp/${archiveName}

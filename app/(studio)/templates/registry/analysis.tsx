@@ -1,13 +1,12 @@
 import React from 'react';
 import { StudioTemplate } from '../core/types';
 import { EditZone } from '../components/EditZone';
-import { Aesthetics } from '../core/Aesthetics';
 
 export const AnalysisTemplate: StudioTemplate = {
     id: 'ANALYSIS',
     name: 'Analyse Listée',
     category: 'Analyse',
-    description: 'Une liste de 3 points clés analysés avec un arrière-plan texturé.',
+    description: 'Une liste de points clés analysés avec un arrière-plan texturé.',
 
     defaultState: {
         headline: "L'Assez Analysis",
@@ -16,16 +15,12 @@ export const AnalysisTemplate: StudioTemplate = {
         refCode: "Ref: 24-0B // V.02",
         slideNum: "02",
         totalSlides: "10",
-        imageUrl: 'https://picsum.photos/seed/lassez-analysis/1200/800',
-        item1Num: "01",
-        item1Title: "Redondance Systémique",
-        item1Text: "L'architecture actuelle priorise des protocoles obsolètes.",
-        item2Num: "02",
-        item2Title: "Biais Algorithmique",
-        item2Text: "Les flux d'information sont bridés par des gardiens opaques.",
-        item3Num: "03",
-        item3Title: "Extraction des Ressources",
-        item3Text: "L'attention est la matière première principale.",
+        imageUrl: 'https://images.unsplash.com/photo-1504711432813-0b72a692df9a',
+        items: [
+            { num: "01", title: "Redondance Systémique", text: "L'architecture actuelle priorise des protocoles obsolètes." },
+            { num: "02", title: "Biais Algorithmique", text: "Les flux d'information sont bridés par des gardiens opaques." },
+            { num: "03", title: "Extraction des Ressources", text: "L'attention est la matière première principale." },
+        ]
     },
 
     schema: [
@@ -35,19 +30,19 @@ export const AnalysisTemplate: StudioTemplate = {
         { key: 'refCode', label: 'Code Réf', type: 'text', group: 'Meta' },
         { key: 'slideNum', label: 'N° Slide', type: 'text', group: 'Meta' },
         { key: 'totalSlides', label: 'Total Slides', type: 'text', group: 'Meta' },
-        { key: 'item1Num', label: 'N° Item 1', type: 'text', group: 'Item 1' },
-        { key: 'item1Title', label: 'Titre Item 1', type: 'text', group: 'Item 1' },
-        { key: 'item1Text', label: 'Texte Item 1', type: 'text', group: 'Item 1' },
-        { key: 'item2Num', label: 'N° Item 2', type: 'text', group: 'Item 2' },
-        { key: 'item2Title', label: 'Titre Item 2', type: 'text', group: 'Item 2' },
-        { key: 'item2Text', label: 'Texte Item 2', type: 'text', group: 'Item 2' },
-        { key: 'item3Num', label: 'N° Item 3', type: 'text', group: 'Item 3' },
-        { key: 'item3Title', label: 'Titre Item 3', type: 'text', group: 'Item 3' },
-        { key: 'item3Text', label: 'Texte Item 3', type: 'text', group: 'Item 3' },
+        { 
+            key: 'items', label: 'Points d\'Analyse', type: 'list', group: 'Contenu',
+            itemSchema: [
+                { key: 'num', label: 'N°', type: 'text' },
+                { key: 'title', label: 'Titre', type: 'text' },
+                { key: 'text', label: 'Texte', type: 'text' },
+            ]
+        }
     ],
 
-
     Component: ({ state, patch }) => {
+        const items = state.items || [];
+
         return (
             <div className="w-full h-full bg-[#0F0F0F] overflow-hidden border-2 border-white/10 flex flex-col group relative">
                 <div className="absolute inset-0 z-0">
@@ -66,20 +61,45 @@ export const AnalysisTemplate: StudioTemplate = {
                     </div>
                 </header>
 
-                <main className="relative z-20 flex-grow p-6 flex flex-col justify-between gap-4">
-                    {[1, 2, 3].map(num => (
-                        <div key={num} className="relative bg-white p-4 border-2 border-black" style={{ boxShadow: '10px 10px 0px 0px rgba(0,0,0,1)' }}>
+                <main className="relative z-20 flex-grow p-6 flex flex-col justify-center gap-4">
+                    {items.map((item: any, i: number) => (
+                        <div key={i} className="relative bg-white p-4 border-2 border-black group/item" style={{ boxShadow: '10px 10px 0px 0px rgba(0,0,0,1)' }}>
                             <div className="flex items-start gap-4">
-                                <span className="ab text-4xl leading-none" style={{ color: state.accent }}>{(state as any)[`item${num}Num`]}</span>
+                                <span className="ab text-4xl leading-none" style={{ color: state.accent }}>{item.num}</span>
                                 <div className="flex-1 w-full min-w-0">
-                                    <EditZone html={(state as any)[`item${num}Title`]} onChange={h => patch({ [`item${num}Title`]: h })} label={`TITRE ${num}`} stickerPos="-top-4 left-0"
+                                    <EditZone html={item.title} 
+                                        onChange={h => {
+                                            const newItems = [...items];
+                                            newItems[i] = { ...newItems[i], title: h };
+                                            patch({ items: newItems });
+                                        }} 
+                                        label="TITRE" stickerPos="-top-4 left-0"
                                         className="ab text-black text-lg uppercase leading-none mb-1 break-words whitespace-normal" />
-                                    <EditZone html={(state as any)[`item${num}Text`]} onChange={h => patch({ [`item${num}Text`]: h })} label={`TEXTE ${num}`} stickerPos="top-0 right-0"
+                                    <EditZone html={item.text} 
+                                        onChange={h => {
+                                            const newItems = [...items];
+                                            newItems[i] = { ...newItems[i], text: h };
+                                            patch({ items: newItems });
+                                        }} 
+                                        label="TEXTE" stickerPos="top-0 right-0"
                                         className="ir text-black text-xs font-semibold leading-tight break-words whitespace-normal" />
                                 </div>
+                                <button 
+                                    onClick={() => patch({ items: items.filter((_: any, idx: number) => idx !== i) })}
+                                    className="opacity-0 group-hover/item:opacity-100 transition-opacity bg-black text-white w-5 h-5 flex items-center justify-center text-[10px]"
+                                >✕</button>
                             </div>
                         </div>
                     ))}
+
+                    {items.length < 4 && (
+                        <button 
+                            onClick={() => patch({ items: [...items, { num: `0${items.length + 1}`, title: "NOUVEAU POINT", text: "Détail de l'analyse..." }] })}
+                            className="opacity-0 group-hover:opacity-100 transition-opacity h-10 border-2 border-dashed border-white/30 flex items-center justify-center text-white/50 font-bold uppercase text-[10px] hover:bg-white/5"
+                        >
+                            + Ajouter un point
+                        </button>
+                    )}
                 </main>
 
                 <footer className="relative z-30 flex items-center justify-between px-6 pb-6 pt-2 shrink-0">

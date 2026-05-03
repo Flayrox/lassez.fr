@@ -25,6 +25,7 @@
     "@ffmpeg/ffmpeg": "^0.12.15",
     "@ffmpeg/util": "^0.12.2",
     "@fontsource/playfair-display": "^5.2.8",
+    "@google/genai": "^1.51.0",
     "@google/generative-ai": "^0.21.0",
     "@payloadcms/db-postgres": "3.82.1",
     "@payloadcms/live-preview-react": "3.82.1",

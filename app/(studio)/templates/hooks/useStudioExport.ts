@@ -14,11 +14,15 @@ export function useStudioExport(exportRef: React.RefObject<HTMLDivElement | null
         const imgs = Array.from(node.querySelectorAll<HTMLImageElement>('img'));
         await Promise.all(imgs.map(async img => {
             const src = img.getAttribute('src') || img.src;
-            if (!src || src.startsWith('data:') || src.startsWith('/') || src.startsWith('blob:')) return;
+            if (!src || src.startsWith('data:') || src.startsWith('blob:')) return;
+            
+            // If already local or same origin, skip proxy
+            if (src.startsWith('/') || src.startsWith(window.location.origin)) return;
+
             try {
                 const proxyUrl = `/api/proxy-image?url=${encodeURIComponent(src)}`;
                 const res = await fetch(proxyUrl);
-                if (!res.ok) return;
+                if (!res.ok) throw new Error(`Proxy failed: ${res.status}`);
                 const blob = await res.blob();
                 const dataUrl = await new Promise<string>((resolve, reject) => {
                     const reader = new FileReader();
@@ -28,13 +32,16 @@ export function useStudioExport(exportRef: React.RefObject<HTMLDivElement | null
                 });
                 img.setAttribute('src', dataUrl);
                 img.src = dataUrl;
+                
                 await new Promise<void>(r => {
                     if (img.complete && img.naturalWidth > 0) { r(); return; }
                     img.onload = () => r();
                     img.onerror = () => r();
-                    setTimeout(r, 4000);
+                    setTimeout(r, 2000);
                 });
-            } catch { }
+            } catch (e) { 
+                console.warn('[Studio Export] Failed to proxy image:', src, e);
+            }
         }));
     };
 
@@ -179,12 +186,23 @@ export function useStudioExport(exportRef: React.RefObject<HTMLDivElement | null
 
             try {
                 await embedImages(exportRef.current);
+                await new Promise(r => setTimeout(r, 100)); // Cool down
+                
                 const overlays = exportRef.current.querySelectorAll<HTMLElement>('.edit-overlay,.edit-sticker,.brut-tb');
                 overlays.forEach(el => el.style.display = 'none');
-                const dataUrl = await toPng(exportRef.current, { quality: 1, pixelRatio: 2, canvasWidth: 1080, canvasHeight: 1350 });
+                
+                const dataUrl = await toPng(exportRef.current, { 
+                    quality: 1, 
+                    pixelRatio: 2, 
+                    canvasWidth: 1080, 
+                    canvasHeight: 1350,
+                    cacheBust: true,
+                });
+                
                 overlays.forEach(el => el.style.display = '');
+                
                 const a = document.createElement('a');
-                a.download = `lassez-${activeSlide.label.replace(/\s+/g, '-').toLowerCase()}.png`;
+                a.download = `lassez-${activeSlide.label?.replace(/\s+/g, '-').toLowerCase() || 'slide'}.png`;
                 a.href = dataUrl; a.click();
 
                 if (postId) {
@@ -194,7 +212,10 @@ export function useStudioExport(exportRef: React.RefObject<HTMLDivElement | null
                         publishToRadar(postId, title, content, dataUrl);
                     } catch (e) { /* ignore */ }
                 }
-            } catch (e) { }
+            } catch (e: any) { 
+                console.error('[Studio Export] PNG Error:', e);
+                alert(`Erreur d'export : ${e instanceof Error ? e.message : 'Problème de ressources (images/polices)'}`);
+            }
     };
 
     const handleExportAll = async () => {

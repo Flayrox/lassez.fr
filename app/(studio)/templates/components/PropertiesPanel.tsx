@@ -15,7 +15,7 @@ const T = {
     textMuted:  '#666666',
 };
 
-export function StudioPropertiesPanel() {
+export function PropertiesPanel() {
     const { activeSlide, patchActive } = useStudio();
 
     if (!activeSlide) {

@@ -1,7 +1,6 @@
 import React from 'react';
 import { StudioTemplate } from '../core/types';
 import { EditZone } from '../components/EditZone';
-import { Aesthetics } from '../core/Aesthetics';
 
 export const ChronoLockTemplate: StudioTemplate = {
     id: 'CHRONO_LOCK',
@@ -39,20 +38,11 @@ export const ChronoLockTemplate: StudioTemplate = {
         const timeline = state.timeline || [];
 
         return (
-            <div className="w-full h-full bg-[#0F0F0F] overflow-hidden border-4 border-black flex flex-col relative">
-
-
+            <div className="w-full h-full bg-[#0F0F0F] overflow-hidden border-4 border-black flex flex-col relative group/chrono">
                 <div className="bg-black px-7 pt-6 pb-5 shrink-0 border-b-4 border-black">
                     <div className="flex items-center gap-2 mb-2">
                         <div className="w-3.5 h-3.5 bg-white flex items-center justify-center shrink-0"><div className="w-2 h-0.5 bg-black"></div></div>
-                        <EditZone 
-                            html={state.brand} 
-                            onChange={h => patch({ brand: h })} 
-                            label="MARQUE" 
-                            stickerPos="top-6 left-0"
-                            className="ab font-bold uppercase tracking-widest text-white" 
-                            style={{ fontSize: '0.6rem' }} 
-                        />
+                        <span className="ab font-bold uppercase tracking-widest text-white" style={{ fontSize: '0.6rem' }}>{state.brand}</span>
                         <div className="ml-auto px-2 py-0.5 sm text-[9px] font-bold uppercase text-black" style={{ background: state.accent }}>⏱ CHRONOLOGIE</div>
                     </div>
                     <EditZone html={state.headline} onChange={h => patch({ headline: h })} label="TITRE" stickerPos="-top-4 right-0"
@@ -61,7 +51,7 @@ export const ChronoLockTemplate: StudioTemplate = {
                         className="sm block text-white/60 uppercase font-bold mt-1" style={{ fontSize: '0.6rem' }} />
                 </div>
 
-                <div className="flex-1 px-8 py-6 overflow-y-auto flex flex-col gap-4 sb">
+                <div className="flex-1 px-8 py-6 overflow-y-auto flex flex-col justify-center gap-4 sb">
                     {timeline.map((ev: any, i: number) => (
                         <div key={i} className="flex gap-5 relative group/event">
                             <div className="flex flex-col items-center shrink-0 w-6">
@@ -116,24 +106,17 @@ export const ChronoLockTemplate: StudioTemplate = {
                         </div>
                     ))}
 
-                    {timeline.length < 5 && (
+                    {timeline.length < 6 && (
                         <button onClick={() => {
                             patch({ timeline: [...timeline, { date: "NOUVELLE DATE", event: "NOUVEL ÉVÉNEMENT", impact: "IMPACT À DÉFINIR" }] });
-                        }} className="h-8 border-2 border-dashed border-white/20 flex items-center justify-center gap-2 hover:bg-white/5 transition-colors sm text-[9px] font-bold uppercase tracking-widest text-white/30">
+                        }} className="opacity-0 group-hover/chrono:opacity-100 transition-opacity h-8 border-2 border-dashed border-white/20 flex items-center justify-center gap-2 hover:bg-white/5 sm text-[9px] font-bold uppercase tracking-widest text-white/30">
                             + Ajouter un événement
                         </button>
                     )}
                 </div>
 
                 <div className="bg-black text-white px-6 py-3 border-t-4 border-black shrink-0 flex items-center justify-between">
-                    <EditZone 
-                        html={state.brand} 
-                        onChange={h => patch({ brand: h })} 
-                        label="MARQUE" 
-                        stickerPos="-top-4 left-0"
-                        className="ab font-black uppercase text-white tracking-wide" 
-                        style={{ fontSize: '0.65rem' }} 
-                    />
+                    <span className="ab font-black uppercase text-white tracking-wide" style={{ fontSize: '0.65rem' }}>{state.brand}</span>
                     <span className="ab font-black uppercase text-white tracking-wide" style={{ fontSize: '0.65rem' }}> / RIEN N'EST UN HASARD</span>
                 </div>
             </div>

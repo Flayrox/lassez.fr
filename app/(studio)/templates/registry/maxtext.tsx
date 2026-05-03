@@ -67,20 +67,30 @@ export const MaxTextTemplate: StudioTemplate = {
                         <div className="absolute -bottom-[2px] left-0 h-[3px] w-1/4" style={{ backgroundColor: state.accent }}></div>
                     </div>
 
-                    <div className="flex-grow overflow-hidden flex flex-col gap-2">
-                        <EditZone
-                            html={state.leadParagraph}
-                            onChange={h => patch({ leadParagraph: h })}
-                            label="ANALYSE"
-                            stickerPos="-top-5 left-0"
-                            className="ir text-[17px] leading-[1.65] text-black text-justify mb-2 maxtext-body"
-                        />
+                    <div className="flex-grow overflow-hidden flex flex-col justify-center gap-4">
+                        {state.leadParagraph && (
+                            <EditZone
+                                html={state.leadParagraph}
+                                onChange={h => patch({ leadParagraph: h })}
+                                label="ACCROCHE"
+                                stickerPos="-top-5 left-0"
+                                className="ir text-black text-justify mb-2 maxtext-body"
+                                style={{ 
+                                    fontSize: state.leadParagraph.length < 100 ? '22px' : '18px',
+                                    lineHeight: '1.5'
+                                }}
+                            />
+                        )}
                         <EditZone
                             html={state.bodyParagraph}
                             onChange={h => patch({ bodyParagraph: h })}
-                            label="DÉTAIL"
+                            label="CORPS"
                             stickerPos="-top-5 right-0"
-                            className="sm text-[14px] leading-[1.6] text-gray-700 text-justify mb-2 maxtext-body"
+                            className="sm text-gray-800 text-justify mb-2 maxtext-body"
+                            style={{ 
+                                fontSize: state.bodyParagraph.length < 200 ? '18px' : '15px',
+                                lineHeight: '1.6'
+                            }}
                         />
                     </div>
 

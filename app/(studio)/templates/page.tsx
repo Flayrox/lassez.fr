@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation';
 
 import { StudioProvider, useStudio } from './components/StudioContext';
 import { StudioSidebar } from './components/StudioSidebar';
-import { StudioPropertiesPanel } from './components/StudioPropertiesPanel';
+import { PropertiesPanel } from './components/PropertiesPanel';
 import { StudioCanvas } from './components/StudioCanvas';
 import { StudioToolbar } from './components/StudioToolbar';
 import { StudioExportBar } from './components/StudioExportBar';
@@ -198,7 +198,7 @@ function StudioPageContent() {
 
                 {/* PANNEAU DROITE (ou GAUCHE si Swapped) */}
                 <div style={{ width: propertiesWidth, minWidth: 240, display: 'flex', order: isSwapped ? 0 : 2, position: 'relative' }}>
-                    <StudioPropertiesPanel />
+                    <PropertiesPanel />
                 </div>
             </div>
 

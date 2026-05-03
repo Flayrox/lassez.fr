@@ -1,7 +1,17 @@
 import { NextResponse } from 'next/server';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenAI, ThinkingLevel } from '@google/genai';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
+
+const responseSchema = {
+  type: "object",
+  properties: {
+    recommended_template: { type: "string" },
+    stylized_html: { type: "string" }
+  },
+  required: ["recommended_template", "stylized_html"]
+};
 
 export async function POST(request: Request) {
     try {
@@ -12,7 +22,10 @@ export async function POST(request: Request) {
             return NextResponse.json({ success: false, error: 'Texte requis' }, { status: 400 });
         }
 
-        const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
+        const client = new GoogleGenAI({ 
+            apiKey: process.env.GEMINI_API_KEY || '',
+            httpOptions: { timeout: 120000 }
+        });
         const prompt = `
 Tu es le Directeur Artistique Numérique de "L'Assez", un média brutaliste, satirique et incisif.
 Ton rôle est d'analyser cet extrait de texte d'actualité pour concevoir la meilleure Slide Instagram possible.
@@ -27,30 +40,27 @@ TÂCHES :
 2. Styliser le texte dynamiquement :
    - Repère les mots-clés, concepts forts ou pays (ex: "Palestine", "Climat", "Guerre", "Censure").
    - Entoure ces mots-clés de balises <span class="highlight-red">mot</span> pour faire un soulignage rouge brutaliste.
-   - N'hésite pas à ajouter d'autres <span style="color: red; font-weight: bold;"> ou même des couleurs spécifiques pays (ex: vert/rouge/noir/blanc pour "Palestinien") si le contexte s'y prête parfaitement.
+   - N'hésite pas à ajouter d'autres <span style="color: red; font-weight: bold;"> ou même des couleurs spécifiques pays si le contexte s'y prête parfaitement.
    - Rends un HTML pur (sans markdown) avec ces petites modifications à l'intérieur des phrases de l'article pour qu'il soit imprimé textuellement sur l'image.
 
-Tu DOIS retourner ta réponse au strict format JSON suivant, SANS AUCUN markdown ni fioriture autour :
+Tu travailles pour un média engagé, le résultat doit être repostable, attrayant et percutant.`;
 
-{
-    "recommended_template": "DAILY_NEWS",
-    "stylized_html": "Ceci est un texte sur le <span class=\\"highlight-red\\">Climat</span> qui est super important."
-}
-`;
-
-        const model = genAI.getGenerativeModel({ 
-            model: 'gemini-1.5-flash',
-            generationConfig: {
+        console.log('[Studio AI Generic] Starting analysis...');
+        const response = await client.models.generateContent({ 
+            model: 'gemini-3-flash-preview',
+            contents: prompt,
+            config: {
                 temperature: 0.4,
-                responseMimeType: 'application/json'
+                thinkingConfig: {
+                    thinkingLevel: ThinkingLevel.MEDIUM
+                },
+                responseMimeType: 'application/json',
+                responseJsonSchema: responseSchema as any,
             }
         });
 
-        const result = await model.generateContent(prompt);
-        const response = await result.response;
-        const rawText = response.text() || "{}";
-        const cleanJsonStr = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
-        const data = JSON.parse(cleanJsonStr);
+        const data = JSON.parse(response.text);
+        console.log('[Studio AI Generic] Analysis complete.');
 
         return NextResponse.json({
             success: true,

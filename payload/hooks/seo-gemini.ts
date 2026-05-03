@@ -1,5 +1,5 @@
 import { CollectionBeforeValidateHook } from 'payload';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenAI, ThinkingLevel } from '@google/genai';
 
 type SeoPayload = {
     meta_title?: string | null;
@@ -22,7 +22,7 @@ type GeminiSeoOptions = {
     model?: string | null;
 };
 
-const FALLBACK_GEMINI_MODEL = 'gemini-2.5-flash';
+const FALLBACK_GEMINI_MODEL = 'gemini-3-flash-preview';
 
 function isObject(value: unknown): value is Record<string, any> {
     return !!value && typeof value === 'object' && !Array.isArray(value);
@@ -59,26 +59,6 @@ function firstText(source: Record<string, any> | undefined, keys: string[]): str
     return '';
 }
 
-function parseSeoResponse(raw: string): SeoPayload | null {
-    const clean = raw.trim();
-    if (!clean) return null;
-
-    const match = clean.match(/\{[\s\S]*\}/);
-    const jsonText = match ? match[0] : clean.replace(/^```json\s*/i, '').replace(/```$/i, '').trim();
-
-    try {
-        const parsed = JSON.parse(jsonText);
-        return {
-            meta_title: typeof parsed.meta_title === 'string' ? parsed.meta_title.trim() : null,
-            meta_description: typeof parsed.meta_description === 'string' ? parsed.meta_description.trim() : null,
-            seo_title: typeof parsed.seo_title === 'string' ? parsed.seo_title.trim() : null,
-            seo_description: typeof parsed.seo_description === 'string' ? parsed.seo_description.trim() : null,
-        };
-    } catch {
-        return null;
-    }
-}
-
 function buildSeoPrompt({ collectionLabel, title, body }: GeminiSeoOptions) {
     return [
         `Tu es le rédacteur SEO en chef du média français l'Assez.`,
@@ -87,43 +67,60 @@ function buildSeoPrompt({ collectionLabel, title, body }: GeminiSeoOptions) {
         `Titre source: ${title || '(vide)'}`,
         `Contenu source: ${body || '(vide)'}`,
         '',
-        `Réponds uniquement en JSON valide avec ces clés exactes:`,
-        `{`,
-        `  "meta_title": "titre SEO de 50 à 60 caractères",`,
-        `  "meta_description": "description SEO de 150 à 160 caractères",`,
-        `  "seo_title": "variante courte si utile",`,
-        `  "seo_description": "variante courte si utile"`,
-        `}`,
+        `L'Assez est un média d'éducation populaire radical. Le ton doit être professionnel mais engagé.`,
     ].join('\n');
 }
+
+const responseSchema = {
+  type: "object",
+  properties: {
+    meta_title: { type: "string" },
+    meta_description: { type: "string" },
+    seo_title: { type: "string" },
+    seo_description: { type: "string" }
+  },
+  required: ["meta_title", "meta_description", "seo_title", "seo_description"]
+};
 
 export async function generateGeminiSeo(options: GeminiSeoOptions): Promise<SeoPayload | null> {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) return null;
 
     const title = String(options.title || '').trim();
-    const body = String(options.body || '').trim().slice(0, 2500);
+    const body = String(options.body || '').trim().slice(0, 4000);
     if (!title && !body) return null;
+    
     const modelName = String(options.model || process.env.GEMINI_SEO_MODEL || FALLBACK_GEMINI_MODEL).trim() || FALLBACK_GEMINI_MODEL;
 
     try {
-        const genAI = new GoogleGenerativeAI(apiKey);
-        const model = genAI.getGenerativeModel({ 
+        const client = new GoogleGenAI({ 
+            apiKey,
+            httpOptions: { timeout: 120000 }
+        });
+        const response = await client.models.generateContent({ 
             model: modelName,
-            generationConfig: {
+            contents: buildSeoPrompt({
+                collectionLabel: options.collectionLabel,
+                title,
+                body,
+            }),
+            config: {
                 temperature: 0.2,
+                thinkingConfig: {
+                    thinkingLevel: ThinkingLevel.LOW
+                },
                 responseMimeType: 'application/json',
+                responseJsonSchema: responseSchema as any,
             }
         });
 
-        const result = await model.generateContent(buildSeoPrompt({
-            collectionLabel: options.collectionLabel,
-            title,
-            body,
-        }));
-
-        const response = await result.response;
-        return parseSeoResponse(response.text());
+        const parsed = JSON.parse(response.text);
+        return {
+            meta_title: parsed.meta_title || null,
+            meta_description: parsed.meta_description || null,
+            seo_title: parsed.seo_title || null,
+            seo_description: parsed.seo_description || null,
+        };
     } catch (error) {
         console.error('[SEO-GEMINI]', options.collectionLabel, error);
         return null;

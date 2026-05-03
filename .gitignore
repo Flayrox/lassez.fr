@@ -24,6 +24,7 @@ Thumbs.db
 # Fichiers OSINT (vidéos temporaires)
 radar_lassez/tmp-videos/
 public/radar-images/
+public/uploads/
 
 # Archives de transfert (On en a plus besoin)
 *.zip

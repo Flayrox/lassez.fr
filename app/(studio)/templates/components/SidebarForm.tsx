@@ -177,9 +177,58 @@ function FormField({ field, value, onPatch }: { field: TemplateField; value: any
 
         case 'image':
         case 'video':
+            const [uploading, setUploading] = React.useState(false);
+            const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+            const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+
+                setUploading(true);
+                const formData = new FormData();
+                formData.append('file', file);
+
+                try {
+                    const res = await fetch('/api/radar/studio-ai/upload', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    const data = await res.json();
+                    if (data.url) {
+                        onPatch({ [field.key]: data.url });
+                    }
+                } catch (err) {
+                    console.error('Upload failed', err);
+                    alert('Erreur lors de l\'upload');
+                } finally {
+                    setUploading(false);
+                }
+            };
+
             return (
                 <div>
-                    {label}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 5 }}>
+                        {label}
+                        <button
+                            onClick={() => fileInputRef.current?.click()}
+                            disabled={uploading}
+                            style={{
+                                background: '#333', border: '1px solid #444', color: '#fff',
+                                fontSize: 9, fontWeight: 700, padding: '2px 8px', borderRadius: 4,
+                                cursor: 'pointer', textTransform: 'uppercase',
+                                opacity: uploading ? 0.5 : 1
+                            }}
+                        >
+                            {uploading ? 'Upload...' : 'Importer'}
+                        </button>
+                        <input
+                            type="file"
+                            ref={fileInputRef}
+                            style={{ display: 'none' }}
+                            accept={field.type === 'image' ? 'image/*' : 'video/*'}
+                            onChange={handleFileUpload}
+                        />
+                    </div>
                     <input
                         type="text"
                         placeholder="https://..."

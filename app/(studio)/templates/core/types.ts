@@ -18,6 +18,6 @@ export interface StudioTemplate {
     description?: string;
     category?: string;
     defaultState: any;
-    schema: TemplateField[];
+    schema: TemplateField[] | ((state: any) => TemplateField[]);
     Component: React.ComponentType<{ state: any; patch: (p: any) => void }>;
 }

@@ -44,34 +44,43 @@ export const MaxTextTemplate: StudioTemplate = {
             <div className="w-full h-full border-[6px] border-black overflow-hidden flex flex-col relative" style={{ backgroundColor: '#F9FAFB' }}>
 
 
-                <div className="absolute top-0 right-0 z-30 px-3 py-1 sm font-bold text-[10px] uppercase tracking-widest border-b-2 border-l-2 border-black text-white" style={{ backgroundColor: state.accent }}>{state.brand}</div>
+                <div className="absolute top-0 right-0 z-30 flex">
+                    <EditZone 
+                        html={state.brand} 
+                        onChange={h => patch({ brand: h })} 
+                        label="MARQUE" 
+                        stickerPos="top-6 right-0"
+                        className="sm font-bold text-[10px] uppercase tracking-widest px-3 py-1 border-b-2 border-l-2 border-black text-white" 
+                        style={{ backgroundColor: state.accent }}
+                    />
+                </div>
 
                 <div className="relative z-10 flex-grow flex flex-col px-8 pt-8 pb-3 overflow-hidden">
-                    <div className="relative mb-4 pb-3 border-b-2 border-black">
+                    <div className="relative mb-6 pb-3 border-b-2 border-black">
                         <EditZone
                             html={state.headline}
                             onChange={h => patch({ headline: h })}
                             label="TITRE"
-                            stickerPos="-top-5 right-0"
+                            stickerPos="-top-6 left-0"
                             className="pd font-bold text-[30px] leading-tight text-black"
                         />
                         <div className="absolute -bottom-[2px] left-0 h-[3px] w-1/4" style={{ backgroundColor: state.accent }}></div>
                     </div>
 
-                    <div className="flex-grow overflow-hidden flex flex-col">
+                    <div className="flex-grow overflow-hidden flex flex-col gap-2">
                         <EditZone
                             html={state.leadParagraph}
                             onChange={h => patch({ leadParagraph: h })}
                             label="ANALYSE"
                             stickerPos="-top-5 left-0"
-                            className="ir text-[17px] leading-[1.65] text-black text-justify mb-3 maxtext-body"
+                            className="ir text-[17px] leading-[1.65] text-black text-justify mb-2 maxtext-body"
                         />
                         <EditZone
                             html={state.bodyParagraph}
                             onChange={h => patch({ bodyParagraph: h })}
                             label="DÉTAIL"
                             stickerPos="-top-5 right-0"
-                            className="sm text-[14px] leading-[1.6] text-gray-700 text-justify mb-3 maxtext-body"
+                            className="sm text-[14px] leading-[1.6] text-gray-700 text-justify mb-2 maxtext-body"
                         />
                     </div>
 
@@ -84,7 +93,14 @@ export const MaxTextTemplate: StudioTemplate = {
                                 stickerPos="-top-5 left-0"
                                 className="sm text-[13px] leading-snug text-black italic"
                             />
-                            <span className="sm text-[10px] uppercase font-bold mt-1 block" style={{ color: state.accent }}>{state.quoteAuthor}</span>
+                            <EditZone 
+                                html={state.quoteAuthor} 
+                                onChange={h => patch({ quoteAuthor: h })} 
+                                label="AUTEUR" 
+                                stickerPos="top-6 right-0"
+                                className="sm text-[10px] uppercase font-bold mt-1 block" 
+                                style={{ color: state.accent }}
+                            />
                         </div>
                     )}
                 </div>
@@ -94,13 +110,25 @@ export const MaxTextTemplate: StudioTemplate = {
                         {state.showDate ? (
                             <div className="flex flex-col">
                                 <span className="sm text-[8px] uppercase text-gray-400">Date</span>
-                                <span className="sm font-bold text-[11px] text-black">{state.date}</span>
+                                <EditZone 
+                                    html={state.date} 
+                                    onChange={h => patch({ date: h })} 
+                                    label="DATE" 
+                                    stickerPos="-top-4 left-0"
+                                    className="sm font-bold text-[11px] text-black" 
+                                />
                             </div>
                         ) : <div />}
                         {state.showSource && (
                             <div className="flex flex-col text-right">
                                 <span className="sm text-[8px] uppercase text-gray-400">Source</span>
-                                <span className="sm font-bold text-[11px] text-black">{state.source}</span>
+                                <EditZone 
+                                    html={state.source} 
+                                    onChange={h => patch({ source: h })} 
+                                    label="SOURCE" 
+                                    stickerPos="-top-4 right-0"
+                                    className="sm font-bold text-[11px] text-black" 
+                                />
                             </div>
                         )}
                     </div>

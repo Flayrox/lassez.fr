@@ -31,83 +31,146 @@ export function StudioModals({
 
     if (!showArticleModal && !showJsonImport) return null;
 
-    const curAccent = '#DC2626'; // Default if not found
+    // Payload Theme Constants
+    const theme = {
+        bg: '#131313',
+        border: '#2a2a2a',
+        inputBg: '#1a1a1a',
+        text: '#fff',
+        textMuted: '#999',
+        accent: '#fff' // Primary CTA
+    };
+
+    const ModalContainer = ({ children, onClose, title, subtitle }: { children: React.ReactNode, onClose: () => void, title: string, subtitle?: string }) => (
+        <div className="fixed inset-0 z-[200] bg-black/80 flex items-center justify-center p-8 backdrop-blur-sm transition-all animate-in fade-in duration-300">
+            <div className="border shadow-2xl flex flex-col w-full max-w-2xl overflow-hidden rounded-xl animate-in zoom-in-95 duration-200" 
+                 style={{ background: theme.bg, borderColor: theme.border, fontFamily: 'Inter, sans-serif' }}>
+                
+                {/* Header */}
+                <div className="px-6 py-5 border-b flex justify-between items-center bg-[#111]" style={{ borderColor: theme.border }}>
+                    <div>
+                        <h3 className="text-[13px] font-bold text-white uppercase tracking-wider">{title}</h3>
+                        {subtitle && <p className="text-[11px] text-[#666] mt-1 font-medium">{subtitle}</p>}
+                    </div>
+                    <button 
+                        onClick={onClose} 
+                        className="text-[#666] hover:text-white transition-colors p-1 hover:bg-white/5 rounded-full"
+                    >
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                    </button>
+                </div>
+
+                <div className="p-6 flex flex-col gap-5 overflow-y-auto max-h-[80vh] sb">
+                    {children}
+                </div>
+            </div>
+        </div>
+    );
 
     return (
         <>
             {showArticleModal && (
-                <div className="fixed inset-0 z-[200] bg-black/80 flex items-center justify-center p-8">
-                    <div className="bg-[#0d0d0d] border border-white/10 w-full max-w-2xl flex flex-col gap-4 p-6" style={{ boxShadow: `8px 8px 0 ${curAccent}` }}>
-                        <div className="flex justify-between items-center">
-                            <span className="sm text-[10px] uppercase font-bold" style={{ color: curAccent }}>✨ Générer le deck depuis un article</span>
-                            <button onClick={() => setShowArticleModal(false)} className="sm text-[10px] text-gray-500 hover:text-white">✕ Fermer</button>
-                        </div>
-                        <p className="sm text-[9px] text-gray-500 uppercase">Colle ton article, ton flash info ou ton brief. L'IA va créer un deck de slides Instagram complet.</p>
+                <ModalContainer 
+                    onClose={() => setShowArticleModal(false)}
+                    title="✨ Générer le deck depuis un article"
+                    subtitle="Colle ton article ou ton flash info. L'IA va créer un deck complet."
+                >
+                    <div className="space-y-2">
+                        <label className="text-[11px] font-bold text-[#999] uppercase tracking-tight ml-1">Contenu de l'article</label>
                         <textarea
-                            className="si w-full h-36 resize-none"
-                            placeholder="Colle ton article ici…"
+                            className="w-full h-40 resize-none p-4 text-[12px] text-white focus:outline-none focus:border-[#555] transition-colors rounded-lg"
+                            style={{ background: theme.inputBg, border: `1px solid ${theme.border}`, fontFamily: 'Inter, sans-serif' }}
+                            placeholder="Colle ton texte ici..."
                             value={articleInput}
                             onChange={e => setArticleInput(e.target.value)}
                         />
+                    </div>
 
-                        <div className="border border-white/10 p-4 space-y-3" style={{ background: 'rgba(255,255,255,0.02)' }}>
-                            <p className="sm text-[9px] uppercase tracking-widest font-bold" style={{ color: curAccent }}>⚙ Paramètres IA — Templates autorisés</p>
-                            <div className="grid grid-cols-3 gap-2 max-h-48 overflow-y-auto sb">
-                                {(['COVER', 'NEWS', 'MAXTEXT', 'GRANULAR', 'BIG_NUM', 'INFO', 'ANALYSIS', 'OUTRO', 'COMPARISON_CHART', 'STACKED_DATA', 'VOTE_TRACKER', 'TERRITORY_RADAR', 'DECODING', 'CHRONO_LOCK', 'IMPACT_QUOTE', 'SOCIAL_COST', 'VIDEO_NOTE'] as SlideType[]).map((type) => {
-                                    const isEnabled = aiEnabledTypes.includes(type);
-                                    return (
-                                        <label key={type} onClick={() => toggleAiType(type)}
-                                            className="flex items-start gap-2 p-2 cursor-pointer border transition-colors"
-                                            style={{
-                                                borderColor: isEnabled ? curAccent : 'rgba(255,255,255,0.08)',
-                                                background: isEnabled ? `${curAccent}15` : 'transparent'
-                                            }}>
-                                            <div className="w-4 h-4 border-2 shrink-0 mt-0.5 flex items-center justify-center"
-                                                style={{ borderColor: isEnabled ? curAccent : '#555', background: isEnabled ? curAccent : 'transparent' }}>
-                                                {isEnabled && <span className="text-white text-[10px] font-bold">✓</span>}
-                                            </div>
-                                            <p className="sm text-[9px] font-bold uppercase" style={{ color: isEnabled ? '#fff' : '#666' }}>{ICONS[type]} {type}</p>
-                                        </label>
-                                    );
-                                })}
-                            </div>
-                        </div>
-
-                        <div className="flex gap-2 justify-end">
-                            <button onClick={() => setShowArticleModal(false)} className="sm text-[9px] px-4 py-2 border border-white/10 uppercase">Annuler</button>
-                            <button onClick={() => onGenerateDeck(articleInput, aiEnabledTypes)} disabled={aiLoading || !articleInput.trim()}
-                                className="sm text-[9px] px-5 py-2 font-bold uppercase text-black disabled:opacity-40"
-                                style={{ background: curAccent }}>
-                                {aiLoading ? '⏳ Génération…' : `✨ Générer (${aiEnabledTypes.length} types)`}
-                            </button>
+                    <div className="space-y-3">
+                        <label className="text-[11px] font-bold text-[#999] uppercase tracking-tight ml-1">Paramètres IA — Templates autorisés</label>
+                        <div className="grid grid-cols-3 gap-2">
+                            {(['COVER', 'NEWS', 'MAXTEXT', 'GRANULAR', 'BIG_NUM', 'INFO', 'ANALYSIS', 'OUTRO', 'COMPARISON_CHART', 'STACKED_DATA', 'VOTE_TRACKER', 'TERRITORY_RADAR', 'DECODING', 'CHRONO_LOCK', 'IMPACT_QUOTE', 'SOCIAL_COST', 'VIDEO_NOTE'] as SlideType[]).map((type) => {
+                                const isEnabled = aiEnabledTypes.includes(type);
+                                return (
+                                    <button 
+                                        key={type} 
+                                        onClick={() => toggleAiType(type)}
+                                        className="flex items-center gap-3 p-3 text-left border rounded-lg transition-all hover:border-[#555] active:scale-95"
+                                        style={{
+                                            borderColor: isEnabled ? '#fff' : theme.border,
+                                            background: isEnabled ? 'rgba(255,255,255,0.06)' : 'transparent'
+                                        }}
+                                    >
+                                        <div className="w-3.5 h-3.5 border flex items-center justify-center shrink-0 rounded-[2px]"
+                                             style={{ borderColor: isEnabled ? '#fff' : '#444', background: isEnabled ? '#fff' : 'transparent' }}>
+                                            {isEnabled && <span className="text-black text-[10px] font-bold">✓</span>}
+                                        </div>
+                                        <span className="text-[11px] font-semibold" style={{ color: isEnabled ? '#fff' : '#777' }}>
+                                            {type.replace('_', ' ')}
+                                        </span>
+                                    </button>
+                                );
+                            })}
                         </div>
                     </div>
-                </div>
+
+                    <div className="flex gap-3 pt-4 border-t mt-2 justify-end" style={{ borderColor: theme.border }}>
+                        <button 
+                            onClick={() => setShowArticleModal(false)} 
+                            className="text-[11px] font-bold px-5 py-2.5 border transition-all hover:bg-white/5 active:scale-95 rounded-lg uppercase tracking-wide"
+                            style={{ color: '#fff', borderColor: theme.border }}
+                        >
+                            Annuler
+                        </button>
+                        <button 
+                            onClick={() => onGenerateDeck(articleInput, aiEnabledTypes)} 
+                            disabled={aiLoading || !articleInput.trim()}
+                            className="text-[11px] font-bold px-6 py-2.5 bg-white text-black transition-all hover:bg-zinc-200 active:scale-95 disabled:opacity-30 rounded-lg uppercase tracking-wide flex items-center gap-2"
+                        >
+                            {aiLoading ? (
+                                <>
+                                    <span className="animate-spin duration-700">◌</span>
+                                    Génération...
+                                </>
+                            ) : (
+                                <>✨ Générer ({aiEnabledTypes.length})</>
+                            )}
+                        </button>
+                    </div>
+                </ModalContainer>
             )}
 
             {showJsonImport && (
-                <div className="fixed inset-0 z-[200] bg-black/80 flex items-center justify-center p-8">
-                    <div className="bg-[#0d0d0d] border border-white/10 w-full max-w-2xl flex flex-col gap-4 p-6" style={{ boxShadow: `8px 8px 0 ${curAccent}` }}>
-                        <div className="flex justify-between items-center">
-                            <span className="sm text-[10px] uppercase font-bold text-white">📥 Importer un Deck (JSON)</span>
-                            <button onClick={() => setShowJsonImport(false)} className="sm text-[10px] text-gray-500 hover:text-white">✕ Fermer</button>
-                        </div>
-                        <textarea
-                            className="si w-full h-64 resize-none sm text-[10px] leading-relaxed"
-                            placeholder="Colle le JSON ici…"
-                            value={jsonInput}
-                            onChange={e => setJsonInput(e.target.value)}
-                        />
-                        <div className="flex gap-2 justify-end">
-                            <button onClick={() => setShowJsonImport(false)} className="sm text-[9px] px-4 py-2 border border-white/10 uppercase">Annuler</button>
-                            <button onClick={() => { onImportJSON(jsonInput); setShowJsonImport(false); }} disabled={!jsonInput.trim()}
-                                className="sm text-[9px] px-5 py-2 font-bold uppercase transition-colors"
-                                style={{ background: '#fff', color: '#000' }}>
-                                Importer
-                            </button>
-                        </div>
+                <ModalContainer 
+                    onClose={() => setShowJsonImport(false)}
+                    title="📥 Importer un Deck (JSON)"
+                    subtitle="Colle la structure JSON brute d'un deck sauvegardé."
+                >
+                    <textarea
+                        className="w-full h-80 resize-none p-4 text-[11px] leading-relaxed text-white focus:outline-none focus:border-[#555] transition-colors rounded-lg font-mono"
+                        style={{ background: theme.inputBg, border: `1px solid ${theme.border}` }}
+                        placeholder="[{ id: '...', type: '...', state: { ... } }]"
+                        value={jsonInput}
+                        onChange={e => setJsonInput(e.target.value)}
+                    />
+                    
+                    <div className="flex gap-3 pt-4 border-t mt-2 justify-end" style={{ borderColor: theme.border }}>
+                        <button 
+                            onClick={() => setShowJsonImport(false)} 
+                            className="text-[11px] font-bold px-5 py-2.5 border transition-all hover:bg-white/5 active:scale-95 rounded-lg uppercase tracking-wide"
+                            style={{ color: '#fff', borderColor: theme.border }}
+                        >
+                            Annuler
+                        </button>
+                        <button 
+                            onClick={() => { onImportJSON(jsonInput); setShowJsonImport(false); }} 
+                            disabled={!jsonInput.trim()}
+                            className="text-[11px] font-bold px-6 py-2.5 bg-white text-black transition-all hover:bg-zinc-200 active:scale-95 disabled:opacity-30 rounded-lg uppercase tracking-wide"
+                        >
+                            Importer
+                        </button>
                     </div>
-                </div>
+                </ModalContainer>
             )}
         </>
     );

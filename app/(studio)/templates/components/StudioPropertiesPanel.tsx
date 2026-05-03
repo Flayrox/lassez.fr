@@ -33,9 +33,13 @@ export function StudioPropertiesPanel() {
         );
     }
 
-    const { type: template, state: activeState } = activeSlide;
+    const { type: templateType, state: activeState } = activeSlide;
     const patch = (p: any) => patchActive(p);
-    const modularTemplate = getTemplate(template);
+    const modularTemplate = getTemplate(templateType);
+
+    if (!modularTemplate) return <div className="p-8 text-center text-[#444] text-xs">Template non trouvé</div>;
+
+    const fields = typeof modularTemplate.schema === 'function' ? modularTemplate.schema(activeState) : modularTemplate.schema;
 
     return (
         <aside style={panelStyle}>
@@ -45,39 +49,40 @@ export function StudioPropertiesPanel() {
                 <span style={{
                     fontSize: 10, color: T.textMuted,
                     background: '#222', border: `1px solid ${T.border}`,
-                    padding: '2px 7px', borderRadius: 3,
+                    padding: '2px 8px', borderRadius: 8,
                     fontFamily: 'Inter, sans-serif',
+                    fontWeight: 600,
                 }}>
-                    {template.replace(/_/g, ' ')}
+                    {templateType.replace(/_/g, ' ')}
                 </span>
             </div>
 
             {/* Template info */}
             {modularTemplate && (
                 <div style={{
-                    padding: '10px 16px',
+                    padding: '12px 16px',
                     borderBottom: `1px solid ${T.border}`,
                     background: T.bgSection,
                 }}>
-                    <p style={{ fontSize: 12, fontWeight: 600, color: T.textMid, margin: 0 }}>
+                    <p style={{ fontSize: 13, fontWeight: 700, color: T.textPrimary, margin: 0, letterSpacing: '-0.01em' }}>
                         {modularTemplate.name}
                     </p>
                     {modularTemplate.description && (
-                        <p style={{ fontSize: 11, color: T.textMuted, marginTop: 4, lineHeight: 1.5 }}>
+                        <p style={{ fontSize: 11, color: T.textMuted, marginTop: 4, lineHeight: 1.5, fontWeight: 500 }}>
                             {modularTemplate.description}
                         </p>
                     )}
                     {modularTemplate.category && (
                         <span style={{
                             display: 'inline-block',
-                            marginTop: 6,
+                            marginTop: 8,
                             fontSize: 10,
-                            fontWeight: 600,
+                            fontWeight: 700,
                             color: '#888',
                             background: '#222',
                             border: `1px solid ${T.border}`,
-                            padding: '1px 7px',
-                            borderRadius: 3,
+                            padding: '2px 8px',
+                            borderRadius: 6,
                             textTransform: 'uppercase',
                             letterSpacing: '0.06em',
                         }}>
@@ -91,14 +96,14 @@ export function StudioPropertiesPanel() {
             <div style={{ flex: 1, overflowY: 'auto', padding: 16, fontFamily: 'Inter, system-ui, sans-serif' }} className="sb">
                 {modularTemplate ? (
                     <SidebarForm
-                        schema={modularTemplate.schema}
+                        schema={fields}
                         state={activeState}
                         onPatch={patch}
                     />
                 ) : (
                     <div style={{ border: `1px solid #4a1010`, background: '#1a0808', borderRadius: 4, padding: 12 }}>
                         <p style={{ fontSize: 12, color: '#ef4444', fontWeight: 600, margin: 0 }}>Template non enregistré</p>
-                        <p style={{ fontSize: 11, color: '#888', marginTop: 4 }}>{template}</p>
+                        <p style={{ fontSize: 11, color: '#888', marginTop: 4 }}>{templateType}</p>
                     </div>
                 )}
             </div>
@@ -123,7 +128,7 @@ export function StudioPropertiesPanel() {
 }
 
 const panelStyle: React.CSSProperties = {
-    width: 280,
+    width: '100%',
     background: T.bg,
     borderLeft: `1px solid ${T.border}`,
     display: 'flex',
@@ -151,3 +156,4 @@ const headerLabelStyle: React.CSSProperties = {
     textTransform: 'uppercase',
     letterSpacing: '0.06em',
 };
+

@@ -31,7 +31,14 @@ export const ImpactQuoteTemplate: StudioTemplate = {
 
                 <div className="flex items-center gap-2 px-6 pt-5 pb-4 border-b-2 shrink-0 z-10" style={{ borderColor: state.accent + '50' }}>
                     <div className="w-3.5 h-3.5 bg-white flex items-center justify-center shrink-0"><div className="w-2 h-0.5 bg-black"></div></div>
-                    <span className="ab font-bold uppercase tracking-widest text-white" style={{ fontSize: '0.6rem' }}>{state.brand}</span>
+                    <EditZone 
+                        html={state.brand} 
+                        onChange={h => patch({ brand: h })} 
+                        label="MARQUE" 
+                        stickerPos="top-6 left-0"
+                        className="ab font-bold uppercase tracking-widest text-white" 
+                        style={{ fontSize: '0.6rem' }} 
+                    />
                     <div className="ml-auto w-5 h-5 border-2 flex items-center justify-center" style={{ borderColor: state.accent }}>
                         <span className="sm font-black" style={{ fontSize: '0.5rem', color: state.accent }}>"</span>
                     </div>
@@ -39,14 +46,28 @@ export const ImpactQuoteTemplate: StudioTemplate = {
 
                 <div className="flex-1 flex flex-col items-center justify-center px-7 py-4 z-10">
                     <div className="self-start ab font-black leading-none mb-2" style={{ fontSize: '5rem', lineHeight: 0.6, color: state.accent, opacity: 0.8 }}>"</div>
-                    <EditZone html={state.largeQuote} onChange={h => patch({ largeQuote: h })} label="CITATION" stickerPos="-top-5 right-0"
+                    <EditZone html={state.largeQuote} onChange={h => patch({ largeQuote: h })} label="CITATION" stickerPos="-top-12 left-1/2 -translate-x-1/2"
                         className="ir font-bold text-white leading-tight text-center" style={{ fontSize: 'clamp(1.2rem, 4.5vw, 2rem)' }} />
                     <div className="self-end ab font-black leading-none mt-2" style={{ fontSize: '5rem', lineHeight: 0.6, color: state.accent, opacity: 0.8 }}>"</div>
                 </div>
 
                 <div className="border-t-4 px-7 py-5 shrink-0 z-10" style={{ backgroundColor: state.accent, borderColor: '#000' }}>
-                    <span className="ab font-black text-black uppercase block leading-tight" style={{ fontSize: '1.1rem' }}>— {state.author}</span>
-                    <span className="sm font-bold text-black/70 uppercase mt-1 block" style={{ fontSize: '0.6rem' }}>{state.context}</span>
+                    <EditZone 
+                        html={state.author} 
+                        onChange={h => patch({ author: h })} 
+                        label="AUTEUR" 
+                        stickerPos="-top-4 left-0"
+                        className="ab font-black text-black uppercase block leading-tight" 
+                        style={{ fontSize: '1.1rem' }} 
+                    />
+                    <EditZone 
+                        html={state.context} 
+                        onChange={h => patch({ context: h })} 
+                        label="CONTEXTE" 
+                        stickerPos="-top-4 left-0"
+                        className="sm font-bold text-black/70 uppercase mt-1 block" 
+                        style={{ fontSize: '0.6rem' }} 
+                    />
                 </div>
             </div>
         );

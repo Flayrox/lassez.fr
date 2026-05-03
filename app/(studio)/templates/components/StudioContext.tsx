@@ -27,6 +27,8 @@ interface StudioContextType {
     setAiLoading: (loading: boolean) => void;
     articleInput: string;
     setArticleInput: (input: string) => void;
+    isSwapped: boolean;
+    setIsSwapped: (s: boolean) => void;
 }
 
 const StudioContext = createContext<StudioContextType | undefined>(undefined);
@@ -41,6 +43,7 @@ export function StudioProvider({ children, initialDeck, initialActiveId }: { chi
     const [activeId, setActiveId] = useState<string>(initialActiveId || '');
     const [aiLoading, setAiLoading] = useState(false);
     const [articleInput, setArticleInput] = useState('');
+    const [isSwapped, setIsSwapped] = useState(false);
 
     const activeSlide = deck.find(s => s.id === activeId) || (deck.length > 0 ? deck[0] : null);
 
@@ -107,7 +110,8 @@ export function StudioProvider({ children, initialDeck, initialActiveId }: { chi
         <StudioContext.Provider value={{
             deck, setDeck, activeId, setActiveId, activeSlide, patchActive,
             addSlide, duplicateSlide, deleteSlide, moveSlide, renameSlide,
-            aiLoading, setAiLoading, articleInput, setArticleInput
+            aiLoading, setAiLoading, articleInput, setArticleInput,
+            isSwapped, setIsSwapped
         }}>
             {children}
         </StudioContext.Provider>

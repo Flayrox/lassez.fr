@@ -42,8 +42,18 @@ export const NewsTemplate: StudioTemplate = {
 
 
                 <div className="relative h-[60%] border-b-[8px] border-black overflow-hidden bg-zinc-700 shrink-0">
-                    <div className="absolute top-0 left-0 z-30 px-4 py-2 border-r-[4px] border-b-[4px] border-black" style={{ backgroundColor: state.accent }}>
-                        <span className="sm text-white text-[9px] tracking-[0.2em] uppercase font-bold">{state.brand} {state.category}</span>
+                    <div className="absolute top-0 left-0 z-30 flex">
+                        <EditZone 
+                            html={`${state.brand} ${state.category}`} 
+                            onChange={h => {
+                                const parts = h.split(' ');
+                                patch({ brand: parts[0], category: parts.slice(1).join(' ') });
+                            }} 
+                            label="INFO" 
+                            stickerPos="top-10 left-0"
+                            className="sm text-white text-[9px] tracking-[0.2em] uppercase font-bold px-4 py-2 border-r-[4px] border-b-[4px] border-black" 
+                            style={{ backgroundColor: state.accent }}
+                        />
                     </div>
 
                     <DraggableImage
@@ -57,8 +67,20 @@ export const NewsTemplate: StudioTemplate = {
 
                 <div className="flex-1 bg-white px-6 pt-4 pb-5 flex flex-col justify-between text-black">
                     <div className="flex justify-between items-center border-b-2 border-black pb-2">
-                        <span className="sm text-[9px] font-bold uppercase tracking-widest">{state.date}</span>
-                        <span className="sm text-[9px] font-bold uppercase tracking-widest">{state.topic}</span>
+                        <EditZone 
+                            html={state.date} 
+                            onChange={h => patch({ date: h })} 
+                            label="DATE" 
+                            stickerPos="top-4 left-0"
+                            className="sm text-[9px] font-bold uppercase tracking-widest" 
+                        />
+                        <EditZone 
+                            html={state.topic} 
+                            onChange={h => patch({ topic: h })} 
+                            label="SUJET" 
+                            stickerPos="top-4 right-0"
+                            className="sm text-[9px] font-bold uppercase tracking-widest" 
+                        />
                     </div>
 
                     <div className="flex-1 flex items-center py-2">
@@ -66,7 +88,7 @@ export const NewsTemplate: StudioTemplate = {
                             html={state.headline}
                             onChange={h => patch({ headline: h })}
                             label="TITRE"
-                            stickerPos="-top-5 left-0"
+                            stickerPos="-top-6 left-0"
                             className="pd font-black text-[40px] leading-[0.9] uppercase text-black"
                         />
                     </div>

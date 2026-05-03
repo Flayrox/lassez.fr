@@ -39,7 +39,14 @@ export const BigNumTemplate: StudioTemplate = {
 
 
                 <header className="p-6 border-b-4 border-black flex justify-between items-center z-20 bg-inherit">
-                    <span className="ab text-xl uppercase tracking-tighter" style={{ color: state.accent }}>{state.brand} DATA</span>
+                    <EditZone 
+                        html={state.brand} 
+                        onChange={h => patch({ brand: h })} 
+                        label="MARQUE" 
+                        stickerPos="top-10 left-0"
+                        className="ab text-xl uppercase tracking-tighter" 
+                        style={{ color: state.accent }}
+                    />
                     <div className="w-8 h-8 flex items-center justify-center border-2 border-black font-bold">!</div>
                 </header>
 
@@ -52,9 +59,21 @@ export const BigNumTemplate: StudioTemplate = {
                         className="sm text-[10px] font-bold uppercase tracking-[.3em] mb-4 opacity-50"
                     />
 
-                    <div className="relative">
-                        <span className="ab text-[180px] leading-none tracking-tighter" style={{ WebkitTextStroke: isDark ? '2px #fff' : '2px #000', color: 'transparent' }}>{state.num}</span>
-                        <span className="absolute inset-0 ab text-[180px] leading-none tracking-tighter mix-blend-overlay" style={{ color: state.accent, opacity: 0.6 }}>{state.num}</span>
+                    <div className="relative group/num">
+                        <EditZone 
+                            html={state.num} 
+                            onChange={h => patch({ num: h })} 
+                            label="NOMBRE" 
+                            stickerPos="-top-10 left-1/2 -translate-x-1/2"
+                            className="ab text-[180px] leading-none tracking-tighter"
+                            style={{ WebkitTextStroke: isDark ? '2px #fff' : '2px #000', color: 'transparent' }}
+                        />
+                        {/* Overlay effect synced with state */}
+                        <span 
+                            className="absolute inset-0 ab text-[180px] leading-none tracking-tighter mix-blend-overlay pointer-events-none" 
+                            style={{ color: state.accent, opacity: 0.6 }}
+                            dangerouslySetInnerHTML={{ __html: state.num }}
+                        />
                     </div>
 
                     <div className="mt-2 bg-black text-white px-5 py-1.5 transform -rotate-1 skew-x-12 inline-block shadow-lg">
@@ -62,7 +81,7 @@ export const BigNumTemplate: StudioTemplate = {
                             html={state.label}
                             onChange={h => patch({ label: h })}
                             label="UNITÉ"
-                            stickerPos="top-0 right-0"
+                            stickerPos="top-8 right-0"
                             className="ab text-2xl font-black uppercase italic"
                         />
                     </div>

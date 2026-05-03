@@ -30,7 +30,7 @@ export default function StudioPage() {
 }
 
 function StudioPageContent() {
-    const { deck, setDeck, setActiveId, setArticleInput } = useStudio();
+    const { deck, setDeck, setActiveId, setArticleInput, isSwapped, setIsSwapped } = useStudio();
     const searchParams = useSearchParams();
     const postId = searchParams.get('id');
     
@@ -42,9 +42,42 @@ function StudioPageContent() {
     const { handleExport, handleExportAll, handleExportJSON } = useStudioExport(exportRef, loadFFmpeg, setExportProgress, postId);
     const { aiGenerateDeck } = useStudioAI();
 
+    // ── Resizable Layout State ────────────────
+    const [sidebarWidth, setSidebarWidth] = useState(300);
+    const [propertiesWidth, setPropertiesWidth] = useState(320);
+    const [resizing, setResizing] = useState<'sidebar' | 'properties' | null>(null);
+
+    // ── Resizing Logic ────────────────────────
+    const handleMouseMove = (e: MouseEvent) => {
+        if (!resizing) return;
+        if (resizing === 'sidebar') {
+            const newWidth = isSwapped ? window.innerWidth - e.clientX - propertiesWidth : e.clientX;
+            setSidebarWidth(Math.max(200, Math.min(500, newWidth)));
+        } else if (resizing === 'properties') {
+            const newWidth = isSwapped ? e.clientX - sidebarWidth : window.innerWidth - e.clientX;
+            setPropertiesWidth(Math.max(240, Math.min(600, newWidth)));
+        }
+    };
+
+    const handleMouseUp = () => setResizing(null);
+
+    useEffect(() => {
+        if (resizing) {
+            document.body.classList.add('resizing');
+            window.addEventListener('mousemove', handleMouseMove);
+            window.addEventListener('mouseup', handleMouseUp);
+        } else {
+            document.body.classList.remove('resizing');
+        }
+        return () => {
+            document.body.classList.remove('resizing');
+            window.removeEventListener('mousemove', handleMouseMove);
+            window.removeEventListener('mouseup', handleMouseUp);
+        };
+    }, [resizing]);
+
     // ── Initial Load ─────────────────────────
     useEffect(() => {
-        // 1. Load from LocalStorage
         const STORAGE_KEY = 'lassez_studio_deck_v1';
         const saved = localStorage.getItem(STORAGE_KEY);
         if (saved) {
@@ -56,13 +89,11 @@ function StudioPageContent() {
                 }
             } catch (e) {}
         } else {
-            // Default first slide
             const defId = Math.random().toString(36).slice(2, 9);
             setDeck([{ id: defId, type: 'NEWS', label: 'Slide 1', state: { ...DN } }]);
             setActiveId(defId);
         }
 
-        // 2. Load from Radar Post if ID present
         if (postId) {
             fetch('/api/radar?status=PENDING').then(r => r.json()).then(data => {
                 if (data.success) {
@@ -99,13 +130,38 @@ function StudioPageContent() {
                 onExportJSON={handleExportJSON}
             />
 
-            <div className="flex flex-1 overflow-hidden">
-                {/* SIDEBAR GAUCHE */}
-                <StudioSidebar />
+            <div className="flex flex-1 overflow-hidden relative">
+                {/* BUTTON SWAP POSITION */}
+                <button 
+                    onClick={() => setIsSwapped(!isSwapped)}
+                    className="absolute top-1 left-1/2 -translate-x-1/2 z-50 bg-[#222] border border-[#333] text-[9px] px-2 py-0.5 rounded opacity-20 hover:opacity-100 transition-opacity"
+                >
+                    SWAP PANELS
+                </button>
+
+                {/* SIDEBAR GAUCHE (ou DROITE si Swapped) */}
+                <div style={{ width: sidebarWidth, minWidth: 200, display: 'flex', order: isSwapped ? 2 : 0, position: 'relative' }}>
+                    <StudioSidebar />
+                </div>
+
+                {/* RESIZER SIDEBAR */}
+                <div 
+                    onMouseDown={(e) => { e.preventDefault(); setResizing('sidebar'); }}
+                    style={{ 
+                        width: 8, 
+                        marginLeft: -4,
+                        marginRight: -4,
+                        cursor: 'col-resize', 
+                        background: resizing === 'sidebar' ? '#555' : 'transparent', 
+                        zIndex: 100,
+                        position: 'relative',
+                        order: isSwapped ? 2 : 1 
+                    }}
+                    className="hover:bg-white/10 transition-colors"
+                />
                 
                 {/* CANVAS CENTRAL */}
-                <main className="flex-1 overflow-hidden flex flex-col" style={{ background: '#111' }}>
-                    {/* Breadcrumb bar */}
+                <main className="flex-1 overflow-hidden flex flex-col" style={{ background: '#111', order: 1 }}>
                     <div style={{ background: '#1a1a1a', borderBottom: '1px solid #2a2a2a', height: 40 }} className="flex items-center px-6 gap-3 shrink-0">
                         <span style={{ fontSize: 11, color: '#666', fontFamily: 'Inter, sans-serif' }}>Studio</span>
                         <span style={{ color: '#333' }}>/</span>
@@ -124,8 +180,26 @@ function StudioPageContent() {
                     </div>
                 </main>
 
-                {/* PANNEAU DROITE — PROPRIÉTÉS */}
-                <StudioPropertiesPanel />
+                {/* RESIZER PROPERTIES */}
+                <div 
+                    onMouseDown={(e) => { e.preventDefault(); setResizing('properties'); }}
+                    style={{ 
+                        width: 8, 
+                        marginLeft: -4,
+                        marginRight: -4,
+                        cursor: 'col-resize', 
+                        background: resizing === 'properties' ? '#555' : 'transparent', 
+                        zIndex: 100,
+                        position: 'relative',
+                        order: isSwapped ? 0 : 2 
+                    }}
+                    className="hover:bg-white/10 transition-colors"
+                />
+
+                {/* PANNEAU DROITE (ou GAUCHE si Swapped) */}
+                <div style={{ width: propertiesWidth, minWidth: 240, display: 'flex', order: isSwapped ? 0 : 2, position: 'relative' }}>
+                    <StudioPropertiesPanel />
+                </div>
             </div>
 
             <StudioExportBar progress={exportProgress} />

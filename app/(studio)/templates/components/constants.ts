@@ -204,9 +204,10 @@ export const CSS = `
 .edit-overlay{position:absolute;inset:0;border:1px dashed rgba(255,255,255,0.18);opacity:0;pointer-events:none;z-index:50;transition:opacity .12s ease}
 .edit-zone:hover .edit-overlay,.edit-zone:focus-within .edit-overlay{opacity:1}
 .edit-zone:focus-within .edit-overlay{border-style:solid;border-color:rgba(255,255,255,0.35)}
-.edit-sticker{position:absolute;background:#09090b;color:#71717a;padding:2px 6px;font-family:'Space Mono',monospace;font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;display:flex;align-items:center;gap:3px;z-index:60;border:1px solid #27272a;cursor:pointer;transition:all .1s ease}
+.edit-sticker{position:absolute;background:#09090b;color:#71717a;padding:1px 4px;font-family:'Space Mono',monospace;font-size:7px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;display:flex;align-items:center;gap:3px;z-index:60;border:1px solid #27272a;cursor:pointer;opacity:0;pointer-events:none;transition:all .15s ease}
+.edit-zone:hover .edit-sticker,.edit-zone:focus-within .edit-sticker{opacity:1;pointer-events:auto}
 .edit-sticker:hover{background:#18181b;color:#a1a1aa;border-color:#3f3f46}
-.edit-zone:focus-within .edit-sticker{background:#DC2626;color:#fff;border-color:#DC2626}
+.edit-zone:focus-within .edit-sticker{background:#DC2626;color:#fff;border-color:#DC2626;opacity:1;pointer-events:auto}
 .edit-zone:focus-within .edit-sticker:hover{background:#b91c1c;color:#fff}
 [contenteditable]{outline:none}
 
@@ -238,4 +239,5 @@ input[type=range]::-webkit-slider-thumb:hover{background:#e4e4e7}
 .split-bg{background:linear-gradient(to right,#fff 50%,#e5e5e5 50%)}
 .maxtext-body ul,.maxtext-body ol{list-style:none;padding-left:0;margin:4px 0}
 .maxtext-body li::before{content:'—';color:#DC2626;font-weight:700;margin-right:6px}
+body.resizing * { cursor: col-resize !important; }
 `;

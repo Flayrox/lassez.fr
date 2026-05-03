@@ -54,8 +54,20 @@ export const CoverTemplate: StudioTemplate = {
 
                 <div className="relative z-30 h-full flex flex-col justify-between p-9">
                     <div className="flex justify-between items-start border-b-[3px] border-black pb-3">
-                        <span className="sm text-[9px] font-bold uppercase tracking-widest bg-black text-white px-2.5 py-1">Issue #{state.issueNum}</span>
-                        <span className="sm text-[9px] uppercase tracking-widest text-black font-bold">{state.brand}</span>
+                        <EditZone 
+                            html={state.issueNum} 
+                            onChange={h => patch({ issueNum: h })} 
+                            label="ISSUE" 
+                            stickerPos="top-6 left-0"
+                            className="sm text-[9px] font-bold uppercase tracking-widest bg-black text-white px-2.5 py-1" 
+                        />
+                        <EditZone 
+                            html={state.brand} 
+                            onChange={h => patch({ brand: h })} 
+                            label="MARQUE" 
+                            stickerPos="top-6 right-0"
+                            className="sm text-[9px] uppercase tracking-widest text-black font-bold" 
+                        />
                     </div>
 
                     <div className="flex-grow flex items-center justify-center relative">
@@ -64,18 +76,36 @@ export const CoverTemplate: StudioTemplate = {
                             html={state.headline}
                             onChange={h => patch({ headline: h })}
                             label="TITRE"
-                            stickerPos="-top-5 right-0"
+                            stickerPos="-top-8 left-1/2 -translate-x-1/2"
                             className="relative z-10 pd font-black text-[76px] leading-[0.82] text-center text-black uppercase italic tracking-tighter"
                         />
                     </div>
 
                     <div className="border-t-[6px] border-black pt-4 flex justify-between items-end">
-                        <div className="flex flex-col gap-0.5">
-                            <span className="sm text-[8px] font-bold uppercase text-black">Temps de lecture: {state.readTime}</span>
-                            <span className="sm text-[8px] font-bold uppercase text-black">Auteur: {state.author}</span>
+                        <div className="flex flex-col gap-2">
+                            <EditZone 
+                                html={state.readTime} 
+                                onChange={h => patch({ readTime: h })} 
+                                label="LECTURE" 
+                                stickerPos="-top-4 left-0"
+                                className="sm text-[8px] font-bold uppercase text-black" 
+                            />
+                            <EditZone 
+                                html={state.author} 
+                                onChange={h => patch({ author: h })} 
+                                label="AUTEUR" 
+                                stickerPos="-top-4 left-0"
+                                className="sm text-[8px] font-bold uppercase text-black" 
+                            />
                         </div>
                         <div className="flex items-center gap-2 pl-3 border-l-2 border-black">
-                            <span className="font-bold text-[10px] uppercase tracking-widest text-black italic">{state.swipeLabel}</span>
+                            <EditZone 
+                                html={state.swipeLabel} 
+                                onChange={h => patch({ swipeLabel: h })} 
+                                label="SWIPE" 
+                                stickerPos="-top-4 right-0"
+                                className="font-bold text-[10px] uppercase tracking-widest text-black italic" 
+                            />
                             <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke={state.accent} strokeWidth="2.5"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
                         </div>
                     </div>

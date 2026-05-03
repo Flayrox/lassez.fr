@@ -1,8 +1,9 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useStudio, SlideType } from './StudioContext';
+import { useStudio, SlideType, Slide } from './StudioContext';
 import { getTemplate } from '../registry';
+import { Reorder, useDragControls } from 'framer-motion';
 
 // Payload-dark design tokens
 const T = {
@@ -44,51 +45,55 @@ const GROUPS = ['Éditorial', 'Données', 'Analyse', 'Média'];
 
 export function StudioSidebar() {
     const { 
-        deck, activeId, setActiveId, activeSlide,
+        deck, setDeck, activeId, setActiveId, activeSlide,
         addSlide, deleteSlide, moveSlide, renameSlide,
-        aiLoading 
+        aiLoading, isSwapped 
     } = useStudio();
 
     const [showAddMenu, setShowAddMenu] = useState(false);
 
     return (
         <aside style={{
-            width: 240,
+            width: '100%',
             background: T.bg,
-            borderRight: `1px solid ${T.border}`,
+            borderRight: isSwapped ? 'none' : `1px solid ${T.border}`,
+            borderLeft: isSwapped ? `1px solid ${T.border}` : 'none',
             display: 'flex',
             flexDirection: 'column',
             flexShrink: 0,
-            overflow: 'hidden',
+            overflow: 'visible', // Permettre au menu de sortir
+            position: 'relative',
+            zIndex: 50,
             fontFamily: 'Inter, system-ui, sans-serif',
         }}>
             {/* ── Section header ───────────────── */}
             <div style={{
-                height: 40,
+                height: 44,
                 borderBottom: `1px solid ${T.border}`,
                 display: 'flex',
                 alignItems: 'center',
                 padding: '0 16px',
                 justifyContent: 'space-between',
                 flexShrink: 0,
+                background: '#111',
             }}>
-                <span style={{ fontSize: 11, fontWeight: 600, color: T.textMuted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                    Deck — {deck.length} slides
+                <span style={{ fontSize: 10, fontWeight: 700, color: T.textMuted, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                    Deck — {deck.length}
                 </span>
                 <div style={{ position: 'relative' }}>
                     <button
                         onClick={() => setShowAddMenu(v => !v)}
+                        className="active:scale-95 transition-all duration-150"
                         style={{
-                            width: 24, height: 24,
-                            background: showAddMenu ? '#fff' : '#2a2a2a',
+                            width: 28, height: 28,
+                            background: showAddMenu ? '#fff' : '#222',
                             border: `1px solid ${showAddMenu ? '#fff' : T.borderMid}`,
                             color: showAddMenu ? '#000' : T.textMid,
-                            fontSize: 16, fontWeight: 400,
+                            fontSize: 18, fontWeight: 400,
                             cursor: 'pointer',
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            borderRadius: 4,
+                            borderRadius: 8,
                             lineHeight: 1,
-                            transition: 'all 0.15s',
                         }}
                     >
                         +
@@ -97,16 +102,18 @@ export function StudioSidebar() {
                     {showAddMenu && (
                         <div style={{
                             position: 'absolute',
-                            top: 30,
-                            left: 0,
+                            top: 36,
+                            left: isSwapped ? 'auto' : 0,
+                            right: isSwapped ? 0 : 'auto',
                             background: '#1a1a1a',
                             border: `1px solid ${T.border}`,
-                            borderRadius: 6,
-                            zIndex: 200,
-                            width: 210,
-                            maxHeight: '65vh',
+                            borderRadius: 10,
+                            zIndex: 1000,
+                            width: 220,
+                            maxHeight: '75vh',
                             overflowY: 'auto',
-                            boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+                            boxShadow: '0 12px 32px rgba(0,0,0,0.6)',
+                            animation: 'modalIn 0.2s ease-out',
                         }}
                             className="sb"
                         >
@@ -114,8 +121,8 @@ export function StudioSidebar() {
                                 const items = SLIDE_CATALOG.filter(s => s.group === group);
                                 return (
                                     <div key={group}>
-                                        <div style={{ padding: '8px 14px 4px', borderTop: `1px solid ${T.border}` }}>
-                                            <span style={{ fontSize: 10, fontWeight: 700, color: T.textMuted, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+                                        <div style={{ padding: '10px 14px 4px', borderTop: group !== GROUPS[0] ? `1px solid ${T.border}` : 'none' }}>
+                                            <span style={{ fontSize: 9, fontWeight: 800, color: '#555', textTransform: 'uppercase', letterSpacing: '0.12em' }}>
                                                 {group}
                                             </span>
                                         </div>
@@ -123,20 +130,20 @@ export function StudioSidebar() {
                                             <button
                                                 key={item.type}
                                                 onClick={() => { addSlide(item.type); setShowAddMenu(false); }}
+                                                className="active:bg-white/10 transition-colors"
                                                 style={{
                                                     width: '100%',
                                                     textAlign: 'left',
                                                     background: 'none',
                                                     border: 'none',
                                                     cursor: 'pointer',
-                                                    padding: '7px 16px',
+                                                    padding: '8px 16px',
                                                     fontSize: 12,
                                                     color: T.textMid,
                                                     fontFamily: 'Inter, system-ui, sans-serif',
                                                     display: 'flex',
                                                     alignItems: 'center',
                                                     gap: 10,
-                                                    transition: 'background 0.1s',
                                                 }}
                                                 onMouseEnter={e => { e.currentTarget.style.background = T.bgHover; e.currentTarget.style.color = T.textPrimary; }}
                                                 onMouseLeave={e => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = T.textMid; }}
@@ -152,120 +159,145 @@ export function StudioSidebar() {
                 </div>
             </div>
 
-            {/* ── Slide list ───────────────────── */}
-            <div style={{ flex: 1, overflowY: 'auto', padding: '4px 0' }} className="sb">
-                {deck.map((slide, index) => {
-                    const isActive = slide.id === activeId;
-                    const tpl = getTemplate(slide.type);
-
-                    return (
-                        <div
-                            key={slide.id}
-                            onClick={() => setActiveId(slide.id)}
-                            style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: 10,
-                                padding: '8px 12px 8px 16px',
-                                cursor: 'pointer',
-                                background: isActive ? T.bgActive : 'transparent',
-                                borderLeft: `2px solid ${isActive ? T.accentBar : 'transparent'}`,
-                                transition: 'all 0.1s',
-                                position: 'relative',
-                            }}
-                            className="slide-row group"
-                            onMouseEnter={e => {
-                                if (!isActive) e.currentTarget.style.background = T.bgHover;
-                            }}
-                            onMouseLeave={e => {
-                                if (!isActive) e.currentTarget.style.background = 'transparent';
-                            }}
-                        >
-                            {/* Index */}
-                            <span style={{ fontSize: 10, color: T.textMuted, fontVariantNumeric: 'tabular-nums', minWidth: 16, textAlign: 'right', flexShrink: 0 }}>
-                                {(index + 1).toString().padStart(2, '0')}
-                            </span>
-
-                            {/* Label + type */}
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                                <input
-                                    style={{
-                                        background: 'transparent',
-                                        border: 'none',
-                                        outline: 'none',
-                                        width: '100%',
-                                        fontSize: 12,
-                                        fontWeight: isActive ? 500 : 400,
-                                        color: isActive ? T.textPrimary : T.textMid,
-                                        fontFamily: 'Inter, system-ui, sans-serif',
-                                        cursor: 'text',
-                                        letterSpacing: '-0.01em',
-                                    }}
-                                    value={slide.label}
-                                    onChange={e => renameSlide(slide.id, e.target.value)}
-                                    onClick={e => e.stopPropagation()}
-                                />
-                                <div style={{ fontSize: 10, color: T.textMuted, marginTop: 1 }}>
-                                    {tpl?.category ?? slide.type.replace(/_/g, ' ')}
-                                </div>
-                            </div>
-
-                            {/* Actions (hover only) */}
-                            <div className="slide-actions" style={{ display: 'none', gap: 2 }}>
-                                <button
-                                    onClick={e => { e.stopPropagation(); moveSlide(slide.id, -1); }}
-                                    title="Monter"
-                                    style={{ ...actionBtnStyle }}
-                                    onMouseEnter={e => { e.currentTarget.style.background = '#333'; }}
-                                    onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
-                                >↑</button>
-                                <button
-                                    onClick={e => { e.stopPropagation(); deleteSlide(slide.id); }}
-                                    title="Supprimer"
-                                    style={{ ...actionBtnStyle, color: '#888' }}
-                                    onMouseEnter={e => { e.currentTarget.style.background = '#2a1010'; e.currentTarget.style.color = '#ef4444'; }}
-                                    onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#888'; }}
-                                >✕</button>
-                            </div>
-                        </div>
-                    );
-                })}
-            </div>
+            {/* ── Slide list (Drag & Drop enabled) ───────────────────── */}
+            <Reorder.Group 
+                axis="y" 
+                values={deck} 
+                onReorder={setDeck}
+                style={{ flex: 1, overflowY: 'auto', padding: '6px 0' }} 
+                className="sb"
+            >
+                {deck.map((slide, index) => (
+                    <SlideItem 
+                        key={slide.id} 
+                        slide={slide} 
+                        index={index} 
+                        isActive={slide.id === activeId}
+                        onSelect={() => setActiveId(slide.id)}
+                        onRename={renameSlide}
+                        onDelete={deleteSlide}
+                    />
+                ))}
+            </Reorder.Group>
 
             {/* ── Footer ───────────────────────── */}
-            <div style={{ borderTop: `1px solid ${T.border}`, padding: 12 }}>
+            <div style={{ borderTop: `1px solid ${T.border}`, padding: 12, background: '#111' }}>
                 <button
                     disabled={aiLoading}
+                    className="active:scale-[0.98] transition-all duration-150"
                     style={{
                         width: '100%',
                         background: '#222',
                         border: `1px solid ${T.borderMid}`,
-                        color: aiLoading ? T.textMuted : T.textMid,
-                        fontSize: 12,
-                        fontWeight: 500,
-                        padding: '8px 12px',
+                        color: aiLoading ? T.textMuted : '#fff',
+                        fontSize: 11,
+                        fontWeight: 700,
+                        padding: '10px 12px',
                         cursor: aiLoading ? 'not-allowed' : 'pointer',
-                        borderRadius: 4,
+                        borderRadius: 8,
                         fontFamily: 'Inter, system-ui, sans-serif',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
                         gap: 8,
-                        transition: 'all 0.15s',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.04em',
                     }}
-                    onMouseEnter={e => { if (!aiLoading) { e.currentTarget.style.borderColor = '#555'; e.currentTarget.style.color = '#fff'; } }}
-                    onMouseLeave={e => { e.currentTarget.style.borderColor = T.borderMid; e.currentTarget.style.color = T.textMid; }}
+                    onMouseEnter={e => { if (!aiLoading) { e.currentTarget.style.borderColor = '#555'; e.currentTarget.style.background = '#282828'; } }}
+                    onMouseLeave={e => { e.currentTarget.style.borderColor = T.borderMid; e.currentTarget.style.background = '#222'; }}
                 >
-                    {aiLoading && <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: '#fff', animation: 'ping 1s infinite' }}></span>}
-                    {aiLoading ? 'Génération en cours...' : '✦ Générer le deck avec l\'IA'}
+                    {aiLoading && <span className="animate-ping w-2 h-2 rounded-full bg-white"></span>}
+                    {aiLoading ? 'Génération...' : '✦ Générer le deck'}
                 </button>
             </div>
 
-            {/* Hover show slide actions */}
-            <style>{`
-                .slide-row:hover .slide-actions { display: flex !important; }
-            `}</style>
+            <style dangerouslySetInnerHTML={{ __html: `
+                @keyframes modalIn {
+                    from { opacity: 0; transform: translateY(-10px) scale(0.98); }
+                    to { opacity: 1; transform: translateY(0) scale(1); }
+                }
+                .slide-row:hover .slide-actions { opacity: 1 !important; }
+            ` }} />
         </aside>
+    );
+}
+
+function SlideItem({ slide, index, isActive, onSelect, onRename, onDelete }: { 
+    slide: Slide; index: number; isActive: boolean; onSelect: () => void; 
+    onRename: (id: string, l: string) => void; onDelete: (id: string) => void;
+}) {
+    const tpl = getTemplate(slide.type);
+    const controls = useDragControls();
+
+    return (
+        <Reorder.Item
+            value={slide}
+            dragListener={false}
+            dragControls={controls}
+            style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                padding: '4px 12px 4px 10px',
+                cursor: 'pointer',
+                background: isActive ? T.bgActive : 'transparent',
+                borderLeft: `2px solid ${isActive ? T.accentBar : 'transparent'}`,
+                position: 'relative',
+                userSelect: 'none',
+            }}
+            className="slide-row group hover:bg-[#1a1a1a]"
+            onPointerDown={onSelect}
+        >
+            {/* Drag Handle */}
+            <div 
+                onPointerDown={(e) => controls.start(e)}
+                style={{ cursor: 'grab', display: 'flex', alignItems: 'center', padding: '4px 2px' }}
+                className="text-[#333] hover:text-[#666] transition-colors"
+            >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><circle cx="9" cy="5" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="19" r="1"/></svg>
+            </div>
+
+            {/* Index */}
+            <span style={{ fontSize: 9, color: T.textMuted, fontVariantNumeric: 'tabular-nums', minWidth: 14, textAlign: 'right', flexShrink: 0, fontWeight: 600 }}>
+                {(index + 1).toString().padStart(2, '0')}
+            </span>
+
+            {/* Label + type */}
+            <div style={{ flex: 1, minWidth: 0 }}>
+                <input
+                    style={{
+                        background: 'transparent',
+                        border: 'none',
+                        outline: 'none',
+                        width: '100%',
+                        fontSize: 12,
+                        fontWeight: isActive ? 600 : 400,
+                        color: isActive ? T.textPrimary : T.textMid,
+                        fontFamily: 'Inter, system-ui, sans-serif',
+                        cursor: 'text',
+                        letterSpacing: '-0.01em',
+                    }}
+                    value={slide.label}
+                    onChange={e => onRename(slide.id, e.target.value)}
+                    onPointerDown={e => e.stopPropagation()}
+                />
+                <div style={{ fontSize: 9, color: T.textMuted, marginTop: 0, opacity: 0.8, fontWeight: 500 }}>
+                    {tpl?.category ?? slide.type.replace(/_/g, ' ')}
+                </div>
+            </div>
+
+            {/* Actions (hover only) */}
+            <div className="slide-actions flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button
+                    onClick={e => { e.stopPropagation(); onDelete(slide.id); }}
+                    title="Supprimer"
+                    className="active:scale-90"
+                    style={{ ...actionBtnStyle, color: '#888' }}
+                    onMouseEnter={e => { e.currentTarget.style.background = '#2a1010'; e.currentTarget.style.color = '#ef4444'; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#888'; }}
+                >✕</button>
+            </div>
+        </Reorder.Item>
     );
 }
 
@@ -274,13 +306,14 @@ const actionBtnStyle: React.CSSProperties = {
     border: 'none',
     cursor: 'pointer',
     color: '#666',
-    fontSize: 11,
-    width: 22,
-    height: 22,
+    fontSize: 10,
+    width: 20,
+    height: 20,
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 3,
+    borderRadius: 6,
     flexShrink: 0,
     fontFamily: 'inherit',
+    transition: 'all 0.15s',
 };

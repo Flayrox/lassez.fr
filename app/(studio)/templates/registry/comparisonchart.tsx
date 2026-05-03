@@ -30,11 +30,48 @@ export const ComparisonChartTemplate: StudioTemplate = {
         { key: 'headline', label: 'Titre Principal', type: 'text', group: 'Contenu' },
         { key: 'subheadline', label: 'Sous-titre', type: 'text', group: 'Contenu' },
         { key: 'source', label: 'Source des données', type: 'text', group: 'Contenu' },
+        {
+            key: 'bars', label: 'Barres du graphique', type: 'list', group: 'Données',
+            itemSchema: [
+                { key: 'label', label: 'Nom', type: 'text' },
+                { key: 'value', label: 'Valeur', type: 'number', props: { min: 0, max: 1000 } },
+                { key: 'color', label: 'Couleur', type: 'color' },
+            ]
+        }
     ],
 
     Component: ({ state, patch }) => {
         const bars = state.bars || [];
         const maxVal = Math.max(...bars.map((b: any) => b.value), 1);
+
+        const updateBarValue = (i: number, val: string) => {
+            const newBars = [...bars];
+            const numVal = parseInt(val.replace(/[^0-9]/g, '')) || 0;
+            newBars[i] = { ...newBars[i], value: numVal };
+            patch({ bars: newBars });
+        };
+
+        const updateBarLabel = (i: number, text: string) => {
+            const newBars = [...bars];
+            newBars[i] = { ...newBars[i], label: text };
+            patch({ bars: newBars });
+        };
+
+        const addBar = () => {
+            patch({ bars: [...bars, { label: "NOUVEAU", value: 10, color: state.accent }] });
+        };
+
+        const removeBar = (i: number) => {
+            patch({ bars: bars.filter((_: any, index: number) => index !== i) });
+        };
+
+        const moveBar = (i: number, dir: number) => {
+            const newBars = [...bars];
+            const target = i + dir;
+            if (target < 0 || target >= bars.length) return;
+            [newBars[i], newBars[target]] = [newBars[target], newBars[i]];
+            patch({ bars: newBars });
+        };
 
         return (
             <div className="w-full h-full bg-[#F4F4F4] overflow-hidden border-4 border-black flex flex-col relative">
@@ -51,7 +88,7 @@ export const ComparisonChartTemplate: StudioTemplate = {
                 </div>
 
                 <div className="flex-1 px-8 pt-5 pb-0 flex flex-col">
-                    <div className="relative flex-1 border-l-4 border-b-4 border-black">
+                    <div className="relative flex-1 border-l-4 border-b-4 border-black group/chart">
                         {[25, 50, 75, 100].map(pct => (
                             <div key={pct} className="absolute w-full border-t border-black/10" style={{ bottom: `${pct}%` }}>
                                 <span className="sm absolute right-[calc(100%+4px)] text-[8px] text-gray-400 bottom-0 leading-none">{Math.round(maxVal * pct / 100)}</span>
@@ -63,26 +100,57 @@ export const ComparisonChartTemplate: StudioTemplate = {
                                 const isSmall = pct < 20;
                                 const isMax = bar.value === Math.max(...bars.map((b: any) => b.value));
                                 return (
-                                    <div key={i} className="flex flex-col items-center justify-end flex-1 h-full">
-                                        {isSmall && (
-                                            <span className="ab font-black text-black" style={{ fontSize: '1.2rem', lineHeight: 1 }}>{bar.value}</span>
-                                        )}
+                                    <div key={i} className="flex flex-col items-center justify-end flex-1 h-full relative group/bar">
+                                        <div 
+                                            className="absolute -top-6 opacity-0 group-hover/bar:opacity-100 transition-opacity z-50 flex gap-1"
+                                        >
+                                            <button onClick={() => moveBar(i, -1)} className="bg-white border border-black w-4 h-4 flex items-center justify-center text-[8px] text-black hover:bg-gray-50">←</button>
+                                            <button onClick={() => moveBar(i, 1)} className="bg-white border border-black w-4 h-4 flex items-center justify-center text-[8px] text-black hover:bg-gray-50">→</button>
+                                            <button onClick={() => removeBar(i)} className="bg-white border border-black w-4 h-4 flex items-center justify-center text-[8px] text-black hover:bg-red-50">✕</button>
+                                        </div>
+
+                                        <EditZone 
+                                            html={bar.value.toString()} 
+                                            onChange={h => updateBarValue(i, h)} 
+                                            label="VAL" 
+                                            stickerPos="-top-4"
+                                            className="ab font-black text-black text-center whitespace-nowrap" 
+                                            style={{ 
+                                                fontSize: isSmall ? '1.2rem' : (pct > 35 ? '1.8rem' : '0.9rem'), 
+                                                lineHeight: 1, 
+                                                color: isSmall ? 'black' : 'white', 
+                                                position: 'absolute', 
+                                                top: isSmall ? -(isSmall ? 25 : 30) : 10, 
+                                                left: '50%',
+                                                transform: 'translateX(-50%)',
+                                                zIndex: 20 
+                                            }} 
+                                        />
+
                                         <div className="w-full relative flex items-start justify-center pt-1 border-2 border-black"
                                             style={{ height: `${pct}%`, backgroundColor: bar.color, boxShadow: isMax ? `3px -3px 0 ${state.accent}` : 'none', minHeight: '6px' }}>
-                                            {!isSmall && (
-                                                <span className="ab font-black text-white" style={{ fontSize: pct > 35 ? '1.8rem' : '0.9rem' }}>{bar.value}</span>
-                                            )}
                                         </div>
                                     </div>
                                 );
                             })}
                         </div>
+
+                        <button onClick={addBar} className="absolute -right-12 top-1/2 -translate-y-1/2 rotate-90 bg-black text-white text-[9px] font-bold px-2 py-1 uppercase tracking-widest opacity-0 group-hover/chart:opacity-100 transition-opacity">
+                            + Bar
+                        </button>
                     </div>
                     <div className="flex justify-around gap-3 pt-2 pb-4">
                         {bars.map((bar: any, i: number) => (
                             <div key={i} className="flex-1 text-center px-1">
                                 <div className="w-full h-1 mb-1.5" style={{ backgroundColor: bar.color }}></div>
-                                <span className="sm block font-black uppercase leading-[1.1] text-black" style={{ fontSize: '0.62rem', wordBreak: 'break-word', hyphens: 'auto' }}>{bar.label}</span>
+                                <EditZone 
+                                    html={bar.label} 
+                                    onChange={h => updateBarLabel(i, h)} 
+                                    label="LABEL" 
+                                    stickerPos="bottom-0"
+                                    className="sm block font-black uppercase leading-[1.1] text-black" 
+                                    style={{ fontSize: '0.62rem', wordBreak: 'break-word', hyphens: 'auto' }} 
+                                />
                             </div>
                         ))}
                     </div>
@@ -92,7 +160,8 @@ export const ComparisonChartTemplate: StudioTemplate = {
                     <EditZone html={state.source} onChange={h => patch({ source: h })} label="SOURCE" stickerPos="top-0 right-0"
                         className="sm text-white/70 leading-tight" style={{ fontSize: '0.62rem' }} />
                     <div className="shrink-0 ml-3 px-2 py-1 border-2 border-white">
-                        <span className="ab font-bold text-white text-xs uppercase">{state.brand}</span>
+                        <EditZone html={state.brand} onChange={h => patch({ brand: h })} label="MARQUE" stickerPos="top-0 right-0"
+                            className="ab font-bold text-white text-xs uppercase" />
                     </div>
                 </div>
             </div>

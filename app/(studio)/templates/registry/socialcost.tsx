@@ -38,7 +38,14 @@ export const SocialCostTemplate: StudioTemplate = {
                 <div className="bg-black px-7 pt-6 pb-5 shrink-0 border-b-4 border-black">
                     <div className="flex items-center gap-2 mb-2">
                         <div className="w-3.5 h-3.5 bg-white flex items-center justify-center shrink-0"><div className="w-2 h-0.5 bg-black"></div></div>
-                        <span className="ab font-bold uppercase tracking-widest text-white" style={{ fontSize: '0.6rem' }}>{state.brand}</span>
+                        <EditZone 
+                            html={state.brand} 
+                            onChange={h => patch({ brand: h })} 
+                            label="MARQUE" 
+                            stickerPos="top-6 left-0"
+                            className="ab font-bold uppercase tracking-widest text-white" 
+                            style={{ fontSize: '0.6rem' }} 
+                        />
                         <div className="ml-auto px-2 py-0.5 sm text-[9px] font-bold uppercase text-black" style={{ background: state.accent }}>CALCULETTE</div>
                     </div>
                     <EditZone html={state.headline} onChange={h => patch({ headline: h })} label="TITRE" stickerPos="-top-4 right-0"
@@ -46,21 +53,42 @@ export const SocialCostTemplate: StudioTemplate = {
                 </div>
 
                 <div className="px-7 py-4 border-b-4 border-black bg-[#F4F4F4] flex items-center gap-4 shrink-0">
-                    <div className="px-4 py-2 border-4 border-black bg-black">
-                        <span className="ab font-black uppercase text-white" style={{ fontSize: '0.8rem' }}>{state.targetAudience}</span>
+                    <div className="px-4 py-2 border-4 border-black bg-black relative">
+                        <EditZone 
+                            html={state.targetAudience} 
+                            onChange={h => patch({ targetAudience: h })} 
+                            label="CIBLE" 
+                            stickerPos="top-8 right-0"
+                            className="ab font-black uppercase text-white" 
+                            style={{ fontSize: '0.8rem' }} 
+                        />
                     </div>
                     <div className="h-px flex-1 bg-black"></div>
                     <span className="ab font-black uppercase text-black/30" style={{ fontSize: '0.7rem' }}>COMBIEN ÇA COÛTE ?</span>
                 </div>
 
                 <div className="flex flex-1 overflow-hidden">
-                    <div className="w-1/2 border-r-4 border-black p-8 flex flex-col items-center justify-center bg-white">
+                    <div className="w-1/2 border-r-4 border-black p-8 flex flex-col items-center justify-center bg-white relative">
                         <span className="sm font-black uppercase text-black/40 mb-1 tracking-widest" style={{ fontSize: '0.62rem' }}>PAR MOIS</span>
-                        <span className="ab font-black leading-none" style={{ fontSize: 'clamp(3.5rem,14vw,5.5rem)', color: state.accent }}>{state.monthlyLoss}</span>
+                        <EditZone 
+                            html={state.monthlyLoss} 
+                            onChange={h => patch({ monthlyLoss: h })} 
+                            label="MENSUEL" 
+                            stickerPos="-top-4 right-0"
+                            className="ab font-black leading-none" 
+                            style={{ fontSize: 'clamp(3.5rem,14vw,5.5rem)', color: state.accent }} 
+                        />
                     </div>
-                    <div className="w-1/2 p-8 flex flex-col items-center justify-center bg-black">
+                    <div className="w-1/2 p-8 flex flex-col items-center justify-center bg-black relative">
                         <span className="sm font-black uppercase text-white/40 mb-1 tracking-widest" style={{ fontSize: '0.62rem' }}>PAR AN</span>
-                        <span className="ab font-black leading-none" style={{ fontSize: 'clamp(3rem,12vw,4.5rem)', color: state.accent }}>{state.annualImpact}</span>
+                        <EditZone 
+                            html={state.annualImpact} 
+                            onChange={h => patch({ annualImpact: h })} 
+                            label="ANNUEL" 
+                            stickerPos="-top-4 left-0"
+                            className="ab font-black leading-none" 
+                            style={{ fontSize: 'clamp(3rem,12vw,4.5rem)', color: state.accent }} 
+                        />
                     </div>
                 </div>
 
@@ -68,12 +96,26 @@ export const SocialCostTemplate: StudioTemplate = {
                     <EditZone html={state.consequence} onChange={h => patch({ consequence: h })} label="CONSÉQUENCE" stickerPos="-top-5 right-0"
                         className="sm font-bold text-black leading-relaxed" style={{ fontSize: '0.8rem' }} />
                     <div className="mt-3 pt-2 border-t border-black/20">
-                        <span className="sm text-black/40 font-bold uppercase" style={{ fontSize: '0.55rem' }}>{state.note}</span>
+                        <EditZone 
+                            html={state.note} 
+                            onChange={h => patch({ note: h })} 
+                            label="NOTE" 
+                            stickerPos="-top-4 right-0"
+                            className="sm text-black/40 font-bold uppercase" 
+                            style={{ fontSize: '0.55rem' }} 
+                        />
                     </div>
                 </div>
 
                 <div className="bg-black px-6 py-2.5 border-t-4 border-black shrink-0 flex items-center justify-between">
-                    <span className="ab font-black text-white uppercase tracking-wide" style={{ fontSize: '0.65rem' }}>{state.brand}</span>
+                    <EditZone 
+                        html={state.brand} 
+                        onChange={h => patch({ brand: h })} 
+                        label="MARQUE" 
+                        stickerPos="-top-4 left-0"
+                        className="ab font-black text-white uppercase tracking-wide" 
+                        style={{ fontSize: '0.65rem' }} 
+                    />
                 </div>
             </div>
         );

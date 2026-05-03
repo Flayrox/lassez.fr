@@ -28,6 +28,8 @@ export function DraggableImage({ src, zoom, grayscale, posX, posY, onPosChange }
         return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
     }, [onPosChange]);
 
+    if (!src) return null;
+
     const filter = `grayscale(${grayscale / 100}) contrast(${1 + (grayscale / 100) * 0.5}) brightness(${1 - (grayscale / 100) * 0.25})`;
     const sz = `${zoom * 100}%`;
     const left = `calc(${(1 - zoom) * 50}% + ${posX}px)`;
@@ -84,6 +86,8 @@ export function DraggableVideo({ src, zoom, posX, posY, onPosChange }: {
         window.addEventListener('mousemove', onMove); window.addEventListener('mouseup', onUp);
         return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
     }, [onPosChange]);
+
+    if (!src) return null;
 
     const sz = `${zoom * 100}%`;
     const left = `calc(${(1 - zoom) * 50}% + ${posX}px)`;

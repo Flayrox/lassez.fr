@@ -1,7 +1,6 @@
 import React from 'react';
 import { StudioTemplate } from '../core/types';
 import { EditZone } from '../components/EditZone';
-import { Aesthetics } from '../core/Aesthetics';
 
 export const StackedDataTemplate: StudioTemplate = {
     id: 'STACKED_DATA',
@@ -20,69 +19,136 @@ export const StackedDataTemplate: StudioTemplate = {
             { label: "DISCRIMINATION", color: "#999" },
         ],
         rows: [
-            { sector: "SECTEUR PUBLIC", cells: [{ value: 512, label: "RACISME" }, { value: 114, label: "ANTISÉMITISME" }, { value: 298, label: "SEXISME / HOMOPHOBIE" }, { value: 176, label: "VIOLENCES / HARCÈLEMENT" }, { value: 82, label: "DISCRIMINATION" }] },
-            { sector: "ENTREPRISES PRIVÉES", cells: [{ value: 408, label: "RACISME" }, { value: 114, label: "ANTISÉMITISME" }, { value: 298, label: "SEXISME / HOMOPHOBIE" }, { value: 176, label: "VIOLENCES / HARCÈLEMENT" }, { value: 82, label: "DISCRIMINATION" }] },
-            { sector: "ÉDUCATION", cells: [{ value: 366, label: "RACISME" }, { value: 114, label: "ANTISÉMITISME" }, { value: 276, label: "SEXISME / HOMOPHOBIE" }, { value: 176, label: "VIOLENCES / HARCÈLEMENT" }, { value: 79, label: "DISCRIMINATION" }] },
-            { sector: "LOGEMENT SOCIAL", cells: [{ value: 446, label: "RACISME" }, { value: 114, label: "ANTISÉMITISME" }, { value: 298, label: "SEXISME / HOMOPHOBIE" }, { value: 176, label: "HARCÈLEMENT" }, { value: 82, label: "DISCRIMINATION" }] },
+            { sector: "SECTEUR PUBLIC", "0": 512, "1": 114, "2": 298, "3": 176, "4": 82 },
+            { sector: "ENTREPRISES PRIVÉES", "0": 408, "1": 114, "2": 298, "3": 176, "4": 82 },
+            { sector: "ÉDUCATION", "0": 366, "1": 114, "2": 276, "3": 176, "4": 79 },
+            { sector: "LOGEMENT SOCIAL", "0": 446, "1": 114, "2": 298, "3": 176, "4": 82 },
         ],
         source: "SOURCE: L'ASSEZ ENQUÊTES & DONNÉES BRUTES. TOUS DROITS RÉSERVÉS. ÉDITION 2024.",
         brand: "L'ASSEZ",
         accent: "#BC0100",
     },
 
-    schema: [
+    schema: (state: any) => [
         { key: 'accent', label: 'Couleur Accent', type: 'color', group: 'Style' },
         { key: 'headline', label: 'Titre Principal', type: 'text', group: 'Contenu' },
         { key: 'subheadline', label: 'Sous-titre', type: 'text', group: 'Contenu' },
         { key: 'source', label: 'Source', type: 'text', group: 'Contenu' },
+        {
+            key: 'columns', label: 'Légendes / Couleurs (LINK)', type: 'list', group: 'Données',
+            itemSchema: [
+                { key: 'label', label: 'Nom de catégorie', type: 'text' },
+                { key: 'color', label: 'Couleur', type: 'color' },
+            ]
+        },
+        {
+            key: 'rows', label: 'Secteurs & Valeurs', type: 'list', group: 'Données',
+            props: { variant: 'compact' },
+            itemSchema: [
+                { key: 'sector', label: 'NOM DU SECTEUR', type: 'text' },
+                ...(state.columns || []).map((col: any, ci: number) => ({
+                    key: ci.toString(),
+                    label: col.label,
+                    type: 'number',
+                    props: { hideSlider: true, color: col.color }
+                }))
+            ]
+        }
     ],
 
     Component: ({ state, patch }) => {
         const rows = state.rows || [];
         const columns = state.columns || [];
 
+        const updateCellValue = (ri: number, ci: number, val: string) => {
+            const newRows = [...rows];
+            const numVal = parseInt(val.replace(/[^0-9]/g, '')) || 0;
+            newRows[ri] = { ...newRows[ri], [ci]: numVal };
+            patch({ rows: newRows });
+        };
+
+        const addRow = () => {
+            const newRow: any = { sector: "NOUVEAU" };
+            columns.forEach((_: any, i: number) => newRow[i.toString()] = 100);
+            patch({ rows: [...rows, newRow] });
+        };
+
+        const removeRow = (ri: number) => {
+            patch({ rows: rows.filter((_: any, i: number) => i !== ri) });
+        };
+
+        const moveRow = (ri: number, dir: number) => {
+            const newRows = [...rows];
+            const target = ri + dir;
+            if (target < 0 || target >= rows.length) return;
+            [newRows[ri], newRows[target]] = [newRows[target], newRows[ri]];
+            patch({ rows: newRows });
+        };
+
         return (
-            <div className="w-full h-full bg-[#F9F9F9] overflow-hidden border-4 border-black flex flex-col relative">
-
-
-                <div className="bg-black text-white px-5 pt-5 pb-3 shrink-0 z-10">
-                    <EditZone html={state.headline} onChange={h => patch({ headline: h })} label="TITRE" stickerPos="-top-5 right-0"
-                        className="ab block text-white font-black uppercase leading-tight tracking-tight" style={{ fontSize: 'clamp(0.95rem, 4vw, 1.4rem)' }} />
+            <div className="w-full h-full bg-white overflow-hidden border-2 border-black flex flex-col relative ir">
+                {/* Header Compact */}
+                <div className="bg-black text-white px-4 py-3 shrink-0 flex justify-between items-end border-b-2 border-black">
+                    <div className="flex-1">
+                        <EditZone html={state.headline} onChange={h => patch({ headline: h })} label="TITRE" stickerPos="top-0 left-0"
+                            className="ab block text-white font-black uppercase leading-none tracking-tighter" style={{ fontSize: '1.2rem' }} />
+                        <EditZone html={state.subheadline} onChange={h => patch({ subheadline: h })} label="SOUS-TITRE" stickerPos="bottom-0 left-0"
+                            className="sm block font-bold uppercase opacity-60 mt-1" style={{ fontSize: '0.5rem' }} />
+                    </div>
+                    <div className="px-2 py-0.5 border border-white/30 shrink-0 mb-0.5">
+                        <EditZone html={state.brand} onChange={h => patch({ brand: h })} label="MARQUE" stickerPos="top-0 right-0"
+                            className="ab font-bold text-white text-[10px] uppercase" />
+                    </div>
                 </div>
 
-                <div className="bg-[#F9F9F9] px-5 py-2 border-b-4 border-black shrink-0 z-10">
-                    <EditZone html={state.subheadline} onChange={h => patch({ subheadline: h })} label="SOUS-TITRE" stickerPos="top-0 right-0"
-                        className="sm block font-bold uppercase" style={{ fontSize: '0.57rem', color: '#1A1C1C' }} />
-                </div>
-
-                <div className="flex-1 overflow-hidden flex flex-col px-4 py-3 gap-2">
+                {/* Data Area - Compact Rows */}
+                <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3 sb group/container">
                     {rows.map((row: any, ri: number) => {
-                        const rowTotal = Math.max(row.cells.reduce((s: number, c: any) => s + c.value, 0), 1);
+                        const rowTotal = Math.max(columns.reduce((s: number, _: any, ci: number) => s + (parseFloat(row[ci]) || 0), 0), 1);
                         return (
-                            <div key={ri} className="flex flex-col flex-1 min-h-0">
-                                <div className="flex items-center gap-2 mb-1">
-                                    <span className="sm font-black uppercase text-black" style={{ fontSize: '0.58rem', letterSpacing: '0.1em' }}>{row.sector}</span>
-                                    <div className="flex-1 h-[2px] bg-black/15"></div>
-                                    <span className="sm font-bold text-black/50" style={{ fontSize: '0.55rem' }}>{rowTotal.toLocaleString()}</span>
+                            <div key={ri} className="flex flex-col flex-1 min-h-[40px] relative group/row">
+                                <div className="flex items-center justify-between mb-1">
+                                    <div className="flex items-center gap-2">
+                                        <div className="flex gap-0.5 opacity-0 group-hover/row:opacity-100 transition-opacity">
+                                            <button onClick={() => moveRow(ri, -1)} className="w-3 h-3 border border-black/10 flex items-center justify-center text-[6px] hover:bg-black hover:text-white">▲</button>
+                                            <button onClick={() => moveRow(ri, 1)} className="w-3 h-3 border border-black/10 flex items-center justify-center text-[6px] hover:bg-black hover:text-white">▼</button>
+                                        </div>
+                                        <EditZone 
+                                            html={row.sector} 
+                                            onChange={h => {
+                                                const newRows = [...rows];
+                                                newRows[ri] = { ...newRows[ri], sector: h };
+                                                patch({ rows: newRows });
+                                            }} 
+                                            label="NOM" 
+                                            stickerPos="top-0"
+                                            className="sm font-black uppercase text-black" 
+                                            style={{ fontSize: '0.6rem' }} 
+                                        />
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <span className="sm font-bold text-black/40" style={{ fontSize: '0.55rem' }}>{rowTotal.toLocaleString()} units</span>
+                                        <button onClick={() => removeRow(ri)} className="opacity-0 group-hover/row:opacity-100 transition-opacity w-4 h-4 border border-black flex items-center justify-center text-[8px] hover:bg-red-600 hover:text-white hover:border-red-600">✕</button>
+                                    </div>
                                 </div>
-                                <div className="flex h-full border-2 border-black overflow-hidden">
-                                    {row.cells.map((cell: any, ci: number) => {
-                                        const col = columns[ci];
-                                        const widthPct = (cell.value / rowTotal) * 100;
-                                        if (widthPct < 0.3) return null;
+                                
+                                <div className="flex-1 flex border-[1.5px] border-black overflow-hidden shadow-[2px_2px_0_rgba(0,0,0,1)]">
+                                    {columns.map((col: any, ci: number) => {
+                                        const val = parseFloat(row[ci]) || 0;
+                                        const widthPct = (val / rowTotal) * 100;
+                                        if (widthPct < 0.1) return null;
                                         return (
                                             <div key={ci}
-                                                className="relative flex flex-col items-center justify-center overflow-hidden border-r border-black/20 last:border-r-0 transition-all"
-                                                style={{ width: `${widthPct}%`, backgroundColor: col?.color ?? '#888', minWidth: widthPct > 4 ? undefined : 0 }}>
-                                                {widthPct > 9 && (
-                                                    <>
-                                                        <span className="ab font-black text-white leading-none" style={{ fontSize: widthPct > 20 ? '1.1rem' : '0.7rem', textShadow: '1px 1px 0 rgba(0,0,0,0.4)' }}>{cell.value}</span>
-                                                        {widthPct > 18 && <span className="sm text-white/70 uppercase leading-none" style={{ fontSize: '0.42rem' }}>{cell.label || col?.label}</span>}
-                                                    </>
-                                                )}
-                                                {widthPct <= 9 && widthPct > 4 && (
-                                                    <span className="ab font-black text-white" style={{ fontSize: '0.55rem', writingMode: 'vertical-rl', textShadow: '1px 1px 0 rgba(0,0,0,0.5)' }}>{cell.value}</span>
-                                                )}
+                                                className="relative h-full flex items-center justify-center border-r border-black/20 last:border-r-0 group/cell"
+                                                style={{ width: `${widthPct}%`, backgroundColor: col?.color ?? '#888' }}>
+                                                <EditZone 
+                                                    html={val.toString()} 
+                                                    onChange={h => updateCellValue(ri, ci, h)} 
+                                                    label="VAL" 
+                                                    stickerPos="top-0"
+                                                    className="ab font-black text-white leading-none" 
+                                                    style={{ fontSize: widthPct > 15 ? '0.85rem' : '0.6rem' }} 
+                                                />
                                             </div>
                                         );
                                     })}
@@ -90,23 +156,37 @@ export const StackedDataTemplate: StudioTemplate = {
                             </div>
                         );
                     })}
+
+                    <button onClick={addRow} className="h-6 border border-dashed border-black/20 flex items-center justify-center opacity-0 group-hover/container:opacity-40 hover:group-hover/container:opacity-100 transition-all sm text-[8px] font-bold uppercase tracking-widest mt-2">
+                        + AJOUTER SECTEUR
+                    </button>
                 </div>
 
-                <div className="border-t-4 border-black px-5 py-2 bg-[#F9F9F9] flex gap-3 flex-wrap shrink-0 z-10">
+                {/* Legend Grid - Carré */}
+                <div className="border-t-2 border-black bg-gray-50 p-3 grid grid-cols-2 sm:grid-cols-3 gap-2 shrink-0">
                     {columns.map((col: any, ci: number) => (
-                        <div key={ci} className="flex items-center gap-1">
-                            <div className="w-3 h-3 border border-black" style={{ backgroundColor: col.color }}></div>
-                            <span className="sm uppercase font-bold" style={{ fontSize: '0.48rem', color: '#1A1C1C' }}>{col.label}</span>
+                        <div key={ci} className="flex items-center gap-2 bg-white border border-black/10 p-1.5">
+                            <div className="w-2.5 h-2.5 shrink-0" style={{ backgroundColor: col.color }}></div>
+                            <EditZone 
+                                html={col.label} 
+                                onChange={h => {
+                                    const newCols = [...columns];
+                                    newCols[ci] = { ...newCols[ci], label: h };
+                                    patch({ columns: newCols });
+                                }} 
+                                label="LÉGENDE" 
+                                stickerPos="top-0"
+                                className="sm uppercase font-bold truncate flex-1" 
+                                style={{ fontSize: '0.52rem', color: '#000' }} 
+                            />
                         </div>
                     ))}
                 </div>
 
-                <div className="bg-black text-white flex items-center justify-between px-5 py-2 shrink-0 z-10">
-                    <EditZone html={state.source} onChange={h => patch({ source: h })} label="SOURCE" stickerPos="top-0 right-0"
-                        className="sm text-white/70 uppercase flex-1" style={{ fontSize: '0.5rem' }} />
-                    <div className="ml-3 px-2 py-0.5 border-2 border-white shrink-0">
-                        <span className="ab font-bold text-white text-xs uppercase">{state.brand}</span>
-                    </div>
+                {/* Footer Minimal */}
+                <div className="bg-black text-white px-4 py-2 flex items-center justify-between border-t-2 border-black shrink-0">
+                    <EditZone html={state.source} onChange={h => patch({ source: h })} label="SOURCE" stickerPos="top-0 left-0"
+                        className="sm text-white/50 uppercase truncate mr-4" style={{ fontSize: '0.45rem' }} />
                 </div>
             </div>
         );

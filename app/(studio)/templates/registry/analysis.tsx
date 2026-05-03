@@ -51,8 +51,9 @@ export const AnalysisTemplate: StudioTemplate = {
         return (
             <div className="w-full h-full bg-[#0F0F0F] overflow-hidden border-2 border-white/10 flex flex-col group relative">
                 <div className="absolute inset-0 z-0">
-                    <img alt="Background" className="w-full h-full object-cover opacity-30" style={{ filter: 'grayscale(1) contrast(1.25)' }} src={state.imageUrl} crossOrigin="anonymous" />
-
+                    {state.imageUrl && (
+                        <img alt="Background" className="w-full h-full object-cover opacity-30" style={{ filter: 'grayscale(1) contrast(1.25)' }} src={state.imageUrl} crossOrigin="anonymous" />
+                    )}
                 </div>
 
                 <header className="relative z-30 w-full bg-[#DC2626] border-b-4 border-black px-4 py-3 flex justify-between items-center shrink-0" style={{ backgroundColor: state.accent }}>

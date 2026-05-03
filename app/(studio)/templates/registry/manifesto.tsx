@@ -43,9 +43,21 @@ export const ManifestoTemplate: StudioTemplate = {
                 <div className="w-full bg-black h-11 flex items-center justify-between px-5 shrink-0 z-20">
                     <div className="flex items-center gap-2">
                         <div className="w-2 h-2 bg-white"></div>
-                        <span className="ab text-white text-base tracking-tighter uppercase">{state.brand.split(' ')[0]}</span>
+                        <EditZone 
+                            html={state.brand} 
+                            onChange={h => patch({ brand: h })} 
+                            label="MARQUE" 
+                            stickerPos="top-8 left-0"
+                            className="ab text-white text-base tracking-tighter uppercase" 
+                        />
                     </div>
-                    <span className="sm text-white text-[8px] uppercase tracking-widest">{state.docNum}</span>
+                    <EditZone 
+                        html={state.docNum} 
+                        onChange={h => patch({ docNum: h })} 
+                        label="REF" 
+                        stickerPos="top-8 right-0"
+                        className="sm text-white text-[8px] uppercase tracking-widest" 
+                    />
                 </div>
 
                 <div className="flex-grow flex flex-col p-6 overflow-hidden">
@@ -53,7 +65,7 @@ export const ManifestoTemplate: StudioTemplate = {
                         html={state.headline}
                         onChange={h => patch({ headline: h })}
                         label="TITRE"
-                        stickerPos="-top-5 right-0"
+                        stickerPos="-top-12 left-1/2 -translate-x-1/2"
                         className="pd font-black leading-[0.9] mb-5 tracking-tight"
                         style={{ fontSize: state.titleSize }}
                     />
@@ -69,7 +81,13 @@ export const ManifestoTemplate: StudioTemplate = {
                             />
                             <div className="mt-auto border-l-[3px] pl-2 py-0.5" style={{ borderColor: state.accent }}>
                                 <p className="sm text-[7px] uppercase text-gray-500 mb-0.5">Status:</p>
-                                <p className="ab uppercase text-[11px] leading-none">{state.metaLeft}</p>
+                                <EditZone 
+                                    html={state.metaLeft} 
+                                    onChange={h => patch({ metaLeft: h })} 
+                                    label="META" 
+                                    stickerPos="-top-4 left-0"
+                                    className="ab uppercase text-[11px] leading-none" 
+                                />
                             </div>
                         </div>
 
@@ -84,9 +102,21 @@ export const ManifestoTemplate: StudioTemplate = {
                             <div className="mt-auto bg-black text-white p-2">
                                 <div className="flex items-center gap-1 mb-1">
                                     <svg width="9" height="9" viewBox="0 0 24 24" fill="white"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z" /></svg>
-                                    <span className="sm text-[7px] uppercase">{state.actionLabel}</span>
+                                    <EditZone 
+                                        html={state.actionLabel} 
+                                        onChange={h => patch({ actionLabel: h })} 
+                                        label="LABEL" 
+                                        stickerPos="-top-4 right-0"
+                                        className="sm text-[7px] uppercase" 
+                                    />
                                 </div>
-                                <p className="ab text-[10px] uppercase leading-none">{state.metaRight}</p>
+                                <EditZone 
+                                    html={state.metaRight} 
+                                    onChange={h => patch({ metaRight: h })} 
+                                    label="META" 
+                                    stickerPos="-top-4 right-0"
+                                    className="ab text-[10px] uppercase leading-none" 
+                                />
                             </div>
                         </div>
                     </div>

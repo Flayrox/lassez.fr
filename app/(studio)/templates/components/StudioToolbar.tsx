@@ -85,25 +85,26 @@ export function StudioToolbar({
             <div style={{ display: 'flex', alignItems: 'center', gap: 16, flex: 1 }}>
                 <button
                     onClick={() => router.push('/radar')}
+                    className="active:scale-95 transition-transform duration-150"
                     style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', cursor: 'pointer', padding: '6px 0' }}
                 >
-                    <div style={{ width: 20, height: 20, background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <div style={{ width: 22, height: 22, background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, borderRadius: 4 }}>
                         <div style={{ width: 8, height: 8, background: '#000' }}></div>
                     </div>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: T.textPrimary, letterSpacing: '-0.01em' }}>Studio</span>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: T.textPrimary, letterSpacing: '-0.02em' }}>Studio</span>
                 </button>
 
                 <div style={{ width: 1, height: 20, background: T.border, margin: '0 4px' }}></div>
 
                 <button
                     onClick={onShowArticleModal}
+                    className="active:scale-95 transition-all duration-150"
                     style={{
                         display: 'flex', alignItems: 'center', gap: 6,
                         background: '#252525', border: `1px solid ${T.border}`,
-                        color: T.textMid, fontSize: 12, fontWeight: 500,
-                        padding: '5px 12px', cursor: 'pointer',
-                        borderRadius: 4, fontFamily: 'inherit',
-                        transition: 'all 0.15s',
+                        color: T.textMid, fontSize: 12, fontWeight: 600,
+                        padding: '6px 14px', cursor: 'pointer',
+                        borderRadius: 8, fontFamily: 'inherit',
                     }}
                     onMouseEnter={e => { e.currentTarget.style.borderColor = '#555'; e.currentTarget.style.color = '#fff'; }}
                     onMouseLeave={e => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.color = T.textMid; }}
@@ -113,7 +114,8 @@ export function StudioToolbar({
 
                 <button
                     onClick={onShowJsonImport}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: T.textMuted, fontFamily: 'inherit', padding: '5px 4px' }}
+                    className="active:opacity-70 transition-opacity"
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: T.textMuted, fontFamily: 'inherit', padding: '5px 8px' }}
                     onMouseEnter={e => { e.currentTarget.style.color = T.textMid; }}
                     onMouseLeave={e => { e.currentTarget.style.color = T.textMuted; }}
                 >
@@ -123,7 +125,7 @@ export function StudioToolbar({
 
             {/* Center — deck count */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ fontSize: 12, color: T.textMuted }}>
+                <span style={{ fontSize: 11, color: T.textMuted, fontWeight: 600, background: '#1a1a1a', padding: '2px 10px', borderRadius: 20, border: `1px solid ${T.border}` }}>
                     {deck.length} slide{deck.length > 1 ? 's' : ''}
                 </span>
             </div>
@@ -133,7 +135,8 @@ export function StudioToolbar({
                 <button
                     onClick={stripStyles}
                     title="Nettoyer les styles de texte"
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: T.textMuted, fontFamily: 'inherit', padding: '5px 8px', borderRadius: 4 }}
+                    className="active:scale-95 transition-all duration-150"
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: T.textMuted, fontFamily: 'inherit', padding: '6px 10px', borderRadius: 6 }}
                     onMouseEnter={e => { e.currentTarget.style.background = T.bgHover; e.currentTarget.style.color = T.textMid; }}
                     onMouseLeave={e => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = T.textMuted; }}
                 >
@@ -142,7 +145,8 @@ export function StudioToolbar({
                 <button
                     onClick={fullReset}
                     title="Reset la slide active"
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: T.textMuted, fontFamily: 'inherit', padding: '5px 8px', borderRadius: 4 }}
+                    className="active:scale-95 transition-all duration-150"
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: T.textMuted, fontFamily: 'inherit', padding: '6px 10px', borderRadius: 6 }}
                     onMouseEnter={e => { e.currentTarget.style.background = '#2a1a1a'; e.currentTarget.style.color = T.danger; }}
                     onMouseLeave={e => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = T.textMuted; }}
                 >
@@ -153,38 +157,43 @@ export function StudioToolbar({
 
                 <button
                     onClick={onExportJSON}
+                    className="active:scale-95 transition-all duration-150"
                     style={{
                         background: '#252525', border: `1px solid ${T.border}`,
-                        color: T.textMid, fontSize: 12, fontWeight: 500,
-                        padding: '5px 12px', cursor: 'pointer',
-                        borderRadius: 4, fontFamily: 'inherit',
+                        color: T.textMid, fontSize: 12, fontWeight: 600,
+                        padding: '6px 14px', cursor: 'pointer',
+                        borderRadius: 8, fontFamily: 'inherit',
                     }}
                     onMouseEnter={e => { e.currentTarget.style.borderColor = '#555'; e.currentTarget.style.color = '#fff'; }}
                     onMouseLeave={e => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.color = T.textMid; }}
                 >
-                    Exporter JSON
+                    JSON
                 </button>
                 <button
                     onClick={onExportZIP}
+                    className="active:scale-95 transition-all duration-150"
                     style={{
                         background: '#252525', border: `1px solid ${T.border}`,
-                        color: T.textMid, fontSize: 12, fontWeight: 500,
-                        padding: '5px 12px', cursor: 'pointer',
-                        borderRadius: 4, fontFamily: 'inherit',
+                        color: T.textMid, fontSize: 12, fontWeight: 600,
+                        padding: '6px 14px', cursor: 'pointer',
+                        borderRadius: 8, fontFamily: 'inherit',
                     }}
                     onMouseEnter={e => { e.currentTarget.style.borderColor = '#555'; e.currentTarget.style.color = '#fff'; }}
                     onMouseLeave={e => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.color = T.textMid; }}
                 >
-                    Export ZIP
+                    ZIP
                 </button>
                 <button
                     onClick={onExportPNG}
+                    className="active:scale-95 transition-all duration-150"
                     style={{
                         background: '#ffffff', color: '#000',
-                        border: 'none', fontSize: 13, fontWeight: 600,
-                        padding: '6px 16px', cursor: 'pointer',
-                        borderRadius: 4, fontFamily: 'inherit',
+                        border: 'none', fontSize: 12, fontWeight: 700,
+                        padding: '7px 18px', cursor: 'pointer',
+                        borderRadius: 8, fontFamily: 'inherit',
                         transition: 'background 0.15s',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.02em',
                     }}
                     onMouseEnter={e => { e.currentTarget.style.background = '#e0e0e0'; }}
                     onMouseLeave={e => { e.currentTarget.style.background = '#ffffff'; }}

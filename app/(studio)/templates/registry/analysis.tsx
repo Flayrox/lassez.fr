@@ -8,7 +8,7 @@ export const AnalysisTemplate: StudioTemplate = {
     name: 'Analyse Listée',
     category: 'Analyse',
     description: 'Une liste de 3 points clés analysés avec un arrière-plan texturé.',
-    
+
     defaultState: {
         headline: "L'Assez Analysis",
         brand: "L'ASSEZ",
@@ -27,7 +27,7 @@ export const AnalysisTemplate: StudioTemplate = {
         item3Title: "Extraction des Ressources",
         item3Text: "L'attention est la matière première principale.",
     },
-    
+
     schema: [
         { key: 'accent', label: 'Couleur Accent', type: 'color', group: 'Style' },
         { key: 'imageUrl', label: 'Image Fond', type: 'text', group: 'Style' },
@@ -45,19 +45,16 @@ export const AnalysisTemplate: StudioTemplate = {
         { key: 'item3Title', label: 'Titre Item 3', type: 'text', group: 'Item 3' },
         { key: 'item3Text', label: 'Texte Item 3', type: 'text', group: 'Item 3' },
     ],
-    
-    shadowStyle: (state) => ({
-        boxShadow: `0 0 60px rgba(0,0,0,0.5), 0 0 20px ${state.accent}22`
-    }),
-    
+
+
     Component: ({ state, patch }) => {
         return (
             <div className="w-full h-full bg-[#0F0F0F] overflow-hidden border-2 border-white/10 flex flex-col group relative">
                 <div className="absolute inset-0 z-0">
                     <img alt="Background" className="w-full h-full object-cover opacity-30" style={{ filter: 'grayscale(1) contrast(1.25)' }} src={state.imageUrl} crossOrigin="anonymous" />
-                    
+
                 </div>
-                
+
                 <header className="relative z-30 w-full bg-[#DC2626] border-b-4 border-black px-4 py-3 flex justify-between items-center shrink-0" style={{ backgroundColor: state.accent }}>
                     <div className="flex items-center gap-2">
                         <EditZone html={state.headline} onChange={h => patch({ headline: h })} label="TITRE" stickerPos="-top-4 right-0"
@@ -67,7 +64,7 @@ export const AnalysisTemplate: StudioTemplate = {
                         <EditZone html={state.refCode} onChange={h => patch({ refCode: h })} label="REF" stickerPos="bottom-0 right-0" />
                     </div>
                 </header>
-                
+
                 <main className="relative z-20 flex-grow p-6 flex flex-col justify-between gap-4">
                     {[1, 2, 3].map(num => (
                         <div key={num} className="relative bg-white p-4 border-2 border-black" style={{ boxShadow: '10px 10px 0px 0px rgba(0,0,0,1)' }}>
@@ -83,7 +80,7 @@ export const AnalysisTemplate: StudioTemplate = {
                         </div>
                     ))}
                 </main>
-                
+
                 <footer className="relative z-30 flex items-center justify-between px-6 pb-6 pt-2 shrink-0">
                     <div className="h-1 flex-grow bg-white/20 mr-4 flex">
                         <div className="w-2/5 h-full" style={{ backgroundColor: state.accent }}></div>

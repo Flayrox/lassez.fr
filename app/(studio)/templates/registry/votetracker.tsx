@@ -8,7 +8,7 @@ export const VoteTrackerTemplate: StudioTemplate = {
     name: 'Vote Tracker',
     category: 'Politique',
     description: 'Affiche un registre de votes sur différents sujets ou lois.',
-    
+
     defaultState: {
         accent: '#BC0100',
         brand: 'L\'ASSEZ',
@@ -27,7 +27,7 @@ export const VoteTrackerTemplate: StudioTemplate = {
         colorContre: "#BC0100",
         colorAbst: "#888888",
     },
-    
+
     schema: [
         { key: 'accent', label: 'Couleur Accent', type: 'color', group: 'Style' },
         { key: 'title', label: 'Titre Principal', type: 'text', group: 'Contenu' },
@@ -38,11 +38,7 @@ export const VoteTrackerTemplate: StudioTemplate = {
         { key: 'colorContre', label: 'Couleur CONTRE', type: 'color', group: 'Légende' },
         { key: 'colorAbst', label: 'Couleur ABST', type: 'color', group: 'Légende' },
     ],
-    
-    shadowStyle: (state) => ({
-        boxShadow: `0 0 40px rgba(0,0,0,0.2), 10px 10px 0 ${state.accent}22`
-    }),
-    
+
     Component: ({ state, patch }) => {
         const colorPour = state.colorPour ?? '#1A1C1C';
         const colorContre = state.colorContre ?? '#BC0100';
@@ -51,8 +47,8 @@ export const VoteTrackerTemplate: StudioTemplate = {
         return (
             <div className="w-full h-full bg-white overflow-hidden border-4 border-black flex flex-col relative"
                 style={{ backgroundImage: 'linear-gradient(#d4d4d4 1px, transparent 1px), linear-gradient(90deg, #d4d4d4 1px, transparent 1px)', backgroundSize: '52px 52px' }}>
-                
-                
+
+
                 <div className="relative bg-white border-b-4 border-black shrink-0 overflow-hidden z-10">
                     {state.imageUrl && (
                         <div className="absolute top-0 right-0 w-36 h-44 overflow-hidden" style={{ filter: 'grayscale(100%) contrast(1.4)' }}>

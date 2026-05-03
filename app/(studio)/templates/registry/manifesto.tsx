@@ -8,7 +8,7 @@ export const ManifestoTemplate: StudioTemplate = {
     name: 'Manifeste Brut',
     category: 'Editorial',
     description: 'Mise en page bicolore avec deux colonnes de texte.',
-    
+
     defaultState: {
         accent: '#DC2626',
         brand: 'L\'ASSEZ STUDIO',
@@ -21,7 +21,7 @@ export const ManifestoTemplate: StudioTemplate = {
         metaRight: 'PRIORITÉ ABSOLUE',
         actionLabel: 'ACTION REQUIS'
     },
-    
+
     schema: [
         { key: 'accent', label: 'Couleur Accent', type: 'color', group: 'Style' },
         { key: 'brand', label: 'Marque', type: 'text', group: 'Infos' },
@@ -34,16 +34,12 @@ export const ManifestoTemplate: StudioTemplate = {
         { key: 'metaRight', label: 'Meta Droit', type: 'text', group: 'Colonnes' },
         { key: 'actionLabel', label: 'Label Action', type: 'text', group: 'Infos' },
     ],
-    
-    shadowStyle: (state) => ({
-        boxShadow: `18px 18px 0 ${state.accent || '#DC2626'}44`
-    }),
-    
+
     Component: ({ state, patch }) => {
         return (
             <div className="w-full h-full split-bg border-4 border-black overflow-hidden flex flex-col text-black relative">
-                
-                
+
+
                 <div className="w-full bg-black h-11 flex items-center justify-between px-5 shrink-0 z-20">
                     <div className="flex items-center gap-2">
                         <div className="w-2 h-2 bg-white"></div>
@@ -51,39 +47,39 @@ export const ManifestoTemplate: StudioTemplate = {
                     </div>
                     <span className="sm text-white text-[8px] uppercase tracking-widest">{state.docNum}</span>
                 </div>
-                
+
                 <div className="flex-grow flex flex-col p-6 overflow-hidden">
-                    <EditZone 
-                        html={state.headline} 
-                        onChange={h => patch({ headline: h })} 
-                        label="TITRE" 
+                    <EditZone
+                        html={state.headline}
+                        onChange={h => patch({ headline: h })}
+                        label="TITRE"
                         stickerPos="-top-5 right-0"
-                        className="pd font-black leading-[0.9] mb-5 tracking-tight" 
-                        style={{ fontSize: state.titleSize }} 
+                        className="pd font-black leading-[0.9] mb-5 tracking-tight"
+                        style={{ fontSize: state.titleSize }}
                     />
-                    
+
                     <div className="flex-grow flex gap-5 ir text-[10px] leading-[1.45] overflow-hidden">
                         <div className="w-1/2 flex flex-col overflow-hidden">
-                            <EditZone 
-                                html={state.bodyLeft} 
-                                onChange={h => patch({ bodyLeft: h })} 
-                                label="COL. GAUCHE" 
+                            <EditZone
+                                html={state.bodyLeft}
+                                onChange={h => patch({ bodyLeft: h })}
+                                label="COL. GAUCHE"
                                 stickerPos="-top-5 left-0"
-                                className="mb-3 font-semibold text-justify" 
+                                className="mb-3 font-semibold text-justify"
                             />
                             <div className="mt-auto border-l-[3px] pl-2 py-0.5" style={{ borderColor: state.accent }}>
                                 <p className="sm text-[7px] uppercase text-gray-500 mb-0.5">Status:</p>
                                 <p className="ab uppercase text-[11px] leading-none">{state.metaLeft}</p>
                             </div>
                         </div>
-                        
+
                         <div className="w-1/2 flex flex-col overflow-hidden">
-                            <EditZone 
-                                html={state.bodyRight} 
-                                onChange={h => patch({ bodyRight: h })} 
-                                label="COL. DROITE" 
+                            <EditZone
+                                html={state.bodyRight}
+                                onChange={h => patch({ bodyRight: h })}
+                                label="COL. DROITE"
                                 stickerPos="-top-5 right-0"
-                                className="mb-3 text-justify" 
+                                className="mb-3 text-justify"
                             />
                             <div className="mt-auto bg-black text-white p-2">
                                 <div className="flex items-center gap-1 mb-1">
@@ -95,12 +91,12 @@ export const ManifestoTemplate: StudioTemplate = {
                         </div>
                     </div>
                 </div>
-                
+
                 <div className="h-2.5 w-full flex shrink-0">
                     <div className="w-1/2 bg-black border-r border-white"></div>
                     <div className="w-1/2" style={{ backgroundColor: state.accent }}></div>
                 </div>
-                
+
                 <div className="absolute top-[44px] bottom-[10px] left-1/2 w-px bg-black opacity-10 pointer-events-none"></div>
             </div>
         );

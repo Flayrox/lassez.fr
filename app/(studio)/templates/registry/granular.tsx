@@ -8,7 +8,7 @@ export const GranularTemplate: StudioTemplate = {
     name: 'Données Granulaires',
     category: 'Analyse',
     description: 'Design brutaliste avec arrière-plan géométrique et citations en bloc.',
-    
+
     defaultState: {
         accent: '#DC2626',
         dark: false,
@@ -21,7 +21,7 @@ export const GranularTemplate: StudioTemplate = {
         brand: 'L\'ASSEZ STUDIO',
         footerHandle: '@lassez_studio'
     },
-    
+
     schema: [
         { key: 'accent', label: 'Couleur Accent', type: 'color', group: 'Style' },
         { key: 'dark', label: 'Mode Sombre', type: 'boolean', group: 'Style' },
@@ -34,11 +34,7 @@ export const GranularTemplate: StudioTemplate = {
         { key: 'quote', label: 'Citation', type: 'text', group: 'Citation' },
         { key: 'footerHandle', label: 'Handle Réseaux', type: 'text', group: 'Infos' },
     ],
-    
-    shadowStyle: () => ({
-        boxShadow: '20px 20px 0 rgba(0,0,0,1)'
-    }),
-    
+
     Component: ({ state, patch }) => {
         const isDark = state.dark;
         const textColor = isDark ? '#fff' : '#000';
@@ -48,7 +44,7 @@ export const GranularTemplate: StudioTemplate = {
         return (
             <div className="w-full h-full overflow-hidden border-4 border-black flex flex-col relative"
                 style={{ backgroundColor: bgColor, color: textColor }}>
-                
+
                 {/* Background Decor */}
                 <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
                     <div style={{
@@ -60,19 +56,19 @@ export const GranularTemplate: StudioTemplate = {
                     <div style={{ position: 'absolute', bottom: '10%', left: 0, width: '100%', height: 16, backgroundColor: isDark ? '#fff' : '#000', transform: 'rotate(1deg)' }}></div>
                 </div>
 
-                
+
 
                 <header className="relative z-10 px-8 pt-10 pb-4 flex justify-between items-end border-b-4 shrink-0"
                     style={{ borderColor: isDark ? '#fff' : '#000', backgroundColor: isDark ? '#000' : '#fff' }}>
                     <div className="flex flex-col">
                         <span className="sm text-[10px] uppercase tracking-widest font-bold mb-1" style={{ color: state.accent }}>{state.tag}</span>
-                        <EditZone 
-                            html={state.headline} 
-                            onChange={h => patch({ headline: h })} 
-                            label="TITRE" 
+                        <EditZone
+                            html={state.headline}
+                            onChange={h => patch({ headline: h })}
+                            label="TITRE"
                             stickerPos="-top-5 right-0"
-                            className="ab text-[36px] leading-none uppercase" 
-                            style={{ color: textColor }} 
+                            className="ab text-[36px] leading-none uppercase"
+                            style={{ color: textColor }}
                         />
                     </div>
                     <div className="text-right">
@@ -88,21 +84,21 @@ export const GranularTemplate: StudioTemplate = {
                         boxShadow: `8px 8px 0 ${state.accent}`,
                         transform: 'rotate(1deg)'
                     }}>
-                        <EditZone 
-                            html={state.body} 
-                            onChange={h => patch({ body: h })} 
-                            label="CORPS" 
+                        <EditZone
+                            html={state.body}
+                            onChange={h => patch({ body: h })}
+                            label="CORPS"
                             stickerPos="-top-5 right-0"
-                            className="ir text-[22px] font-bold leading-snug mb-4" 
-                            style={{ color: isDark ? '#e5e5e5' : '#000' }} 
+                            className="ir text-[22px] font-bold leading-snug mb-4"
+                            style={{ color: isDark ? '#e5e5e5' : '#000' }}
                         />
-                        <EditZone 
-                            html={state.bodyMono} 
-                            onChange={h => patch({ bodyMono: h })} 
-                            label="CORPS 2" 
+                        <EditZone
+                            html={state.bodyMono}
+                            onChange={h => patch({ bodyMono: h })}
+                            label="CORPS 2"
                             stickerPos="-top-5 left-0"
-                            className="sm text-[16px] leading-relaxed text-justify" 
-                            style={{ opacity: 0.75, color: isDark ? '#aaa' : '#333' }} 
+                            className="sm text-[16px] leading-relaxed text-justify"
+                            style={{ opacity: 0.75, color: isDark ? '#aaa' : '#333' }}
                         />
                     </div>
 
@@ -113,13 +109,13 @@ export const GranularTemplate: StudioTemplate = {
                             backgroundColor: state.accent,
                             clipPath: 'polygon(0% 0%,100% 0%,100% 90%,95% 95%,90% 90%,85% 95%,80% 90%,75% 95%,70% 90%,65% 95%,60% 90%,55% 95%,50% 90%,45% 95%,40% 90%,35% 95%,30% 90%,25% 95%,20% 90%,15% 95%,10% 90%,5% 95%,0% 90%)'
                         }}>
-                            <EditZone 
-                                html={state.quote} 
-                                onChange={h => patch({ quote: h })} 
-                                label="CITATION" 
+                            <EditZone
+                                html={state.quote}
+                                onChange={h => patch({ quote: h })}
+                                label="CITATION"
                                 stickerPos="-top-5 left-0"
-                                className="ab text-[16px] uppercase leading-tight text-white" 
-                                style={{ mixBlendMode: 'hard-light' as any }} 
+                                className="ab text-[16px] uppercase leading-tight text-white"
+                                style={{ mixBlendMode: 'hard-light' as any }}
                             />
                         </div>
                     </div>

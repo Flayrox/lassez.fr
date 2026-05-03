@@ -8,7 +8,7 @@ export const ComparisonChartTemplate: StudioTemplate = {
     name: 'Graphique de Comparaison',
     category: 'Données',
     description: 'Un graphique en barres verticales pour comparer des données quantitatives.',
-    
+
     defaultState: {
         headline: "INFRACTIONS & CANDIDATS",
         subheadline: "COMPARATIF BRUTAL : PARTIS & PROPOS SIGNALÉS",
@@ -23,7 +23,7 @@ export const ComparisonChartTemplate: StudioTemplate = {
         brand: "L'ASSEZ",
         accent: "#BC0100",
     },
-    
+
     schema: [
         { key: 'accent', label: 'Couleur Accent', type: 'color', group: 'Style' },
         { key: 'category', label: 'Étiquette Catégorie', type: 'text', group: 'Meta' },
@@ -31,19 +31,15 @@ export const ComparisonChartTemplate: StudioTemplate = {
         { key: 'subheadline', label: 'Sous-titre', type: 'text', group: 'Contenu' },
         { key: 'source', label: 'Source des données', type: 'text', group: 'Contenu' },
     ],
-    
-    shadowStyle: (state) => ({
-        boxShadow: `0 0 40px rgba(0,0,0,0.1), 8px 8px 0 ${state.accent}33`
-    }),
-    
+
     Component: ({ state, patch }) => {
         const bars = state.bars || [];
         const maxVal = Math.max(...bars.map((b: any) => b.value), 1);
 
         return (
             <div className="w-full h-full bg-[#F4F4F4] overflow-hidden border-4 border-black flex flex-col relative">
-                
-                
+
+
                 <div className="bg-black text-white px-6 pt-5 pb-4 border-b-4 border-black shrink-0 z-10">
                     <div className="inline-block px-3 py-0.5 sm text-[10px] font-bold uppercase tracking-widest mb-2 border border-white/30" style={{ background: state.accent }}>
                         <EditZone html={state.category} onChange={h => patch({ category: h })} label="CAT" stickerPos="top-0 right-0" className="sm text-[10px] font-bold uppercase text-white" />

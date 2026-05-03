@@ -8,7 +8,7 @@ export const ChronoLockTemplate: StudioTemplate = {
     name: 'Chronologie Verrouillée',
     category: 'Analyse',
     description: 'Une ligne du temps verticale pour retracer des événements clés.',
-    
+
     defaultState: {
         headline: "L'ENGRENAGE DES DÉCISIONS",
         subheadline: "CHRONOLOGIE D'UN EFFONDREMENT PROGRAMMÉ",
@@ -20,24 +20,20 @@ export const ChronoLockTemplate: StudioTemplate = {
             { date: "MAI 2023", event: "DÉCRETS D'APPLICATION", impact: "Entrée en vigueur forcée des mesures" },
         ],
     },
-    
+
     schema: [
         { key: 'accent', label: 'Couleur Accent', type: 'color', group: 'Style' },
         { key: 'headline', label: 'Titre Principal', type: 'text', group: 'Contenu' },
         { key: 'subheadline', label: 'Sous-titre', type: 'text', group: 'Contenu' },
     ],
-    
-    shadowStyle: (state) => ({
-        boxShadow: `0 0 40px rgba(0,0,0,0.3), 0 0 15px ${state.accent}22`
-    }),
-    
+
     Component: ({ state, patch }) => {
         const timeline = state.timeline || [];
 
         return (
             <div className="w-full h-full bg-[#0F0F0F] overflow-hidden border-4 border-black flex flex-col relative">
-                
-                
+
+
                 <div className="bg-black px-7 pt-6 pb-5 shrink-0 border-b-4 border-black">
                     <div className="flex items-center gap-2 mb-2">
                         <div className="w-3.5 h-3.5 bg-white flex items-center justify-center shrink-0"><div className="w-2 h-0.5 bg-black"></div></div>

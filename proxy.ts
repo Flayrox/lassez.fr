@@ -63,6 +63,8 @@ export async function proxy(req: NextRequest) {
         pathname.startsWith('/api/radar') ||
         pathname.startsWith('/radar-login') ||
         pathname.startsWith('/api/elections') ||
+        pathname.startsWith('/api/proxy-image') ||
+        pathname.startsWith('/uploads') ||
         pathname.startsWith('/templates');
 
     if (isApiDomain) {

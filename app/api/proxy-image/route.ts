@@ -7,7 +7,7 @@ export async function GET(request: NextRequest) {
     if (!url) return NextResponse.json({ error: 'Missing url' }, { status: 400 });
 
     try {
-        parsed = new URL(url);
+        const parsed = new URL(url);
         if (parsed.protocol !== 'https:') {
             return NextResponse.json({ error: 'HTTPS required' }, { status: 403 });
         }

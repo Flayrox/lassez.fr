@@ -212,8 +212,20 @@ function StudioPageContent() {
                 onImportJSON={(json) => {
                     try {
                         const data = JSON.parse(json);
-                        if (data.deck) setDeck(data.deck);
-                    } catch(e) { alert("Format JSON invalide"); }
+                        const importedDeck = Array.isArray(data) ? data : data.deck;
+                        
+                        if (!Array.isArray(importedDeck)) throw new Error();
+
+                        const sanitizedDeck = importedDeck.map((s, i) => ({
+                            id: s.id || Math.random().toString(36).slice(2, 9),
+                            type: s.type || 'INFO',
+                            label: s.label || `Slide ${i + 1}`,
+                            state: s.state || {}
+                        }));
+
+                        setDeck(sanitizedDeck);
+                        if (sanitizedDeck.length > 0) setActiveId(sanitizedDeck[0].id);
+                    } catch(e) { alert("Format JSON invalide. L'objet doit contenir un tableau 'deck'."); }
                 }}
                 onGenerateDeck={(text, types) => {
                     aiGenerateDeck(text, types);

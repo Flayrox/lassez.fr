@@ -243,8 +243,7 @@ export function useStudioExport(exportRef: React.RefObject<HTMLDivElement | null
     };
 
     const handleExportJSON = () => {
-        const cleanDeck = deck.map(s => ({ type: s.type, state: s.state }));
-        const jsonStr = JSON.stringify({ deck: cleanDeck }, null, 2);
+        const jsonStr = JSON.stringify({ deck }, null, 2);
         const blob = new Blob([jsonStr], { type: 'application/json' });
         const a = document.createElement('a');
         a.download = `lassez-deck-${Date.now()}.json`;

@@ -96,7 +96,8 @@ async function run() {
             
             echo "--- Restarting All Services (PM2) ---"
             cd ${REMOTE_PATHS.api}
-            pm2 startOrReload ecosystem.config.cjs --update-env
+            pm2 reload ecosystem.config.cjs --update-env || pm2 start ecosystem.config.cjs --update-env
+            pm2 save
             
             echo "--- Cleanup ---"
             rm /tmp/${archiveName}

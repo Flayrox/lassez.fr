@@ -95,7 +95,24 @@ async function run() {
             npm run build
             
             echo "--- Restarting Services ---"
-            pm2 restart radar-api radar-front radar-studio radar-daemon radar-daemon-rss || pm2 start ${REMOTE_PATHS.api}/ecosystem.config.cjs
+            # API (3001)
+            cd ${REMOTE_PATHS.api}
+            pm2 delete radar-api || true
+            pm2 start "npm start -- -p 3001" --name radar-api
+            
+            # Front (3000)
+            cd ${REMOTE_PATHS.front}
+            pm2 delete radar-front || true
+            pm2 start "npm start -- -p 3000" --name radar-front
+            
+            # Studio (3002)
+            cd ${REMOTE_PATHS.studio}
+            pm2 delete radar-studio || true
+            pm2 start "npm start -- -p 3002" --name radar-studio
+            
+            # Daemons
+            cd ${REMOTE_PATHS.api}
+            pm2 restart radar-daemon radar-daemon-rss || pm2 start ecosystem.config.cjs
             
             echo "--- Cleanup ---"
             rm /tmp/${archiveName}

@@ -9,7 +9,7 @@ export const CoverTemplate: StudioTemplate = {
     name: 'Couverture Magazine',
     category: 'Editorial',
     description: 'Template de couverture classique avec titre incliné.',
-    
+
     defaultState: {
         bg: '#FFFFFF',
         accent: '#DC2626',
@@ -25,7 +25,7 @@ export const CoverTemplate: StudioTemplate = {
         author: 'RÉDACTION',
         swipeLabel: 'VOIR L\'ANALYSE'
     },
-    
+
     schema: [
         { key: 'bg', label: 'Couleur de Fond', type: 'color', group: 'Style' },
         { key: 'accent', label: 'Couleur Accent', type: 'color', group: 'Style' },
@@ -39,40 +39,36 @@ export const CoverTemplate: StudioTemplate = {
         { key: 'readTime', label: 'Lecture', type: 'text', group: 'Infos' },
         { key: 'swipeLabel', label: 'Label Swipe', type: 'text', group: 'Infos' },
     ],
-    
-    shadowStyle: (state) => ({
-        boxShadow: `20px 20px 0 ${state.accent || '#DC2626'}55`
-    }),
-    
+
     Component: ({ state, patch }) => {
         return (
             <div className="w-full h-full border-[10px] border-black overflow-hidden relative" style={{ backgroundColor: state.bg }}>
-                <DraggableImage 
-                    src={state.imageUrl} zoom={state.zoom} grayscale={state.grayscale} 
-                    posX={state.posX} posY={state.posY} 
-                    onPosChange={(x, y) => patch({ posX: x, posY: y })} 
+                <DraggableImage
+                    src={state.imageUrl} zoom={state.zoom} grayscale={state.grayscale}
+                    posX={state.posX} posY={state.posY}
+                    onPosChange={(x, y) => patch({ posX: x, posY: y })}
                 />
-                
+
                 <Aesthetics.Halftone opacity={0.25} zIndex={10} />
-                
-                
+
+
                 <div className="relative z-30 h-full flex flex-col justify-between p-9">
                     <div className="flex justify-between items-start border-b-[3px] border-black pb-3">
                         <span className="sm text-[9px] font-bold uppercase tracking-widest bg-black text-white px-2.5 py-1">Issue #{state.issueNum}</span>
                         <span className="sm text-[9px] uppercase tracking-widest text-black font-bold">{state.brand}</span>
                     </div>
-                    
+
                     <div className="flex-grow flex items-center justify-center relative">
                         <div className="absolute inset-x-[-36px] h-48 transform -skew-y-3 border-y-[6px] border-black shadow-xl" style={{ backgroundColor: state.bg }}></div>
-                        <EditZone 
-                            html={state.headline} 
-                            onChange={h => patch({ headline: h })} 
-                            label="TITRE" 
+                        <EditZone
+                            html={state.headline}
+                            onChange={h => patch({ headline: h })}
+                            label="TITRE"
                             stickerPos="-top-5 right-0"
-                            className="relative z-10 pd font-black text-[76px] leading-[0.82] text-center text-black uppercase italic tracking-tighter" 
+                            className="relative z-10 pd font-black text-[76px] leading-[0.82] text-center text-black uppercase italic tracking-tighter"
                         />
                     </div>
-                    
+
                     <div className="border-t-[6px] border-black pt-4 flex justify-between items-end">
                         <div className="flex flex-col gap-0.5">
                             <span className="sm text-[8px] font-bold uppercase text-black">Temps de lecture: {state.readTime}</span>
@@ -84,7 +80,7 @@ export const CoverTemplate: StudioTemplate = {
                         </div>
                     </div>
                 </div>
-                
+
                 {/* Décorations fixes */}
                 <div className="absolute top-1/3 left-5 w-5 h-5 bg-black z-40"></div>
                 <div className="absolute top-1/3 left-12 w-5 h-5 border-[3px] border-black z-40"></div>

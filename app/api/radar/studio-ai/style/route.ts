@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,8 +15,6 @@ export async function POST(request: Request) {
         const { fields, bg = 'light', accent = '#DC2626' } = await request.json();
         if (!fields || Object.keys(fields).length === 0)
             return NextResponse.json({ error: 'Aucun champ texte fourni' }, { status: 400 });
-
-        const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
         const prompt = `Tu es le Directeur Artistique de "L'Assez", un média militant brutaliste.
 Ta mission: enrichir les champs texte suivants avec un balisage HTML inline minimal pour mettre en avant les informations les plus fortes.
@@ -39,13 +37,17 @@ ${JSON.stringify(fields, null, 2)}
 Retourne un JSON avec exactement les mêmes clés que l'input, mais avec les spans ajoutés:
 { "styledFields": { "headline": "...", "body": "...", ... } }`;
 
-        const response = await ai.models.generateContent({
-            model: 'gemini-3-flash-preview',
-            contents: prompt,
-            config: { temperature: 0.3 }
+        const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
+        const model = genAI.getGenerativeModel({ 
+            model: 'gemini-1.5-flash',
+            generationConfig: {
+                temperature: 0.3
+            }
         });
 
-        const raw = (response.text || '{}').replace(/```json|```/g, '').trim();
+        const result = await model.generateContent(prompt);
+        const response = await result.response;
+        const raw = (response.text() || '{}').replace(/```json|```/g, '').trim();
         const data = JSON.parse(raw);
 
         return NextResponse.json({ styledFields: data.styledFields || {} });

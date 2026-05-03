@@ -38,4 +38,32 @@ export const authenticatedOrPublishedPostRead: Access = ({ req }) => {
 };
 
 export const isAuthenticated: Access = ({ req }) => Boolean(req.user);
+
+export const isAdmin: Access = ({ req: { user } }) => {
+    return Boolean(user?.roles?.includes('admin'));
+};
+
+export const isEditor: Access = ({ req: { user } }) => {
+    return Boolean(user?.roles?.includes('admin') || user?.roles?.includes('editor'));
+};
+
+export const isAuthor: Access = ({ req: { user } }) => {
+    return Boolean(user?.roles?.includes('admin') || user?.roles?.includes('editor') || user?.roles?.includes('author'));
+};
+
+/**
+ * Permet l'accès si l'utilisateur est admin/éditeur, 
+ * OU s'il est l'auteur du document en question.
+ */
+export const isAdminOrEditorOrOwner: Access = ({ req: { user } }) => {
+    if (!user) return false;
+    if (user.roles?.includes('admin') || user.roles?.includes('editor')) return true;
+
+    return {
+        author: {
+            equals: user.id,
+        },
+    };
+};
+
 export const publicRead: Access = () => true;

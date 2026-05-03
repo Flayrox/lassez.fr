@@ -29,8 +29,9 @@ async function createBot() {
                     slug: 'radar-bot',
                     email: botEmail,
                     password: botPassword,
+                    roles: ['admin'],
                 }
-            });
+            } as any);
             console.log('Bot account created successfully.');
         }
     } catch (e) {

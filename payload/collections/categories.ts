@@ -1,5 +1,5 @@
 import type { CollectionConfig } from 'payload';
-import { isAuthenticated, publicRead } from '../access';
+import { isEditor, publicRead } from '../access';
 import { slugifyEditorialValue } from '../lib/editorial';
 import { createGeminiSeoHook } from '../hooks/seo-gemini';
 
@@ -15,9 +15,9 @@ export const categories = {
     slug: 'categories',
     access: {
         read: publicRead,
-        create: isAuthenticated,
-        update: isAuthenticated,
-        delete: isAuthenticated,
+        create: isEditor,
+        update: isEditor,
+        delete: isEditor,
     },
     admin: {
         useAsTitle: 'name',

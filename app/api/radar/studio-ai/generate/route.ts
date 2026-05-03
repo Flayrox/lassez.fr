@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -70,7 +70,6 @@ export async function POST(request: Request) {
     const dynamicSchema = activeTypes.map(t => SLIDE_SCHEMAS[t]).filter(Boolean).join('\n');
     const dynamicRoles = activeTypes.map(t => SLIDE_ROLES[t]).filter(Boolean).join('\n');
 
-    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
     const today = new Date().toLocaleDateString('fr-FR').replace(/\//g, '.');
 
     const prompt = `Tu es le rédacteur en chef de "L'Assez", un média d'éducation populaire et de décryptage politique.
@@ -106,16 +105,18 @@ DATE : ${today} | BRAND : L'ASSEZ | ACCENT : #DC2626
 Réponds UNIQUEMENT avec un JSON valide :
 {"deck":[{"type":"NEWS","state":{...}},{"type":"MAXTEXT","state":{...}}]}`;
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
-      contents: prompt,
-      config: {
+    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
+    const model = genAI.getGenerativeModel({ 
+      model: 'gemini-1.5-flash',
+      tools: [{ googleSearchRetrieval: {} } as any],
+      generationConfig: {
         temperature: 0.6,
-        tools: [{ googleSearch: {} }]
       }
     });
 
-    const raw = response.text || '';
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    const raw = response.text() || '';
     const jsonMatch = raw.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
       console.error('No JSON found in:', raw.slice(0, 400));

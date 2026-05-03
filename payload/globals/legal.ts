@@ -1,12 +1,12 @@
 import type { GlobalConfig } from 'payload';
-import { isAuthenticated } from '../access';
+import { isEditor } from '../access';
 
 export const legal: GlobalConfig = {
     slug: 'legal',
     label: 'Mentions Légales',
     access: {
         read: () => true,
-        update: isAuthenticated,
+        update: isEditor,
     },
     admin: {
         description: 'Éditez les informations légales et la politique de confidentialité.',

@@ -1,5 +1,5 @@
 import { CollectionBeforeValidateHook } from 'payload';
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
 type SeoPayload = {
     meta_title?: string | null;
@@ -104,24 +104,26 @@ export async function generateGeminiSeo(options: GeminiSeoOptions): Promise<SeoP
     const title = String(options.title || '').trim();
     const body = String(options.body || '').trim().slice(0, 2500);
     if (!title && !body) return null;
-    const model = String(options.model || process.env.GEMINI_SEO_MODEL || FALLBACK_GEMINI_MODEL).trim() || FALLBACK_GEMINI_MODEL;
+    const modelName = String(options.model || process.env.GEMINI_SEO_MODEL || FALLBACK_GEMINI_MODEL).trim() || FALLBACK_GEMINI_MODEL;
 
     try {
-        const ai = new GoogleGenAI({ apiKey });
-        const response = await ai.models.generateContent({
-            model,
-            contents: buildSeoPrompt({
-                collectionLabel: options.collectionLabel,
-                title,
-                body,
-            }),
-            config: {
+        const genAI = new GoogleGenerativeAI(apiKey);
+        const model = genAI.getGenerativeModel({ 
+            model: modelName,
+            generationConfig: {
                 temperature: 0.2,
                 responseMimeType: 'application/json',
-            },
+            }
         });
 
-        return parseSeoResponse(response.text || '');
+        const result = await model.generateContent(buildSeoPrompt({
+            collectionLabel: options.collectionLabel,
+            title,
+            body,
+        }));
+
+        const response = await result.response;
+        return parseSeoResponse(response.text());
     } catch (error) {
         console.error('[SEO-GEMINI]', options.collectionLabel, error);
         return null;

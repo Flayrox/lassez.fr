@@ -1,11 +1,11 @@
 import type { GlobalConfig } from 'payload';
-import { isAuthenticated } from '../access';
+import { isEditor } from '../access';
 
 export const about: GlobalConfig = {
     slug: 'about',
     access: {
         read: () => true,
-        update: isAuthenticated,
+        update: isEditor,
     },
     admin: {
         description: 'Éditez le Manifeste et la présentation de l’équipe.',

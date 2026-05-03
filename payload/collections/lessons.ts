@@ -1,5 +1,5 @@
 import type { CollectionConfig } from 'payload';
-import { authenticatedOrPublishedPostRead, isAuthenticated } from '../access';
+import { authenticatedOrPublishedPostRead, isAdminOrEditorOrOwner, isAuthor } from '../access';
 import { lexicalHTML } from '@payloadcms/richtext-lexical';
 import { getPublicSiteOrigin } from '../../lib/host-urls';
 import { createPostPreviewToken } from '../../lib/preview-token';
@@ -34,9 +34,9 @@ export const lessons: CollectionConfig = {
     slug: 'lessons',
     access: {
         read: authenticatedOrPublishedPostRead,
-        create: isAuthenticated,
-        update: isAuthenticated,
-        delete: isAuthenticated,
+        create: isAuthor,
+        update: isAdminOrEditorOrOwner,
+        delete: isAdminOrEditorOrOwner,
     },
     admin: {
         useAsTitle: 'title',
@@ -158,6 +158,14 @@ export const lessons: CollectionConfig = {
                 { label: 'Draft', value: 'draft' },
                 { label: 'Published', value: 'published' },
             ],
+        },
+        {
+            name: 'author',
+            type: 'relationship',
+            relationTo: 'authors',
+            admin: {
+                description: 'Auteur éditorial responsable de cette leçon.',
+            },
         },
     ],
 };

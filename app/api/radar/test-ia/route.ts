@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import Database from 'better-sqlite3';
 import path from 'path';
 
@@ -29,7 +29,11 @@ export async function POST(request: Request) {
 
         const customPrompt = promptRow?.value || '';
 
-        const ai = new GoogleGenAI({ apiKey });
+        const genAI = new GoogleGenerativeAI(apiKey);
+        const model = genAI.getGenerativeModel({ 
+            model: "gemini-1.5-pro", 
+            tools: [{ googleSearchRetrieval: {} } as any],
+        });
 
         const fullPrompt = `
 ${customPrompt}
@@ -62,16 +66,15 @@ Contenu: ${textToTest}
 ---
 `;
 
-        const response = await ai.models.generateContent({
-            model: "gemini-3-pro-preview",
-            contents: fullPrompt,
-            config: {
-                tools: [{ googleSearch: {} }],
+        const result = await model.generateContent({
+            contents: [{ role: 'user', parts: [{ text: fullPrompt }] }],
+            generationConfig: {
                 responseMimeType: "application/json"
             }
         });
 
-        const rawText = response.text || "";
+        const response = await result.response;
+        const rawText = response.text() || "";
         
         let jsonResponse;
         try {

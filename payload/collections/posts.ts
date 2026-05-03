@@ -1,5 +1,5 @@
 import type { CollectionConfig } from 'payload';
-import { authenticatedOrPublishedPostRead, isAuthenticated } from '../access';
+import { authenticatedOrPublishedPostRead, isAdminOrEditorOrOwner, isAuthor } from '../access';
 import { getPublicSiteOrigin } from '../../lib/host-urls';
 import { createPostPreviewToken } from '../../lib/preview-token';
 import { buildPostPreviewUrl, getPublishedAtDefault, resolveCanonicalArticlePath, resolvePrimaryCategorySlug, slugifyEditorialValue } from '../lib/editorial';
@@ -84,9 +84,9 @@ export const posts = {
     slug: 'posts',
     access: {
         read: authenticatedOrPublishedPostRead,
-        create: isAuthenticated,
-        update: isAuthenticated,
-        delete: isAuthenticated,
+        create: isAuthor,
+        update: isAdminOrEditorOrOwner,
+        delete: isAdminOrEditorOrOwner,
     },
     admin: {
         useAsTitle: 'title',

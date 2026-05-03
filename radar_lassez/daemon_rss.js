@@ -233,5 +233,16 @@ function checkAndRun() {
 log('🚀 Radar L\'Assez : Daemon RSS initialisé.');
 checkAndRun();
 
+// ─── SERVEUR DUMMY POUR HOSTINGER ─────────────────────────────
+import http from 'http';
+const dummyServer = http.createServer((req, res) => {
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end('DAEMON RSS IS ALIVE\n');
+});
+const port = process.env.PORT || 3006; 
+dummyServer.listen(port, () => {
+    log(`🌐 Serveur "Dummy" Hostinger démarré sur le port ${port}.`);
+});
+
 // Boucle principale: checke chaque minute (60s)
 setInterval(checkAndRun, 60 * 1000);

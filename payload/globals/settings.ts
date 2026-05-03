@@ -1,5 +1,5 @@
 import type { GlobalConfig } from 'payload';
-import { isAuthenticated } from '../access';
+import { isAdmin } from '../access';
 
 const GEMINI_MODEL_OPTIONS = [
     'gemini-3.1-pro-preview',
@@ -14,7 +14,7 @@ export const settings: GlobalConfig = {
     slug: 'settings',
     access: {
         read: () => true, // Everyone can read settings
-        update: isAuthenticated,
+        update: isAdmin,
     },
     admin: {
         description: 'Réglages globaux du site (Textes, Liens, Maintenance)',

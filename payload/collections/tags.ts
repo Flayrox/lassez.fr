@@ -1,5 +1,5 @@
 import type { CollectionConfig } from 'payload';
-import { isAuthenticated, publicRead } from '../access';
+import { isAuthor, isEditor, publicRead } from '../access';
 import { slugifyEditorialValue } from '../lib/editorial';
 
 async function ensureTagSlug({ data, originalDoc }: any) {
@@ -14,9 +14,9 @@ export const tags = {
     slug: 'tags',
     access: {
         read: publicRead,
-        create: isAuthenticated,
-        update: isAuthenticated,
-        delete: isAuthenticated,
+        create: isAuthor,
+        update: isEditor,
+        delete: isEditor,
     },
     admin: {
         useAsTitle: 'name',

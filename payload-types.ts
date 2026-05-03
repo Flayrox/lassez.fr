@@ -198,6 +198,10 @@ export interface Author {
    */
   name: string;
   /**
+   * Permissions de l’utilisateur. Seuls les admins peuvent modifier ce champ.
+   */
+  roles: ('admin' | 'editor' | 'author')[];
+  /**
    * Slug auto-généré à partir du nom si vide.
    */
   slug: string;
@@ -386,6 +390,10 @@ export interface Lesson {
    */
   pdf_attachement?: (number | null) | Media;
   status?: ('draft' | 'published') | null;
+  /**
+   * Auteur éditorial responsable de cette leçon.
+   */
+  author?: (number | null) | Author;
   meta?: {
     title?: string | null;
     description?: string | null;
@@ -442,6 +450,10 @@ export interface Revelation {
    * Tags thématiques pour le filtrage dans le flux Révélations.
    */
   tags?: (number | Tag)[] | null;
+  /**
+   * Auteur éditorial responsable de cette révélation.
+   */
+  author?: (number | null) | Author;
   meta?: {
     title?: string | null;
     description?: string | null;
@@ -580,6 +592,7 @@ export interface TagsSelect<T extends boolean = true> {
  */
 export interface AuthorsSelect<T extends boolean = true> {
   name?: T;
+  roles?: T;
   slug?: T;
   bio?: T;
   avatar?: T;
@@ -670,6 +683,7 @@ export interface LessonsSelect<T extends boolean = true> {
   niveau_difficulte?: T;
   pdf_attachement?: T;
   status?: T;
+  author?: T;
   meta?:
     | T
     | {
@@ -693,6 +707,7 @@ export interface RevelationsSelect<T extends boolean = true> {
   niveau_alerte?: T;
   zone_geo?: T;
   tags?: T;
+  author?: T;
   meta?:
     | T
     | {

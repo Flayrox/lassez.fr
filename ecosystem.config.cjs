@@ -2,7 +2,7 @@ module.exports = {
     apps: [
         {
             name: 'radar-api',
-            script: 'node_modules/.bin/next',
+            script: 'node_modules/next/dist/bin/next',
             args: 'start -p 3001',
             cwd: '/var/www/lassez-api',
             instances: 1,
@@ -11,7 +11,7 @@ module.exports = {
         },
         {
             name: 'radar-front',
-            script: 'node_modules/.bin/next',
+            script: 'node_modules/next/dist/bin/next',
             args: 'start -p 3000',
             cwd: '/var/www/lassez-front',
             instances: 1,
@@ -20,7 +20,7 @@ module.exports = {
         },
         {
             name: 'radar-studio',
-            script: 'node_modules/.bin/next',
+            script: 'node_modules/next/dist/bin/next',
             args: 'start -p 3002',
             cwd: '/var/www/lassez-studio',
             instances: 1,

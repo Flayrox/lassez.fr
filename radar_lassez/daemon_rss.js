@@ -47,32 +47,53 @@ function toLocalHourMinute(d) {
     return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
 }
 
+const DAY_MAP = {
+    'LUN': 1, 'MAR': 2, 'MER': 3, 'JEU': 4, 'VEN': 5, 'SAM': 6, 'DIM': 0,
+    'MONDAY': 1, 'TUESDAY': 2, 'WEDNESDAY': 3, 'THURSDAY': 4, 'FRIDAY': 5, 'SATURDAY': 6, 'SUNDAY': 0
+};
+
 function parseDailySchedule(raw) {
     if (!raw) return [];
-    return String(raw).split(/[\n,;|\s]+/).map(x => x.trim()).filter(Boolean);
+    // Formats supportés: "08:00", "LUN,MER 10:00", "LUN-VEN 09:00"
+    return String(raw).split(/[\n;|\s]+/).map(x => x.trim()).filter(Boolean);
 }
 
-function getNextScheduledDate(scheduleTimes, now = new Date()) {
-    if (!scheduleTimes.length) return null;
-    const valid = scheduleTimes
-        .map((hhmm) => {
-            const m = String(hhmm).match(/^(\d{1,2}):(\d{2})$/);
-            if (!m) return null;
-            const h = Number(m[1]);
-            const mm = Number(m[2]);
-            if (h < 0 || h > 23 || mm < 0 || mm > 59) return null;
-            return { h, mm };
-        })
-        .filter(Boolean);
+function getNextScheduledDate(scheduleEntries, now = new Date()) {
+    if (!scheduleEntries.length) return null;
 
-    if (!valid.length) return null;
+    const parsedSlots = scheduleEntries.map(entry => {
+        // Séparer jours et heure (ex: "LUN,MER 10:00" -> days=["LUN","MER"], time="10:00")
+        const parts = entry.split(/\s+/);
+        let days = null; // null means all days
+        let timeStr = parts[0];
 
-    for (let dayOffset = 0; dayOffset <= 1; dayOffset++) {
+        if (parts.length > 1) {
+            days = parts[0].toUpperCase().split(',').map(d => DAY_MAP[d.trim()] ?? null).filter(d => d !== null);
+            timeStr = parts[1];
+        }
+
+        const m = timeStr.match(/^(\d{1,2}):(\d{2})$/);
+        if (!m) return null;
+        const h = Number(m[1]);
+        const mm = Number(m[2]);
+        if (h < 0 || h > 23 || mm < 0 || mm > 59) return null;
+
+        return { days, h, mm };
+    }).filter(Boolean);
+
+    if (!parsedSlots.length) return null;
+
+    // On cherche dans les 7 prochains jours
+    for (let dayOffset = 0; dayOffset <= 7; dayOffset++) {
         const day = new Date(now);
         day.setHours(0, 0, 0, 0);
         day.setDate(day.getDate() + dayOffset);
+        const dayOfWeek = day.getDay();
 
-        for (const slot of valid) {
+        for (const slot of parsedSlots) {
+            // Vérifier si le jour match
+            if (slot.days && !slot.days.includes(dayOfWeek)) continue;
+
             const candidate = new Date(day);
             candidate.setHours(slot.h, slot.mm, 0, 0);
             if (candidate > now) return candidate;
@@ -184,9 +205,13 @@ function checkAndRun() {
     if (scanRunning) return;
 
     const settings = getSettings();
-    if (settings.daemon_rss_enabled === 'false') return;
+    if (settings.daemon_rss_enabled === 'false') {
+        // Quiet mode if disabled
+        return;
+    }
 
     const now = new Date();
+    log(`💓 Heartbeat: Checking triggers... (Schedule: ${settings.daemon_rss_schedule_enabled === 'true' ? 'ON' : 'OFF'}, Interval: ${settings.daemon_rss_interval_enabled !== 'false' ? 'ON' : 'OFF'})`);
     let shouldRun = false;
 
     const nextScanAt = computeNextScanAt(settings, now);
@@ -200,10 +225,24 @@ function checkAndRun() {
 
     if (scheduleEnabled && scheduleTimes.length > 0) {
         const minuteKey = toLocalHourMinute(now);
+        const dayOfWeek = now.getDay();
         const hitKey = `${toLocalDateKey(now)} ${minuteKey}`;
         const lastHit = settings.daemon_rss_schedule_last_hit || '';
 
-        if (scheduleTimes.includes(minuteKey) && lastHit !== hitKey) {
+        const hasMatch = scheduleTimes.some(entry => {
+            const parts = entry.split(/\s+/);
+            let days = null;
+            let timeStr = parts[0];
+            if (parts.length > 1) {
+                days = parts[0].toUpperCase().split(',').map(d => DAY_MAP[d.trim()] ?? null).filter(d => d !== null);
+                timeStr = parts[1];
+            }
+            if (timeStr !== minuteKey) return false;
+            if (days && !days.includes(dayOfWeek)) return false;
+            return true;
+        });
+
+        if (hasMatch && lastHit !== hitKey) {
             saveSetting('daemon_rss_schedule_last_hit', hitKey);
             log(`⏰ Heure programmée atteinte : ${minuteKey}. Déclenchement du scan.`);
             shouldRun = true;

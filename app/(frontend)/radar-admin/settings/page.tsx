@@ -5,11 +5,12 @@ import { useRadarAdmin } from '../components/RadarAdminContext';
 import { ModernDashboardLayout } from '../components/ModernDashboardLayout';
 import { SourcesSection } from './components/SourcesSection';
 import { PipelineSection } from './components/PipelineSection';
+import { DaemonSection } from './components/DaemonSection';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function SettingsPage() {
     const { settings, fetchSettings, isDaemonRunning, countdown } = useRadarAdmin();
-    const [activeTab, setActiveTab] = useState<'sources' | 'pipeline' | 'diffusion' | 'health' | 'users'>('sources');
+    const [activeTab, setActiveTab] = useState<'sources' | 'pipeline' | 'daemon' | 'diffusion' | 'health' | 'users'>('sources');
     const [form, setForm] = useState<any>({});
     const [isSaving, setIsSaving] = useState(false);
     const [isDirty, setIsDirty] = useState(false);
@@ -47,7 +48,8 @@ export default function SettingsPage() {
     const tabs = [
         { key: 'sources', label: 'Sources', icon: 'rss_feed' },
         { key: 'pipeline', label: 'Cortex Engine', icon: 'psychology' },
-        { key: 'diffusion', label: 'Distribution', icon: 'share' },
+        { key: 'daemon', label: 'Daemon & Schedule', icon: 'schedule' },
+        { key: 'diffusion', label: 'Social Matrix', icon: 'share' },
         { key: 'health', label: 'System Health', icon: 'health_and_safety' },
         { key: 'users', label: 'Access Control', icon: 'group' },
     ];
@@ -108,6 +110,7 @@ export default function SettingsPage() {
                         >
                             {activeTab === 'sources' && <SourcesSection form={form} updateForm={updateForm} />}
                             {activeTab === 'pipeline' && <PipelineSection form={form} updateForm={updateForm} />}
+                            {activeTab === 'daemon' && <DaemonSection form={form} updateForm={updateForm} />}
                             
                             {(activeTab === 'diffusion' || activeTab === 'health' || activeTab === 'users') && (
                                 <div className="py-20 text-center space-y-4">

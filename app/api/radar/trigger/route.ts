@@ -26,6 +26,7 @@ export async function POST(request: Request) {
             // Empty body => default manual RSS scan
         }
 
+        console.log(`[API:Trigger] Received request: action=${action}, slug=${electionSlugOverride}`);
         const scriptFile = action === 'elections' ? 'sync_elections.js' : 'index.js';
         const logPrefix = action === 'elections' ? 'MANUAL-ELECTIONS' : 'MANUAL-SCAN';
         const startLabel = action === 'elections' ? 'sync élections' : 'scan RSS/IA';
@@ -41,7 +42,10 @@ export async function POST(request: Request) {
             const configFilePath = path.join(tempDir, configFileName);
             fs.writeFileSync(configFilePath, JSON.stringify(customScan));
             execCommand += ` --config "temp/${configFileName}"`;
+            console.log(`[API:Trigger] Custom scan detected, config saved to ${configFileName}`);
         }
+
+        console.log(`[API:Trigger] Executing: ${execCommand}`);
 
         const encoder = new TextEncoder();
 

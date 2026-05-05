@@ -477,6 +477,7 @@ function getElectionSchedulePlan(settings, now = new Date()) {
 
 // ─── BOUCLE 1 : Scan RSS/IA ───────────────────────────────────
 let scanRunning = false;
+let lastScanDurationMs = 0;
 
 async function runScan() {
     if (scanRunning) {
@@ -487,6 +488,9 @@ async function runScan() {
     log('════════════════════════════════════════');
     log('🔍 BOUCLE 1 — SCAN RSS/TELEGRAM + IA');
     log('════════════════════════════════════════');
+    log('🔍 BOUCLE 1 — SCAN RSS/TELEGRAM + IA');
+    log('════════════════════════════════════════');
+    const startTime = Date.now();
     saveSetting('last_scan_at', new Date().toISOString());
     try {
         const settings = getSettings();
@@ -508,6 +512,7 @@ async function runScan() {
         log(`❌ Erreur inattendue dans runScan: ${e.message}`);
     } finally {
         scanRunning = false;
+        lastScanDurationMs = Date.now() - startTime;
         const settings = getSettings();
         const plan = getRssSchedulePlan(settings);
 
@@ -785,7 +790,32 @@ function startHeartbeatLoop() {
         let db;
         try {
             db = new Database(path.join(__dirname, 'radar.db'));
-            db.prepare("INSERT INTO system_health (id, last_heartbeat, status) VALUES (1, CURRENT_TIMESTAMP, 'ALIVE') ON CONFLICT(id) DO UPDATE SET last_heartbeat=CURRENT_TIMESTAMP, status='ALIVE'").run();
+            
+            // Collect advanced stats
+            const pending = db.prepare("SELECT count(*) as count FROM radar_posts WHERE status = 'PENDING'").get().count;
+            const approved = db.prepare("SELECT count(*) as count FROM radar_posts WHERE status = 'APPROVED'").get().count;
+            const errors24h = db.prepare("SELECT count(*) as count FROM radar_logs WHERE level = 'ERROR' AND created_at > datetime('now', '-24 hours')").get().count;
+            const lastJob = db.prepare("SELECT type, status, updated_at FROM radar_jobs ORDER BY id DESC LIMIT 1").get();
+            
+            const details = JSON.stringify({
+                pending_posts: pending,
+                approved_posts: approved,
+                errors_24h: errors24h,
+                last_scan_duration_sec: Math.round(lastScanDurationMs / 1000),
+                last_job: lastJob || null,
+                memory_usage_mb: Math.round(process.memoryUsage().rss / 1024 / 1024),
+                uptime_sec: Math.round(process.uptime())
+            });
+
+            db.prepare(`
+                INSERT INTO system_health (id, last_heartbeat, status, details) 
+                VALUES (1, CURRENT_TIMESTAMP, 'ALIVE', ?) 
+                ON CONFLICT(id) DO UPDATE SET 
+                    last_heartbeat=CURRENT_TIMESTAMP, 
+                    status='ALIVE',
+                    details=EXCLUDED.details
+            `).run(details);
+            
             db.close();
         } catch (e) {
             if (db) try { db.close(); } catch(_) {}
@@ -888,7 +918,8 @@ function ensureDb() {
         video_prefilter_prompt: 'Ce message Telegram parle-t-il de politique, de mouvements sociaux, de justice ou d un evenement d interet public ? Reponds uniquement par OUI ou NON.',
         video_prefilter_min_chars: '20',
         video_transcribe_model: 'gemini-2.0-flash',
-        video_max_audio_mb: '20'
+        video_max_audio_mb: '20',
+        pipeline_graph_json: '{}'
     };
 
     const insertDefault = db.prepare(`INSERT OR IGNORE INTO radar_settings (key, value) VALUES (?, ?)`);

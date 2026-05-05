@@ -16,12 +16,17 @@ const CONFIG = {
 
 async function main() {
     console.log('--- RADAR CORTEX v3.0 ENGINE ---');
+    console.log(`📍 DB_PATH: ${CONFIG.DB_PATH}`);
+    console.log(`🔑 API_KEY: ${CONFIG.GEMINI_API_KEY ? 'Present (Ends with ' + CONFIG.GEMINI_API_KEY.slice(-4) + ')' : 'MISSING!'}`);
+    
     const engine = new CoreEngine(CONFIG.DB_PATH, CONFIG.GEMINI_API_KEY);
     
     try {
+        console.log('⚡ Starting runFullScan...');
         await engine.runFullScan();
+        console.log('✅ runFullScan finished successfully.');
     } catch (error) {
-        console.error('❌ [FATAL] Engine crash:', error.message);
+        console.error('❌ [FATAL] Engine crash:', error.stack || error.message);
         process.exit(1);
     }
 }

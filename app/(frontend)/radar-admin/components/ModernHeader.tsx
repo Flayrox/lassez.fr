@@ -88,8 +88,30 @@ export function ModernHeader({
                     Logs
                 </button>
                 
-                <button className="h-8 px-4 bg-black text-white text-[11px] font-bold uppercase tracking-wide hover:bg-zinc-800 transition-all rounded-sm">
-                    Deploy
+                <button 
+                    disabled={isTerminalOpen && !isDaemonRunning} // Example logic
+                    onClick={async () => {
+                        try {
+                            const btn = document.getElementById('header-scan-btn');
+                            if (btn) btn.innerText = 'Scanning...';
+                            await fetch('/api/radar/trigger', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ action: 'scan' })
+                            });
+                            alert('Scan manual lancé !');
+                        } catch (e) {
+                            alert('Erreur lors du déclenchement du scan.');
+                        } finally {
+                            const btn = document.getElementById('header-scan-btn');
+                            if (btn) btn.innerText = 'Scan';
+                        }
+                    }}
+                    id="header-scan-btn"
+                    className="h-8 px-4 bg-black text-white text-[11px] font-bold uppercase tracking-wide hover:bg-zinc-800 transition-all rounded-sm flex items-center gap-2"
+                >
+                    <span className="material-symbols-outlined text-[16px]">play_arrow</span>
+                    Scan
                 </button>
             </div>
         </header>

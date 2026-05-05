@@ -64,6 +64,7 @@ export async function PATCH(request: Request) {
             dedup_similarity_threshold, dedup_recent_hours,
             video_ingest_enabled, video_prefilter_model, video_prefilter_prompt, video_prefilter_min_chars, video_transcribe_model, video_max_audio_mb,
             image_overlay_enabled, image_overlay_opacity, image_box_scale_169, image_box_scale_1x1,
+            pipeline_graph_json,
             // --- Communication ---
             maintenance_mode, maintenance_message,
             popup_enabled, popup_title, popup_text, popup_link_url, popup_link_label
@@ -139,6 +140,7 @@ export async function PATCH(request: Request) {
         if (image_overlay_opacity !== undefined) updateStmt.run('image_overlay_opacity', String(image_overlay_opacity));
         if (image_box_scale_169 !== undefined) updateStmt.run('image_box_scale_169', String(image_box_scale_169));
         if (image_box_scale_1x1 !== undefined) updateStmt.run('image_box_scale_1x1', String(image_box_scale_1x1));
+        if (pipeline_graph_json !== undefined) updateStmt.run('pipeline_graph_json', String(pipeline_graph_json));
 
         // --- Communication ---
         if (maintenance_mode !== undefined) updateStmt.run('maintenance_mode', String(maintenance_mode));

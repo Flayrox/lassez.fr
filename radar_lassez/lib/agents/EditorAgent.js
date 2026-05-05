@@ -1,23 +1,20 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenAI } from '@google/genai';
 
 /**
- * Editor Agent
+ * Editor Agent (v3.0 - Gemini 3 Flash Edition)
  * Mission: Rewrite the article with the "L'Assez" tone based on the research.
  */
 export class EditorAgent {
-    constructor(apiKey, modelName = 'gemini-1.5-pro', customPrompt = '') {
-        const genAI = new GoogleGenerativeAI(apiKey);
-        this.model = genAI.getGenerativeModel({
-            model: modelName,
-            generationConfig: { responseMimeType: 'application/json' }
-        });
+    constructor(apiKey, modelName = 'gemini-3-flash-preview', customPrompt = '') {
+        this.client = new GoogleGenAI({ apiKey });
+        this.modelName = modelName;
         this.customPrompt = customPrompt;
     }
 
     async rewrite(article, researchContext, type = 'BREAKING') {
-        console.log(`[Agent:Editor] Writing article as ${type}: ${article.title}`);
+        console.log(`[Agent:Editor] 🖋️ Crafting ${type} flash: ${article.title}`);
+        console.log(`   -> Target Model: ${this.modelName}`);
 
-        // Default style guide if no custom prompt is provided
         const baseInstructions = this.customPrompt || `
             Tu es le Rédacteur en Chef de L'Assez, un média d'investigation politique indépendant et très incisif.
             Ton but est de transformer une information brute et son contexte de recherche en un "Flash" percutant.
@@ -51,10 +48,20 @@ export class EditorAgent {
         `;
 
         try {
-            const result = await this.model.generateContent(prompt);
-            return JSON.parse(result.response.text());
+            console.log(`[Agent:Editor] Calling Gemini 3 API...`);
+            const response = await this.client.models.generateContent({
+                model: this.modelName,
+                contents: prompt,
+                config: {
+                    responseMimeType: 'application/json'
+                }
+            });
+            const parsed = JSON.parse(response.text);
+            console.log(`[Agent:Editor] Rewrite complete: ${parsed.shortTitle}`);
+            return parsed;
         } catch (error) {
-            console.error('[Agent:Editor] Error during writing:', error.message);
+            console.error('[Agent:Editor] ❌ Error during writing:', error.message);
+            console.error('Raw response might be:', response?.text);
             return null;
         }
     }

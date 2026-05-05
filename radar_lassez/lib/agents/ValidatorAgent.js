@@ -1,20 +1,18 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenAI } from '@google/genai';
 
 /**
- * Validator Agent
+ * Validator Agent (v3.0 - Gemini 3 Lite Edition)
  * Mission: Check for hallucinations, formatting errors, and ensure quality.
  */
 export class ValidatorAgent {
-    constructor(apiKey, modelName = 'gemini-1.5-flash') {
-        const genAI = new GoogleGenerativeAI(apiKey);
-        this.model = genAI.getGenerativeModel({
-            model: modelName,
-            generationConfig: { responseMimeType: 'application/json' }
-        });
+    constructor(apiKey, modelName = 'gemini-3.1-flash-lite-preview') {
+        this.client = new GoogleGenAI({ apiKey });
+        this.modelName = modelName;
     }
 
     async validate(articleJson, originalSource) {
-        console.log(`[Agent:Validator] Validating article: ${articleJson.shortTitle}`);
+        console.log(`[Agent:Validator] ✅ Verifying article: ${articleJson.shortTitle}`);
+        console.log(`   -> Target Model: ${this.modelName}`);
 
         const prompt = `
             Tu es un Correcteur et Fact-checker senior.
@@ -36,10 +34,19 @@ export class ValidatorAgent {
         `;
 
         try {
-            const result = await this.model.generateContent(prompt);
-            return JSON.parse(result.response.text());
+            console.log(`[Agent:Validator] Calling Gemini 3 API...`);
+            const response = await this.client.models.generateContent({
+                model: this.modelName,
+                contents: prompt,
+                config: {
+                    responseMimeType: 'application/json'
+                }
+            });
+            const parsed = JSON.parse(response.text);
+            console.log(`[Agent:Validator] Validation finished: isValid=${parsed.isValid}`);
+            return parsed;
         } catch (error) {
-            console.error('[Agent:Validator] Error during validation:', error.message);
+            console.error('[Agent:Validator] ❌ Error during validation:', error.message);
             return { isValid: true, reason: "Validation failed, skipping.", corrections: articleJson };
         }
     }

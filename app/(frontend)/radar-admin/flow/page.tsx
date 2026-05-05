@@ -119,6 +119,7 @@ export default function FlowPage() {
     const [nodes, setNodes] = useState<Node[]>([]);
     const [connections, setConnections] = useState<Connection[]>([]);
     const [isHydrated, setIsHydrated] = useState(false);
+    const [isDeploying, setIsDeploying] = useState(false);
     const { selectedNodeId, setSelectedNodeId } = useUI();
 
     const saveToLocal = (n: Node[], c: Connection[]) => {
@@ -218,6 +219,39 @@ export default function FlowPage() {
             await fetchSettings();
         }
     };
+    
+    const handleDeploy = async () => {
+        setIsDeploying(true);
+        try {
+            // 1. Sync all settings from nodes first (just in case)
+            // (Already mostly handled by updateNodeData, but we want the full graph structure too)
+            
+            // 2. Save the graph structure to the DB
+            const res = await fetch('/api/radar/settings', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    pipeline_graph_json: JSON.stringify({ nodes, connections })
+                })
+            });
+            
+            if (!res.ok) throw new Error('Deploy failed');
+            
+            // 3. Trigger a manual scan to verify the new pipeline in real-time
+            await fetch('/api/radar/trigger', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'scan' })
+            });
+
+            alert('Pipeline deployed and synchronized! Initializing verification scan...');
+        } catch (e) {
+            console.error(e);
+            alert('Deployment failed. Check console for details.');
+        } finally {
+            setIsDeploying(false);
+        }
+    };
 
     const handleReset = () => {
         if (confirm('Revert pipeline to Studio Defaults? (Layout & Connections)')) {
@@ -259,7 +293,18 @@ export default function FlowPage() {
         <ModernDashboardLayout title="Pipeline" fullBleed={true} actions={
             <div className="flex items-center gap-2">
                 <button onClick={handleReset} className="px-4 py-1.5 border border-slate-200 text-[10px] font-black uppercase rounded-sm hover:bg-slate-50 transition-colors">Reset</button>
-                <button className="px-4 py-1.5 bg-black text-white text-[10px] font-black uppercase rounded-sm shadow-lg hover:bg-zinc-800 transition-colors">Deploy</button>
+                <button 
+                    onClick={handleDeploy} 
+                    disabled={isDeploying}
+                    className={`px-4 py-1.5 bg-black text-white text-[10px] font-black uppercase rounded-sm shadow-lg hover:bg-zinc-800 transition-colors flex items-center gap-2 ${isDeploying ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                    {isDeploying ? (
+                        <>
+                            <div className="w-2 h-2 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            Deploying...
+                        </>
+                    ) : 'Deploy'}
+                </button>
             </div>
         }>
             <div className="flex-1 relative w-full h-full overflow-hidden bg-white">

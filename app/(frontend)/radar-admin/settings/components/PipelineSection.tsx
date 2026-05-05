@@ -8,10 +8,11 @@ interface PipelineSectionProps {
 }
 
 const MODELS = [
-    'gemini-2.0-flash',
+    'gemini-3.1-pro-preview',
+    'gemini-3-flash-preview',
+    'gemini-3.1-flash-lite-preview',
     'gemini-2.0-pro-exp',
     'gemini-1.5-pro',
-    'gemini-1.5-flash',
 ];
 
 export function PipelineSection({ form, updateForm }: PipelineSectionProps) {
@@ -27,7 +28,13 @@ export function PipelineSection({ form, updateForm }: PipelineSectionProps) {
                     <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Model Selection</h4>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div className="space-y-2">
-                            <label className="text-[10px] font-bold text-slate-500 uppercase">Main Editorial Agent</label>
+                            <div className="flex justify-between items-center">
+                                <label className="text-[10px] font-bold text-slate-500 uppercase">Main Editorial Agent</label>
+                                <div className="flex items-center gap-1 opacity-40">
+                                    <span className="material-symbols-outlined text-slate-400 text-[12px]">public_off</span>
+                                    <span className="text-[8px] font-bold text-slate-400 uppercase">Search Off</span>
+                                </div>
+                            </div>
                             <select 
                                 value={form.ai_model_main || ''} 
                                 onChange={e => updateForm('ai_model_main', e.target.value)}
@@ -37,7 +44,13 @@ export function PipelineSection({ form, updateForm }: PipelineSectionProps) {
                             </select>
                         </div>
                         <div className="space-y-2">
-                            <label className="text-[10px] font-bold text-slate-500 uppercase">Researcher Agent (OSINT)</label>
+                            <div className="flex justify-between items-center">
+                                <label className="text-[10px] font-bold text-slate-500 uppercase">Researcher Agent (OSINT)</label>
+                                <div className="flex items-center gap-1">
+                                    <span className="material-symbols-outlined text-emerald-500 text-[12px]">public</span>
+                                    <span className="text-[8px] font-bold text-emerald-600 uppercase">Google Search ON</span>
+                                </div>
+                            </div>
                             <select 
                                 value={form.ai_model_breaking || ''} 
                                 onChange={e => updateForm('ai_model_breaking', e.target.value)}

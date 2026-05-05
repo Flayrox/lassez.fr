@@ -1,20 +1,18 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenAI } from '@google/genai';
 
 /**
- * Researcher Agent
+ * Researcher Agent (v3.0 - Gemini 3 Reasoning Edition)
  * Mission: Fact-check the information and find historical context or "passif" of the entities involved.
  */
 export class ResearcherAgent {
-    constructor(apiKey, modelName = 'gemini-1.5-pro') {
-        const genAI = new GoogleGenerativeAI(apiKey);
-        this.model = genAI.getGenerativeModel({
-            model: modelName,
-            tools: [{ googleSearch: {} }]
-        });
+    constructor(apiKey, modelName = 'gemini-3.1-pro-preview') {
+        this.client = new GoogleGenAI({ apiKey });
+        this.modelName = modelName;
     }
 
     async research(article) {
-        console.log(`[Agent:Researcher] Researching context for: ${article.title}`);
+        console.log(`[Agent:Researcher] 🧠 Thinking deeply about: ${article.title}`);
+        console.log(`   -> Target Model: ${this.modelName}`);
         
         const prompt = `
             Tu es un chercheur OSINT et fact-checker pour un média d'investigation. 
@@ -35,10 +33,21 @@ export class ResearcherAgent {
         `;
 
         try {
-            const result = await this.model.generateContent(prompt);
-            return result.response.text();
+            console.log(`[Agent:Researcher] Calling Gemini 3 API...`);
+            const response = await this.client.models.generateContent({
+                model: this.modelName,
+                contents: prompt,
+                config: {
+                    tools: [{ googleSearch: {} }],
+                    thinkingConfig: {
+                        thinkingLevel: "high"
+                    }
+                }
+            });
+            console.log(`[Agent:Researcher] Research complete. Output length: ${response.text?.length || 0} chars.`);
+            return response.text;
         } catch (error) {
-            console.error('[Agent:Researcher] Error during research:', error.message);
+            console.error('[Agent:Researcher] ❌ Error during research:', error.message);
             return "Aucune recherche supplémentaire n'a pu être effectuée.";
         }
     }

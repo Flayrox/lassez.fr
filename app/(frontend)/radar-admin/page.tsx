@@ -2,12 +2,11 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRadarAdmin } from './components/RadarAdminContext';
-import { RadarCard } from './components/RadarCard';
-import { BrutalSidePanels } from './components/BrutalSidePanels';
-
-import { DashboardLayout } from './components/DashboardLayout';
+import { ModernRadarCard } from './components/ModernRadarCard';
+import { ModernDashboardLayout } from './components/ModernDashboardLayout';
 import { ManualScanModal } from './components/ManualScanModal';
 import { BulkActionBar } from './components/BulkActionBar';
+import { motion, AnimatePresence } from 'framer-motion';
 
 export default function RadarAdminPage() {
     const { posts, loading, fetchQueue, updateStatus, isDaemonRunning, countdown } = useRadarAdmin();
@@ -15,22 +14,14 @@ export default function RadarAdminPage() {
     const [geoFilter, setGeoFilter] = useState<'all' | 'france' | 'international'>('all');
     const [selectedIds, setSelectedIds] = useState<number[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
-
-    // Modal State
     const [isScanModalOpen, setIsScanModalOpen] = useState(false);
 
     useEffect(() => {
         fetchQueue(activeTab, geoFilter);
     }, [activeTab, geoFilter]);
 
-    useEffect(() => {
-        const handler = () => setIsScanModalOpen(true);
-        window.addEventListener('open-scan-modal', handler);
-        return () => window.removeEventListener('open-scan-modal', handler);
-    }, []);
-
     const handleBulkStatus = async (status: string) => {
-        if (!confirm(`Appliquer "${status}" à ${selectedIds.length} signal(s) ?`)) return;
+        if (!confirm(`Apply "${status}" to ${selectedIds.length} items?`)) return;
         try {
             await fetch('/api/radar', {
                 method: 'PATCH',
@@ -47,10 +38,7 @@ export default function RadarAdminPage() {
             await fetch('/api/radar/trigger', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    action: 'scan',
-                    customScan: scanConfig
-                })
+                body: JSON.stringify({ action: 'scan', customScan: scanConfig })
             });
             setIsScanModalOpen(false);
             fetchQueue(activeTab, geoFilter);
@@ -58,11 +46,11 @@ export default function RadarAdminPage() {
     };
 
     const tabs = [
-        { key: 'PENDING', label: 'En attente', icon: 'bolt' },
-        { key: 'APPROVED', label: 'Approuvés', icon: 'schedule' },
-        { key: 'PUBLISHED', label: 'Publiés', icon: 'check_circle' },
-        { key: 'REJECTED', label: 'Rejetés', icon: 'delete' },
-        { key: 'IGNORED', label: 'Archivés', icon: 'inventory_2' },
+        { key: 'PENDING', label: 'Pending', icon: 'bolt' },
+        { key: 'APPROVED', label: 'Approved', icon: 'schedule' },
+        { key: 'PUBLISHED', label: 'Published', icon: 'check_circle' },
+        { key: 'REJECTED', label: 'Rejected', icon: 'delete' },
+        { key: 'IGNORED', label: 'Archived', icon: 'inventory_2' },
     ];
 
     const filteredPosts = posts.filter((post: any) => {
@@ -72,97 +60,118 @@ export default function RadarAdminPage() {
     });
 
     return (
-        <DashboardLayout 
-            title="RADAR L'ASSEZ" 
-            subtitle={countdown || "Synchronisation des signaux OSINT..."} 
+        <ModernDashboardLayout 
+            title="Overview" 
+            subtitle={countdown || "Syncing OSINT signals..."} 
             isDaemonRunning={isDaemonRunning}
         >
-            <div className="flex gap-8">
-            <div className="flex-1 space-y-8">
-                {/* Search & Filters */}
-                <section className="bg-white border-4 border-stone-900 shadow-[4px_4px_0px_0px_#1A1C1C] p-6 flex flex-col md:flex-row gap-6 items-center">
-                    <div className="flex-1 relative w-full">
-                        <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-stone-400">search</span>
+            <div className="space-y-6">
+                {/* Search & Global Actions */}
+                <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
+                    <div className="relative flex-1 w-full max-w-md">
+                        <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">search</span>
                         <input 
                             type="text" 
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            placeholder="FILTRER LES SIGNAUX..." 
-                            className="w-full bg-stone-100 border-4 border-stone-900 py-3 pl-12 pr-4 font-black uppercase text-xs tracking-widest focus:outline-none focus:bg-white transition-all"
+                            placeholder="Search signals..." 
+                            className="w-full bg-white border border-slate-200 rounded-lg py-2 pl-10 pr-4 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-slate-100 transition-all"
                         />
                     </div>
-                    <div className="flex border-4 border-stone-900 bg-stone-100 font-bold uppercase text-[10px] tracking-widest overflow-hidden">
-                        {(['all', 'france', 'international'] as const).map(key => (
-                            <button
-                                key={key}
-                                onClick={() => setGeoFilter(key)}
-                                className={`px-6 py-3 border-r-4 last:border-r-0 border-stone-900 transition-all ${geoFilter === key ? 'bg-stone-900 text-white' : 'text-stone-500 hover:bg-white'}`}
-                            >
-                                {key === 'all' ? 'GLOBAL' : key === 'france' ? 'FRANCE' : 'INTL'}
-                            </button>
-                        ))}
-                    </div>
                     
-                    <button 
-                        onClick={() => setIsScanModalOpen(true)}
-                        className="bg-red-700 text-white px-6 py-3 border-4 border-stone-900 font-black uppercase text-[10px] tracking-widest hover:bg-red-600 transition-colors shadow-[4px_4px_0px_0px_#1A1C1C]"
-                    >
-                        Lancer un scan
-                    </button>
-                </section>
+                    <div className="flex items-center gap-2">
+                        <div className="flex bg-slate-100 p-1 rounded-lg border border-slate-200">
+                            {(['all', 'france', 'international'] as const).map(key => (
+                                <button
+                                    key={key}
+                                    onClick={() => setGeoFilter(key)}
+                                    className={`px-3 py-1 rounded-md text-[10px] font-bold uppercase tracking-tight transition-all ${
+                                        geoFilter === key 
+                                            ? 'bg-white text-slate-900 shadow-sm' 
+                                            : 'text-slate-500 hover:text-slate-700'
+                                    }`}
+                                >
+                                    {key === 'all' ? 'Global' : key}
+                                </button>
+                            ))}
+                        </div>
+                        
+                        <button 
+                            onClick={() => setIsScanModalOpen(true)}
+                            className="bg-black text-white h-9 px-4 rounded-lg font-bold text-xs uppercase tracking-tight hover:bg-slate-800 transition-all shadow-sm flex items-center gap-2"
+                        >
+                            <span className="material-symbols-outlined text-sm">sync</span>
+                            New Scan
+                        </button>
+                    </div>
+                </div>
 
                 {/* Sub-Navigation Tabs */}
-                <nav className="flex gap-4 border-b-4 border-stone-200 pb-1">
+                <div className="flex items-center gap-1 border-b border-slate-200">
                     {tabs.map(tab => (
                         <button
                             key={tab.key}
                             onClick={() => setActiveTab(tab.key as any)}
-                            className={`px-6 py-3 font-black uppercase text-xs tracking-widest transition-all relative ${
+                            className={`px-4 py-3 text-xs font-bold uppercase tracking-tight transition-all relative ${
                                 activeTab === tab.key 
-                                    ? 'text-stone-900' 
-                                    : 'text-stone-400 hover:text-stone-600'
+                                    ? 'text-slate-900' 
+                                    : 'text-slate-400 hover:text-slate-600'
                             }`}
                         >
-                            <span className="flex items-center gap-2">
-                                <span className="material-symbols-outlined text-sm">{tab.icon}</span>
+                            <div className="flex items-center gap-2">
+                                <span className={`material-symbols-outlined text-sm ${activeTab === tab.key ? 'text-black' : 'text-slate-300'}`}>
+                                    {tab.icon}
+                                </span>
                                 {tab.label}
-                            </span>
+                            </div>
                             {activeTab === tab.key && (
-                                <div className="absolute bottom-[-4px] left-0 right-0 h-1 bg-red-700" />
+                                <motion.div 
+                                    layoutId="activeTab"
+                                    className="absolute bottom-0 left-0 right-0 h-0.5 bg-black" 
+                                />
                             )}
                         </button>
                     ))}
-                </nav>
+                </div>
 
                 {/* Feed Items */}
-                <div className="space-y-6">
+                <div className="space-y-4">
                     {loading ? (
-                        <div className="py-20 text-center font-black uppercase tracking-[0.3em] text-stone-300 animate-pulse">Synchronisation...</div>
+                        <div className="py-20 flex flex-col items-center justify-center gap-4 text-slate-400">
+                            <div className="w-8 h-8 border-2 border-slate-200 border-t-slate-800 rounded-full animate-spin"></div>
+                            <p className="text-[10px] font-bold uppercase tracking-widest">Syncing signals...</p>
+                        </div>
                     ) : filteredPosts.length === 0 ? (
-                        <div className="py-20 text-center border-4 border-dashed border-stone-200 bg-stone-50">
-                            <p className="text-xl font-headline font-black text-stone-300 italic uppercase">Aucun signal trouvé</p>
-                            <button onClick={() => setIsScanModalOpen(true)} className="mt-6 bg-stone-900 text-white px-8 py-3 font-bold uppercase text-xs tracking-widest border-4 border-stone-900 shadow-[4px_4px_0px_0px_rgba(26,28,28,0.3)] hover:translate-x-[-2px] hover:translate-y-[-2px] transition-all">Configurer un scan</button>
+                        <div className="py-20 text-center border border-dashed border-slate-200 rounded-2xl bg-slate-50/50">
+                            <span className="material-symbols-outlined text-slate-200 text-5xl mb-4">inventory_2</span>
+                            <p className="text-sm font-bold text-slate-400 uppercase tracking-widest">No signals found</p>
+                            <button 
+                                onClick={() => setIsScanModalOpen(true)} 
+                                className="mt-4 px-6 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-600 hover:bg-slate-50 transition-all shadow-sm"
+                            >
+                                Trigger New Scan
+                            </button>
                         </div>
                     ) : (
-                        filteredPosts.map(post => (
-                            <RadarCard 
-                                key={post.id} 
-                                post={post as any} 
-                                onUpdate={updateStatus as any} 
-                                activeTab={activeTab}
-                                isSelected={selectedIds.includes(post.id)}
-                                onToggleSelect={(id, sel) => {
-                                    if (sel) setSelectedIds(prev => (prev.includes(id) ? prev : [...prev, id]));
-                                    else setSelectedIds(prev => prev.filter(i => i !== id));
-                                }}
-                            />
-                        ))
+                        <div className="grid gap-4">
+                            <AnimatePresence mode="popLayout">
+                                {filteredPosts.map(post => (
+                                    <ModernRadarCard 
+                                        key={post.id} 
+                                        post={post as any} 
+                                        onUpdate={updateStatus as any} 
+                                        activeTab={activeTab}
+                                        isSelected={selectedIds.includes(post.id)}
+                                        onToggleSelect={(id, sel) => {
+                                            if (sel) setSelectedIds(prev => (prev.includes(id) ? prev : [...prev, id]));
+                                            else setSelectedIds(prev => prev.filter(i => i !== id));
+                                        }}
+                                    />
+                                ))}
+                            </AnimatePresence>
+                        </div>
                     )}
                 </div>
-            </div>
-
-            {/* Side Panels */}
-            <BrutalSidePanels />
             </div>
 
             {/* Bulk Action Bar */}
@@ -178,6 +187,6 @@ export default function RadarAdminPage() {
                 onClose={() => setIsScanModalOpen(false)} 
                 onLaunch={handleLaunchScan} 
             />
-        </DashboardLayout>
+        </ModernDashboardLayout>
     );
 }

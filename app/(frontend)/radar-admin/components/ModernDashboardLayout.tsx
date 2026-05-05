@@ -1,7 +1,6 @@
 'use client';
 
 import React, { Suspense } from 'react';
-import { ModernSidebar } from '@/app/(frontend)/radar-admin/components/ModernSidebar';
 import { ModernHeader } from '@/app/(frontend)/radar-admin/components/ModernHeader';
 
 interface ModernDashboardLayoutProps {
@@ -36,18 +35,16 @@ export function ModernDashboardLayout({
     }
 
     return (
-        <div className="flex min-h-screen bg-[#fafafa] font-sans selection:bg-black selection:text-white text-slate-900">
-            <Suspense fallback={null}>
-                <ModernSidebar />
-            </Suspense>
-            <main className="flex-1 relative overflow-x-hidden flex flex-col">
-                <ModernHeader 
-                    title={title} 
-                    subtitle={subtitle} 
-                    isDaemonRunning={isDaemonRunning} 
-                    actions={actions}
-                />
-                <div className={`${fullBleed ? 'flex-1 overflow-hidden flex flex-col' : 'p-8 max-w-7xl w-full mx-auto'} relative z-10`}>
+        <div className="h-screen bg-white font-sans selection:bg-black selection:text-white text-slate-900 flex flex-col overflow-hidden">
+            <ModernHeader 
+                title={title} 
+                subtitle={subtitle} 
+                isDaemonRunning={isDaemonRunning} 
+                actions={actions}
+            />
+            {/* The main container MUST be flex-1 and h-full to allow canvas stretching */}
+            <main className="flex-1 relative flex flex-col overflow-hidden">
+                <div className={`${fullBleed ? 'flex-1 h-full overflow-hidden flex flex-col' : 'p-10 max-w-[1600px] w-full mx-auto overflow-y-auto'} relative z-10 h-full`}>
                     {children}
                 </div>
             </main>

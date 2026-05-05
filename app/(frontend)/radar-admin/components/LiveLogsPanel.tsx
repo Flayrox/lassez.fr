@@ -1,4 +1,7 @@
+'use client';
+
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 type LogItem = {
     timestamp: string;
@@ -16,28 +19,22 @@ type DaemonStatus = {
 
 type HealthMap = Record<string, { status: string; message: string }>;
 
-type LiveLogsPanelProps = {
-    compact?: boolean;
-};
-
-const FILTERS: Array<{ key: string; label: string }> = [
-    { key: 'all', label: 'Tout' },
-    { key: 'daemon', label: 'Daemon' },
-    { key: 'schedule', label: 'Programmation' },
-    { key: 'manual', label: 'Manuel' },
-    { key: 'publisher', label: 'Publication' },
-    { key: 'elections', label: 'Élections' },
-    { key: 'error', label: 'Erreurs' }
+const FILTERS: Array<{ key: string; label: string; icon: string }> = [
+    { key: 'all', label: 'All', icon: 'list' },
+    { key: 'daemon', label: 'Engine', icon: 'settings_input_component' },
+    { key: 'schedule', label: 'Scheduler', icon: 'schedule' },
+    { key: 'publisher', label: 'Publisher', icon: 'send' },
+    { key: 'error', label: 'Critical', icon: 'report' }
 ];
 
 function formatDate(input?: string | null) {
     if (!input) return '—';
     const d = new Date(input);
     if (Number.isNaN(d.getTime())) return '—';
-    return d.toLocaleString('fr-FR');
+    return d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 }
 
-export function LiveLogsPanel({ compact = false }: LiveLogsPanelProps) {
+export function LiveLogsPanel({ compact = false }: { compact?: boolean }) {
     const [logs, setLogs] = useState<LogItem[]>([]);
     const [filter, setFilter] = useState<string>('all');
     const [query, setQuery] = useState('');
@@ -49,27 +46,20 @@ export function LiveLogsPanel({ compact = false }: LiveLogsPanelProps) {
     const viewportRef = useRef<HTMLDivElement>(null);
     const latestLengthRef = useRef(0);
 
-    useEffect(() => {
-        latestLengthRef.current = logs.length;
-    }, [logs.length]);
+    useEffect(() => { latestLengthRef.current = logs.length; }, [logs.length]);
 
     const fetchLogs = async () => {
         try {
             const res = await fetch('/api/radar/logs', { cache: 'no-store' });
             const data = await res.json();
             if (!data.success) return;
-
             const incoming = Array.isArray(data.logsStructured) ? data.logsStructured : [];
-            if (!paused) {
-                setLogs(incoming);
-                setPendingCount(0);
-            } else {
+            if (!paused) { setLogs(incoming); setPendingCount(0); }
+            else {
                 const delta = Math.max(0, incoming.length - latestLengthRef.current);
                 if (delta > 0) setPendingCount(prev => prev + delta);
             }
-        } catch (e) {
-            console.error('Impossible de récupérer les logs', e);
-        }
+        } catch (e) { console.error(e); }
     };
 
     const fetchDaemonStatus = async () => {
@@ -77,37 +67,27 @@ export function LiveLogsPanel({ compact = false }: LiveLogsPanelProps) {
             const res = await fetch('/api/radar/daemon-status', { cache: 'no-store' });
             const data = await res.json();
             if (data.success) setDaemonStatus(data.status || null);
-        } catch (e) {
-            console.error('Impossible de récupérer le statut daemon', e);
-        }
+        } catch (e) { console.error(e); }
     };
 
     const fetchHealth = async () => {
         try {
             const res = await fetch('/api/radar/health', { cache: 'no-store' });
             const data = await res.json();
-            if (data.success && data.health) {
-                setHealth(data.health);
-            }
-        } catch (e) {
-            console.error('Impossible de récupérer les vitals', e);
-        }
+            if (data.success && data.health) setHealth(data.health);
+        } catch (e) { console.error(e); }
     };
 
     useEffect(() => {
-        fetchLogs();
-        fetchDaemonStatus();
-        fetchHealth();
-
-        const logsTimer = setInterval(fetchLogs, 4000);
-        const statusTimer = setInterval(fetchDaemonStatus, 10000);
-        const healthTimer = setInterval(fetchHealth, 15000);
-
-        return () => {
-            clearInterval(logsTimer);
-            clearInterval(statusTimer);
-            clearInterval(healthTimer);
+        const runUpdates = () => {
+            if (document.hidden) return; 
+            fetchLogs(); fetchDaemonStatus(); fetchHealth();
         };
+        runUpdates();
+        const logsTimer = setInterval(() => !document.hidden && fetchLogs(), 8000); 
+        const statusTimer = setInterval(() => !document.hidden && fetchDaemonStatus(), 15000);
+        const healthTimer = setInterval(() => !document.hidden && fetchHealth(), 25000);
+        return () => { clearInterval(logsTimer); clearInterval(statusTimer); clearInterval(healthTimer); };
     }, [paused]);
 
     useEffect(() => {
@@ -126,92 +106,65 @@ export function LiveLogsPanel({ compact = false }: LiveLogsPanelProps) {
     }, [logs, filter, query]);
 
     return (
-        <div className={`space-y-5 ${compact ? '' : 'animate-in fade-in duration-500'}`}>
-            <section className="bg-stone-900 text-stone-100 border-4 border-stone-900 p-4">
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-3 text-[10px] font-black uppercase tracking-widest">
-                    <div className="bg-stone-800 p-3 border-2 border-stone-700">
-                        <div className="text-stone-400">État daemon</div>
-                        <div className="mt-1 text-xs text-white">{daemonStatus?.daemonHealth?.message || '—'}</div>
-                    </div>
-                    <div className="bg-stone-800 p-3 border-2 border-stone-700">
-                        <div className="text-stone-400">Prochain scan</div>
-                        <div className="mt-1 text-xs text-white">{formatDate(daemonStatus?.nextScanAt || null)}</div>
-                    </div>
-                    <div className="bg-stone-800 p-3 border-2 border-stone-700">
-                        <div className="text-stone-400">Dernier scan</div>
-                        <div className="mt-1 text-xs text-white">{formatDate(daemonStatus?.lastScanAt || null)}</div>
-                    </div>
-                    <div className="bg-stone-800 p-3 border-2 border-stone-700">
-                        <div className="text-stone-400">Queue</div>
-                        <div className="mt-1 text-xs text-white">PENDING {daemonStatus?.postCounts?.PENDING || 0} | APPROVED {daemonStatus?.postCounts?.APPROVED || 0}</div>
-                    </div>
-                </div>
-            </section>
+        <div className="flex flex-col h-full bg-white text-slate-900 font-sans">
+            {/* Header Metrics (Payload Grid) */}
+            <div className="px-6 py-4 grid grid-cols-2 md:grid-cols-4 gap-0 border-b border-slate-200">
+                <MetricCard label="Engine Status" value={daemonStatus?.daemonHealth?.message || 'Stable'} active={true} border />
+                <MetricCard label="Next Scan" value={formatDate(daemonStatus?.nextScanAt)} border />
+                <MetricCard label="System Vitals" value={`${Object.keys(health).length} OK`} border />
+                <MetricCard label="Post Queue" value={`${daemonStatus?.postCounts?.PENDING || 0} PENDING`} />
+            </div>
 
-            <section className="bg-white border-4 border-stone-900 p-4">
-                <div className="text-[10px] font-black uppercase tracking-widest text-stone-500 mb-3">Vitals services</div>
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
-                    {Object.entries(health).map(([key, value]) => (
-                        <div key={key} className={`border-2 p-2 ${value.status === 'ok' ? 'bg-emerald-50 border-emerald-300' : value.status === 'loading' ? 'bg-sky-50 border-sky-300' : 'bg-rose-50 border-rose-300'}`}>
-                            <div className="text-[9px] font-black uppercase tracking-widest">{key}</div>
-                            <div className="text-[10px] font-bold uppercase mt-1 truncate">{value.message || value.status}</div>
-                        </div>
+            {/* Controls (Payload Toolbar) */}
+            <div className="px-5 py-3 flex flex-col md:flex-row gap-4 border-b border-slate-100 bg-slate-50/50">
+                <div className="flex gap-px bg-slate-200 border border-slate-200 rounded-sm overflow-hidden">
+                    {FILTERS.map(f => (
+                        <button
+                            key={f.key}
+                            onClick={() => setFilter(f.key)}
+                            className={`px-3 py-1.5 text-[9px] font-bold uppercase tracking-widest transition-all ${
+                                filter === f.key ? 'bg-black text-white' : 'bg-white text-slate-500 hover:text-black'
+                            }`}
+                        >
+                            {f.label}
+                        </button>
                     ))}
-                    {Object.keys(health).length === 0 && (
-                        <div className="text-[10px] font-black uppercase tracking-widest text-stone-400">Chargement vitals...</div>
-                    )}
                 </div>
-            </section>
+                <div className="flex-1 relative">
+                    <input
+                        type="text"
+                        value={query}
+                        onChange={(e) => setQuery(e.target.value)}
+                        placeholder="Search logs..."
+                        className="w-full bg-white border border-slate-200 rounded-sm py-1.5 px-3 font-mono text-[11px] focus:outline-none focus:border-black transition-colors"
+                    />
+                </div>
+            </div>
 
-            <section className="bg-stone-950 border-4 border-stone-900 overflow-hidden">
-                <div className="p-4 border-b-4 border-stone-900 bg-stone-900/70 flex flex-col gap-3">
-                    <div className="flex flex-wrap gap-2">
-                        {FILTERS.map(f => (
-                            <button
-                                key={f.key}
-                                onClick={() => setFilter(f.key)}
-                                className={`px-3 py-1 border-2 text-[10px] font-black uppercase tracking-widest ${filter === f.key ? 'bg-white text-black border-white' : 'bg-stone-800 text-stone-300 border-stone-700 hover:bg-stone-700'}`}
-                            >
-                                {f.label}
-                            </button>
-                        ))}
+            {/* Terminal Viewport */}
+            <div 
+                ref={viewportRef} 
+                className="flex-1 overflow-y-auto p-5 font-mono text-[11px] bg-white space-y-0"
+            >
+                {filtered.map((line, idx) => (
+                    <div key={idx} className="flex gap-4 py-0.5 border-b border-slate-50 hover:bg-slate-50 transition-colors group">
+                        <span className="text-slate-300 shrink-0 select-none w-20">[{line.timestamp}]</span>
+                        <span className={`shrink-0 font-bold w-24 ${line.category === 'error' ? 'text-rose-600' : 'text-black'}`}>
+                            {line.category.toUpperCase()}
+                        </span>
+                        <span className="text-slate-600 flex-1">{line.message}</span>
                     </div>
-                    <div className="flex flex-col md:flex-row gap-3 md:items-center">
-                        <input
-                            type="text"
-                            value={query}
-                            onChange={(e) => setQuery(e.target.value)}
-                            placeholder="Rechercher dans les logs..."
-                            className="flex-1 bg-stone-800 text-stone-100 border-2 border-stone-700 p-2 font-mono text-xs"
-                        />
-                        <div className="flex items-center gap-2">
-                            <button
-                                onClick={() => setPaused(v => !v)}
-                                className={`px-3 py-2 border-2 text-[10px] font-black uppercase tracking-widest ${paused ? 'bg-amber-500 text-black border-amber-600' : 'bg-stone-800 text-stone-100 border-stone-700'}`}
-                            >
-                                {paused ? 'Reprendre' : 'Pause auto-scroll'}
-                            </button>
-                            {paused && pendingCount > 0 && (
-                                <span className="px-2 py-1 bg-red-700 text-white text-[10px] font-black uppercase">+{pendingCount} nouveaux</span>
-                            )}
-                        </div>
-                    </div>
-                </div>
+                ))}
+            </div>
+        </div>
+    );
+}
 
-                <div ref={viewportRef} className={`${compact ? 'h-[360px]' : 'h-[560px]'} overflow-y-auto p-4 font-mono text-xs bg-black text-stone-100`}>
-                    {filtered.length === 0 ? (
-                        <div className="text-stone-500 font-black uppercase tracking-widest">Aucun log pour ce filtre.</div>
-                    ) : (
-                        filtered.map((line, idx) => (
-                            <div key={`${line.timestamp}-${idx}`} className={`py-1 border-b border-white/5 ${line.category === 'error' ? 'text-rose-400' : line.category === 'schedule' ? 'text-amber-300' : line.category === 'manual' ? 'text-sky-300' : ''}`}>
-                                <span className="text-stone-500 mr-2">[{line.timestamp}]</span>
-                                <span className="mr-2 font-black">[{line.category.toUpperCase()}]</span>
-                                <span>{line.message}</span>
-                            </div>
-                        ))
-                    )}
-                </div>
-            </section>
+function MetricCard({ label, value, active, border }: { label: string, value: string, active?: boolean, border?: boolean }) {
+    return (
+        <div className={`flex flex-col px-4 ${border ? 'border-r border-slate-100' : ''}`}>
+            <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">{label}</span>
+            <span className={`text-[10px] font-bold uppercase ${active ? 'text-emerald-600' : 'text-black'}`}>{value}</span>
         </div>
     );
 }

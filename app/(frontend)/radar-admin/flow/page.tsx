@@ -1,233 +1,322 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { ModernDashboardLayout } from '../components/ModernDashboardLayout';
+import { FlowCanvas } from './components/FlowCanvas';
+import { NodeInspector } from '../components/NodeInspector';
 import { useRadarAdmin } from '../components/RadarAdminContext';
-import { FlowCanvas } from '@/app/(frontend)/radar-admin/flow/components/FlowCanvas';
-import { FlowSidebar } from '@/app/(frontend)/radar-admin/flow/components/FlowSidebar';
-import { AnimatePresence, motion } from 'framer-motion';
-import Link from 'next/link';
+import { useUI } from '../context/UIContext';
+import { motion, AnimatePresence } from 'framer-motion';
+
+interface Node {
+    id: string;
+    x: number;
+    y: number;
+    label: string;
+    type: string;
+    icon: string;
+    color: string;
+    bg: string;
+    settings?: any[];
+}
+
+interface Connection {
+    id: string;
+    from: string;
+    to: string;
+}
+
+const DEFAULT_PROMPT = "Tu es l'éditorialiste de L'Assez, un média OSINT. Ton rôle est de rédiger des flashs infos percutants, neutres et sourcés à partir des données collectées. Style: Direct, professionnel, sans fioritures.";
 
 const NODE_TYPES = {
     source: {
-        'rss': { label: 'RSS Feed', icon: 'rss_feed', color: 'text-orange-500', bg: 'bg-orange-50', settingKey: 'rss_feeds', description: 'Monitor RSS news feeds' },
-        'telegram': { label: 'Telegram', icon: 'send', color: 'text-blue-500', bg: 'bg-blue-50', settingKey: 'telegram_channels', description: 'Monitor Telegram channels' },
-        'google-news': { label: 'Google News', icon: 'search', color: 'text-blue-600', bg: 'bg-blue-100', settingKey: 'google_news_queries', description: 'Monitor Google News search' },
-        'x': { label: 'X / Twitter', icon: 'close', color: 'text-slate-900', bg: 'bg-slate-50', settingKey: 'x_accounts', description: 'Monitor X accounts' },
+        'rss': { 
+            label: 'RSS Feed', icon: 'rss_feed', color: 'text-orange-500', bg: 'bg-orange-50', 
+            settings: [{ key: 'rss_feeds', label: 'RSS Feed URLs', value: '' }]
+        },
+        'telegram': { 
+            label: 'Telegram', icon: 'send', color: 'text-blue-500', bg: 'bg-blue-50', 
+            settings: [{ key: 'telegram_channels', label: 'Channels', value: '' }]
+        },
+        'google-news': { 
+            label: 'Google News', icon: 'search', color: 'text-blue-600', bg: 'bg-blue-100', 
+            settings: [{ key: 'google_news_queries', label: 'Search Queries', value: '' }]
+        },
+        'x': { 
+            label: 'X / Twitter', icon: 'close', color: 'text-slate-900', bg: 'bg-slate-50', 
+            settings: [{ key: 'x_accounts', label: 'Accounts', value: '' }]
+        },
     },
     processor: {
-        'dedup': { label: 'Deduplicator', icon: 'content_copy', color: 'text-purple-600', bg: 'bg-purple-50', description: 'Remove similar content', settings: ['dedup_similarity_threshold', 'dedup_recent_hours'] },
-        'distribution': { label: 'Distribution', icon: 'share', color: 'text-indigo-600', bg: 'bg-indigo-50', description: 'Social Routing', settings: ['social_targets_by_type_json'] },
+        'dedup': { 
+            label: 'Deduplicator', icon: 'content_copy', color: 'text-purple-600', bg: 'bg-purple-50', 
+            settings: [
+                { key: 'dedup_similarity_threshold', label: 'Similarity Threshold', value: '0.65' },
+                { key: 'dedup_recent_hours', label: 'Lookback Period', value: '24' }
+            ] 
+        },
+        'distribution': { 
+            label: 'Distribution', icon: 'share', color: 'text-indigo-600', bg: 'bg-indigo-50', 
+            settings: [{ key: 'social_targets_by_type_json', label: 'Targets Config', value: '{}' }] 
+        },
     },
     agent: {
-        'research': { label: 'Researcher', icon: 'travel_explore', color: 'text-emerald-600', bg: 'bg-emerald-50', settings: ['ai_model_breaking', 'google_search_breaking_enabled'] },
-        'editor': { label: 'Editorialist', icon: 'edit_note', color: 'text-amber-600', bg: 'bg-amber-50', settings: ['ai_model_main', 'ai_prompt'] },
-        'validator': { label: 'Validator', icon: 'fact_check', color: 'text-rose-600', bg: 'bg-rose-50', settings: ['auto_approve_enabled', 'auto_pilot_enabled'] },
+        'research': { 
+            label: 'Researcher', icon: 'travel_explore', color: 'text-emerald-600', bg: 'bg-emerald-50', 
+            settings: [
+                { key: 'ai_model_breaking', label: 'AI Model', value: 'gpt-4o' },
+                { key: 'google_search_breaking_enabled', label: 'Web Search', value: true }
+            ] 
+        },
+        'editor': { 
+            label: 'Editorialist', icon: 'edit_note', color: 'text-amber-600', bg: 'bg-amber-50', 
+            settings: [
+                { key: 'ai_model_main', label: 'AI Model', value: 'gpt-4o' },
+                { key: 'ai_prompt', label: 'System Prompt', value: DEFAULT_PROMPT }
+            ] 
+        },
+        'validator': { 
+            label: 'Validator', icon: 'fact_check', color: 'text-rose-600', bg: 'bg-rose-50', 
+            settings: [
+                { key: 'auto_approve_enabled', label: 'Auto Approve', value: false },
+                { key: 'auto_pilot_enabled', label: 'Auto Pilot', value: false }
+            ] 
+        },
     },
     target: {
         'payload': { label: 'L\'Assez CMS', icon: 'publish', color: 'text-slate-900', bg: 'bg-slate-100' },
-        'discord': { label: 'Discord', icon: 'chat', color: 'text-indigo-600', bg: 'bg-indigo-50' },
+        'discord': { label: 'Discord', icon: 'chat', color: 'text-indigo-500', bg: 'bg-indigo-50' },
     }
 };
 
-const INITIAL_NODES = [
-    { id: 'node-1', ...NODE_TYPES.source.rss, x: 80, y: 80 },
-    { id: 'node-2', ...NODE_TYPES.source.telegram, x: 80, y: 180 },
-    { id: 'node-3', ...(NODE_TYPES.source['google-news'] as any), x: 80, y: 280 },
-    { id: 'node-4', ...NODE_TYPES.processor.dedup, x: 340, y: 180 },
-    { id: 'node-5', ...NODE_TYPES.agent.research, x: 620, y: 80 },
-    { id: 'node-6', ...NODE_TYPES.agent.editor, x: 620, y: 180 },
-    { id: 'node-7', ...NODE_TYPES.agent.validator, x: 620, y: 280 },
-    { id: 'node-8', ...NODE_TYPES.processor.distribution, x: 880, y: 180 },
-    { id: 'node-9', ...NODE_TYPES.target.payload, x: 1140, y: 140 },
-    { id: 'node-10', ...NODE_TYPES.target.discord, x: 1140, y: 240 },
+const INITIAL_NODES: Node[] = [
+    { id: 'source-rss', x: 100, y: 150, label: 'RSS Feed', type: 'rss', icon: 'rss_feed', color: 'text-orange-500', bg: 'bg-orange-50', settings: NODE_TYPES.source.rss.settings },
+    { id: 'source-telegram', x: 100, y: 280, label: 'Telegram', type: 'telegram', icon: 'send', color: 'text-blue-500', bg: 'bg-blue-50', settings: NODE_TYPES.source.telegram.settings },
+    { id: 'source-google', x: 100, y: 410, label: 'Google News', type: 'google-news', icon: 'search', color: 'text-blue-600', bg: 'bg-blue-100', settings: NODE_TYPES.source['google-news'].settings },
+    { id: 'proc-dedup', x: 350, y: 320, label: 'Deduplicator', type: 'dedup', icon: 'content_copy', color: 'text-purple-600', bg: 'bg-purple-50', settings: NODE_TYPES.processor.dedup.settings },
+    { id: 'agent-research', x: 600, y: 180, label: 'Researcher', type: 'research', icon: 'travel_explore', color: 'text-emerald-600', bg: 'bg-emerald-50', settings: NODE_TYPES.agent.research.settings },
+    { id: 'agent-editor', x: 850, y: 280, label: 'Editorialist', type: 'editor', icon: 'edit_note', color: 'text-amber-600', bg: 'bg-amber-50', settings: NODE_TYPES.agent.editor.settings },
+    { id: 'agent-validator', x: 1100, y: 380, label: 'Validator', type: 'validator', icon: 'fact_check', color: 'text-rose-600', bg: 'bg-rose-50', settings: NODE_TYPES.agent.validator.settings },
+    { id: 'proc-dist', x: 1350, y: 480, label: 'Distribution', type: 'distribution', icon: 'share', color: 'text-indigo-600', bg: 'bg-indigo-50', settings: NODE_TYPES.processor.distribution.settings },
+    { id: 'target-cms', x: 1600, y: 400, label: 'L\'Assez CMS', type: 'payload', icon: 'publish', color: 'text-slate-900', bg: 'bg-slate-100' },
+    { id: 'target-discord', x: 1600, y: 550, label: 'Discord', type: 'discord', icon: 'chat', color: 'text-indigo-500', bg: 'bg-indigo-50' }
 ];
 
-const INITIAL_CONNECTIONS = [
-    { id: 'c1', from: 'node-1', to: 'node-4' },
-    { id: 'c2', from: 'node-2', to: 'node-4' },
-    { id: 'c3', from: 'node-3', to: 'node-4' },
-    { id: 'c4', from: 'node-4', to: 'node-5' },
-    { id: 'c5', from: 'node-4', to: 'node-6' },
-    { id: 'c6', from: 'node-4', to: 'node-7' },
-    { id: 'c7', from: 'node-5', to: 'node-6' },
-    { id: 'c8', from: 'node-6', to: 'node-7' },
-    { id: 'c9', from: 'node-7', to: 'node-8' },
-    { id: 'c10', from: 'node-8', to: 'node-9' },
-    { id: 'c11', from: 'node-8', to: 'node-10' },
+const INITIAL_CONNECTIONS: Connection[] = [
+    { id: 'c1', from: 'source-rss', to: 'proc-dedup' },
+    { id: 'c2', from: 'source-telegram', to: 'proc-dedup' },
+    { id: 'c3', from: 'source-google', to: 'proc-dedup' },
+    { id: 'c4', from: 'proc-dedup', to: 'agent-research' },
+    { id: 'c5', from: 'agent-research', to: 'agent-editor' },
+    { id: 'c6', from: 'agent-editor', to: 'agent-validator' },
+    { id: 'c7', from: 'agent-validator', to: 'proc-dist' },
+    { id: 'c8', from: 'proc-dist', to: 'target-cms' },
+    { id: 'c9', from: 'proc-dist', to: 'target-discord' }
 ];
 
 export default function FlowPage() {
-    const { settings, fetchSettings, isDaemonRunning } = useRadarAdmin();
-    const [nodes, setNodes] = useState(INITIAL_NODES);
-    const [connections, setConnections] = useState(INITIAL_CONNECTIONS);
-    const [editingNode, setEditingNode] = useState<any | null>(null);
-    const [editValues, setEditValues] = useState<Record<string, any>>({});
-    const [isSaving, setIsSaving] = useState(false);
-    const [showAddMenu, setShowAddMenu] = useState(false);
+    const { settings, fetchSettings } = useRadarAdmin();
+    const [nodes, setNodes] = useState<Node[]>([]);
+    const [connections, setConnections] = useState<Connection[]>([]);
+    const [isHydrated, setIsHydrated] = useState(false);
+    const { selectedNodeId, setSelectedNodeId } = useUI();
+
+    const saveToLocal = (n: Node[], c: Connection[]) => {
+        if (typeof window !== 'undefined') {
+            localStorage.setItem('radar-flow-pro-v4', JSON.stringify({ nodes: n, connections: c }));
+        }
+    };
+
+    useEffect(() => {
+        if (!isHydrated || !settings) return;
+
+        setNodes(prevNodes => prevNodes.map(node => {
+            if (!node.settings) return node;
+            const nextSettings = node.settings.map((s: any) => {
+                const dbValue = settings[s.key];
+                if (dbValue !== undefined) {
+                    if (typeof dbValue === 'string') {
+                        if (dbValue.startsWith('[') && dbValue.endsWith(']')) {
+                            try {
+                                const parsed = JSON.parse(dbValue);
+                                if (Array.isArray(parsed)) return { ...s, value: parsed.join('\n') };
+                            } catch (e) {}
+                        }
+                        if (dbValue.startsWith('{') && dbValue.endsWith('}')) {
+                            try {
+                                const parsed = JSON.parse(dbValue);
+                                return { ...s, value: JSON.stringify(parsed, null, 4) };
+                            } catch (e) {}
+                        }
+                    }
+                    if (Array.isArray(dbValue)) return { ...s, value: dbValue.join('\n') };
+                    return { ...s, value: dbValue };
+                }
+                return s;
+            });
+            if (JSON.stringify(nextSettings) !== JSON.stringify(node.settings)) {
+                return { ...node, settings: nextSettings };
+            }
+            return node;
+        }));
+    }, [settings, isHydrated]);
 
     useEffect(() => {
         const saved = localStorage.getItem('radar-flow-pro-v4');
         if (saved) {
             try {
                 const { nodes: sn, connections: sc } = JSON.parse(saved);
-                setNodes(sn);
+                const enrichedNodes = sn.map((node: any) => {
+                    let baseConfig = null;
+                    for (const cat of Object.values(NODE_TYPES)) {
+                        const match = Object.entries(cat).find(([k, v]) => v.label === node.label || k === node.type);
+                        if (match) { baseConfig = match[1]; break; }
+                    }
+                    const settingsToUse = (node.settings && node.settings.length > 0) ? node.settings : (baseConfig?.settings || []);
+                    return { ...node, settings: settingsToUse };
+                });
+                setNodes(enrichedNodes.length > 0 ? enrichedNodes : INITIAL_NODES);
                 setConnections(sc);
-            } catch (e) { console.error(e); }
+            } catch (e) { 
+                setNodes(INITIAL_NODES);
+                setConnections(INITIAL_CONNECTIONS);
+            }
+        } else {
+            setNodes(INITIAL_NODES);
+            setConnections(INITIAL_CONNECTIONS);
         }
+        setIsHydrated(true);
     }, []);
 
-    const saveToLocal = (newNodes: any, newConns: any) => {
-        localStorage.setItem('radar-flow-pro-v4', JSON.stringify({ nodes: newNodes, connections: newConns }));
-    };
-
-    const handleNodeMove = (id: string, x: number, y: number) => {
-        setNodes(prev => {
-            const next = prev.map(n => n.id === id ? { ...n, x, y } : n);
-            saveToLocal(next, connections);
-            return next;
-        });
-    };
-
-    const handleConnect = (from: string, to: string) => {
-        // Prevent duplicate connections
-        if (connections.some(c => c.from === from && c.to === to)) return;
-        const newConn = { id: `c-${Date.now()}`, from, to };
-        const nextConns = [...connections, newConn];
-        setConnections(nextConns);
-        saveToLocal(nodes, nextConns);
-    };
-
-    const handleDisconnect = (id: string) => {
-        const nextConns = connections.filter(c => c.id !== id);
-        setConnections(nextConns);
-        saveToLocal(nodes, nextConns);
-    };
-
-    const deleteNode = (id: string) => {
-        const nextNodes = nodes.filter(n => n.id !== id);
-        const nextConns = connections.filter(c => c.from !== id && c.to !== id);
-        setNodes(nextNodes);
-        setConnections(nextConns);
-        saveToLocal(nextNodes, nextConns);
-        setEditingNode(null);
-    };
-
-    const addNode = (category: string, type: string) => {
-        const config = (NODE_TYPES as any)[category][type];
-        const newNode = { id: `node-${Date.now()}`, ...config, x: 200, y: 200 };
-        const nextNodes = [...nodes, newNode];
+    const updateNodeData = async (id: string, updates: any) => {
+        const nextNodes = nodes.map(n => n.id === id ? { ...n, ...updates } : n);
         setNodes(nextNodes);
         saveToLocal(nextNodes, connections);
-        setShowAddMenu(false);
-    };
-
-    const handleNodeClick = (node: any) => {
-        setEditingNode(node);
-        const vals: any = {};
-        if (node.settingKey) {
-            try { vals[node.settingKey] = JSON.parse(settings[node.settingKey] || '[]').join('\n'); } catch { vals[node.settingKey] = ''; }
-        } else if (node.settings) {
-            node.settings.forEach((key: string) => { vals[key] = settings[key]; });
-        }
-        setEditValues(vals);
-    };
-
-    const handleSave = async () => {
-        if (!editingNode) return;
-        setIsSaving(true);
-        const payload: any = {};
-        if (editingNode.settingKey) {
-            const arr = editValues[editingNode.settingKey].split('\n').map((s: string) => s.trim()).filter(Boolean);
-            payload[editingNode.settingKey] = JSON.stringify(arr);
-        } else {
-            Object.assign(payload, editValues);
-        }
-        try {
-            await fetch('/api/radar/settings', {
+        
+        if (updates.settings) {
+            const payload: any = {};
+            updates.settings.forEach((s: any) => {
+                if (s.key) {
+                    const k = s.key.toLowerCase();
+                    if (k.includes('feeds') || k.includes('channels') || k.includes('queries') || k.includes('accounts')) {
+                        const arr = (s.value || '').split('\n').map((str: string) => str.trim()).filter(Boolean);
+                        payload[s.key] = JSON.stringify(arr);
+                    } else if (k.includes('json')) {
+                        try { payload[s.key] = JSON.stringify(JSON.parse(s.value)); } catch (e) { payload[s.key] = s.value; }
+                    } else {
+                        payload[s.key] = s.value;
+                    }
+                }
+            });
+            
+            const res = await fetch('/api/radar/settings', {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
             });
+            if (!res.ok) throw new Error('Sync failed');
             await fetchSettings();
-            setEditingNode(null);
-        } catch (e) { console.error(e); }
-        finally { setIsSaving(false); }
+        }
+    };
+
+    const handleReset = () => {
+        if (confirm('Revert pipeline to Studio Defaults? (Layout & Connections)')) {
+            localStorage.removeItem('radar-flow-pro-v4');
+            setNodes(JSON.parse(JSON.stringify(INITIAL_NODES)));
+            setConnections(JSON.parse(JSON.stringify(INITIAL_CONNECTIONS)));
+        }
+    };
+
+    const addNode = (type: string, category: string) => {
+        const config = (NODE_TYPES as any)[category][type];
+        const newNode: Node = {
+            id: `${type}-${Date.now()}`,
+            x: 100, y: 100,
+            label: config.label,
+            type: type,
+            icon: config.icon,
+            color: config.color,
+            bg: config.bg,
+            settings: config.settings
+        };
+        const next = [...nodes, newNode];
+        setNodes(next);
+        saveToLocal(next, connections);
+    };
+
+    const deleteNode = (id: string) => {
+        if (confirm('Delete this node and all its connections?')) {
+            const nextNodes = nodes.filter(n => n.id !== id);
+            const nextConns = connections.filter(c => c.from !== id && c.to !== id);
+            setNodes(nextNodes);
+            setConnections(nextConns);
+            saveToLocal(nextNodes, nextConns);
+            setSelectedNodeId(null);
+        }
     };
 
     return (
-        <ModernDashboardLayout 
-            title="Command Center" 
-            subtitle="Autonomous Journalism Pipeline v4.0"
-            fullBleed
-            actions={
-                <div className="flex items-center gap-3">
-                    <button 
-                        onClick={() => setShowAddMenu(!showAddMenu)}
-                        className="flex items-center gap-2 px-5 py-2.5 bg-black text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-800 transition-all shadow-xl"
-                    >
-                        <span className="material-symbols-outlined text-[18px]">add</span>
-                        New Node
-                    </button>
-                    <Link href="/templates" className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-700 transition-all shadow-xl">
-                        <span className="material-symbols-outlined text-[18px]">dashboard_customize</span>
-                        Templates
-                    </Link>
-                </div>
-            }
-        >
-            <div className="flex-1 relative bg-slate-50 flex flex-col">
-                <FlowCanvas 
-                    nodes={nodes} 
-                    connections={connections} 
-                    onNodeClick={handleNodeClick} 
-                    onNodeMove={handleNodeMove}
-                    onConnect={handleConnect}
-                    onDisconnect={handleDisconnect}
-                    activeNodeId={editingNode?.id || null}
-                    isDaemonRunning={isDaemonRunning}
-                />
+        <ModernDashboardLayout title="Pipeline" fullBleed={true} actions={
+            <div className="flex items-center gap-2">
+                <button onClick={handleReset} className="px-4 py-1.5 border border-slate-200 text-[10px] font-black uppercase rounded-sm hover:bg-slate-50 transition-colors">Reset</button>
+                <button className="px-4 py-1.5 bg-black text-white text-[10px] font-black uppercase rounded-sm shadow-lg hover:bg-zinc-800 transition-colors">Deploy</button>
+            </div>
+        }>
+            <div className="flex-1 relative w-full h-full overflow-hidden bg-white">
+                {isHydrated && (
+                    <>
+                        <FlowCanvas 
+                            nodes={nodes} 
+                            connections={connections} 
+                            onNodeClick={() => {}}
+                            onNodeMove={(id, x, y) => {
+                                const next = nodes.map(n => n.id === id ? { ...n, x, y } : n);
+                                setNodes(next);
+                                saveToLocal(next, connections);
+                            }}
+                            onNodeMoveEnd={() => {}}
+                            onConnect={(f, t) => {
+                                const next = [...connections, { id: `c-${Date.now()}`, from: f, to: t }];
+                                setConnections(next);
+                                saveToLocal(nodes, next);
+                            }}
+                            onDisconnect={(id) => {
+                                const next = connections.filter(c => c.id !== id);
+                                setConnections(next);
+                                saveToLocal(nodes, next);
+                            }}
+                            activeNodeId={selectedNodeId}
+                            isDaemonRunning={false}
+                        />
 
-                <AnimatePresence>
-                    {showAddMenu && (
-                        <motion.div 
-                            initial={{ opacity: 0, scale: 0.95, y: 10 }}
-                            animate={{ opacity: 1, scale: 1, y: 0 }}
-                            exit={{ opacity: 0, scale: 0.95, y: 10 }}
-                            className="absolute top-6 left-6 w-80 bg-white border border-slate-200 rounded-2xl shadow-2xl z-[100] p-6 space-y-6"
-                        >
-                            <div className="flex items-center justify-between">
-                                <h3 className="text-xs font-black uppercase tracking-widest text-slate-400">Node Library</h3>
-                                <button onClick={() => setShowAddMenu(false)} className="material-symbols-outlined text-slate-300 text-sm hover:text-slate-900">close</button>
-                            </div>
-                            {Object.entries(NODE_TYPES).map(([category, types]) => (
-                                <div key={category} className="space-y-2">
-                                    <h4 className="text-[9px] font-bold uppercase tracking-widest text-slate-400 border-b border-slate-100 pb-1">{category}</h4>
-                                    <div className="grid grid-cols-2 gap-2">
-                                        {Object.entries(types).map(([type, config]: [string, any]) => (
-                                            <button key={type} onClick={() => addNode(category, type)} className="flex items-center gap-2 p-2 rounded-lg border border-slate-100 hover:border-blue-200 hover:bg-blue-50 transition-all text-left">
-                                                <span className={`material-symbols-outlined text-sm ${config.color}`}>{config.icon}</span>
-                                                <span className="text-[10px] font-bold text-slate-700 truncate">{config.label}</span>
-                                            </button>
-                                        ))}
-                                    </div>
+                        {/* Node Palette (Floating Dock) */}
+                        <div className="fixed left-8 top-1/2 -translate-y-1/2 z-[500] flex flex-col gap-6">
+                            {Object.entries(NODE_TYPES).map(([cat, types]) => (
+                                <div key={cat} className="flex flex-col gap-2 p-2 bg-white border border-slate-200 rounded-sm shadow-xl">
+                                    <span className="text-[7px] font-black uppercase text-slate-300 tracking-widest text-center mb-1">{cat}</span>
+                                    {Object.entries(types).map(([type, config]: [string, any]) => (
+                                        <button 
+                                            key={type}
+                                            onClick={() => addNode(type, cat)}
+                                            className={`w-10 h-10 flex items-center justify-center rounded-sm transition-all hover:scale-110 hover:shadow-lg ${config.bg} ${config.color} group relative`}
+                                        >
+                                            <span className="material-symbols-outlined text-[20px]">{config.icon}</span>
+                                            <div className="absolute left-full ml-4 px-3 py-1.5 bg-black text-white text-[8px] font-black uppercase whitespace-nowrap rounded-sm opacity-0 group-hover:opacity-100 pointer-events-none transition-all tracking-widest translate-x-[-10px] group-hover:translate-x-0">
+                                                Add {config.label}
+                                            </div>
+                                        </button>
+                                    ))}
                                 </div>
                             ))}
-                        </motion.div>
-                    )}
+                        </div>
 
-                    {editingNode && (
-                        <FlowSidebar 
-                            editingNode={editingNode}
-                            onClose={() => setEditingNode(null)}
-                            editValues={editValues}
-                            setEditValues={setEditValues}
-                            onSave={handleSave}
-                            onDelete={deleteNode}
-                            isSaving={isSaving}
+                        <NodeInspector 
+                            nodes={nodes} 
+                            onUpdateNode={updateNodeData} 
+                            onDeleteNode={deleteNode}
                         />
-                    )}
-                </AnimatePresence>
+                    </>
+                )}
             </div>
         </ModernDashboardLayout>
     );

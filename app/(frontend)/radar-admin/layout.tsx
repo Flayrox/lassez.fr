@@ -1,4 +1,6 @@
 import { RadarAdminProvider } from './components/RadarAdminContext';
+import { UIProvider } from './context/UIContext';
+import { FloatingTerminal } from './components/FloatingTerminal';
 
 export default function RadarAdminLayout({
     children,
@@ -6,8 +8,11 @@ export default function RadarAdminLayout({
     children: React.ReactNode;
 }) {
     return (
-        <RadarAdminProvider>
-            {children}
-        </RadarAdminProvider>
+        <UIProvider>
+            <RadarAdminProvider>
+                {children}
+                <FloatingTerminal />
+            </RadarAdminProvider>
+        </UIProvider>
     );
 }

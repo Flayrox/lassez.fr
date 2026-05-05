@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import React, { useState, useRef, useEffect, useCallback, memo } from 'react';
+import { motion, useDragControls, AnimatePresence } from 'framer-motion';
+import { useUI } from '../../context/UIContext';
 
 interface Node {
     id: string;
@@ -14,7 +15,7 @@ interface Node {
     bg: string;
     description?: string;
     settingKey?: string;
-    settings?: string[];
+    settings?: any[];
 }
 
 interface Connection {
@@ -28,56 +29,81 @@ interface FlowCanvasProps {
     connections: Connection[];
     onNodeClick: (node: Node) => void;
     onNodeMove: (id: string, x: number, y: number) => void;
+    onNodeMoveEnd: () => void;
     onConnect: (from: string, to: string) => void;
     onDisconnect: (id: string) => void;
     activeNodeId: string | null;
     isDaemonRunning: boolean;
 }
 
-export function FlowCanvas({ nodes, connections, onNodeClick, onNodeMove, onConnect, onDisconnect, activeNodeId, isDaemonRunning }: FlowCanvasProps) {
+// Memoized Connection Path for performance
+const ConnectionLine = memo(({ conn, nodes, onDisconnect }: { conn: Connection, nodes: Node[], onDisconnect: (id: string) => void }) => {
+    const fromNode = nodes.find(n => n.id === conn.from);
+    const toNode = nodes.find(n => n.id === conn.to);
+    if (!fromNode || !toNode) return null;
+    
+    const x1 = fromNode.x + 192;
+    const y1 = fromNode.y + 30; // Aligned with ports
+    const x2 = toNode.x;
+    const y2 = toNode.y + 30;
+
+    const midX = (x1 + x2) / 2;
+    const midY = (y1 + y2) / 2;
+
+    const getSmartPath = (x1: number, y1: number, x2: number, y2: number) => {
+        const dx = Math.abs(x2 - x1);
+        const horizontalControl = Math.min(dx / 1.5, 150);
+        return `M ${x1} ${y1} C ${x1 + horizontalControl} ${y1}, ${x2 - horizontalControl} ${y2}, ${x2} ${y2}`;
+    };
+
+    return (
+        <g className="group pointer-events-auto cursor-default">
+            <path d={getSmartPath(x1, y1, x2, y2)} fill="none" stroke="#e2e8f0" strokeWidth="4" className="transition-all duration-300 group-hover:stroke-blue-50 opacity-0 group-hover:opacity-100" />
+            <path d={getSmartPath(x1, y1, x2, y2)} fill="none" stroke="#e2e8f0" strokeWidth="1" className="group-hover:stroke-blue-500 transition-colors" />
+            <g transform={`translate(${midX - 12}, ${midY - 12})`} className="opacity-0 group-hover:opacity-100 transition-all cursor-pointer" onClick={(e) => { e.stopPropagation(); onDisconnect(conn.id); }}>
+                <circle r="12" cx="12" cy="12" fill="white" className="shadow-sm" stroke="#e2e8f0" strokeWidth="1" />
+                <text x="12" y="17" textAnchor="middle" fontSize="14" fill="#64748b" fontWeight="bold" className="select-none font-sans">×</text>
+            </g>
+        </g>
+    );
+});
+
+ConnectionLine.displayName = 'ConnectionLine';
+
+export function FlowCanvas({ nodes, connections, onNodeClick, onNodeMove, onNodeMoveEnd, onConnect, onDisconnect, activeNodeId, isDaemonRunning }: FlowCanvasProps) {
     const [viewPort, setViewPort] = useState({ x: 0, y: 0, zoom: 1 });
-    const [draggingConnection, setDraggingConnection] = useState<{ from: string, x: number, y: number } | null>(null);
+    const [draggingConnection, setDraggingConnection] = useState<{ from: string, startX: number, startY: number, currentX: number, currentY: number } | null>(null);
     const canvasRef = useRef<HTMLDivElement>(null);
     const isDraggingCanvas = useRef(false);
 
-    // Grid size for snapping
     const GRID_SIZE = 20;
 
-    // Zoom handler (Center-aware zoom)
     const handleWheel = (e: React.WheelEvent) => {
         if (e.ctrlKey) {
             e.preventDefault();
             const delta = e.deltaY > 0 ? 0.9 : 1.1;
-            const newZoom = Math.min(Math.max(viewPort.zoom * delta, 0.1), 3);
+            const newZoom = Math.min(Math.max(viewPort.zoom * delta, 0.15), 2.5);
             setViewPort(prev => ({ ...prev, zoom: newZoom }));
         }
     };
 
     const handleMouseDown = (e: React.MouseEvent) => {
-        const target = e.target as HTMLElement;
-        if (target.classList.contains('canvas-background')) {
-            isDraggingCanvas.current = true;
-        }
+        if (e.target === canvasRef.current) isDraggingCanvas.current = true;
     };
 
     const handleMouseMove = (e: React.MouseEvent) => {
-        // Handle Canvas Panning
         if (isDraggingCanvas.current) {
-            setViewPort(prev => ({
-                ...prev,
-                x: prev.x + e.movementX,
-                y: prev.y + e.movementY
-            }));
+            setViewPort(prev => ({ ...prev, x: prev.x + e.movementX, y: prev.y + e.movementY }));
         }
-        
-        // Handle Cable Dragging
-        if (draggingConnection && canvasRef.current) {
-            const rect = canvasRef.current.getBoundingClientRect();
-            setDraggingConnection(prev => prev ? {
-                ...prev,
-                x: (e.clientX - rect.left - viewPort.x) / viewPort.zoom,
-                y: (e.clientY - rect.top - viewPort.y) / viewPort.zoom
-            } : null);
+        if (draggingConnection) {
+            const rect = canvasRef.current?.getBoundingClientRect();
+            if (rect) {
+                setDraggingConnection(prev => prev ? ({
+                    ...prev,
+                    currentX: (e.clientX - rect.left - viewPort.x) / viewPort.zoom,
+                    currentY: (e.clientY - rect.top - viewPort.y) / viewPort.zoom
+                }) : null);
+            }
         }
     };
 
@@ -86,181 +112,103 @@ export function FlowCanvas({ nodes, connections, onNodeClick, onNodeMove, onConn
         setDraggingConnection(null);
     };
 
-    const startConnection = (nodeId: string, e: React.MouseEvent) => {
-        e.stopPropagation();
-        const node = nodes.find(n => n.id === nodeId)!;
-        setDraggingConnection({
-            from: nodeId,
-            x: node.x + 192, // Port X
-            y: node.y + 40   // Port Y
-        });
-    };
-
-    const endConnection = (nodeId: string, e: React.MouseEvent) => {
-        e.stopPropagation();
-        if (draggingConnection && draggingConnection.from !== nodeId) {
-            onConnect(draggingConnection.from, nodeId);
-        }
-        setDraggingConnection(null);
-    };
-
-    const getBezierPath = (startX: number, startY: number, endX: number, endY: number) => {
-        const dx = Math.abs(endX - startX) * 0.5;
-        const cp1x = startX + dx;
-        const cp2x = endX - dx;
-        return `M ${startX} ${startY} C ${cp1x} ${startY}, ${cp2x} ${endY}, ${endX} ${endY}`;
-    };
-
     return (
         <div 
-            ref={canvasRef}
-            className="w-full h-full bg-[#f8fafc] relative overflow-hidden cursor-grab active:cursor-grabbing select-none canvas-background"
-            onWheel={handleWheel}
-            onMouseDown={handleMouseDown}
-            onMouseMove={handleMouseMove}
-            onMouseUp={handleMouseUp}
-            onMouseLeave={handleMouseUp}
+            ref={canvasRef} onWheel={handleWheel} onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp}
+            className="w-full h-full absolute inset-0 bg-[#fafafa] overflow-hidden cursor-auto selection:bg-none"
+            style={{ 
+                backgroundImage: 'radial-gradient(#cbd5e1 0.75px, transparent 0.75px)',
+                backgroundSize: `${32 * viewPort.zoom}px ${32 * viewPort.zoom}px`,
+                backgroundPosition: `${viewPort.x}px ${viewPort.y}px`
+            }}
         >
-            {/* Grid Pattern */}
-            <div 
-                className="absolute inset-0 pointer-events-none"
-                style={{
-                    backgroundImage: `radial-gradient(#e2e8f0 1.5px, transparent 1.5px)`,
-                    backgroundSize: `${GRID_SIZE * viewPort.zoom}px ${GRID_SIZE * viewPort.zoom}px`,
-                    backgroundPosition: `${viewPort.x}px ${viewPort.y}px`,
-                }}
-            />
+            <motion.div style={{ x: viewPort.x, y: viewPort.y, scale: viewPort.zoom, transformOrigin: '0 0' }} className="absolute inset-0 pointer-events-none">
+                <svg className="absolute inset-0 w-[10000px] h-[10000px] overflow-visible">
+                    {connections.map(conn => (
+                        <ConnectionLine key={conn.id} conn={conn} nodes={nodes} onDisconnect={onDisconnect} />
+                    ))}
 
-            <motion.div
-                style={{ x: viewPort.x, y: viewPort.y, scale: viewPort.zoom, transformOrigin: '0 0' }}
-                className="absolute inset-0 pointer-events-none"
-            >
-                <svg className="absolute inset-0 w-[10000px] h-[10000px] pointer-events-none">
-                    <defs>
-                        <marker id="arrow" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse">
-                            <path d="M 0 0 L 10 5 L 0 10 z" fill="#94a3b8" />
-                        </marker>
-                    </defs>
-
-                    {/* Existing Connections */}
-                    {connections.map((conn) => {
-                        const from = nodes.find(n => n.id === conn.from);
-                        const to = nodes.find(n => n.id === conn.to);
-                        if (!from || !to) return null;
-
-                        const path = getBezierPath(from.x + 192, from.y + 40, to.x, to.y + 40);
-                        const isActive = activeNodeId === from.id || activeNodeId === to.id;
-
-                        return (
-                            <g key={conn.id} className="group pointer-events-auto cursor-pointer" onClick={(e) => { e.stopPropagation(); onDisconnect(conn.id); }}>
-                                <path d={path} stroke="transparent" strokeWidth={20} fill="none" />
-                                <path
-                                    d={path}
-                                    stroke={isActive ? "#3b82f6" : "#cbd5e1"}
-                                    strokeWidth={isActive ? 3 : 2}
-                                    fill="none"
-                                    className="transition-all duration-300 group-hover:stroke-red-400"
-                                />
-                                {(isActive || isDaemonRunning) && (
-                                    <motion.path
-                                        d={path}
-                                        stroke="#3b82f6"
-                                        strokeWidth={3}
-                                        fill="none"
-                                        strokeDasharray="10, 20"
-                                        animate={{ strokeDashoffset: [0, -60] }}
-                                        transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
-                                        className="opacity-40"
-                                    />
-                                )}
-                            </g>
-                        );
-                    })}
-
-                    {/* Pending Connection Cable */}
                     {draggingConnection && (
                         <path
-                            d={getBezierPath(draggingConnection.x, draggingConnection.y, nodes.find(n => n.id === draggingConnection.from)!.x + 192, nodes.find(n => n.id === draggingConnection.from)!.y + 40)}
-                            stroke="#3b82f6"
-                            strokeWidth={2}
-                            strokeDasharray="5, 5"
-                            fill="none"
+                            d={`M ${draggingConnection.startX} ${draggingConnection.startY} L ${draggingConnection.currentX} ${draggingConnection.currentY}`}
+                            fill="none" stroke="#3b82f6" strokeWidth="1" strokeDasharray="4 4"
                         />
                     )}
                 </svg>
 
-                {nodes.map((node) => (
-                    <motion.div
-                        key={node.id}
-                        drag
-                        dragMomentum={false}
-                        onDrag={(e, info) => {
-                            const newX = Math.round((node.x + info.delta.x / viewPort.zoom) / GRID_SIZE) * GRID_SIZE;
-                            const newY = Math.round((node.y + info.delta.y / viewPort.zoom) / GRID_SIZE) * GRID_SIZE;
-                            onNodeMove(node.id, newX, newY);
+                {nodes.map(node => (
+                    <NodeComponent 
+                        key={node.id} node={node} viewPort={viewPort} GRID_SIZE={GRID_SIZE} activeNodeId={activeNodeId}
+                        onNodeMove={onNodeMove} onNodeMoveEnd={onNodeMoveEnd} onNodeClick={onNodeClick}
+                        onStartConnection={(x, y) => setDraggingConnection({ from: node.id, startX: x, startY: y, currentX: x, currentY: y })}
+                        onEndConnection={() => {
+                            if (draggingConnection && draggingConnection.from !== node.id) onConnect(draggingConnection.from, node.id);
                         }}
-                        style={{ x: node.x, y: node.y }}
-                        className="absolute pointer-events-auto"
-                    >
-                        {/* Node Container */}
-                        <div
-                            onClick={(e) => { e.stopPropagation(); onNodeClick(node); }}
-                            className={`w-48 group bg-white rounded-xl border transition-all duration-200 ${
-                                activeNodeId === node.id 
-                                    ? 'border-blue-500 ring-4 ring-blue-50 shadow-xl scale-105' 
-                                    : 'border-slate-200 hover:border-slate-400 hover:shadow-md'
-                            }`}
-                        >
-                            {/* Input Port */}
-                            <div 
-                                onMouseUp={(e) => endConnection(node.id, e)}
-                                className="absolute -left-2 top-[34px] w-4 h-4 rounded-full bg-white border-2 border-slate-300 hover:border-blue-500 hover:scale-125 transition-all z-10 cursor-crosshair"
-                            />
-
-                            <div className="p-3 flex items-center gap-3">
-                                <div className={`w-10 h-10 rounded-lg ${node.bg} flex items-center justify-center shrink-0 shadow-sm`}>
-                                    <span className={`material-symbols-outlined text-[20px] ${node.color}`}>{node.icon}</span>
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                    <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest truncate">{node.type}</p>
-                                    <p className="text-[11px] font-bold text-slate-900 truncate">{node.label}</p>
-                                </div>
-                            </div>
-
-                            {/* Output Port */}
-                            <div 
-                                onMouseDown={(e) => startConnection(node.id, e)}
-                                className="absolute -right-2 top-[34px] w-4 h-4 rounded-full bg-white border-2 border-slate-300 hover:border-blue-500 hover:scale-125 transition-all z-10 cursor-crosshair"
-                            />
-                        </div>
-                    </motion.div>
+                    />
                 ))}
             </motion.div>
 
-            {/* Navigator Mini-Map */}
-            <div className="absolute top-6 right-6 w-48 h-32 bg-white/60 backdrop-blur-md border border-slate-200 rounded-xl overflow-hidden shadow-2xl hidden md:block z-50">
-                <div className="relative w-full h-full transform scale-[0.05] origin-top-left translate-x-4 translate-y-4">
-                    {nodes.map(n => <div key={n.id} className={`absolute w-44 h-20 rounded-2xl ${n.bg} border-4 border-slate-300`} style={{ left: n.x, top: n.y }} />)}
-                    <motion.div 
-                        drag dragMomentum={false}
-                        onDrag={(e, info) => setViewPort(prev => ({ ...prev, x: prev.x - info.delta.x * 20, y: prev.y - info.delta.y * 20 }))}
-                        animate={{ left: -viewPort.x / viewPort.zoom, top: -viewPort.y / viewPort.zoom, width: canvasRef.current?.clientWidth ? canvasRef.current.clientWidth / viewPort.zoom : 1000, height: canvasRef.current?.clientHeight ? canvasRef.current.clientHeight / viewPort.zoom : 800 }}
-                        className="absolute border-8 border-blue-500 bg-blue-500/10 rounded-3xl"
-                    />
+            {/* Zoom Widget */}
+            <div className="absolute top-8 right-8 z-50 flex flex-col items-end gap-4">
+                <div className="bg-white border border-slate-200 rounded-sm shadow-sm flex flex-col overflow-hidden">
+                    <button onClick={() => setViewPort(v => ({ ...v, zoom: Math.min(v.zoom * 1.2, 2.5) }))} className="w-8 h-8 flex items-center justify-center hover:bg-slate-50 border-b border-slate-100 transition-all">
+                        <span className="material-symbols-outlined text-slate-400 text-[18px]">add</span>
+                    </button>
+                    <button onClick={() => setViewPort(v => ({ ...v, zoom: Math.max(v.zoom / 1.2, 0.15) }))} className="w-8 h-8 flex items-center justify-center hover:bg-slate-50 border-b border-slate-100 transition-all">
+                        <span className="material-symbols-outlined text-slate-400 text-[18px]">remove</span>
+                    </button>
+                    <button onClick={() => setViewPort({ x: 0, y: 0, zoom: 1 })} className="w-8 h-8 flex items-center justify-center hover:bg-slate-50 transition-all">
+                        <span className="material-symbols-outlined text-slate-400 text-[18px]">center_focus_strong</span>
+                    </button>
                 </div>
-            </div>
-
-            {/* Footer Stats */}
-            <div className="absolute bottom-6 left-6 flex items-center gap-3 z-50">
-                <div className="bg-white/80 backdrop-blur-md border border-slate-200 rounded-xl px-4 py-2 shadow-lg flex items-center gap-6">
-                    <div className="flex flex-col"><span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Nodes</span><span className="text-xs font-bold">{nodes.length}</span></div>
-                    <div className="w-px h-6 bg-slate-100" />
-                    <div className="flex flex-col"><span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Wiring</span><span className="text-xs font-bold">{connections.length}</span></div>
-                    <div className="w-px h-6 bg-slate-100" />
-                    <div className="flex flex-col"><span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Zoom</span><span className="text-xs font-bold">{Math.round(viewPort.zoom * 100)}%</span></div>
-                </div>
-                <div className="bg-blue-600 text-white rounded-xl px-4 py-2 shadow-lg text-[10px] font-bold uppercase tracking-widest">Manual Mode</div>
             </div>
         </div>
     );
 }
+
+const NodeComponent = memo(({ node, viewPort, GRID_SIZE, activeNodeId, onNodeMove, onNodeMoveEnd, onNodeClick, onStartConnection, onEndConnection }: any) => {
+    const dragControls = useDragControls();
+    const { setSelectedNodeId } = useUI();
+    const startPos = useRef({ x: node.x, y: node.y });
+
+    return (
+        <motion.div
+            drag dragControls={dragControls} dragListener={false} dragMomentum={false}
+            onDragStart={(e) => { e.stopPropagation(); startPos.current = { x: node.x, y: node.y }; }}
+            onDrag={(e, info) => {
+                const newX = Math.round((startPos.current.x + info.offset.x / viewPort.zoom) / GRID_SIZE) * GRID_SIZE;
+                const newY = Math.round((startPos.current.y + info.offset.y / viewPort.zoom) / GRID_SIZE) * GRID_SIZE;
+                onNodeMove(node.id, newX, newY);
+            }}
+            onDragEnd={onNodeMoveEnd}
+            style={{ x: node.x, y: node.y }}
+            className="absolute pointer-events-auto"
+        >
+            <div className={`w-48 group bg-white rounded-sm border transition-all duration-200 ${ activeNodeId === node.id ? 'border-black ring-4 ring-slate-100 shadow-xl' : 'border-slate-200 shadow-sm hover:border-slate-300' }`}>
+                <motion.div 
+                    onPointerDown={(e) => { e.stopPropagation(); dragControls.start(e); }}
+                    onTap={() => { setSelectedNodeId(node.id); onNodeClick(node); }}
+                    className="p-3.5 flex items-center gap-3.5 cursor-grab active:cursor-grabbing select-none"
+                >
+                    <div className={`w-9 h-9 rounded-sm ${node.bg} flex items-center justify-center shrink-0 border border-slate-100`}>
+                        <span className={`material-symbols-outlined text-[18px] ${node.color}`}>{node.icon}</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                        <p className="text-[8px] font-black text-slate-300 uppercase tracking-widest truncate">{node.type}</p>
+                        <p className="text-[11px] font-black text-black truncate leading-tight mt-0.5">{node.label}</p>
+                    </div>
+                </motion.div>
+
+                {/* Ports - Payload Precision Style */}
+                <div onPointerUp={(e) => { e.stopPropagation(); onEndConnection(); }} onPointerDown={(e) => e.stopPropagation()} className="absolute -left-1.5 top-[25px] w-3 h-3 flex items-center justify-center z-[130] cursor-crosshair group-hover:scale-125 transition-all">
+                    <div className="w-1.5 h-1.5 rounded-full bg-white border border-slate-200 group-hover:border-black shadow-sm" />
+                </div>
+                <div onPointerDown={(e) => { e.stopPropagation(); onStartConnection(node.x + 192, node.y + 30); }} className="absolute -right-1.5 top-[25px] w-3 h-3 flex items-center justify-center z-[130] cursor-crosshair group-hover:scale-125 transition-all">
+                    <div className="w-1.5 h-1.5 rounded-full bg-white border border-slate-200 group-hover:border-black shadow-sm" />
+                </div>
+            </div>
+        </motion.div>
+    );
+});
+
+NodeComponent.displayName = 'NodeComponent';

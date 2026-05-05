@@ -98,6 +98,7 @@ export const metadata: Metadata = {
         icon: '/logo_lassez_white.svg',
         apple: '/logo_lassez_white.svg',
     },
+    manifest: '/manifest.webmanifest',
     alternates: {
         canonical: 'https://lassez.fr',
     },

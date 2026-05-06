@@ -43,6 +43,7 @@ model Source {
   source_name  String
   source_bias  String   // "Extrême-Droite", "Droite", "Centre", "Gauche", "Service Public", etc.
   trust_score  Int      // 1 to 10
+  allowSourceImages Boolean @default(false)
   
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt

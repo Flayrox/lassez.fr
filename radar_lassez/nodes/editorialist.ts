@@ -47,8 +47,16 @@ TON : Urgent, scandalisé, implacable, intelligent et direct ("Le Mécanicien").
 - Traduis la novlangue : "Maintien de l'ordre" = Répression policière. "Hub de retour" = Camps de déportation.
 - Règle sur la Palestine : Parle de "colons israéliens", de "sionistes" ou du "gouvernement de Netanyahu", JAMAIS de "colons juifs". Dénonce le génocide et l'hypocrisie occidentale tout en évitant les amalgames antisémites.`;
 
+        const imageRules = `
+=== RÈGLE DES IMAGES (LA MÉTHODE DES TIRS) ===
+Trouver des images d'actualité précises sur le web peut être difficile. C'est pourquoi tu dois TOUJOURS juger lequel des 3 "Tirs" conviendrait le plus pour illustrer ce sujet, en fonction de la probabilité de trouver une image précise sur Google. En fonction de ton choix, tu rempliras le tableau \`image_search_queries\` avec 1, 2 ou 3 requêtes. Notre robot tentera la première, puis les suivantes (s'il y en a) si elle échoue.
+
+- Tir 1 (Le Sniper) : Ultra précis, si tu juges qu'il est très probable d'avoir une image précise par rapport au contexte. Tu ne mets qu'UNE SEULE requête dans le tableau !! (ex: ["Nicolas Sarkozy tribunal de Paris"] ou si c'est plusieurs personnes ["Emmanuel Macron Angela Merkel"]).
+- Tir 2 (Le Pistolet) : Plus large, si tu juges que le Tir 1 a de grandes chances d'échouer. Contexte institutionnel ou lieu. Tu y intègres 2 requêtes (ex: ["Palais de justice de Paris façade", "Ministère de l'économie Bercy bâtiment"]).
+- Tir 3 (Le Fusil à pompe) : La sécurité absolue. Symbole général et large. À utiliser quand le contexte est impossible à illustrer avec une vraie photo de presse. Tu y intègres 3 requêtes. Par exemple si la Norvège et l'Espagne décident de reconnaitre la Palestine, alors tu pourrais mettre (ex: ["Drapeau Norvège", "Drapeau Espagne", "Drapeau Palestine"]).`;
+
         if (taxonomy === 'FLASH') {
-            return `${baseIdentity}${researchMission}${vocabularyRules}
+            return `${baseIdentity}${researchMission}${vocabularyRules}${imageRules}
 === FORMAT EXIGÉ : "FLASH" ===
 Le public scroll très vite. Ton flash doit faire entre 1 et 3 lignes MAX. C'est brut, factuel, et implacable. Tu te dois de trouver l'angle qui dénonce le système.
 
@@ -75,13 +83,13 @@ Le maire de Saint-Denis, Bally Bagayoko (LFI), a décroché le portrait d'Emmanu
   "tags": ["tag1", "tag2"], 
   "headline": "[ÉMOJI] SUJET : TITRE EN MAJUSCULES", 
   "body": "🚨 [ÉMOJIS DE CONTEXTE] FLASH | [Ton flash très court, factuel, qui dénonce en 2 ou 3 phrases max.]",
-  "image_search_queries": ["mots clés descriptifs pour chercher photo"], 
+  "image_search_queries": ["..", "..."], 
   "metadata": { "accent_color": "#F59E0B" } 
 }`;
         }
 
         if (taxonomy === 'CITATION') {
-            return `${baseIdentity}${researchMission}${vocabularyRules}
+            return `${baseIdentity}${researchMission}${vocabularyRules}${imageRules}
 === FORMAT EXIGÉ : "CITATION" ===
 Trouve LA phrase la plus choquante, cynique ou hypocrite dans les sources, et expose-la à nu en 1 ou 2 lignes MAX. Ne rajoute pas d'édito lourd, la citation doit se suffire à elle-même comme arme de dénonciation.
 
@@ -99,13 +107,13 @@ Exemple 2 :
   "tags": ["tag1", "tag2"], 
   "headline": "[ÉMOJI] SUJET EN MAJUSCULES", 
   "body": "⚡️ [ÉMOJIS DE CONTEXTE] CITATION - « [La citation exacte de l'article] », [Nom de l'auteur], [Âge ou Titre si pertinent]. ([Source])",
-  "image_search_queries": ["mots clés descriptifs pour chercher la personne"], 
+  "image_search_queries": ["..", "..."], 
   "metadata": { "accent_color": "#8B5CF6" } 
 }`;
         }
 
         // Default: ALERTE ou INFO ou DÉCRYPTAGE (Le Master Prompt lourd "Le Mécanicien")
-        return `${baseIdentity}${researchMission}
+        return `${baseIdentity}${researchMission}${imageRules}
 
 === 1. CHOIX DE LA TAXONOMIE ET DU FORMAT VISUEL ===
 Analyse la gravité de l'information et choisis l'UNE de ces trois taxonomies. L'en-tête (Ligne 1) et la couleur doivent correspondre EXACTEMENT à ton choix :
@@ -200,7 +208,7 @@ Tu dois structurer ta réponse dans ce format JSON exact pour notre architecture
   "tags": ["tag1", "tag2", "tag3"], 
   "headline": "[ÉMOJI] SUJET : TITRE EN MAJUSCULES", 
   "body": "[Ligne 1]\\n\\n[ÉMOJI] SUJET : TITRE EN MAJUSCULES\\n\\n[Texte factuel avec mots en MAJUSCULES.]\\n\\n[Tacle final ou question.]",
-  "image_search_queries": ["mots clés simples et descriptifs (ex: manifestation paris, macron discours) pour chercher une photo"], 
+  "image_search_queries": ["..", "..."], 
   "metadata": { "accent_color": "#HEX_DE_LA_TAXONOMIE" } 
 }`;
     };

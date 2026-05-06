@@ -1,0 +1,874 @@
+{
+  "generatedAt": "2026-05-06T10:16:05.020Z",
+  "counts": [
+    {
+      "_count": {
+        "_all": 41
+      },
+      "status": "DRAFTED"
+    },
+    {
+      "_count": {
+        "_all": 117
+      },
+      "status": "REJECTED"
+    },
+    {
+      "_count": {
+        "_all": 56
+      },
+      "status": "RESEARCHED"
+    }
+  ],
+  "samples": {
+    "drafted": [
+      {
+        "id": "052bf7ef-864c-4f99-b963-919f39a534d5",
+        "status": "DRAFTED",
+        "taxonomy": "ALERTE",
+        "geo": "international",
+        "tags": [
+          "Macron",
+          "Afrique",
+          "Françafrique"
+        ],
+        "updatedAt": "2026-05-06T10:16:04.115Z",
+        "final_draft": {
+          "taxonomie": "ALERTE",
+          "geo": "international",
+          "tags": [
+            "Macron",
+            "Afrique",
+            "Françafrique"
+          ],
+          "headline": "🌍 AFRIQUE : MACRON EN OPÉRATION SURVIE POUR SAUVER LES PROFITS DES MULTINATIONALES",
+          "body": "🔴 ALERTE INFO !\n\n🌍 AFRIQUE : MACRON EN OPÉRATION SURVIE POUR SAUVER LES PROFITS DES MULTINATIONALES.\n\nNouveau voyage au Kenya pour Emmanuel Macron qui tente désespérément de « RENOUVELER » un partenariat alors que l'influence française s'EFFONDRE partout sur le continent. Chassé du Sahel (Mali, Niger, Burkina Faso) par des populations excédées par des décennies d'ingérence, l'Élysée se tourne vers l'Afrique de l'Est pour sécuriser de nouveaux MARCHÉS pour le patronat français. Sous couvert de diplomatie, il s'agit d'ancrer des INVESTISSEMENTS privés au moment même où la France perd pied diplomatiquement. (Le Figaro)\n\nCombien de sommets de la « dernière chance » faudra-t-il avant que le gouvernement n'admette que l'ère de la Françafrique est définitivement terminée ?",
+          "image_search_queries": [
+            "Emmanuel Macron Afrique Kenya",
+            "manifestation anti-France Afrique",
+            "entreprises françaises Afrique investissements"
+          ],
+          "metadata": {
+            "accent_color": "#DC2626"
+          }
+        }
+      },
+      {
+        "id": "2e7c7aeb-0dba-40c7-b214-4743fbbd4776",
+        "status": "DRAFTED",
+        "taxonomy": "ALERTE",
+        "geo": "international",
+        "tags": [
+          "liberté de la presse",
+          "Algérie",
+          "Christophe Gleizes"
+        ],
+        "updatedAt": "2026-05-06T10:15:58.606Z",
+        "final_draft": {
+          "taxonomie": "ALERTE",
+          "geo": "international",
+          "tags": [
+            "liberté de la presse",
+            "Algérie",
+            "Christophe Gleizes"
+          ],
+          "headline": "🇩🇿 ALGÉRIE : 7 ANS DE PRISON POUR UN REPORTAGE FOOT, LE JOURNALISTE CHRISTOPHE GLEIZES SACRIFIÉ PAR LA DIPLOMATIE",
+          "body": "🔴 ALERTE INFO !\n\n🇩🇿 ALGÉRIE : LE JOURNALISTE CHRISTOPHE GLEIZES RÉDUIT À DEMANDER GRÂCE APRÈS UNE CONDAMNATION SCANDALEUSE À 7 ANS DE PRISON.\n\nCondamné pour \"APOLOGIE DU TERRORISME\" après une enquête sur le football en Kabylie, le reporter de So Foot et Society est enfermé depuis plus d'un an. Face à l'enlisement judiciaire, sa famille a annoncé le retrait de son pourvoi en cassation : l'ultime espoir d'obtenir une GRÂCE du président Tebboune. Christophe Gleizes est devenu une MONNAIE D'ÉCHANGE dans le jeu trouble entre Paris et Alger, pendant que le gouvernement français brille par son impuissance volontaire pour protéger ses contrats énergétiques. (Mediapart / Libération).\n\nMacron exprime sa \"profonde inquiétude\" mais ne lève pas le petit doigt pour ne pas froisser son fournisseur de GAZ. La vie d'un journaliste vaut-elle moins qu'un pipeline ?",
+          "image_search_queries": [
+            "Christophe Gleizes journaliste Algérie",
+            "prison Koléa Algérie",
+            "Abdelmadjid Tebboune Emmanuel Macron"
+          ],
+          "metadata": {
+            "accent_color": "#DC2626"
+          }
+        }
+      },
+      {
+        "id": "4b97771a-9e81-49eb-9993-029a2cceddd2",
+        "status": "DRAFTED",
+        "taxonomy": "ALERTE",
+        "geo": "international",
+        "tags": [
+          "Moyen-Orient",
+          "Trump",
+          "CMA-CGM",
+          "Iran"
+        ],
+        "updatedAt": "2026-05-06T10:15:58.115Z",
+        "final_draft": {
+          "taxonomie": "ALERTE",
+          "geo": "international",
+          "tags": [
+            "Moyen-Orient",
+            "Trump",
+            "CMA-CGM",
+            "Iran"
+          ],
+          "headline": "🚢 MOYEN-ORIENT : TRUMP ABANDONNE LES MARINS À LEUR SORT POUR NÉGOCIER AVEC L'IRAN",
+          "body": "🔴 ALERTE INFO !\n\n🚢 MOYEN-ORIENT : TRUMP ABANDONNE LES MARINS À LEUR SORT POUR NÉGOCIER AVEC L'IRAN.\n\nAlors qu'un navire français de la CMA CGM vient d'être ATTAQUÉ dans le détroit d’Ormuz, faisant plusieurs BLESSÉS parmi l'équipage, Donald Trump annonce la suspension de son « Projet Liberté » d’escorte navale. Le président américain sacrifie la SÉCURITÉ des travailleurs de la mer sur l'autel de tractations diplomatiques avec Téhéran, tout en maintenant un BLOCUS impitoyable des ports iraniens qui ne fait qu'envenimer le conflit. (Le Figaro)\n\nLes marins trinquent et saignent pendant que les dirigeants jouent au poker avec des vies humaines : la protection des routes commerciales s'arrête là où les intérêts électoraux de Trump commencent.",
+          "image_search_queries": [
+            "CMA CGM ship Hormuz attack",
+            "Donald Trump Iran diplomacy",
+            "Strait of Hormuz military tension"
+          ],
+          "metadata": {
+            "accent_color": "#DC2626"
+          }
+        }
+      },
+      {
+        "id": "0393d36f-6525-4b35-a5d1-d8b30f4d6454",
+        "status": "DRAFTED",
+        "taxonomy": "ALERTE",
+        "geo": "france",
+        "tags": [
+          "Sarkozy",
+          "Libye",
+          "Corruption"
+        ],
+        "updatedAt": "2026-05-06T10:15:54.437Z",
+        "final_draft": {
+          "taxonomie": "ALERTE",
+          "geo": "france",
+          "tags": [
+            "Sarkozy",
+            "Libye",
+            "Corruption"
+          ],
+          "headline": "⚖️ JUSTICE : NICOLAS SARKOZY ACCUSÉ D'INSULTER LES VICTIMES DU TERRORISME LIBYEN POUR SAUVER SA PEAU",
+          "body": "🔴 ALERTE INFO !\n\n⚖️ JUSTICE : NICOLAS SARKOZY ACCUSÉ D'INSULTER LES VICTIMES DU TERRORISME LIBYEN POUR SAUVER SA PEAU\n\nAu procès des financements LIBYENS, les familles des victimes de l'attentat du DC-10 d'UTA explosent. Elles dénoncent la stratégie médiatique INDÉCENTE de l'ancien Président qui tente de se faire passer pour une victime alors qu'il est soupçonné d'avoir pactisé avec le régime de Kadhafi. Alors que Sarkozy multiplie les attaques pour discréditer l'enquête, ceux qui ont perdu leurs proches sous les bombes du dictateur rappellent que la seule VÉRITABLE colère est la leur. (Mediapart)\n\nPeut-on descendre plus bas que de cracher sur la mémoire des victimes du terrorisme pour masquer des soupçons de CORRUPTION massive ?",
+          "image_search_queries": [
+            "Nicolas Sarkozy procès Libye",
+            "mémorial attentat DC-10 UTA",
+            "Nicolas Sarkozy tribunal air sérieux"
+          ],
+          "metadata": {
+            "accent_color": "#DC2626"
+          }
+        }
+      },
+      {
+        "id": "77b8ed07-61a9-4608-ac70-bc94de1fd697",
+        "status": "DRAFTED",
+        "taxonomy": "ALERTE",
+        "geo": "international",
+        "tags": [
+          "Détroit d'Ormuz",
+          "CMA CGM",
+          "Trump",
+          "Iran"
+        ],
+        "updatedAt": "2026-05-06T10:15:53.251Z",
+        "final_draft": {
+          "taxonomie": "ALERTE",
+          "geo": "international",
+          "tags": [
+            "Détroit d'Ormuz",
+            "CMA CGM",
+            "Trump",
+            "Iran"
+          ],
+          "headline": "🚢 GOLFE : UN NAVIRE FRANÇAIS CIBLÉ, TRUMP LIVRE LES MARINS AU CHAOS POUR NÉGOCIER AVEC L'IRAN",
+          "body": "🔴 ALERTE INFO !\n\n🚢 SÉCURITÉ : LE GÉANT FRANÇAIS CMA CGM CIBLÉ DANS LE GOLFE APRÈS L’ABANDON AMÉRICAIN.\n\nLe sang a coulé sur le pont du \"San Antonio\". Un porte-conteneurs de la CMA CGM a été violemment ATTAQUÉ dans le détroit d’Ormuz, laissant plusieurs MARINS BLESSÉS et évacués en urgence. Ce drame survient au moment précis où Donald Trump annonce suspendre son « Projet Liberté » d’escorte militaire pour mener des NÉGOCIATIONS OPAQUES avec Téhéran. Sous la pression du Pakistan, les USA maintiennent le BLOCUS mais retirent leur protection, laissant les travailleurs de la mer servir de CIBLES VIVANTES. (Le Figaro / AFP)\n\nAlors que Rodolphe Saadé, patron de la CMA CGM et proche d'Emmanuel Macron, accumule des MILLIARDS de superprofits grâce à une taxe au tonnage dérisoire (2,7%), ses équipages sont sacrifiés sur l'autel de la diplomatie spectacle de Trump. \n\nLe profit est mondial, mais la protection des travailleurs, elle, s'arrête dès qu'un accord politique pointe le bout de son nez ?",
+          "image_search_queries": [
+            "CMA CGM container ship attack Hormuz",
+            "Donald Trump Iran negotiations",
+            "Rodolphe Saadé CMA CGM",
+            "Strait of Hormuz military escort"
+          ],
+          "metadata": {
+            "accent_color": "#DC2626"
+          }
+        }
+      },
+      {
+        "id": "8fee94fc-ea14-4007-8443-13b7e91eaef5",
+        "status": "DRAFTED",
+        "taxonomy": "ALERTE",
+        "geo": "international",
+        "tags": [
+          "États-Unis",
+          "Moyen-Orient",
+          "Marco Rubio",
+          "Guerre"
+        ],
+        "updatedAt": "2026-05-06T10:15:52.362Z",
+        "final_draft": {
+          "taxonomie": "ALERTE",
+          "geo": "international",
+          "tags": [
+            "États-Unis",
+            "Moyen-Orient",
+            "Marco Rubio",
+            "Guerre"
+          ],
+          "headline": "🌍 GÉOPOLITIQUE : LES ÉTATS-UNIS ACHÈVENT L'OPÉRATION \"EPIC FURY\" ET PASSENT EN MODE \"DÉFENSIF\".",
+          "body": "🔴 ALERTE INFO !\n\n🌍 GÉOPOLITIQUE : LES ÉTATS-UNIS ACHÈVENT L'OPÉRATION \"EPIC FURY\" ET PASSENT EN MODE \"DÉFENSIF\".\n\nMarco Rubio, chef de la diplomatie américaine, annonce la fin de l'offensive éclair tout en menaçant de frapper avec une « EFFICACITÉ MORTELLE » au moindre prétexte. Derrière ce changement de RHÉTORIQUE, la réalité reste la même : des BOMBARDEMENTS massifs ont ravagé la région sous couvert de protection des intérêts de Washington. L'administration américaine prétend ne plus vouloir ouvrir le feu, mais maintient un DISPOSITIF DE GUERRE au cœur du brasier qu'elle a elle-même alimenté. (Le Figaro)\n\nQuand l'agresseur se proclame soudainement défenseur, c'est que le prochain CARNAGE se prépare déjà dans l'ombre. Qui peut encore croire à la « paix » imposée par les bombes de l'Empire ?",
+          "image_search_queries": [
+            "Marco Rubio serious face",
+            "US air strike Middle East smoke",
+            "US military presence Middle East"
+          ],
+          "metadata": {
+            "accent_color": "#DC2626"
+          }
+        }
+      },
+      {
+        "id": "87be2711-4fc2-4f6c-bf5c-373ced40d742",
+        "status": "DRAFTED",
+        "taxonomy": "ALERTE",
+        "geo": "france",
+        "tags": [
+          "RSA",
+          "Pauvreté",
+          "Justice Sociale",
+          "Gouvernement"
+        ],
+        "updatedAt": "2026-05-06T10:15:48.235Z",
+        "final_draft": {
+          "taxonomie": "ALERTE",
+          "geo": "france",
+          "tags": [
+            "RSA",
+            "Pauvreté",
+            "Justice Sociale",
+            "Gouvernement"
+          ],
+          "headline": "🚨 SOCIAL : 560 000 FOYERS ÉLIGIBLES AU RSA NE LE TOUCHENT PAS",
+          "body": "🔴 ALERTE INFO !\n\n📉 SOCIAL : PLUS D'UN TIERS DES ÉLIGIBLES AU RSA NE TOUCHENT PAS LEUR DÛ.\n\nSelon une étude de la DREES, 560 000 foyers éligibles au Revenu de Solidarité Active (RSA) ne le perçoivent pas. C'est un taux de NON-RECOURS massif de 34 %. Pendant que la Macronie et la droite multiplient les contrôles, les discours sur l'assistanat et les menaces de RADIATIONS, des MILLIARDS d'euros destinés aux plus précaires restent dans les caisses de l'État. La complexité administrative est devenue une arme de dissuasion massive contre les pauvres. (Mediapart)\n\nOn traque le moindre centime des allocataires pour satisfaire les fantasmes du patronat, mais qui s'indigne des milliards que l'État économise sur le dos de ceux qui n'ont plus rien ?",
+          "image_search_queries": [
+            "précarité france pauvreté",
+            "bureau CAF file d'attente",
+            "manifestation contre la pauvreté france"
+          ],
+          "metadata": {
+            "accent_color": "#DC2626"
+          }
+        }
+      },
+      {
+        "id": "9c584b76-a7e7-486e-8b9e-5714792f6040",
+        "status": "DRAFTED",
+        "taxonomy": "ALERTE",
+        "geo": "france",
+        "tags": [
+          "RSA",
+          "pauvreté",
+          "État",
+          "social"
+        ],
+        "updatedAt": "2026-05-06T10:15:46.238Z",
+        "final_draft": {
+          "taxonomie": "ALERTE",
+          "geo": "france",
+          "tags": [
+            "RSA",
+            "pauvreté",
+            "État",
+            "social"
+          ],
+          "headline": "🚨 PAUVRETÉ : 560 000 FOYERS ÉLIGIBLES AU RSA NE LE PERÇOIVENT PAS",
+          "body": "🔴 ALERTE INFO !\n\n🚨 PAUVRETÉ : 560 000 FOYERS ÉLIGIBLES AU RSA NE LE PERÇOIVENT PAS DANS L'INDIFFÉRENCE TOTALE.\n\nSelon une étude de la DREES, plus d'UN TIERS des foyers ayant droit au RSA ne le touchent pas. Ce sont plus de 560 000 familles laissées dans la misère par la COMPLEXITÉ administrative et le manque d'information. Alors que le GOUVERNEMENT s'acharne à traquer la « fraude sociale » pour stigmatiser les précaires, il encaisse silencieusement près de 3 MILLIARDS D'EUROS d'économies par an sur le dos de ceux qui ne réclament pas leur dû. (Mediapart)\n\nLa traque des pauvres est une priorité nationale, mais leur verser ce que l'État leur doit reste une option facultative. Qui sont les vrais fraudeurs ?",
+          "image_search_queries": [
+            "précarité france pauvreté",
+            "file attente CAF",
+            "dossier administratif complexe social"
+          ],
+          "metadata": {
+            "accent_color": "#DC2626"
+          }
+        }
+      },
+      {
+        "id": "48d2349d-1fe5-475b-aee2-95e4c7ad964a",
+        "status": "DRAFTED",
+        "taxonomy": "ALERTE",
+        "geo": "international",
+        "tags": [
+          "USA",
+          "Iran",
+          "Guerre",
+          "Marco Rubio"
+        ],
+        "updatedAt": "2026-05-06T10:15:41.281Z",
+        "final_draft": {
+          "taxonomie": "ALERTE",
+          "geo": "international",
+          "tags": [
+            "USA",
+            "Iran",
+            "Guerre",
+            "Marco Rubio"
+          ],
+          "headline": "🌍 MOYEN-ORIENT : WASHINGTON DÉCRÈTE LA FIN DU CARNAGE « EPIC FURY » MAIS MAINTIENT SA BOTTE SUR LA GORGE DE LA RÉGION",
+          "body": "🔴 ALERTE INFO !\n\n🌍 DIPLOMATIE : WASHINGTON DÉCRÈTE LA FIN DU CARNAGE « EPIC FURY » MAIS MAINTIENT SA BOTTE SUR LA GORGE DE LA RÉGION.\n\nLe « faucon » Marco Rubio, secrétaire d'État aux pleins pouvoirs, annonce que l'offensive massive contre l'Iran est « finie ». Après avoir DÉCAPITÉ le sommet de l'État iranien et ANÉANTI 85% de son industrie militaire, l'administration Trump passe en phase dite « DÉFENSIVE ». Traduction : le BLOCUS des ports continue et la moindre tentative de riposte sera accueillie avec une « EFFICACITÉ MORTELLE ». (Le Figaro)\n\nOn rase un pays, on impose une famine organisée par blocus, et on appelle ça de la « défense » ?",
+          "image_search_queries": [
+            "Marco Rubio press conference White House May 2026",
+            "US aircraft carrier Middle East blockade",
+            "Operation Epic Fury destruction Iran"
+          ],
+          "metadata": {
+            "accent_color": "#DC2626"
+          }
+        }
+      },
+      {
+        "id": "b5e81d71-0cde-4ce7-9d77-1dbb83bcc1b6",
+        "status": "DRAFTED",
+        "taxonomy": "ALERTE",
+        "geo": "international",
+        "tags": [
+          "Moyen-Orient",
+          "CMA CGM",
+          "Trump",
+          "Iran",
+          "Commerce"
+        ],
+        "updatedAt": "2026-05-06T10:15:39.085Z",
+        "final_draft": {
+          "taxonomie": "ALERTE",
+          "geo": "international",
+          "tags": [
+            "Moyen-Orient",
+            "CMA CGM",
+            "Trump",
+            "Iran",
+            "Commerce"
+          ],
+          "headline": "⚓️ MOYEN-ORIENT : TRUMP ABANDONNE LA SÉCURITÉ DES NAVIRES, UN CARGO FRANÇAIS ATTAQUÉ DANS LE DÉTROIT D'ORMUZ",
+          "body": "🔴 ALERTE INFO !\n\n⚓️ MOYEN-ORIENT : TRUMP ABANDONNE LA SÉCURITÉ DES NAVIRES, UN CARGO FRANÇAIS ATTAQUÉ DANS LE DÉTROIT D'ORMUZ.\n\nC'est le chaos total. Le géant français CMA CGM confirme qu'un de ses navires a été ATTAQUÉ dans le détroit d'Ormuz, faisant plusieurs BLESSÉS évacués en urgence. Cette agression survient au moment précis où Donald Trump décide de SUSPENDRE son « Projet Liberté » d’escorte militaire sous prétexte de « négociations » avec l’Iran. Pendant que le président américain joue les diplomates de dernière minute pour flatter ses alliés, les marins servent de CHAIR À CANON. Trump maintient pourtant le BLOCUS des ports iraniens, alimentant l'incendie tout en retirant les pompiers. (Le Figaro)\n\nCombien de travailleurs devront risquer leur vie pour que les milliardaires et les chefs d'État cessent de traiter les routes maritimes comme un plateau de Monopoly ?",
+          "image_search_queries": [
+            "CMA CGM ship attack",
+            "Strait of Hormuz navy escort",
+            "Donald Trump Iran crisis"
+          ],
+          "metadata": {
+            "accent_color": "#DC2626"
+          }
+        }
+      },
+      {
+        "id": "c1c1b67b-680f-49d0-beed-7676e67b7623",
+        "status": "DRAFTED",
+        "taxonomy": "ALERTE",
+        "geo": "france",
+        "tags": [
+          "CRITICAL_CROSSCHECK",
+          "Bardella",
+          "RN",
+          "CNews",
+          "Détournement de fonds",
+          "Bolloré"
+        ],
+        "updatedAt": "2026-05-06T10:15:24.899Z",
+        "final_draft": {
+          "taxonomie": "ALERTE",
+          "geo": "france",
+          "tags": [
+            "Bardella",
+            "RN",
+            "CNews",
+            "Détournement de fonds",
+            "Bolloré"
+          ],
+          "headline": "📺 MÉDIAS : JORDAN BARDELLA SE SERT DE CNEWS POUR CIBLER MÉLENCHON ET MASQUER SES PROPRES AFFAIRES",
+          "body": "🔴 ALERTE INFO !\n\n📺 MÉDIAS : JORDAN BARDELLA SE SERT DE CNEWS POUR CIBLER MÉLENCHON ET MASQUER SES PROPRES AFFAIRES.\n\nInvité sur le plateau complaisant de la chaîne du milliardaire BOLLORÉ, le patron du RN a décrété que Jean-Luc Mélenchon n'avait pas le « SANG-FROID » nécessaire pour 2027. Une leçon de morale venant d'un homme dont le parti est empêtré dans un PROCÈS MASSIF pour le détournement de millions d'euros de fonds publics européens. Bardella préfère commenter le tempérament de ses opposants plutôt que de s'expliquer sur le système de prédation financière mis en place par son propre camp. (Le Figaro)\n\nQuand on est sous le coup d'une procédure judiciaire pour détournement d'argent public, le « sang-froid » consiste-t-il à se réfugier dans un média ami pour éviter les vraies questions ?",
+          "image_search_queries": [
+            "Jordan Bardella CNews plateau",
+            "procès assistants parlementaires RN",
+            "Vincent Bolloré médias"
+          ],
+          "metadata": {
+            "accent_color": "#DC2626"
+          }
+        }
+      },
+      {
+        "id": "21a5f7fa-afea-47dc-84d9-c3881fc8e799",
+        "status": "DRAFTED",
+        "taxonomy": "ALERTE",
+        "geo": "france",
+        "tags": [
+          "Sarkozy",
+          "Justice",
+          "Libye",
+          "Terrorisme",
+          "Corruption"
+        ],
+        "updatedAt": "2026-05-06T10:15:24.183Z",
+        "final_draft": {
+          "taxonomie": "ALERTE",
+          "geo": "france",
+          "tags": [
+            "Sarkozy",
+            "Justice",
+            "Libye",
+            "Terrorisme",
+            "Corruption"
+          ],
+          "headline": "⚖️ JUSTICE : LE CLAN SARKOZY ACCUSÉ D'ÉCRASER LES VICTIMES DU TERRORISME POUR SAUVER SA PEAU",
+          "body": "🔴 ALERTE INFO !\n\n⚖️ JUSTICE : LE CLAN SARKOZY ACCUSÉ D'ÉCRASER LES VICTIMES DU TERRORISME POUR SAUVER SA PEAU.\n\nNouveau naufrage moral pour Nicolas Sarkozy. Au procès en appel des FINANCEMENTS LIBYENS, les familles des 170 victimes de l'attentat du DC-10 d'UTA hurlent leur dégoût. Elles dénoncent un pacte de CORRUPTION occulte entre la droite française et la dictature de Kadhafi qui aurait visé à protéger des responsables terroristes en échange d'ARGENT SALE pour la campagne de 2007. L'ex-président, déjà CONDAMNÉ dans les affaires Bismuth et Bygmalion, ose se dire « en colère » face aux juges, provoquant l'indignation des parties civiles qui se sentent méprisées par sa stratégie de déni systématique. (Mediapart)\n\nJusqu'où descendra l'indécence pour celui qui prétendait être le garant de l'ordre, mais qui semble prêt à tout pour ne pas finir derrière les barreaux ?",
+          "image_search_queries": [
+            "Nicolas Sarkozy tribunal procès libyen",
+            "familles victimes attentat DC-10 UTA",
+            "Nicolas Sarkozy Carla Bruni tribunal"
+          ],
+          "metadata": {
+            "accent_color": "#DC2626"
+          }
+        }
+      },
+      {
+        "id": "de5ae0ed-2909-4bdd-8d22-4e8a40fedbfe",
+        "status": "DRAFTED",
+        "taxonomy": "ALERTE",
+        "geo": "france",
+        "tags": [
+          "RSA",
+          "Pauvreté",
+          "JusticeSociale"
+        ],
+        "updatedAt": "2026-05-06T10:15:18.616Z",
+        "final_draft": {
+          "taxonomie": "ALERTE",
+          "geo": "france",
+          "tags": [
+            "RSA",
+            "Pauvreté",
+            "JusticeSociale"
+          ],
+          "headline": "⚖️ SOCIAL : 560 000 FOYERS PRIVÉS DE RSA PENDANT QUE LE GOUVERNEMENT HURLE À LA FRAUDE",
+          "body": "🔴 ALERTE INFO !\n\n⚖️ SOCIAL : 560 000 FOYERS PRIVÉS DE RSA PENDANT QUE LE GOUVERNEMENT HURLE À LA FRAUDE.\n\nUne étude de la DREES révèle l'ampleur du SCANDALE : plus d'un TIERS des foyers éligibles au RSA ne le perçoivent pas. Ce sont 560 000 familles qui vivent dans la GRANDE PRÉCARITÉ sans toucher un centime, faute d'information ou face à une administration devenue délibérément INACCESSIBLE. (Mediapart)\n\nPendant que la Macronie multiplie les contrôles et stigmatise les bénéficiaires pour quelques euros de \"fraude\", l'État réalise des MILLIARDS d'économies silencieuses sur le dos des plus pauvres. La priorité est-elle de nourrir les citoyens ou de faire la chasse aux précaires ?",
+          "image_search_queries": [
+            "pauvreté france file d'attente",
+            "manifestation RSA social",
+            "bureau CAF précarité"
+          ],
+          "metadata": {
+            "accent_color": "#DC2626"
+          }
+        }
+      },
+      {
+        "id": "c0f14754-75e3-4e4f-ba7c-3c2700f344a7",
+        "status": "DRAFTED",
+        "taxonomy": "ALERTE",
+        "geo": "france",
+        "tags": [
+          "CRITICAL_CROSSCHECK",
+          "RN",
+          "Justice",
+          "CNews",
+          "Bardella"
+        ],
+        "updatedAt": "2026-05-06T10:15:12.640Z",
+        "final_draft": {
+          "taxonomie": "ALERTE",
+          "geo": "france",
+          "tags": [
+            "RN",
+            "Justice",
+            "CNews",
+            "Bardella"
+          ],
+          "headline": "📺 MÉDIAS : JORDAN BARDELLA, L'ASSISTANT FANTÔME QUI DONNE DES LEÇONS DE MORALE SUR CNEWS.",
+          "body": "🔴 ALERTE INFO !\n\n📺 MÉDIAS : JORDAN BARDELLA S'OFFRE UNE TRIBUNE CHEZ BOLLORÉ POUR TENTER D'ÉCARTER MÉLENCHON DE 2027.\n\nInvité sur le plateau complaisant de CNEWS, le président du Rassemblement National a décrété que Jean-Luc Mélenchon était \"DISQUALIFIÉ\" pour la présidentielle par manque de \"SANG-FROID\". Une leçon de tenue ironique pour Jordan Bardella, lui-même empêtré dans des soupçons de FALSIFICATION de preuves. Selon plusieurs enquêtes, il aurait produit des documents ANTIDATÉS pour masquer son rôle d'assistant parlementaire \"FANTÔME\" et échapper aux juges dans l'affaire des détournements de fonds européens du RN. (Le Figaro / Libération)\n\nQui est le plus disqualifié pour la République : celui qui hausse le ton en meeting, ou celui qui est accusé d'avoir BRAQUÉ les caisses publiques et MAQUILLÉ ses dossiers pour berner la justice ?",
+          "image_search_queries": [
+            "Jordan Bardella CNews plateau",
+            "Jean-Luc Mélenchon colère manifestation",
+            "Jordan Bardella Libération assistant fantôme"
+          ],
+          "metadata": {
+            "accent_color": "#DC2626"
+          }
+        }
+      },
+      {
+        "id": "3de23f4b-e795-424c-8a45-314039b72f1a",
+        "status": "DRAFTED",
+        "taxonomy": "ALERTE",
+        "geo": "france",
+        "tags": [
+          "RSA",
+          "Pauvreté",
+          "Gouvernement",
+          "Justice Sociale"
+        ],
+        "updatedAt": "2026-05-06T10:15:10.207Z",
+        "final_draft": {
+          "taxonomie": "ALERTE",
+          "geo": "france",
+          "tags": [
+            "RSA",
+            "Pauvreté",
+            "Gouvernement",
+            "Justice Sociale"
+          ],
+          "headline": "📉 PRÉCARITÉ : 560 000 FOYERS ÉLIGIBLES AU RSA NE LE TOUCHENT PAS",
+          "body": "🔴 ALERTE GÉNÉRALE !\n\n📉 PRÉCARITÉ : LE SCANDALE DU NON-RECOURS AU RSA CHIFFRÉ À PLUS DE 560 000 FOYERS.\n\nUne étude de la DREES révèle qu'un tiers des foyers éligibles à l'allocation ne la perçoivent pas. Ce sont plus de 560 000 familles qui restent dans la MISÈRE par manque d'information ou à cause d'une administration volontairement COMPLEXE. Pendant que le GOUVERNEMENT traque les prétendus \"fraudeurs\" pour complaire au patronat et impose des heures de travail obligatoires, l'État réalise des économies MASSIVES sur le dos de ceux qui n'ont rien. (Mediapart)\n\nLa traque aux pauvres est automatisée, mais l'accès à leurs droits reste un parcours du combattant. À qui profite vraiment ce système ?",
+          "image_search_queries": [
+            "pauvreté france précarité",
+            "bureau administration vide",
+            "manifestation précarité rsa"
+          ],
+          "metadata": {
+            "accent_color": "#DC2626"
+          }
+        }
+      },
+      {
+        "id": "982bcfb9-8355-437b-839d-6b89351e52f5",
+        "status": "DRAFTED",
+        "taxonomy": "ALERTE",
+        "geo": "international",
+        "tags": [
+          "CMA CGM",
+          "Trump",
+          "Iran",
+          "Commerce Mondial"
+        ],
+        "updatedAt": "2026-05-06T10:15:03.608Z",
+        "final_draft": {
+          "taxonomie": "ALERTE",
+          "geo": "international",
+          "tags": [
+            "CMA CGM",
+            "Trump",
+            "Iran",
+            "Commerce Mondial"
+          ],
+          "headline": "🚢 GEOPOLITIQUE : LES MARINS DE CMA CGM SACRIFIÉS SUR L'AUTEL DE LA DIPLOMATIE TRUMPISTE",
+          "body": "🔴 ALERTE INFO !\n\n🚢 GEOPOLITIQUE : UN NAVIRE FRANÇAIS ATTAQUÉ DANS LE DÉTROIT D'ORMUZ ALORS QUE LES USA RETIRENT LEUR PROTECTION.\n\nUn navire du géant CMA CGM a été violemment ATTAQUÉ dans le détroit d'Ormuz, laissant plusieurs MARINS BLESSÉS et évacués en urgence. Ce drame intervient au moment précis où Donald Trump annonce suspendre le « Projet Liberté », son dispositif d'escorte militaire, sous prétexte de « progrès » dans des négociations avec l'Iran. (Le Figaro)\n\nPendant que les milliardaires comme la famille SAADÉ (propriétaire de CMA CGM) comptent leurs profits et que Trump joue au poker diplomatique, ce sont les TRAVAILLEURS de la mer qui servent de CHAIR À CANON dans une zone incendiée par le BLOCUS américain maintenu par Washington.\n\nCombien de blessés faudra-t-il pour que la vie des équipages passe avant les calculs cyniques des chefs d'État ?",
+          "image_search_queries": [
+            "CMA CGM ship Hormuz",
+            "Donald Trump Iran negotiation",
+            "Strait of Hormuz military escort",
+            "Rodolphe Saade"
+          ],
+          "metadata": {
+            "accent_color": "#DC2626"
+          }
+        }
+      },
+      {
+        "id": "b4b40d8f-5260-4388-a96b-7942f17b5435",
+        "status": "DRAFTED",
+        "taxonomy": "ALERTE",
+        "geo": "international",
+        "tags": [
+          "États-Unis",
+          "Moyen-Orient",
+          "Guerre",
+          "Impérialisme"
+        ],
+        "updatedAt": "2026-05-06T10:14:56.418Z",
+        "final_draft": {
+          "taxonomie": "ALERTE",
+          "geo": "international",
+          "tags": [
+            "États-Unis",
+            "Moyen-Orient",
+            "Guerre",
+            "Impérialisme"
+          ],
+          "headline": "🇺🇸 MOYEN-ORIENT : WASHINGTON DÉCLARE LA GUERRE \"TERMINÉE\" TOUT EN MENAÇANT DE FRAPPER AVEC UNE \"EFFICACITÉ MORTELLE\".",
+          "body": "🔴 ALERTE GÉNÉRALE !\n\n🇺🇸 MOYEN-ORIENT : WASHINGTON DÉCLARE LA GUERRE \"TERMINÉE\" TOUT EN MENAÇANT DE FRAPPER AVEC UNE \"EFFICACITÉ MORTELLE\".\n\nMarco Rubio, chef de la diplomatie américaine, annonce que l’opération « Epic Fury » est finie et que les États-Unis passent en phase « DÉFENSIVE ». Un simple ravalement de façade : Washington prévient déjà qu’il répondra avec une EFFICACITÉ MORTELLE au moindre prétexte. Malgré les beaux discours sur la fin des hostilités, l’armée américaine reste déployée, le DOIGT SUR LA GÂCHETTE, prête à transformer n'importe quel incident en nouveau CARNAGE. (Le Figaro)\n\nAprès avoir incendié la région, les États-Unis jouent les pompiers pyromanes : ils prétendent ranger les allumettes tout en gardant le lance-flammes à la main. Qui peut encore croire à leur mission de paix ?",
+          "image_search_queries": [
+            "Marco Rubio official portrait",
+            "US military Middle East deployment",
+            "explosion Middle East war"
+          ],
+          "metadata": {
+            "accent_color": "#DC2626"
+          }
+        }
+      },
+      {
+        "id": "048df4e5-9dbf-45c5-9351-18dce0c92e9b",
+        "status": "DRAFTED",
+        "taxonomy": "ALERTE",
+        "geo": "france",
+        "tags": [
+          "Justice",
+          "Sarkozy",
+          "Libye",
+          "Corruption"
+        ],
+        "updatedAt": "2026-05-06T10:14:55.640Z",
+        "final_draft": {
+          "taxonomie": "ALERTE",
+          "geo": "france",
+          "tags": [
+            "Justice",
+            "Sarkozy",
+            "Libye",
+            "Corruption"
+          ],
+          "headline": "⚖️ JUSTICE : SARKOZY, LE PACTE DE LA HONTE AVEC KADHAFI DÉNONCÉ PAR LES VICTIMES DU TERRORISME",
+          "body": "🔴 ALERTE INFO !\n\n⚖️ JUSTICE : SARKOZY, LE PACTE DE LA HONTE AVEC KADHAFI DÉNONCÉ PAR LES VICTIMES DU TERRORISME.\n\nNicolas Sarkozy fait face à la COLÈRE noire des familles des 170 victimes de l’attentat du vol UTA. Au procès des financements libyens, les parties civiles ont pulvérisé la défense de l'ancien président, l'accusant d'avoir \"soldé\" leur mémoire contre des MILLIONS d'euros. L'accusation pointe un pacte de corruption ABJECT avec le régime de Kadhafi : de l'argent sale pour la campagne de 2007 en échange de l'IMPUNITÉ pour les terroristes libyens ayant fait exploser un avion français. (Mediapart)\n\nComment oser encore parler de \"Grandeur de la France\" quand on est soupçonné d'avoir négocié avec les assassins de ses propres concitoyens pour financer son ascension au pouvoir ?",
+          "image_search_queries": [
+            "Nicolas Sarkozy tribunal libye",
+            "familles victimes attentat DC-10 UTA",
+            "procès financements libyens parties civiles"
+          ],
+          "metadata": {
+            "accent_color": "#DC2626"
+          }
+        }
+      },
+      {
+        "id": "b79efac7-3be6-4df8-b832-16ded65ed988",
+        "status": "DRAFTED",
+        "taxonomy": null,
+        "geo": null,
+        "tags": [],
+        "updatedAt": "2026-05-06T10:14:50.274Z",
+        "final_draft": [
+          {
+            "taxonomie": "ALERTE",
+            "geo": "france",
+            "tags": [
+              "RN",
+              "Bardella",
+              "Finances",
+              "Élections2027"
+            ],
+            "headline": "🗳️ FINANCES : LE RN S’OFFRE UN NOUVEAU SIÈGE MALGRÉ UNE DETTE ABYSSALE",
+            "body": "🔴 ALERTE GÉNÉRALE !\n\n🗳️ FINANCES : LE RN S’OFFRE UN NOUVEAU SIÈGE MALGRÉ UNE DETTE ABYSSALE.\n\nAlors qu’il cherche désespérément 10,7 MILLIONS d’euros pour financer sa campagne de 2027, le parti de Marine Le Pen et Jordan Bardella vient de valider l’acquisition d’un nouveau siège social et d’un QG de combat. Incapable de rassurer les banques françaises après l'épisode des PRÊTS RUSSES et hongrois, l'extrême droite continue pourtant de mener un train de vie de CHÂTEAU. (Le Figaro)\n\nComment peut-on prétendre gérer le budget de la France quand on est incapable de boucler ses propres comptes sans chercher des financements obscurs ?",
+            "image_search_queries": [
+              "Jordan Bardella Marine Le Pen siège RN",
+              "Marine Le Pen argent campagne",
+              "siège Rassemblement National Paris"
+            ],
+            "metadata": {
+              "accent_color": "#DC2626"
+            }
+          }
+        ]
+      },
+      {
+        "id": "54033356-950f-4b0d-b8e3-c61aaa92c638",
+        "status": "DRAFTED",
+        "taxonomy": "ALERTE",
+        "geo": "international",
+        "tags": [
+          "États-Unis",
+          "Moyen-Orient",
+          "MarcoRubio",
+          "Guerre"
+        ],
+        "updatedAt": "2026-05-06T10:14:42.154Z",
+        "final_draft": {
+          "taxonomie": "ALERTE",
+          "geo": "international",
+          "tags": [
+            "États-Unis",
+            "Moyen-Orient",
+            "MarcoRubio",
+            "Guerre"
+          ],
+          "headline": "💣 MOYEN-ORIENT : MARCO RUBIO MENACE D'UN CARNAGE APRÈS L'OPÉRATION « EPIC FURY »",
+          "body": "🔴 ALERTE GÉNÉRALE !\n\n💣 MOYEN-ORIENT : MARCO RUBIO MENACE D'UN CARNAGE APRÈS L'OPÉRATION « EPIC FURY ».\n\nLe chef de la diplomatie américaine prétend que l'offensive est « finie » mais promet de répondre avec une « EFFICACITÉ MORTELLE » à la moindre riposte. Marco Rubio, FAUCON de la droite américaine connu pour son soutien inconditionnel aux interventions militaires, tente de faire passer cette agression pour de la simple défense. Les États-Unis maintiennent une PRÉSENCE MILITAIRE massive pour protéger leurs intérêts, au mépris total de la souveraineté des peuples de la région. (Le Figaro)\n\nDepuis quand bombarder des pays à 10 000 km de ses frontières s'appelle de la « défense » ?",
+          "image_search_queries": [
+            "Marco Rubio press conference Middle East",
+            "US aircraft carrier Middle East 2026",
+            "Operation Epic Fury explosion"
+          ],
+          "metadata": {
+            "accent_color": "#DC2626"
+          }
+        }
+      }
+    ],
+    "researched": [
+      {
+        "id": "62e75617-0ec8-4177-9761-fa9c26f41e4f",
+        "status": "RESEARCHED",
+        "taxonomy": "INFO",
+        "geo": null,
+        "tags": [],
+        "updatedAt": "2026-05-06T10:12:57.840Z",
+        "final_draft": null
+      },
+      {
+        "id": "ea63a73a-bbbc-4323-a979-8e4e8d2f0d39",
+        "status": "RESEARCHED",
+        "taxonomy": "INFO",
+        "geo": null,
+        "tags": [],
+        "updatedAt": "2026-05-06T10:12:57.835Z",
+        "final_draft": null
+      },
+      {
+        "id": "459a4c6c-6065-4259-a635-b09fd9fb8703",
+        "status": "RESEARCHED",
+        "taxonomy": "INFO",
+        "geo": null,
+        "tags": [],
+        "updatedAt": "2026-05-06T10:12:57.814Z",
+        "final_draft": null
+      },
+      {
+        "id": "d268c8ce-7f57-4b3a-95b1-b671677ef8c3",
+        "status": "RESEARCHED",
+        "taxonomy": "ALERTE",
+        "geo": null,
+        "tags": [],
+        "updatedAt": "2026-05-06T10:12:57.808Z",
+        "final_draft": null
+      },
+      {
+        "id": "2a8d38a2-e5be-4d68-9629-b2071598a649",
+        "status": "RESEARCHED",
+        "taxonomy": "INFO",
+        "geo": null,
+        "tags": [],
+        "updatedAt": "2026-05-06T10:12:57.803Z",
+        "final_draft": null
+      },
+      {
+        "id": "516b1243-8522-4ee3-911a-b30e54fa726c",
+        "status": "RESEARCHED",
+        "taxonomy": "FLASH",
+        "geo": null,
+        "tags": [
+          "CRITICAL_CROSSCHECK"
+        ],
+        "updatedAt": "2026-05-06T10:12:57.791Z",
+        "final_draft": null
+      },
+      {
+        "id": "fd69d1fe-e2f2-4415-a0c6-563589458681",
+        "status": "RESEARCHED",
+        "taxonomy": "ALERTE",
+        "geo": null,
+        "tags": [],
+        "updatedAt": "2026-05-06T10:12:57.768Z",
+        "final_draft": null
+      },
+      {
+        "id": "a3b44197-2148-4555-9887-462eda69a054",
+        "status": "RESEARCHED",
+        "taxonomy": "ALERTE",
+        "geo": null,
+        "tags": [],
+        "updatedAt": "2026-05-06T10:12:53.344Z",
+        "final_draft": null
+      },
+      {
+        "id": "5488b407-29f2-4c0b-a232-e786a68c2ee7",
+        "status": "RESEARCHED",
+        "taxonomy": "ALERTE",
+        "geo": null,
+        "tags": [],
+        "updatedAt": "2026-05-06T10:05:59.875Z",
+        "final_draft": null
+      },
+      {
+        "id": "432bcfbf-d88c-47e3-b101-67c8fe7086c0",
+        "status": "RESEARCHED",
+        "taxonomy": "INFO",
+        "geo": null,
+        "tags": [],
+        "updatedAt": "2026-05-06T10:05:59.857Z",
+        "final_draft": null
+      },
+      {
+        "id": "092fd0e1-030a-4f88-89d6-ddd898591601",
+        "status": "RESEARCHED",
+        "taxonomy": "INFO",
+        "geo": null,
+        "tags": [],
+        "updatedAt": "2026-05-06T10:05:59.846Z",
+        "final_draft": null
+      },
+      {
+        "id": "1ebe4dfc-74e5-4433-a4bf-8cbbb0b31f87",
+        "status": "RESEARCHED",
+        "taxonomy": "ALERTE",
+        "geo": null,
+        "tags": [],
+        "updatedAt": "2026-05-06T10:05:59.839Z",
+        "final_draft": null
+      },
+      {
+        "id": "130f235b-7069-4628-abee-6a78b53375e3",
+        "status": "RESEARCHED",
+        "taxonomy": "ALERTE",
+        "geo": null,
+        "tags": [],
+        "updatedAt": "2026-05-06T10:05:59.826Z",
+        "final_draft": null
+      },
+      {
+        "id": "945db561-e8a7-407b-b2ee-89db44b539c0",
+        "status": "RESEARCHED",
+        "taxonomy": "FLASH",
+        "geo": null,
+        "tags": [
+          "CRITICAL_CROSSCHECK"
+        ],
+        "updatedAt": "2026-05-06T10:05:59.807Z",
+        "final_draft": null
+      },
+      {
+        "id": "43fac4eb-b555-4030-8bec-0a3c151bbdae",
+        "status": "RESEARCHED",
+        "taxonomy": "CITATION",
+        "geo": null,
+        "tags": [
+          "CRITICAL_CROSSCHECK"
+        ],
+        "updatedAt": "2026-05-06T10:05:59.801Z",
+        "final_draft": null
+      },
+      {
+        "id": "6a605e5e-9841-4abc-bc5f-e7e4d128e379",
+        "status": "RESEARCHED",
+        "taxonomy": "INFO",
+        "geo": null,
+        "tags": [],
+        "updatedAt": "2026-05-06T10:05:59.786Z",
+        "final_draft": null
+      },
+      {
+        "id": "872c528a-55ab-45a1-9901-e8ac717f49cf",
+        "status": "RESEARCHED",
+        "taxonomy": "ALERTE",
+        "geo": null,
+        "tags": [],
+        "updatedAt": "2026-05-06T10:05:59.718Z",
+        "final_draft": null
+      },
+      {
+        "id": "b1805aa3-2ec4-4e08-acaf-7c59cf2b9989",
+        "status": "RESEARCHED",
+        "taxonomy": "ALERTE",
+        "geo": null,
+        "tags": [],
+        "updatedAt": "2026-05-06T10:05:59.702Z",
+        "final_draft": null
+      },
+      {
+        "id": "f9752a36-0d34-44a1-94ab-e46aec612409",
+        "status": "RESEARCHED",
+        "taxonomy": "ALERTE",
+        "geo": null,
+        "tags": [],
+        "updatedAt": "2026-05-06T10:05:59.697Z",
+        "final_draft": null
+      },
+      {
+        "id": "a6d055eb-295e-4ff1-80c8-b1c8f44f7434",
+        "status": "RESEARCHED",
+        "taxonomy": "INFO",
+        "geo": null,
+        "tags": [],
+        "updatedAt": "2026-05-06T10:05:59.691Z",
+        "final_draft": null
+      }
+    ]
+  }
+}

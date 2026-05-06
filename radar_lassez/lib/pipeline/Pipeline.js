@@ -1,13 +1,15 @@
 import { ResearcherAgent } from '../agents/ResearcherAgent.js';
 import { EditorAgent } from '../agents/EditorAgent.js';
 import { ValidatorAgent } from '../agents/ValidatorAgent.js';
+import { searchArchives } from '../../politicalMemory.js';
 
 export class JournalisticPipeline {
-    constructor(apiKey, settings = {}, graph = null) {
+    constructor(apiKey, settings = {}, graph = null, db = null) {
         this.graph = graph;
+        this.db = db;
         this.researcher = new ResearcherAgent(
             apiKey, 
-            settings.ai_model_breaking || 'gemini-3.1-pro-preview'
+            settings.ai_model_breaking || 'gemini-3-flash-preview'
         );
         this.editor = new EditorAgent(
             apiKey, 
@@ -40,34 +42,49 @@ export class JournalisticPipeline {
         }
     }
 
-    async processArticle(rawArticle, targetType = 'BREAKING') {
-        console.log(`\n[Pipeline] 🎬 Starting process for: ${rawArticle.title}`);
-
+    async runResearcherBatch(rawArticles) {
         const activeTypes = this.graph?.nodes ? new Set(this.graph.nodes.map(n => n.type)) : null;
-
-        // Phase 1: Research (Optional)
-        let research = null;
         if (!activeTypes || activeTypes.has('research')) {
-            console.log('[Pipeline] 🔍 Phase 1: Researching context...');
-            research = await this.researcher.research(rawArticle);
-            console.log('[Pipeline] ✅ Research complete.');
+            console.log(`[Pipeline] 🔍 Fast triage for batch of ${rawArticles.length} articles`);
+            return await this.researcher.researchBatch(rawArticles);
         } else {
             console.log('[Pipeline] ⏭️ Skipping Research (node not in graph)');
+            return rawArticles.map(a => String(a.id || '')); // All accepted if skipped
+        }
+    }
+
+    async processSingle(rawArticle, targetType = 'BREAKING') {
+        const activeTypes = this.graph?.nodes ? new Set(this.graph.nodes.map(n => n.type)) : null;
+
+        console.log(`\n[Pipeline] 🎬 Édition de l'article retenu : ${rawArticle.title}`);
+
+        // Extract entities loosely for RAG
+        const extractEntitiesFromTitles = (title) => {
+            const KNOWN_ENTITIES = ['Macron', 'Mélenchon', 'Le Pen', 'Bardella', 'Darmanin', 'Borne', 'Attal', 'Panot', 'Ruffin', 'Roussel', 'Jadot', 'Tondelier'];
+            return KNOWN_ENTITIES.filter(e => title.includes(e));
+        };
+        const entities = extractEntitiesFromTitles(rawArticle.title);
+
+        let ragContext = "";
+        if (this.db && entities.length > 0) {
+            ragContext = searchArchives(entities, this.db);
         }
 
-        // Phase 2: Editorial Rewrite (Required for flash creation)
-        console.log('[Pipeline] 🖋️ Phase 2: Generating editorial draft...');
-        const draftedFlash = await this.editor.rewrite(rawArticle, research, targetType);
+        const fullContext = `Contexte SQLite (Casier Politique):\n${ragContext}`;
+
+        // Phase 2: Editorial Rewrite
+        console.log('[Pipeline] 🖋️ Phase 2: Generating editorial draft with Thinking...');
+        // We pass single article as an array to editor since it expects an array now, or modify editor to handle both
+        const draftedFlash = await this.editor.rewrite([rawArticle], fullContext, targetType);
         if (!draftedFlash) {
             console.error('[Pipeline] ❌ Editorial rewrite failed (returned null)');
             return null;
         }
         console.log('[Pipeline] ✅ Draft generated.');
 
-        // Notification Discord du JSON brut
         await this.sendToDiscord(draftedFlash);
 
-        // Phase 3: Validation (Optional)
+        // Phase 3: Validation
         if (!activeTypes || activeTypes.has('validator')) {
             console.log('[Pipeline] ⚖️ Phase 3: Validating draft...');
             const validation = await this.validator.validate(draftedFlash, rawArticle.content);

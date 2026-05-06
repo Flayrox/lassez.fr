@@ -48,6 +48,7 @@
     "jspdf": "^2.5.1",
     "jszip": "^3.10.1",
     "next": "16.2.3",
+    "p-limit": "^7.3.0",
     "papaparse": "^5.5.3",
     "payload": "3.82.1",
     "postcss": "^8.4.31",
@@ -57,16 +58,19 @@
     "rss-parser": "^3.13.0",
     "sharp": "^0.34.5",
     "ssh2": "^1.17.0",
+    "string-similarity": "^4.0.4",
     "swr": "^2.2.5",
     "tailwindcss": "^3.4.1",
     "text-to-svg": "^3.1.5"
   },
   "devDependencies": {
+    "@prisma/client": "^6.19.3",
     "@types/dotenv": "^6.1.1",
     "@types/node": "^22.14.0",
     "@types/papaparse": "^5.5.2",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
+    "prisma": "^6.19.3",
     "typescript": "~5.8.2"
   }
 }

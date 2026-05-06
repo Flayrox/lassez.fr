@@ -82,6 +82,8 @@ export async function GET() {
                 daemonHealth,
                 nextScanAt,
                 lastScanAt,
+                scanner_status: settings.scanner_status || 'idle',
+                scanner_message: settings.scanner_message || '',
                 schedule: {
                     mode: rssMode,
                     times: scheduleTimes,

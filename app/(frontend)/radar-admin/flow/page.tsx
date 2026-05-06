@@ -92,24 +92,20 @@ const NODE_TYPES = {
 const INITIAL_NODES: Node[] = [
     { id: 'source-rss', x: 100, y: 150, label: 'RSS Feed', type: 'rss', icon: 'rss_feed', color: 'text-orange-500', bg: 'bg-orange-50', settings: NODE_TYPES.source.rss.settings },
     { id: 'source-telegram', x: 100, y: 280, label: 'Telegram', type: 'telegram', icon: 'send', color: 'text-blue-500', bg: 'bg-blue-50', settings: NODE_TYPES.source.telegram.settings },
-    { id: 'source-google', x: 100, y: 410, label: 'Google News', type: 'google-news', icon: 'search', color: 'text-blue-600', bg: 'bg-blue-100', settings: NODE_TYPES.source['google-news'].settings },
-    { id: 'proc-dedup', x: 350, y: 320, label: 'Deduplicator', type: 'dedup', icon: 'content_copy', color: 'text-purple-600', bg: 'bg-purple-50', settings: NODE_TYPES.processor.dedup.settings },
-    { id: 'agent-research', x: 600, y: 180, label: 'Researcher', type: 'research', icon: 'travel_explore', color: 'text-emerald-600', bg: 'bg-emerald-50', settings: NODE_TYPES.agent.research.settings },
-    { id: 'agent-editor', x: 850, y: 280, label: 'Editorialist', type: 'editor', icon: 'edit_note', color: 'text-amber-600', bg: 'bg-amber-50', settings: NODE_TYPES.agent.editor.settings },
-    { id: 'agent-validator', x: 1100, y: 380, label: 'Validator', type: 'validator', icon: 'fact_check', color: 'text-rose-600', bg: 'bg-rose-50', settings: NODE_TYPES.agent.validator.settings },
-    { id: 'proc-dist', x: 1350, y: 480, label: 'Distribution', type: 'distribution', icon: 'share', color: 'text-indigo-600', bg: 'bg-indigo-50', settings: NODE_TYPES.processor.distribution.settings },
-    { id: 'target-cms', x: 1600, y: 400, label: 'L\'Assez CMS', type: 'payload', icon: 'publish', color: 'text-slate-900', bg: 'bg-slate-100' },
-    { id: 'target-discord', x: 1600, y: 550, label: 'Discord', type: 'discord', icon: 'chat', color: 'text-indigo-500', bg: 'bg-indigo-50' }
+    { id: 'proc-dedup', x: 350, y: 220, label: 'Deduplicator', type: 'dedup', icon: 'content_copy', color: 'text-purple-600', bg: 'bg-purple-50', settings: NODE_TYPES.processor.dedup.settings },
+    { id: 'agent-research', x: 600, y: 220, label: 'Researcher', type: 'research', icon: 'travel_explore', color: 'text-emerald-600', bg: 'bg-emerald-50', settings: NODE_TYPES.agent.research.settings },
+    { id: 'agent-editor', x: 850, y: 220, label: 'Editorialist', type: 'editor', icon: 'edit_note', color: 'text-amber-600', bg: 'bg-amber-50', settings: NODE_TYPES.agent.editor.settings },
+    { id: 'proc-dist', x: 1100, y: 220, label: 'Distribution', type: 'distribution', icon: 'share', color: 'text-indigo-600', bg: 'bg-indigo-50', settings: NODE_TYPES.processor.distribution.settings },
+    { id: 'target-cms', x: 1350, y: 150, label: 'L\'Assez CMS', type: 'payload', icon: 'publish', color: 'text-slate-900', bg: 'bg-slate-100' },
+    { id: 'target-discord', x: 1350, y: 300, label: 'Discord', type: 'discord', icon: 'chat', color: 'text-indigo-500', bg: 'bg-indigo-50' }
 ];
 
 const INITIAL_CONNECTIONS: Connection[] = [
     { id: 'c1', from: 'source-rss', to: 'proc-dedup' },
     { id: 'c2', from: 'source-telegram', to: 'proc-dedup' },
-    { id: 'c3', from: 'source-google', to: 'proc-dedup' },
     { id: 'c4', from: 'proc-dedup', to: 'agent-research' },
     { id: 'c5', from: 'agent-research', to: 'agent-editor' },
-    { id: 'c6', from: 'agent-editor', to: 'agent-validator' },
-    { id: 'c7', from: 'agent-validator', to: 'proc-dist' },
+    { id: 'c6', from: 'agent-editor', to: 'proc-dist' },
     { id: 'c8', from: 'proc-dist', to: 'target-cms' },
     { id: 'c9', from: 'proc-dist', to: 'target-discord' }
 ];
@@ -120,7 +116,25 @@ export default function FlowPage() {
     const [connections, setConnections] = useState<Connection[]>([]);
     const [isHydrated, setIsHydrated] = useState(false);
     const [isDeploying, setIsDeploying] = useState(false);
+    const [scannerState, setScannerState] = useState<{status: string, message: string}>({status: 'idle', message: ''});
     const { selectedNodeId, setSelectedNodeId } = useUI();
+
+    useEffect(() => {
+        // Polling daemon status for scanner updates
+        const interval = setInterval(async () => {
+            try {
+                const res = await fetch('/api/radar/daemon-status');
+                const data = await res.json();
+                if (data.success && data.status) {
+                    setScannerState({
+                        status: data.status.scanner_status,
+                        message: data.status.scanner_message
+                    });
+                }
+            } catch(e) {}
+        }, 3000);
+        return () => clearInterval(interval);
+    }, []);
 
     const saveToLocal = (n: Node[], c: Connection[]) => {
         if (typeof window !== 'undefined') {
@@ -163,30 +177,40 @@ export default function FlowPage() {
     }, [settings, isHydrated]);
 
     useEffect(() => {
-        const saved = localStorage.getItem('radar-flow-pro-v4');
-        if (saved) {
+        const loadGraph = async () => {
+            let loadedNodes = INITIAL_NODES;
+            let loadedConns = INITIAL_CONNECTIONS;
+            
+            // Try to load from DB first to ensure synchronization across all clients
             try {
-                const { nodes: sn, connections: sc } = JSON.parse(saved);
-                const enrichedNodes = sn.map((node: any) => {
-                    let baseConfig = null;
-                    for (const cat of Object.values(NODE_TYPES)) {
-                        const match = Object.entries(cat).find(([k, v]) => v.label === node.label || k === node.type);
-                        if (match) { baseConfig = match[1]; break; }
+                const res = await fetch('/api/radar/settings');
+                const data = await res.json();
+                if (data.success && data.settings?.pipeline_graph_json) {
+                    const parsed = JSON.parse(data.settings.pipeline_graph_json);
+                    if (parsed.nodes && parsed.nodes.length > 0) {
+                        loadedNodes = parsed.nodes;
+                        loadedConns = parsed.connections || [];
                     }
-                    const settingsToUse = (node.settings && node.settings.length > 0) ? node.settings : (baseConfig?.settings || []);
-                    return { ...node, settings: settingsToUse };
-                });
-                setNodes(enrichedNodes.length > 0 ? enrichedNodes : INITIAL_NODES);
-                setConnections(sc);
-            } catch (e) { 
-                setNodes(INITIAL_NODES);
-                setConnections(INITIAL_CONNECTIONS);
+                }
+            } catch (e) {
+                console.warn("Could not load graph from DB, falling back to local/default", e);
             }
-        } else {
-            setNodes(INITIAL_NODES);
-            setConnections(INITIAL_CONNECTIONS);
-        }
-        setIsHydrated(true);
+
+            const enrichedNodes = loadedNodes.map((node: any) => {
+                let baseConfig = null;
+                for (const cat of Object.values(NODE_TYPES)) {
+                    const match = Object.entries(cat).find(([k, v]) => v.label === node.label || k === node.type);
+                    if (match) { baseConfig = match[1]; break; }
+                }
+                const settingsToUse = (node.settings && node.settings.length > 0) ? node.settings : (baseConfig?.settings || []);
+                return { ...node, settings: settingsToUse };
+            });
+            setNodes(enrichedNodes);
+            setConnections(loadedConns);
+            setIsHydrated(true);
+        };
+        
+        loadGraph();
     }, []);
 
     const updateNodeData = async (id: string, updates: any) => {
@@ -308,6 +332,12 @@ export default function FlowPage() {
             </div>
         }>
             <div className="flex-1 relative w-full h-full overflow-hidden bg-white">
+                {scannerState.status !== 'idle' && scannerState.status !== undefined && scannerState.status !== 'ok' && scannerState.status !== 'late' && scannerState.status !== 'paused' && scannerState.status !== 'unknown' && scannerState.status !== 'running' && (
+                    <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-50 bg-slate-900 border border-slate-700 shadow-2xl rounded-full px-6 py-3 flex items-center gap-3">
+                        <span className="material-icons-outlined text-emerald-400 animate-spin text-sm">rotate_right</span>
+                        <span className="text-white text-sm font-medium">{scannerState.message || scannerState.status}</span>
+                    </div>
+                )}
                 {isHydrated && (
                     <>
                         <FlowCanvas 

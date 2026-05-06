@@ -11,36 +11,49 @@ export class EditorAgent {
         this.customPrompt = customPrompt;
     }
 
-    async rewrite(article, researchContext, type = 'BREAKING') {
-        console.log(`[Agent:Editor] 🖋️ Crafting ${type} flash: ${article.title}`);
+    async rewrite(articles, researchContext, type = 'BREAKING') {
+        // Handle both single article and array of articles from batching
+        const articleList = Array.isArray(articles) ? articles : [articles];
+        const titles = articleList.map(a => a.title).join(' | ');
+        console.log(`[Agent:Editor] 🖋️ Crafting ${type} flash from ${articleList.length} sources: ${titles}`);
         console.log(`   -> Target Model: ${this.modelName}`);
 
         const baseInstructions = this.customPrompt || `
-            Tu es le Rédacteur en Chef de L'Assez, un média d'investigation politique indépendant et très incisif.
-            Ton but est de transformer une information brute et son contexte de recherche en un "Flash" percutant.
-            Utilise un ton sarcastique, précis, engagé et n'hésite pas à souligner les contradictions du pouvoir.
+            Tu es l'Éditorialiste OSINT de "L'Assez", un média ancré dans une gauche de rupture (anticapitaliste, anti-impérialiste, antifasciste).
+            
+            TA POSTURE:
+            - La froideur de la preuve : Informe comme un rapport de renseignement (True Crime, Mediapart). Ne fais pas de morale ni de prêchi-prêcha indignation.
+            - BANNIS le jargon militant ("le grand capital", "les masses laborieuses", "camarades").
+            - UTILISE un vocabulaire clinique : "prédation économique", "asymétrie des pouvoirs", "ingénierie fiscale", "désinformation industrielle".
+
+            TA MISSION:
+            - Rédiger un "Flash" ultra percutant en formatant les données brutes et le contexte (Casier Judiciaire Politique + OSINT).
+            - Si plusieurs articles te sont fournis, synthétise-les en UNE grande alerte systémique illustrant les ramifications du sujet.
+            - Évite les exclamations abusives. Expose les faits et les contradictions.
         `;
+
+        const articlesContent = articleList.map((a, i) => `--- SOURCE ${i+1} ---\nTitre: ${a.title}\nContenu: ${a.content}`).join('\n\n');
 
         const prompt = `
             ${baseInstructions}
 
             TYPE DEMANDÉ : ${type}
             
-            DONNÉES BRUTES :
-            ${article.content}
+            ARTICLES BRUTS (À CROISER/SYNTHÉTISER) :
+            ${articlesContent}
 
-            CONTEXTE DE RECHERCHE :
+            CONTEXTE GLOBAL (RECHERCHE OSINT + CASIER POLITIQUE) :
             ${researchContext}
 
             FORMAT DE SORTIE OBLIGATOIRE (JSON) :
             {
-                "typeOuverture": "Le tag correspondant au type (ex: 🔴 ALERTE INFO ! ou autre)",
+                "typeOuverture": "Le tag correspondant au type (ex: 🔴 RENSEIGNEMENT ou 🔴 ALERTE INFO)",
                 "theme": "Thème en un mot (ex: JUSTICE, POLICE, ECOLOGIE)",
                 "themeEmoji": "Emoji correspondant au thème",
                 "shortTitle": "Titre choc sans emojis",
-                "flash": "Texte complet commençant par le tag d'ouverture. Ton incisif.",
+                "flash": "Texte complet (fusion des articles et du contexte). Informe de manière clinique.",
                 "punchline": "Résumé piquant de 6 à 10 mots",
-                "imageKeyword": "Mot-clé anglais pour l'image",
+                "imageKeyword": "Mot-clé anglais (pour recherche d'illustration)",
                 "geo": "france" ou "international",
                 "tags": ["tag1", "tag2"],
                 "fiabilite": "haute" | "moyenne" | "suspecte"
@@ -48,11 +61,14 @@ export class EditorAgent {
         `;
 
         try {
-            console.log(`[Agent:Editor] Calling Gemini 3 API...`);
+            console.log(`[Agent:Editor] Calling Gemini API...`);
             const response = await this.client.models.generateContent({
                 model: this.modelName,
                 contents: prompt,
                 config: {
+                    thinkingConfig: {
+                        thinkingLevel: "high"
+                    },
                     responseMimeType: 'application/json'
                 }
             });

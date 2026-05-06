@@ -1,0 +1,71 @@
+datasource db {
+  provider = "sqlite"
+  url      = "file:./radar.db"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model GlobalSettings {
+  id                   Int     @id @default(1)
+  
+  // Publication Toggles
+  enableX              Boolean @default(false)
+  enableMastodon       Boolean @default(false)
+  enableBluesky        Boolean @default(false)
+  enableDiscord        Boolean @default(true)
+  enablePayloadCMS     Boolean @default(true)
+  
+  // Timing & Scheduling Settings
+  scrapingInterval     Int     @default(60)
+  minPublishDelay      Int     @default(60)
+  maxPublishDelay      Int     @default(120)
+  
+  // AI & Concurrency Configuration
+  maxConcurrentTasks   Int     @default(5)
+  similarityThreshold  Float   @default(0.45)
+  aiModelFlash         String  @default("gemini-3.1-flash-lite-preview")
+  aiModelPro           String  @default("gemini-3-flash-preview")
+  customPromptModifier String?
+  
+  // Collections (Stored as stringified JSON because of SQLite Prisma limitations)
+  keywords             String  @default("[]")
+  bannedKeywords       String  @default("[]")
+
+  updatedAt            DateTime @updatedAt
+}
+
+model Source {
+  id           String   @id @default(uuid())
+  url          String   @unique
+  type         String   // RSS, TELEGRAM, GOOGLE_NEWS
+  source_name  String
+  source_bias  String   // "Extrême-Droite", "Droite", "Centre", "Gauche", "Service Public", etc.
+  trust_score  Int      // 1 to 10
+  
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model NewsTopic {
+  id           String    @id @default(uuid())
+  
+  // Payloads
+  raw_data     String    // Mapped to Stringified JSON (Input payload)
+  final_draft  String?   // Mapped to Stringified JSON (Output payload)
+  
+  // Editorial Metadata
+  status       String    @default("INGESTED") // INGESTED, RESEARCHED, DRAFTED, PENDING, PUBLISHED, REJECTED
+  taxonomy     String?   // INFO, DÉCRYPTAGE, ALERTE
+  tags         String    @default("[]")       // Mapped to Stringified JSON array
+  geo          String?   // INTERNATIONAL, FRANCE
+  image_url    String?
+  
+  // Scheduling & Metrics
+  scheduledAt  DateTime? // When it should be processed by the queue/Discord
+  publishedAt  DateTime? // Exact time of final publication across networks
+  
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}

@@ -5,50 +5,53 @@ import { GoogleGenAI } from '@google/genai';
  * Mission: Fact-check the information and find historical context or "passif" of the entities involved.
  */
 export class ResearcherAgent {
-    constructor(apiKey, modelName = 'gemini-3.1-pro-preview') {
+    constructor(apiKey, modelName = 'gemini-3-flash-preview') {
         this.client = new GoogleGenAI({ apiKey });
         this.modelName = modelName;
     }
 
-    async research(article) {
-        console.log(`[Agent:Researcher] 🧠 Thinking deeply about: ${article.title}`);
+    async researchBatch(articles) {
+        console.log(`[Agent:Researcher] 🚀 Rapide Triage Batch of ${articles.length} articles`);
         console.log(`   -> Target Model: ${this.modelName}`);
         
+        const articlesList = articles.map((a, i) => `ID: ${a.id || i}\nTitre: ${a.title}\nRésumé: ${a.content.substring(0, 300)}`).join('\n\n');
+
         const prompt = `
-            Tu es un chercheur OSINT et fact-checker pour un média d'investigation. 
-            Ta mission est d'analyser l'information suivante et d'utiliser Google Search pour :
-            1. Vérifier la véracité des faits et chiffres mentionnés.
-            2. Identifier les personnalités ou entreprises citées et trouver leur "passif" (scandales passés, condamnations, casseroles, liens d'intérêts).
-            3. Trouver des éléments de contexte plus larges (historique du sujet, enjeux cachés).
+            Tu es le filtre d'entrée pour L'Assez, un média politique anticapitaliste d'investigation.
+            
+            TA MISSION:
+            Examine cette liste d'articles et NE RETIENS QUE ceux qui concernent : corruption, ingénierie fiscale, luttes sociales (grèves, syndicats), répression policière, violences d'État, impérialisme, écologie politique, etc.
+            REJETTE : faits divers (crashes, vols, meurtres simples), culture, loisirs, sport pur, start-up, polémiques stériles sur twitter.
 
-            ARTICLE À ANALYSER :
-            Titre : ${article.title}
-            Source : ${article.sourceTitle}
-            Contenu : ${article.content.substring(0, 2000)}
+            ARTICLES :
+            ${articlesList}
 
-            Rends un rapport structuré avec :
-            - Vérification des faits (Vrai/Faux/Partiel)
-            - Éléments de contexte (Casseroles, historique)
-            - Liens de sources fiables trouvées
+            FORMAT DE SORTIE OBLIGATOIRE (JSON pur, liste d'IDs approuvés) :
+            ["id_1", "id_2"]
         `;
 
         try {
-            console.log(`[Agent:Researcher] Calling Gemini 3 API...`);
+            console.log(`[Agent:Researcher] Calling Gemini API for batch filtering...`);
+            // Pas de thinking ici, on veut de la vitesse
             const response = await this.client.models.generateContent({
                 model: this.modelName,
                 contents: prompt,
                 config: {
-                    tools: [{ googleSearch: {} }],
-                    thinkingConfig: {
-                        thinkingLevel: "high"
-                    }
+                    responseMimeType: 'application/json'
                 }
             });
-            console.log(`[Agent:Researcher] Research complete. Output length: ${response.text?.length || 0} chars.`);
-            return response.text;
+            const textResponse = response.text;
+            console.log(`[Agent:Researcher] Triage complete. Output length: ${textResponse?.length || 0} chars.`);
+            
+            try {
+                return JSON.parse(textResponse); // Return array of IDs
+            } catch (e) {
+                console.warn('[Agent:Researcher] ⚠️ JSON Parse error for batch triage.');
+                return [];
+            }
         } catch (error) {
-            console.error('[Agent:Researcher] ❌ Error during research:', error.message);
-            return "Aucune recherche supplémentaire n'a pu être effectuée.";
+            console.error('[Agent:Researcher] ❌ Error during triage batch:', error.message);
+            return [];
         }
     }
 }

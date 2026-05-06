@@ -3,6 +3,7 @@ import { runIngestionNode } from './nodes/ingestion';
 import { runDeduplicatorNode } from './nodes/deduplicator';
 import { runResearcherNode } from './nodes/researcher';
 import { runEditorialistNode } from './nodes/editorialist';
+import { runMediaNode } from './nodes/media';
 // import { Queue } from 'bullmq'; // Dé-commenter lors de l'intégration de BullMQ
 
 async function ensureGlobalSettings() {
@@ -53,6 +54,10 @@ async function runPipeline() {
             console.log(`\n[Daemon] ✍️ Lancement du Node 4: Editorialist (IA Pro)...`);
             await runEditorialistNode();
             console.log(`[Daemon] 📰 [Editorialist] La rédaction finale est achevée.`);
+
+            console.log(`\n[Daemon] 📸 Lancement du Node 5: Media Enrichment...`);
+            await runMediaNode();
+            console.log(`[Daemon] 🖼️ [Media] Les images ont été assignées et les articles sont PENDING.`);
 
         } else {
             console.log(`[Daemon] 🤷‍♂️ [Ingestion] Aucun nouvel article dans la fenêtre temporelle. Saut des étapes suivantes.`);

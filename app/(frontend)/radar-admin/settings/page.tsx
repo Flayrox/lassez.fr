@@ -37,7 +37,6 @@ export default function SettingsPage() {
             setIsDirty(false);
         } catch (e) { 
             console.error(e); 
-            alert('Failed to save settings.');
         } finally { 
             setIsSaving(false); 
         }
@@ -50,72 +49,73 @@ export default function SettingsPage() {
 
     const tabs = [
         { key: 'sources', label: 'Sources', icon: 'rss_feed' },
-        { key: 'pipeline', label: 'Cortex Engine', icon: 'psychology' },
-        { key: 'daemon', label: 'Daemon & Schedule', icon: 'schedule' },
-        { key: 'diffusion', label: 'Social Matrix', icon: 'share' },
-        { key: 'health', label: 'System Health', icon: 'health_and_safety' },
-        { key: 'users', label: 'Access Control', icon: 'group' },
+        { key: 'pipeline', label: 'Cortex engine', icon: 'psychology' },
+        { key: 'daemon', label: 'Daemon & schedule', icon: 'schedule' },
+        { key: 'diffusion', label: 'Social matrix', icon: 'share' },
+        { key: 'health', label: 'System health', icon: 'health_and_safety' },
+        { key: 'users', label: 'Access control', icon: 'group' },
     ];
 
     return (
         <ModernDashboardLayout 
             title="Settings" 
-            subtitle="Cortex Global Configuration" 
+            subtitle="Cortex configuration" 
             isDaemonRunning={isDaemonRunning}
         >
-            <div className="flex flex-col lg:flex-row gap-12">
-                {/* Internal Sidebar Tabs */}
-                <div className="lg:w-64 space-y-2">
+            <div className="flex flex-col lg:flex-row gap-8">
+                {/* Sidebar */}
+                <div className="lg:w-48 space-y-1">
+                    <p className="px-3 text-[10px] font-bold text-slate-400 uppercase tracking-tighter mb-2">Configuration</p>
                     {tabs.map((tab) => (
                         <button
                             key={tab.key}
                             onClick={() => setActiveTab(tab.key as any)}
-                            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-tight transition-all ${
+                            className={`w-full flex items-center gap-2 px-3 py-1.5 rounded-sm text-[11px] font-medium transition-all ${
                                 activeTab === tab.key
-                                    ? 'bg-black text-white shadow-lg'
-                                    : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'
+                                    ? 'bg-black text-white'
+                                    : 'text-slate-500 hover:text-black hover:bg-slate-50'
                             }`}
                         >
-                            <span className="material-symbols-outlined text-[18px]">{tab.icon}</span>
+                            <span className="material-symbols-outlined text-[16px]">{tab.icon}</span>
                             {tab.label}
                         </button>
                     ))}
 
-                    <div className="mt-8 pt-8 border-t border-slate-100 space-y-4">
+                    <div className="mt-6 pt-6 border-t border-slate-100 px-3 space-y-3">
                         <button
                             onClick={handleSave}
                             disabled={!isDirty || isSaving}
-                            className={`w-full py-3 rounded-xl text-xs font-bold uppercase tracking-widest transition-all ${
+                            className={`w-full py-1.5 rounded-sm text-[11px] font-bold transition-all ${
                                 isDirty 
-                                    ? 'bg-emerald-500 text-white shadow-md hover:bg-emerald-600' 
+                                    ? 'bg-black text-white hover:bg-zinc-800' 
                                     : 'bg-slate-100 text-slate-400 cursor-not-allowed'
                             }`}
                         >
-                            {isSaving ? 'Saving...' : 'Save Changes'}
+                            {isSaving ? 'Saving...' : 'Save changes'}
                         </button>
                         {isDirty && (
-                            <p className="text-[10px] text-amber-600 font-bold text-center uppercase tracking-tight animate-pulse">
-                                Unsaved changes detected
+                            <p className="text-[9px] text-amber-600 font-bold text-center italic">
+                                Unsaved changes
                             </p>
                         )}
                     </div>
                 </div>
 
                 {/* Main Content Area */}
-                <div className="flex-1 bg-white rounded-2xl border border-slate-200 p-8 shadow-sm min-h-[600px]">
+                <div className="flex-1 min-h-[500px]">
                     <AnimatePresence mode="wait">
                         <motion.div
                             key={activeTab}
-                            initial={{ opacity: 0, x: 10 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            exit={{ opacity: 0, x: -10 }}
-                            transition={{ duration: 0.2 }}
+                            initial={{ opacity: 0, y: 4 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -4 }}
+                            transition={{ duration: 0.15 }}
                         >
-                            {activeTab === 'sources' && <SourcesSection form={form} updateForm={updateForm} />}
+                            {activeTab === 'sources' && <SourcesSection />}
                             {activeTab === 'pipeline' && <PipelineSection form={form} updateForm={updateForm} />}
                             {activeTab === 'daemon' && <DaemonSection form={form} updateForm={updateForm} />}
                             {activeTab === 'diffusion' && <DiffusionSection form={form} updateForm={updateForm} />}
-                            {activeTab === 'health' && <HealthSection form={form} updateForm={updateForm} />}
+                            {activeTab === 'health' && <HealthSection />}
                             {activeTab === 'users' && <UserSection />}
                         </motion.div>
                     </AnimatePresence>

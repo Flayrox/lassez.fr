@@ -36,9 +36,15 @@ model GlobalSettings {
   aiModelFlash         String  @default("gemini-3.1-flash-lite-preview")
   aiModelPro           String  @default("gemini-3-flash-preview")
   customPromptModifier String?
-  videoIngestEnabled   Boolean @default(false)
+  allowSourceImages    Boolean @default(true)
   
   // Collections (Stored as stringified JSON because of SQLite Prisma limitations)
+  // Inbound & Pipeline Configuration
+  rss_feeds            String  @default("[]")
+  telegram_channels    String  @default("[]")
+  google_news_queries  String  @default("[]")
+  social_targets_by_type_json String @default("{}")
+  
   keywords             String  @default("[]")
   bannedKeywords       String  @default("[]")
   pipelineGraphJson    String? // Stored as stringified JSON

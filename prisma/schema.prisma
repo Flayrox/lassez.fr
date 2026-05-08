@@ -11,11 +11,17 @@ model GlobalSettings {
   id                   Int     @id @default(1)
   
   // Publication Toggles
+  enableAutoPublish    Boolean @default(true)
   enableX              Boolean @default(false)
   enableMastodon       Boolean @default(false)
   enableBluesky        Boolean @default(false)
   enableDiscord        Boolean @default(true)
   enablePayloadCMS     Boolean @default(true)
+  
+  // Publish Modes ("DIRECT" ou "SCHEDULED")
+  discordPublishMode   String  @default("DIRECT")
+  xPublishMode         String  @default("SCHEDULED")
+  blueskyPublishMode   String  @default("SCHEDULED")
   
   // Timing & Scheduling Settings
   scrapingInterval     Int     @default(60)
@@ -66,7 +72,18 @@ model NewsTopic {
   // Scheduling & Metrics
   scheduledAt  DateTime? // When it should be processed by the queue/Discord
   publishedAt  DateTime? // Exact time of final publication across networks
+  publications Publication[]
   
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
+}
+
+model Publication {
+  id          String    @id @default(uuid())
+  topicId     String
+  platform    String    // ex: 'DISCORD', 'X', 'BLUESKY'
+  status      String    @default("PENDING") // PENDING, PUBLISHED, FAILED
+  scheduledAt DateTime  @default(now())
+  publishedAt DateTime?
+  topic       NewsTopic @relation(fields: [topicId], references: [id])
 }

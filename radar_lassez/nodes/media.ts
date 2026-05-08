@@ -49,8 +49,8 @@ export async function runMediaNode() {
             // Domaines et mots-clés bannis (Réseaux sociaux, Banques d'images à watermark)
             const bannedKeywords = [
                 'instagram.com', 'facebook.com', 'pinterest.com', 'tiktok.com', 'twitter.com', 'x.com',
-                'gettyimages', 'shutterstock', 'istockphoto', 'alamy', 'freepik', '123rf', 'dreamstime',
-                'depositphotos', 'unsplash', 'pexels', 'pixabay', 'logo', 'icon', 'favicon'
+//                'gettyimages', 'shutterstock', 'istockphoto', 'alamy', 'freepik', '123rf', 'dreamstime',
+//                'depositphotos', 'unsplash', 'pexels', 'pixabay', 'logo', 'icon', 'favicon'
             ];
 
             // Itération sur les "Tirs" fournis par l'IA

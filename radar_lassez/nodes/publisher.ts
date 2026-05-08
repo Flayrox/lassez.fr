@@ -123,15 +123,23 @@ export async function runPublisherNode() {
                 ? JSON.parse(topic.final_draft) 
                 : topic.final_draft;
 
+            // =====================================================
+            // DONNÉES CANONIQUES depuis la table NewsTopic
+            // (Source de vérité maintenue par les Nodes 1-5)
+            // =====================================================
             const accentColor = draftData.metadata?.accent_color ? hexToDecimal(draftData.metadata.accent_color) : 0x000000;
-            const tags = draftData.tags ? draftData.tags.map((t: string) => `#${t}`).join(' ') : '';
-            const geoInfo = draftData.geo ? `📍 ${draftData.geo.toUpperCase()}` : '';
-            const taxonomy = draftData.taxonomie || 'INFO';
+            const topicTaxonomy = topic.taxonomy || 'INFO'; // Source de vérité depuis la DB
+            const topicTags = topic.tags ? JSON.parse(topic.tags) : []; // Source de vérité depuis la DB (JSON string parsé)
+            const topicGeo = topic.geo || 'international'; // Source de vérité depuis la DB
+            const topicImageUrl = topic.image_url; // Source de vérité depuis la DB
+
+            const tagsString = topicTags.map((t: string) => `#${t}`).join(' ');
+            const geoInfo = `📍 ${topicGeo.toUpperCase()}`;
 
             let isSuccess = false;
 
-            // Base du texte pour les RS
-            const rsText = `${draftData.headline}\n\n${draftData.body}\n\n${tags}`;
+            // Base du texte pour les RS (contenu éditorial depuis final_draft)
+            const rsText = `${draftData.headline}\n\n${draftData.body}\n\n${tagsString}`;
 
             // Logique de diffusion spécifique par plateforme
             if (pub.platform === 'DISCORD') {
@@ -143,14 +151,14 @@ export async function runPublisherNode() {
 
                 const embed: any = {
                     title: draftData.headline || "ALERTE INFO",
-                    description: `${draftData.body}\n\n${tags}`,
+                    description: `${draftData.body}\n\n${tagsString}`,
                     color: accentColor,
-                    footer: { text: `Format: ${taxonomy} | ${geoInfo} | ID: ${topic.id.slice(0, 8)}` },
+                    footer: { text: `Format: ${topicTaxonomy} | ${geoInfo} | ID: ${topic.id.slice(0, 8)}` },
                     timestamp: new Date().toISOString()
                 };
 
-                if (topic.image_url) {
-                    embed.image = { url: topic.image_url };
+                if (topicImageUrl) {
+                    embed.image = { url: topicImageUrl };
                 }
 
                 const response = await fetch(webhookUrl, {
@@ -264,7 +272,7 @@ export async function runPublisherNode() {
                     }
                     const { token } = await loginRes.json();
 
-                    // Créer la révélation dans Payload (collection "revelations")
+                    // Extraire et préparer les données depuis le final_draft (contenu éditorial)
                     const contentPayload = {
                         root: {
                             type: 'root',
@@ -285,6 +293,56 @@ export async function runPublisherNode() {
                         }
                     };
 
+                    // Mapper la taxonomie depuis la DB vers le champ niveau_alerte de Payload
+                    const niveauAlerte = topicTaxonomy === 'ALERTE' ? 'Public' : 'Public';
+                    
+                    // Traiter les tags depuis la DB : chercher/créer les tags et récupérer leurs IDs
+                    let tagIds: string[] = [];
+                    if (topicTags && topicTags.length > 0) {
+                        for (const tagName of topicTags) {
+                            try {
+                                // Chercher le tag existant
+                                const tagSearchRes = await fetch(`${url}/api/tags?where[name][equals]=${encodeURIComponent(tagName)}`, {
+                                    headers: { 'Authorization': `JWT ${token}` }
+                                });
+
+                                let tagId: string | null = null;
+
+                                if (tagSearchRes.ok) {
+                                    const tagSearchData = await tagSearchRes.json();
+                                    if (tagSearchData.docs && tagSearchData.docs.length > 0) {
+                                        tagId = tagSearchData.docs[0].id;
+                                    }
+                                }
+
+                                // Si le tag n'existe pas, le créer
+                                if (!tagId) {
+                                    const tagCreateRes = await fetch(`${url}/api/tags`, {
+                                        method: 'POST',
+                                        headers: {
+                                            'Content-Type': 'application/json',
+                                            'Authorization': `JWT ${token}`
+                                        },
+                                        body: JSON.stringify({ name: tagName })
+                                    });
+
+                                    if (tagCreateRes.ok) {
+                                        const createdTag = await tagCreateRes.json();
+                                        tagId = createdTag.doc?.id || createdTag.id;
+                                    }
+                                }
+
+                                if (tagId) {
+                                    tagIds.push(tagId);
+                                }
+                            } catch (tagErr) {
+                                console.warn(`🚀 [Node 6: Phase B] ⚠️ [PAYLOAD] Erreur lors du traitement du tag "${tagName}"`, tagErr);
+                            }
+                        }
+                    }
+
+                    // Créer la révélation dans Payload (collection "revelations")
+                    // Utilisant les données canoniques depuis la table NewsTopic
                     const revelationRes = await fetch(`${url}/api/revelations`, {
                         method: 'POST',
                         headers: {
@@ -296,14 +354,15 @@ export async function runPublisherNode() {
                             _status: 'published',
                             contenu_rapide: contentPayload,
                             contenu_rapide_html: `<p>${draftData.body.replace(/\n/g, '<br>')}</p>`,
-                            niveau_alerte: taxonomy === 'ALERTE' ? 'Public' : 'Public',
-                            zone_geo: draftData.geo === 'france' ? 'france' : 'international'
+                            niveau_alerte: niveauAlerte,
+                            zone_geo: topicGeo.toLowerCase() === 'france' ? 'france' : 'international',
+                            tags: tagIds.length > 0 ? tagIds : undefined
                         })
                     });
 
                     if (revelationRes.ok) {
                         isSuccess = true;
-                        console.log(`🚀 [Node 6: Phase B] ✅ [PAYLOAD] Révélation injectée dans le CMS (Topic: ${topic.id})`);
+                        console.log(`🚀 [Node 6: Phase B] ✅ [PAYLOAD] Révélation injectée dans Payload (Taxonomie: ${topicTaxonomy} | Geo: ${topicGeo} | Tags: ${tagIds.length} | Topic: ${topic.id})`);
                     } else {
                         const errorText = await revelationRes.text();
                         console.error(`🚀 [Node 6: Phase B] ❌ [PAYLOAD] Échec d'injection HTTP ${revelationRes.status} :`, errorText);

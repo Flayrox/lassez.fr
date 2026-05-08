@@ -38,6 +38,7 @@ model GlobalSettings {
   // Collections (Stored as stringified JSON because of SQLite Prisma limitations)
   keywords             String  @default("[]")
   bannedKeywords       String  @default("[]")
+  pipelineGraphJson    String? // Stored as stringified JSON
 
   updatedAt            DateTime @updatedAt
 }

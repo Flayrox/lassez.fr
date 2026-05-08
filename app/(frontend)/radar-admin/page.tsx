@@ -10,9 +10,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 export default function RadarAdminPage() {
     const { posts, loading, fetchQueue, updateStatus, isDaemonRunning, countdown } = useRadarAdmin();
-    const [activeTab, setActiveTab] = useState<'PENDING' | 'APPROVED' | 'PUBLISHED' | 'REJECTED' | 'IGNORED'>('PENDING');
+    const [activeTab, setActiveTab] = useState<'LAB' | 'REVIEW' | 'QUEUE' | 'DONE' | 'TRASH'>('REVIEW');
     const [geoFilter, setGeoFilter] = useState<'all' | 'france' | 'international'>('all');
-    const [selectedIds, setSelectedIds] = useState<number[]>([]);
+    const [selectedIds, setSelectedIds] = useState<string[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
     const [isScanModalOpen, setIsScanModalOpen] = useState(false);
 
@@ -46,11 +46,11 @@ export default function RadarAdminPage() {
     };
 
     const tabs = [
-        { key: 'PENDING', label: 'Pending', icon: 'bolt' },
-        { key: 'APPROVED', label: 'Approved', icon: 'schedule' },
-        { key: 'PUBLISHED', label: 'Published', icon: 'check_circle' },
-        { key: 'REJECTED', label: 'Rejected', icon: 'delete' },
-        { key: 'IGNORED', label: 'Archived', icon: 'inventory_2' },
+        { key: 'LAB', label: 'Cortex Lab', icon: 'psychology' },
+        { key: 'REVIEW', label: 'To Review', icon: 'visibility' },
+        { key: 'QUEUE', label: 'Scheduled', icon: 'schedule' },
+        { key: 'DONE', label: 'Published', icon: 'check_circle' },
+        { key: 'TRASH', label: 'Rejected', icon: 'delete' },
     ];
 
     const filteredPosts = posts.filter((post: any) => {

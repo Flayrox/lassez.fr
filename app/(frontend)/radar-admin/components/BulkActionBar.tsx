@@ -3,7 +3,7 @@
 import React from 'react';
 
 interface BulkActionBarProps {
-    selectedIds: number[];
+    selectedIds: any[];
     onStatusUpdate: (status: string) => Promise<void>;
     onClearSelection: () => void;
 }

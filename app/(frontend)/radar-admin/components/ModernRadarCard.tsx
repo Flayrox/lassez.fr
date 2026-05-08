@@ -5,21 +5,26 @@ import { motion } from 'framer-motion';
 
 interface ModernRadarCardProps {
     post: any;
-    onUpdate: (id: number, status: string) => void;
+    onUpdate: (id: string, status: string) => void;
     activeTab: string;
     isSelected: boolean;
-    onToggleSelect: (id: number, selected: boolean) => void;
+    onToggleSelect: (id: string, selected: boolean) => void;
 }
 
 export function ModernRadarCard({ post, onUpdate, activeTab, isSelected, onToggleSelect }: ModernRadarCardProps) {
-    const isPending = activeTab === 'PENDING';
-    const isApproved = activeTab === 'APPROVED';
+    const isLab = activeTab === 'LAB';
+    const isReview = activeTab === 'REVIEW';
+    const isQueue = activeTab === 'QUEUE';
+    const isDone = activeTab === 'DONE';
 
     const statusColors: Record<string, string> = {
         '🔴 ALERTE INFO !': 'text-red-600 bg-red-50 border-red-100',
+        '🚨 ALERTE GÉNÉRALE !': 'text-red-700 bg-red-50 border-red-200',
         '📌 LE FAIT DU JOUR': 'text-blue-600 bg-blue-50 border-blue-100',
         '🔎 DÉCRYPTAGE': 'text-purple-600 bg-purple-50 border-purple-100',
-        '🗓️ À VENIR': 'text-slate-600 bg-slate-50 border-slate-100',
+        '🧠 ENQUÊTE': 'text-purple-700 bg-purple-50 border-purple-200',
+        '⚡️ CITATION': 'text-amber-600 bg-amber-50 border-amber-100',
+        '🚨 FLASH': 'text-orange-600 bg-orange-50 border-orange-100',
     };
 
     const typeColor = statusColors[post.type_ouverture] || 'text-slate-600 bg-slate-50 border-slate-100';
@@ -41,8 +46,8 @@ export function ModernRadarCard({ post, onUpdate, activeTab, isSelected, onToggl
                         onChange={(e) => onToggleSelect(post.id, e.target.checked)}
                         className="w-4 h-4 rounded border-slate-300 text-black focus:ring-black cursor-pointer"
                     />
-                    <div className="text-[10px] font-bold text-slate-300 vertical-text uppercase tracking-widest">
-                        ID-{post.id}
+                    <div className="text-[9px] font-bold text-slate-300 vertical-text uppercase tracking-widest opacity-40">
+                        {post.id.slice(0, 8)}
                     </div>
                 </div>
 
@@ -53,27 +58,40 @@ export function ModernRadarCard({ post, onUpdate, activeTab, isSelected, onToggl
                                 {post.type_ouverture || 'INFO'}
                             </span>
                             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                                {post.source_title} • {new Date(post.created_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                                {isQueue && post.scheduled_at ? (
+                                    <span className="text-emerald-600">📅 Prévu à : {new Date(post.scheduled_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>
+                                ) : (
+                                    <>Reçu à : {new Date(post.created_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</>
+                                )} • {post.status}
                             </span>
                         </div>
                         <div className="flex items-center gap-2">
-                            {isPending && (
+                            {isLab && (
+                                <button 
+                                    onClick={() => onUpdate(post.id, 'REJECTED')}
+                                    className="h-8 px-3 rounded-md bg-white border border-slate-200 text-slate-600 text-[10px] font-bold uppercase tracking-widest hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-all"
+                                >
+                                    Discard
+                                </button>
+                            )}
+                            {isReview && (
                                 <>
                                     <button 
-                                        onClick={() => onUpdate(post.id, 'APPROVED')}
-                                        className="h-8 px-3 rounded-md bg-emerald-500 text-white text-[10px] font-bold uppercase tracking-widest hover:bg-emerald-600 transition-all"
+                                        onClick={() => onUpdate(post.id, 'QUEUED')}
+                                        className="h-8 px-3 rounded-md bg-emerald-500 text-white text-[10px] font-bold uppercase tracking-widest hover:bg-emerald-600 shadow-sm transition-all flex items-center gap-2"
                                     >
-                                        Approve
+                                        <span className="material-symbols-outlined text-sm">schedule_send</span>
+                                        Approve & Queue
                                     </button>
                                     <button 
                                         onClick={() => onUpdate(post.id, 'REJECTED')}
-                                        className="h-8 px-3 rounded-md bg-white border border-slate-200 text-slate-600 text-[10px] font-bold uppercase tracking-widest hover:bg-slate-50 transition-all"
+                                        className="h-8 px-3 rounded-md bg-white border border-slate-200 text-slate-400 text-[10px] font-bold uppercase tracking-widest hover:bg-slate-50 hover:text-slate-600 transition-all"
                                     >
                                         Reject
                                     </button>
                                 </>
                             )}
-                            {isApproved && (
+                            {isQueue && (
                                 <button 
                                     onClick={() => onUpdate(post.id, 'PUBLISHED')}
                                     className="h-8 px-3 rounded-md bg-black text-white text-[10px] font-bold uppercase tracking-widest hover:bg-slate-800 transition-all"

@@ -49,11 +49,11 @@ export async function PATCH(request: Request) {
 
         if (!id) return NextResponse.json({ success: false, error: 'ID requis' }, { status: 400 });
 
-        const source = await prisma.source.update({
+        const source = await (prisma.source as any).update({
             where: { id },
             data: {
                 ...updates,
-                trust_score: updates.trust_score ? parseInt(updates.trust_score) : undefined,
+                trust_score: updates.trust_score !== undefined ? parseInt(updates.trust_score) : undefined,
                 allowSourceImages: updates.allowSourceImages !== undefined ? !!updates.allowSourceImages : undefined
             }
         });

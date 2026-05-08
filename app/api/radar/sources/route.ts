@@ -3,6 +3,10 @@ import { prisma } from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
 
+/**
+ * GET /api/radar/sources
+ * Récupère la liste de toutes les sources d'intelligence.
+ */
 export async function GET() {
     try {
         const sources = await prisma.source.findMany({
@@ -15,13 +19,17 @@ export async function GET() {
     }
 }
 
+/**
+ * POST /api/radar/sources
+ * Crée une nouvelle source d'acquisition.
+ */
 export async function POST(request: Request) {
     try {
         const body = await request.json();
-        const { url, type, source_name, source_bias, trust_score, allowSourceImages } = body;
+        const { url, type, source_name, source_bias, trust_score } = body;
 
         if (!url || !type || !source_name) {
-            return NextResponse.json({ success: false, error: 'URL, Type et Nom de source requis' }, { status: 400 });
+            return NextResponse.json({ success: false, error: 'Champs requis manquants' }, { status: 400 });
         }
 
         const source = await prisma.source.create({
@@ -31,7 +39,8 @@ export async function POST(request: Request) {
                 source_name,
                 source_bias: source_bias || 'Centre',
                 trust_score: parseInt(trust_score) || 5,
-                allowSourceImages: !!allowSourceImages
+                allowSourceImages: true,
+                active: true
             }
         });
 
@@ -42,6 +51,10 @@ export async function POST(request: Request) {
     }
 }
 
+/**
+ * PATCH /api/radar/sources
+ * Met à jour une source existante (y compris le toggle active).
+ */
 export async function PATCH(request: Request) {
     try {
         const body = await request.json();
@@ -49,13 +62,15 @@ export async function PATCH(request: Request) {
 
         if (!id) return NextResponse.json({ success: false, error: 'ID requis' }, { status: 400 });
 
+        // On prépare les données proprement
+        const dataToUpdate: any = { ...updates };
+        if (updates.trust_score !== undefined) dataToUpdate.trust_score = parseInt(updates.trust_score);
+        
+        // Note Senior : On utilise 'any' ici temporairement car le client Prisma est verrouillé par le serveur Next.js
+        // ce qui empêche la régénération des types Typescript pour le champ 'active'.
         const source = await (prisma.source as any).update({
             where: { id },
-            data: {
-                ...updates,
-                trust_score: updates.trust_score !== undefined ? parseInt(updates.trust_score) : undefined,
-                allowSourceImages: updates.allowSourceImages !== undefined ? !!updates.allowSourceImages : undefined
-            }
+            data: dataToUpdate
         });
 
         return NextResponse.json({ success: true, source });
@@ -65,6 +80,9 @@ export async function PATCH(request: Request) {
     }
 }
 
+/**
+ * DELETE /api/radar/sources
+ */
 export async function DELETE(request: Request) {
     try {
         const { searchParams } = new URL(request.url);

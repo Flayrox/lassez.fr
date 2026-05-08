@@ -25,15 +25,18 @@ model GlobalSettings {
   
   // Timing & Scheduling Settings
   scrapingInterval     Int     @default(60)
+  daemonSchedule       String  @default("[]") // Weekly schedule matrix
   minPublishDelay      Int     @default(60)
   maxPublishDelay      Int     @default(120)
   
   // AI & Concurrency Configuration
   maxConcurrentTasks   Int     @default(5)
   similarityThreshold  Float   @default(0.45)
+  dedupLookbackHours   Int     @default(24)
   aiModelFlash         String  @default("gemini-3.1-flash-lite-preview")
   aiModelPro           String  @default("gemini-3-flash-preview")
   customPromptModifier String?
+  videoIngestEnabled   Boolean @default(false)
   
   // Collections (Stored as stringified JSON because of SQLite Prisma limitations)
   keywords             String  @default("[]")
@@ -99,4 +102,13 @@ model Log {
 
   @@index([timestamp])
   @@index([level])
+}
+
+model AdminUser {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  name      String?
+  role      String   @default("ADMIN") // SUPERADMIN, ADMIN, VIEWER
+  lastLogin DateTime?
+  createdAt DateTime @default(now())
 }

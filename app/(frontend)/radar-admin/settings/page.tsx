@@ -6,6 +6,9 @@ import { ModernDashboardLayout } from '../components/ModernDashboardLayout';
 import { SourcesSection } from './components/SourcesSection';
 import { PipelineSection } from './components/PipelineSection';
 import { DaemonSection } from './components/DaemonSection';
+import { DiffusionSection } from './components/DiffusionSection';
+import { HealthSection } from './components/HealthSection';
+import { UserSection } from './components/UserSection';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function SettingsPage() {
@@ -111,14 +114,9 @@ export default function SettingsPage() {
                             {activeTab === 'sources' && <SourcesSection form={form} updateForm={updateForm} />}
                             {activeTab === 'pipeline' && <PipelineSection form={form} updateForm={updateForm} />}
                             {activeTab === 'daemon' && <DaemonSection form={form} updateForm={updateForm} />}
-                            
-                            {(activeTab === 'diffusion' || activeTab === 'health' || activeTab === 'users') && (
-                                <div className="py-20 text-center space-y-4">
-                                    <span className="material-symbols-outlined text-slate-200 text-6xl">construction</span>
-                                    <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest">Section under modernization</h3>
-                                    <p className="text-xs text-slate-400">This part of the Cortex is being refactored to the new standard.</p>
-                                </div>
-                            )}
+                            {activeTab === 'diffusion' && <DiffusionSection form={form} updateForm={updateForm} />}
+                            {activeTab === 'health' && <HealthSection form={form} updateForm={updateForm} />}
+                            {activeTab === 'users' && <UserSection />}
                         </motion.div>
                     </AnimatePresence>
                 </div>

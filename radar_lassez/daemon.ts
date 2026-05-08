@@ -22,7 +22,7 @@ async function ensureGlobalSettings() {
     }
 }
 
-async function runPipeline() {
+export async function runPipeline() {
     console.log(`\n[Daemon] 🚀 [${new Date().toISOString()}] Démarrage d'un cycle du pipeline V3...`);
     try {
         const settings = await prisma.globalSettings.findFirst();

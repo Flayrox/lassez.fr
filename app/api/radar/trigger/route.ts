@@ -1,49 +1,17 @@
 import { NextResponse } from 'next/server';
 import { exec } from 'child_process';
 import path from 'path';
-import fs from 'fs';
-import { logToDaemon, errorToDaemon } from '../../logger';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 300; // Si hébergé sur Vercel, ça donne 5 min, si local, ça ne fait rien.
+export const maxDuration = 300; 
 
 export async function POST(request: Request) {
     try {
-        let action = 'scan';
-        let electionSlugOverride = '';
-        let customScan: any = null;
-        try {
-            const body = await request.json();
-            const raw = String(body?.action || '').toLowerCase();
-            if (raw === 'elections' || raw === 'election_sync') {
-                action = 'elections';
-            }
-            electionSlugOverride = String(body?.slug || '').trim();
-            if (body?.customScan) {
-                customScan = body.customScan;
-            }
-        } catch (_) {
-            // Empty body => default manual RSS scan
-        }
-
-        console.log(`[API:Trigger] Received request: action=${action}, slug=${electionSlugOverride}`);
-        const scriptFile = action === 'elections' ? 'sync_elections.js' : 'index.js';
-        const logPrefix = action === 'elections' ? 'MANUAL-ELECTIONS' : 'MANUAL-SCAN';
-        const startLabel = action === 'elections' ? 'sync élections' : 'scan RSS/IA';
-
         const radarDir = path.join(process.cwd(), 'radar_lassez');
-        const scriptPath = path.join(radarDir, scriptFile);
-        let execCommand = `node "${scriptPath}"`;
-
-        if (action === 'scan' && customScan) {
-            const tempDir = path.join(radarDir, 'temp');
-            if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
-            const configFileName = `temp_scan_${Date.now()}.json`;
-            const configFilePath = path.join(tempDir, configFileName);
-            fs.writeFileSync(configFilePath, JSON.stringify(customScan));
-            execCommand += ` --config "temp/${configFileName}"`;
-            console.log(`[API:Trigger] Custom scan detected, config saved to ${configFileName}`);
-        }
+        const scriptPath = path.join(radarDir, 'manual_trigger.ts');
+        
+        // On utilise npx tsx pour exécuter le script TypeScript directement
+        const execCommand = `npx tsx "${scriptPath}"`;
 
         console.log(`[API:Trigger] Executing: ${execCommand}`);
 
@@ -51,25 +19,16 @@ export async function POST(request: Request) {
 
         const customStream = new ReadableStream({
             start(controller) {
-                controller.enqueue(encoder.encode(`🚀 Démarrage ${startLabel} (Liaison Serveur)...\n`));
+                controller.enqueue(encoder.encode(`🚀 Démarrage du cycle d'investigation (V3)...\n`));
 
-                // Cloner l'environnement et retirer NODE_OPTIONS pour empêcher Next.js
-                // d'injecter son propre `fetch` patché dans notre processus Node natif,
-                // ce qui causait l'erreur "fetch failed" avec Gemini.
                 const cleanEnv = { ...process.env, FORCE_COLOR: '0' };
                 delete (cleanEnv as any).NODE_OPTIONS;
-                if (action === 'elections' && electionSlugOverride) {
-                    (cleanEnv as any).ELECTION_SLUG_OVERRIDE = electionSlugOverride;
-                }
 
-                // Utilisation de exec au lieu de spawn pour Windows avec chemin contenant des espaces.
-                // On met node en dur et on encapsule le chemin complet entre guillemets.
                 const child = exec(execCommand, {
-                    cwd: radarDir,
+                    cwd: process.cwd(),
                     env: cleanEnv
                 });
 
-                // Permet d'éviter l'erreur "Invalid state: Controller is already closed" si le client s'est déconnecté
                 let isClosed = false;
 
                 const safeEnqueue = (data: string) => {
@@ -91,25 +50,21 @@ export async function POST(request: Request) {
 
                 if (child.stdout) {
                     child.stdout.on('data', (data) => {
-                        const str = data.toString();
-                        safeEnqueue(str);
-                        logToDaemon(`[${logPrefix}] ${str.trim()}`);
+                        safeEnqueue(data.toString());
                     });
                 }
 
                 if (child.stderr) {
                     child.stderr.on('data', (data) => {
-                        const str = data.toString();
-                        safeEnqueue(str);
-                        errorToDaemon(`[${logPrefix}] ${str.trim()}`);
+                        safeEnqueue(data.toString());
                     });
                 }
 
                 child.on('close', (code) => {
                     if (code === 0) {
-                        safeEnqueue(`\n✅ Opération terminée. Rafraîchissement de la liste...\n`);
+                        safeEnqueue(`\n✅ Cycle terminé avec succès.\n`);
                     } else {
-                        safeEnqueue(`\n⚠️ Opération terminée avec avertissements (Code ${code}). Rafraîchissement...\n`);
+                        safeEnqueue(`\n⚠️ Le cycle s'est terminé avec le code ${code}.\n`);
                     }
                     safeClose();
                 });
@@ -118,9 +73,6 @@ export async function POST(request: Request) {
                     safeEnqueue(`\n❌ Erreur de Processus: ${err.message}\n`);
                     safeClose();
                 });
-            },
-            cancel() {
-                // called when client disconnects
             }
         });
 
@@ -133,7 +85,7 @@ export async function POST(request: Request) {
         });
 
     } catch (error: any) {
-        errorToDaemon("Erreur API de Déclenchement Radar:", error);
+        console.error("Erreur API de Déclenchement Radar:", error);
         return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     }
 }

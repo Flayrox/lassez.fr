@@ -3,14 +3,25 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 
 export interface RadarPost {
-    id: number;
+    id: string;
     source_title: string;
     flash_content: string;
-    status: 'PENDING' | 'APPROVED' | 'PUBLISHED' | 'REJECTED' | 'IGNORED';
+    status: 'PENDING' | 'APPROVED' | 'PUBLISHED' | 'REJECTED' | 'IGNORED' | 'INGESTED' | 'RESEARCHED' | 'DRAFTED' | 'QUEUED';
     geo: 'france' | 'international';
-    tags: string[];
+    tags: string;
     created_at: string;
     image_keyword?: string;
+    type_ouverture?: string;
+}
+
+export interface RadarSource {
+    id: string;
+    url: string;
+    type: 'RSS' | 'TELEGRAM' | 'GOOGLE_NEWS';
+    source_name: string;
+    source_bias: string;
+    trust_score: number;
+    allowSourceImages: boolean;
 }
 
 interface RadarAdminContextType {
@@ -19,9 +30,11 @@ interface RadarAdminContextType {
     loading: boolean;
     setLoading: React.Dispatch<React.SetStateAction<boolean>>;
     settings: any;
+    sources: RadarSource[];
     fetchSettings: () => Promise<void>;
+    fetchSources: () => Promise<void>;
     fetchQueue: (status?: string, geo?: string, tag?: string | null) => Promise<void>;
-    updateStatus: (id: number, status: string, content?: string, imageUrl?: string, title?: string) => Promise<void>;
+    updateStatus: (id: string, status: string, content?: string, imageUrl?: string, title?: string) => Promise<void>;
     triggerScan: () => Promise<void>;
     isDaemonRunning: boolean;
     countdown: string | null;
@@ -31,6 +44,7 @@ const RadarAdminContext = createContext<RadarAdminContextType | undefined>(undef
 
 export function RadarAdminProvider({ children }: { children: React.ReactNode }) {
     const [posts, setPosts] = useState<RadarPost[]>([]);
+    const [sources, setSources] = useState<RadarSource[]>([]);
     const [loading, setLoading] = useState(true);
     const [settings, setSettings] = useState<any>(null);
     const [nextScanAt, setNextScanAt] = useState<Date | null>(null);
@@ -47,6 +61,14 @@ export function RadarAdminProvider({ children }: { children: React.ReactNode }) 
         } catch (e) { console.error(e); }
     };
 
+    const fetchSources = async () => {
+        try {
+            const res = await fetch('/api/radar/sources');
+            const data = await res.json();
+            if (data.success) setSources(data.sources);
+        } catch (e) { console.error(e); }
+    };
+
     const fetchQueue = async (status = 'PENDING', geo = 'all', tag = null) => {
         setLoading(true);
         try {
@@ -60,7 +82,7 @@ export function RadarAdminProvider({ children }: { children: React.ReactNode }) 
         finally { setLoading(false); }
     };
 
-    const updateStatus = async (id: number, status: string, content?: string, imageUrl?: string, title?: string) => {
+    const updateStatus = async (id: string, status: string, content?: string, imageUrl?: string, title?: string) => {
         try {
             const res = await fetch('/api/radar', {
                 method: 'PATCH',
@@ -80,7 +102,11 @@ export function RadarAdminProvider({ children }: { children: React.ReactNode }) 
 
     useEffect(() => {
         fetchSettings();
-        const interval = setInterval(fetchSettings, 30000);
+        fetchSources();
+        const interval = setInterval(() => {
+            fetchSettings();
+            fetchSources();
+        }, 30000);
         return () => clearInterval(interval);
     }, []);
 
@@ -102,9 +128,9 @@ export function RadarAdminProvider({ children }: { children: React.ReactNode }) 
 
     return (
         <RadarAdminContext.Provider value={{ 
-            posts, setPosts, loading, setLoading, settings, 
-            fetchSettings, fetchQueue, updateStatus, triggerScan,
-            isDaemonRunning: !!settings?.daemon_rss_enabled,
+            posts, setPosts, loading, setLoading, settings, sources,
+            fetchSettings, fetchSources, fetchQueue, updateStatus, triggerScan,
+            isDaemonRunning: !!settings?.enableAutoPublish,
             countdown
         }}>
             {children}

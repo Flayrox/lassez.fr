@@ -1,4 +1,5 @@
 import { prisma } from './lib/prisma';
+import { logger } from './lib/logger';
 import { runIngestionNode } from './nodes/ingestion';
 import { runDeduplicatorNode } from './nodes/deduplicator';
 import { runResearcherNode } from './nodes/researcher';
@@ -11,66 +12,54 @@ async function ensureGlobalSettings() {
     const settingsCount = await prisma.globalSettings.count();
     
     if (settingsCount === 0) {
-        console.log("[Daemon] ⚠️ Aucune configuration GlobalSettings trouvée.");
-        console.log("[Daemon] ⚙️ Initialisation avec les valeurs par défaut de L'Assez...");
+        logger.warn("Daemon", "Aucune configuration GlobalSettings trouvée. Initialisation...");
         await prisma.globalSettings.create({
             data: {} // Les valeurs @default de schema.prisma prendront le relais
         });
-        console.log("[Daemon] ✅ GlobalSettings initialisées.");
+        logger.success("Daemon", "GlobalSettings initialisées.");
     } else {
-        console.log("[Daemon] ⚙️ GlobalSettings chargées.");
+        logger.info("Daemon", "GlobalSettings chargées.");
     }
 }
 
 export async function runPipeline() {
-    console.log(`\n[Daemon] 🚀 [${new Date().toISOString()}] Démarrage d'un cycle du pipeline V3...`);
+    logger.info("Daemon", "🚀 Démarrage d'un cycle du pipeline V3...");
     try {
         const settings = await prisma.globalSettings.findFirst();
         if (!settings) throw new Error("Les paramètres globaux sont introuvables.");
 
-        console.log(`[Daemon] 🧠 Modèles AI ciblés : ${settings.aiModelFlash} (Rapide) / ${settings.aiModelPro} (Édito)`);
-        console.log(`[Daemon] ⚙️  Tâches concurrentes max : ${settings.maxConcurrentTasks}`);
+        logger.info("Daemon", `🧠 Modèles AI : ${settings.aiModelFlash} (Rapide) / ${settings.aiModelPro} (Édito)`);
         
-        // ==========================================
-        // ORCHESTRATION DES NODES (PHASE 1 & 2)
-        // ==========================================
-        
-        console.log(`\n[Daemon] 📡 Lancement du Node 1: Ingestion...`);
+        logger.info("Node 1", "📡 Lancement de l'Ingestion...");
         const rawArticles = await runIngestionNode(12);
 
         if (rawArticles.length > 0) {
-            console.log(`[Daemon] 📊 [Ingestion] ${rawArticles.length} articles bruts aspirés avec succès.`);
+            logger.success("Node 1", `${rawArticles.length} articles aspirés.`);
             
-            console.log(`\n[Daemon] 🗑️ Lancement du Node 2: Deduplicator...`);
+            logger.info("Node 2", "🗑️ Lancement du Deduplicator...");
             await runDeduplicatorNode(rawArticles);
-            console.log(`[Daemon] 💾 [Deduplicator] Opération terminée. Les "Topics" uniques ont été ajoutés à la base de données.`);
+            logger.success("Node 2", "Opération terminée.");
 
-            // ==========================================
-            // ORCHESTRATION DES NODES (PHASE 3 & 4 : IA)
-            // ==========================================
-            console.log(`\n[Daemon] 🤖 Lancement du Node 3: Researcher (IA Flash)...`);
+            logger.info("Node 3", "🤖 Lancement du Researcher (IA Flash)...");
             await runResearcherNode();
-            console.log(`[Daemon] 🧠 [Researcher] L'Intelligence Artificielle a terminé son arbitrage.`);
+            logger.success("Node 3", "Arbitrage IA terminé.");
             
-            console.log(`\n[Daemon] ✍️ Lancement du Node 4: Editorialist (IA Pro)...`);
+            logger.info("Node 4", "✍️ Lancement de l'Editorialist (IA Pro)...");
             await runEditorialistNode();
-            console.log(`[Daemon] 📰 [Editorialist] La rédaction finale est achevée.`);
+            logger.success("Node 4", "Rédaction achevée.");
 
-            console.log(`\n[Daemon] 📸 Lancement du Node 5: Media Enrichment...`);
+            logger.info("Node 5", "📸 Lancement du Media Enrichment...");
             await runMediaNode();
-            console.log(`[Daemon] 🖼️ [Media] Les images ont été assignées et les articles sont PENDING.`);
-
-            // Note: Le Node 6 (Publisher) s'exécute désormais de manière asynchrone et indépendante
-            // dans sa propre routine (Tour de Contrôle) pour gérer les files d'attente (Scheduling).
+            logger.success("Node 5", "Images assignées, articles PENDING.");
 
         } else {
-            console.log(`[Daemon] 🤷‍♂️ [Ingestion] Aucun nouvel article dans la fenêtre temporelle. Saut des étapes suivantes.`);
+            logger.info("Node 1", "🤷‍♂️ Aucun nouvel article. Cycle suivant.");
         }
 
-        console.log(`\n[Daemon] ✅ Cycle terminé avec succès.`);
+        logger.success("Daemon", "✅ Cycle terminé.");
 
-    } catch (error) {
-        console.error("[Daemon] ❌ Erreur critique lors du cycle:", error);
+    } catch (error: any) {
+        logger.error("Daemon", `❌ Erreur critique : ${error.message}`);
     }
 }
 

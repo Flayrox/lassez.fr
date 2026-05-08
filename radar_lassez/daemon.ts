@@ -4,6 +4,7 @@ import { runDeduplicatorNode } from './nodes/deduplicator';
 import { runResearcherNode } from './nodes/researcher';
 import { runEditorialistNode } from './nodes/editorialist';
 import { runMediaNode } from './nodes/media';
+import { runPublisherNode } from './nodes/publisher';
 // import { Queue } from 'bullmq'; // Dé-commenter lors de l'intégration de BullMQ
 
 async function ensureGlobalSettings() {
@@ -59,6 +60,9 @@ async function runPipeline() {
             await runMediaNode();
             console.log(`[Daemon] 🖼️ [Media] Les images ont été assignées et les articles sont PENDING.`);
 
+            // Note: Le Node 6 (Publisher) s'exécute désormais de manière asynchrone et indépendante
+            // dans sa propre routine (Tour de Contrôle) pour gérer les files d'attente (Scheduling).
+
         } else {
             console.log(`[Daemon] 🤷‍♂️ [Ingestion] Aucun nouvel article dans la fenêtre temporelle. Saut des étapes suivantes.`);
         }
@@ -80,24 +84,41 @@ async function main() {
     // 1. Exécution initiale au démarrage
     await runPipeline();
 
-    // 2. Mise en place de la boucle asynchrone non-bloquante
-    // Au lieu d'un setInterval strict qui pourrait chevaucher les tâches si un cycle est très long (API timeout, etc.),
-    // on utilise une approche récursive sécurisée avec setTimeout.
+    // 2. Boucle du Pipeline Principal (Scraping & IA)
     const scheduleNextCycle = async () => {
         const settings = await prisma.globalSettings.findFirst();
-        // scrapingInterval est en minutes dans la DB (ex: 60)
         const intervalMinutes = settings?.scrapingInterval ?? 60;
         const intervalMs = intervalMinutes * 60 * 1000;
 
-        console.log(`[Daemon] ⏳ Prochain scan programmé dans ${intervalMinutes} minutes.`);
+        console.log(`[Daemon] ⏳ Prochain scan complet (IA) programmé dans ${intervalMinutes} minutes.`);
 
         setTimeout(async () => {
             await runPipeline();
-            scheduleNextCycle(); // On relance l'horloge *après* que le pipeline se soit terminé
+            scheduleNextCycle();
         }, intervalMs);
     };
 
+    // 3. Boucle Indépendante de la Tour de Contrôle (Node 6: Publisher)
+    // Elle tourne toutes les 2 minutes pour dépiler les publications atteignant leur scheduledAt
+    const schedulePublisherCycle = async () => {
+        const PUBLISHER_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
+
+        setTimeout(async () => {
+            try {
+                await runPublisherNode();
+            } catch (err) {
+                console.error(`[Daemon] ❌ Erreur dans la boucle Publisher :`, err);
+            } finally {
+                schedulePublisherCycle(); 
+            }
+        }, PUBLISHER_INTERVAL_MS);
+    };
+
     scheduleNextCycle();
+    
+    // On lance aussi immédiatement le publisher au démarrage pour purger la file d'attente
+    await runPublisherNode();
+    schedulePublisherCycle();
 }
 
 // Interception propre pour PM2 (arrêt propre du daemon)

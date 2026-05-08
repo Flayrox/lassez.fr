@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { logger } from '@/radar_lassez/lib/logger';
 
 export const dynamic = 'force-dynamic';
 
@@ -38,15 +39,16 @@ export async function POST(request: Request) {
                 type,
                 source_name,
                 source_bias: source_bias || 'Centre',
-                trust_score: parseInt(trust_score) || 5,
+                trust_score: parseInt(trust_score as any) || 5,
                 allowSourceImages: true,
                 active: true
             }
         });
 
+        logger.success("Admin", `Nouvelle source ajoutée : ${source_name} (${type})`);
         return NextResponse.json({ success: true, source });
     } catch (error: any) {
-        console.error("Erreur API Radar Sources (POST):", error);
+        logger.error("Admin", `Échec de création de source : ${error.message}`);
         return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     }
 }
@@ -64,18 +66,22 @@ export async function PATCH(request: Request) {
 
         // On prépare les données proprement
         const dataToUpdate: any = { ...updates };
-        if (updates.trust_score !== undefined) dataToUpdate.trust_score = parseInt(updates.trust_score);
+        if (updates.trust_score !== undefined) dataToUpdate.trust_score = parseInt(updates.trust_score as any);
         
-        // Note Senior : On utilise 'any' ici temporairement car le client Prisma est verrouillé par le serveur Next.js
-        // ce qui empêche la régénération des types Typescript pour le champ 'active'.
         const source = await (prisma.source as any).update({
             where: { id },
             data: dataToUpdate
         });
 
+        if (updates.active !== undefined) {
+            logger.info("Admin", `Source ${source.source_name} ${updates.active ? 'activée' : 'désactivée'}`);
+        } else {
+            logger.success("Admin", `Source ${source.source_name} mise à jour.`);
+        }
+
         return NextResponse.json({ success: true, source });
     } catch (error: any) {
-        console.error("Erreur API Radar Sources (PATCH):", error);
+        logger.error("Admin", `Erreur mise à jour source : ${error.message}`);
         return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     }
 }

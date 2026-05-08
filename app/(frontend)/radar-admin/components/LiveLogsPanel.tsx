@@ -4,9 +4,10 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 type LogItem = {
+    id: string;
     timestamp: string;
     level: string;
-    category: 'daemon' | 'schedule' | 'manual' | 'publisher' | 'elections' | 'error' | 'other';
+    nodeId: string;
     message: string;
 };
 
@@ -21,10 +22,10 @@ type HealthMap = Record<string, { status: string; message: string }>;
 
 const FILTERS: Array<{ key: string; label: string; icon: string }> = [
     { key: 'all', label: 'All', icon: 'list' },
-    { key: 'daemon', label: 'Engine', icon: 'settings_input_component' },
-    { key: 'schedule', label: 'Scheduler', icon: 'schedule' },
-    { key: 'publisher', label: 'Publisher', icon: 'send' },
-    { key: 'error', label: 'Critical', icon: 'report' }
+    { key: 'Daemon', label: 'Engine', icon: 'settings_input_component' },
+    { key: 'Node 1', label: 'Ingestion', icon: 'rss_feed' },
+    { key: 'Node 6', label: 'Publisher', icon: 'send' },
+    { key: 'ERROR', label: 'Critical', icon: 'report' }
 ];
 
 function formatDate(input?: string | null) {
@@ -53,7 +54,7 @@ export function LiveLogsPanel({ compact = false }: { compact?: boolean }) {
             const res = await fetch('/api/radar/logs', { cache: 'no-store' });
             const data = await res.json();
             if (!data.success) return;
-            const incoming = Array.isArray(data.logsStructured) ? data.logsStructured : [];
+            const incoming = data.logs || [];
             if (!paused) { setLogs(incoming); setPendingCount(0); }
             else {
                 const delta = Math.max(0, incoming.length - latestLengthRef.current);
@@ -84,7 +85,7 @@ export function LiveLogsPanel({ compact = false }: { compact?: boolean }) {
             fetchLogs(); fetchDaemonStatus(); fetchHealth();
         };
         runUpdates();
-        const logsTimer = setInterval(() => !document.hidden && fetchLogs(), 8000); 
+        const logsTimer = setInterval(() => !document.hidden && fetchLogs(), 5000); 
         const statusTimer = setInterval(() => !document.hidden && fetchDaemonStatus(), 15000);
         const healthTimer = setInterval(() => !document.hidden && fetchHealth(), 25000);
         return () => { clearInterval(logsTimer); clearInterval(statusTimer); clearInterval(healthTimer); };
@@ -99,9 +100,15 @@ export function LiveLogsPanel({ compact = false }: { compact?: boolean }) {
     const filtered = useMemo(() => {
         const q = query.trim().toLowerCase();
         return logs.filter((l) => {
-            if (filter !== 'all' && l.category !== filter) return false;
+            if (filter !== 'all') {
+                if (filter === 'ERROR') {
+                    if (l.level !== 'ERROR') return false;
+                } else if (l.nodeId !== filter) {
+                    return false;
+                }
+            }
             if (!q) return true;
-            return (`${l.level} ${l.message} ${l.category}`.toLowerCase().includes(q));
+            return (`${l.level} ${l.message} ${l.nodeId}`.toLowerCase().includes(q));
         });
     }, [logs, filter, query]);
 
@@ -147,10 +154,10 @@ export function LiveLogsPanel({ compact = false }: { compact?: boolean }) {
                 className="flex-1 overflow-y-auto p-5 font-mono text-[11px] bg-white space-y-0"
             >
                 {filtered.map((line, idx) => (
-                    <div key={idx} className="flex gap-4 py-0.5 border-b border-slate-50 hover:bg-slate-50 transition-colors group">
-                        <span className="text-slate-300 shrink-0 select-none w-20">[{line.timestamp}]</span>
-                        <span className={`shrink-0 font-bold w-24 ${line.category === 'error' ? 'text-rose-600' : 'text-black'}`}>
-                            {line.category.toUpperCase()}
+                    <div key={line.id || idx} className="flex gap-4 py-0.5 border-b border-slate-50 hover:bg-slate-50 transition-colors group">
+                        <span className="text-slate-300 shrink-0 select-none w-20">[{formatDate(line.timestamp)}]</span>
+                        <span className={`shrink-0 font-bold w-24 ${line.level === 'ERROR' ? 'text-rose-600' : 'text-black'}`}>
+                            {(line.nodeId || 'SYSTEM').toUpperCase()}
                         </span>
                         <span className="text-slate-600 flex-1">{line.message}</span>
                     </div>

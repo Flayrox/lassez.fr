@@ -89,3 +89,14 @@ model Publication {
   publishedAt DateTime?
   topic       NewsTopic @relation(fields: [topicId], references: [id])
 }
+
+model Log {
+  id        String   @id @default(uuid())
+  level     String   @default("INFO") // INFO, WARN, ERROR, SUCCESS
+  message   String
+  nodeId    String?  // Node 1, Node 2, etc.
+  timestamp DateTime @default(now())
+
+  @@index([timestamp])
+  @@index([level])
+}

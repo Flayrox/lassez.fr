@@ -1,109 +1,72 @@
 import { NextResponse } from 'next/server';
-import Database from 'better-sqlite3';
-import path from 'path';
+import { prisma } from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
 
-function getDb() {
-    return new Database(path.join(process.cwd(), 'radar_lassez', 'radar.db'));
-}
-
-function settingsToMap(rows: any[]) {
-    const out: Record<string, string> = {};
-    for (const row of rows) out[row.key] = row.value;
-    return out;
-}
-
 export async function GET() {
-    let db: Database.Database | null = null;
     try {
-        db = getDb();
-
-        const settingsRows = db.prepare('SELECT key, value FROM radar_settings').all() as any[];
-        const settings = settingsToMap(settingsRows);
-
-        const postRows = db.prepare(`
-            SELECT status, COUNT(*) as c
-            FROM radar_posts
-            GROUP BY status
-        `).all() as any[];
-
-        const postCounts: Record<string, number> = {};
-        for (const row of postRows) postCounts[String(row.status || 'unknown')] = Number(row.c || 0);
-
-        let jobCounts: Record<string, number> = {};
-        try {
-            const jobRows = db.prepare(`
-                SELECT status, COUNT(*) as c
-                FROM radar_jobs
-                GROUP BY status
-            `).all() as any[];
-            for (const row of jobRows) jobCounts[String(row.status || 'unknown')] = Number(row.c || 0);
-        } catch (_) {
-            jobCounts = {};
+        // 1. Récupération des paramètres globaux
+        const settings = await prisma.globalSettings.findFirst();
+        if (!settings) {
+            return NextResponse.json({ success: false, error: 'Settings not found' });
         }
 
-        const nextScanAt = settings.next_scan_at || null;
-        const lastScanAt = settings.last_scan_at || null;
+        // 2. Comptage des articles (Topics) par statut
+        const topics = await prisma.newsTopic.findMany({
+            select: { status: true }
+        });
+        
+        const postCounts: Record<string, number> = {};
+        topics.forEach(t => {
+            const s = t.status || 'unknown';
+            postCounts[s] = (postCounts[s] || 0) + 1;
+        });
 
-        const nowMs = Date.now();
-        const nextMs = nextScanAt ? new Date(nextScanAt).getTime() : NaN;
+        // 3. Comptage des publications (Jobs)
+        const publications = await prisma.publication.findMany({
+            select: { status: true }
+        });
+        
+        const jobCounts: Record<string, number> = {};
+        publications.forEach(p => {
+            const s = p.status || 'unknown';
+            jobCounts[s] = (jobCounts[s] || 0) + 1;
+        });
 
-        const daemonHealth = (() => {
-            if (settings.daemon_rss_enabled === 'false') {
-                return { status: 'paused', message: 'Daemon RSS desactive' };
-            }
-            if (!Number.isFinite(nextMs)) {
-                return { status: 'unknown', message: 'Aucun prochain scan programme' };
-            }
-            if (nowMs > nextMs + (15 * 60 * 1000)) {
-                return { status: 'late', message: 'Scan en retard (>15 min)' };
-            }
-            if (nowMs >= nextMs - (2 * 60 * 1000) && nowMs <= nextMs + (5 * 60 * 1000)) {
-                return { status: 'running', message: 'Execution imminente/en cours' };
-            }
-            return { status: 'ok', message: 'Daemon actif' };
-        })();
+        // 4. Calcul de la santé du Daemon
+        // On se base sur le scrapingInterval pour savoir si c'est "normal"
+        const intervalMs = (settings.scrapingInterval || 60) * 60 * 1000;
+        const lastUpdate = new Date(settings.updatedAt).getTime();
+        const now = Date.now();
+        
+        let daemonStatus = 'Stable';
+        let healthColor = 'ok';
 
-        const scheduleTimes = String(settings.daemon_rss_schedule_times || '')
-            .split(/[\n,;|\s]+/)
-            .map(x => x.trim())
-            .filter(Boolean);
-
-        const rssIntervalEnabled = settings.daemon_rss_interval_enabled !== 'false';
-        const rssFixedEnabled = settings.daemon_rss_schedule_enabled === 'true' && scheduleTimes.length > 0;
-        const rssMode = rssIntervalEnabled && rssFixedEnabled
-            ? 'hybrid'
-            : (rssFixedEnabled ? 'fixed-hours' : (rssIntervalEnabled ? 'interval' : 'off'));
+        if (now > lastUpdate + (intervalMs * 2)) {
+            daemonStatus = 'Inactif / Retard';
+            healthColor = 'late';
+        } else if (!settings.enableAutoPublish) {
+            daemonStatus = 'Autopilote Off';
+            healthColor = 'paused';
+        }
 
         return NextResponse.json({
             success: true,
             status: {
-                daemonHealth,
-                nextScanAt,
-                lastScanAt,
-                scanner_status: settings.scanner_status || 'idle',
-                scanner_message: settings.scanner_message || '',
-                schedule: {
-                    mode: rssMode,
-                    times: scheduleTimes,
-                    intervalHours: Number(settings.scan_interval_hours || '2')
-                },
+                daemonHealth: { status: healthColor, message: daemonStatus },
+                nextScanAt: new Date(lastUpdate + intervalMs).toISOString(),
+                lastScanAt: settings.updatedAt,
                 postCounts,
                 jobCounts,
-                runtime: {
-                    rssEnabled: settings.daemon_rss_enabled !== 'false',
-                    electionsEnabled: settings.daemon_elections_enabled === 'true',
-                    autoPilotEnabled: settings.auto_pilot_enabled === 'true',
-                    autoApproveEnabled: settings.auto_approve_enabled === 'true'
+                settings: {
+                    autoPilot: settings.enableAutoPublish,
+                    aiModel: settings.aiModelFlash,
+                    concurrency: settings.maxConcurrentTasks
                 }
             }
         });
     } catch (error: any) {
+        console.error("Erreur API Daemon Status:", error);
         return NextResponse.json({ success: false, error: error.message }, { status: 500 });
-    } finally {
-        if (db) {
-            try { db.close(); } catch (_) {}
-        }
     }
 }

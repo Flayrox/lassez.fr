@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { exec } from 'child_process';
 import path from 'path';
+import { logger } from '@/radar_lassez/lib/logger';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300; 
@@ -13,6 +14,7 @@ export async function POST(request: Request) {
         // On utilise npx tsx pour exécuter le script TypeScript directement
         const execCommand = `npx tsx "${scriptPath}"`;
 
+        logger.info("Admin", "🚀 Déclenchement manuel du pipeline...");
         console.log(`[API:Trigger] Executing: ${execCommand}`);
 
         const encoder = new TextEncoder();

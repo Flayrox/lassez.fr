@@ -29,7 +29,7 @@ interface Connection {
 const DEFAULT_PROMPT = "Tu es l'éditorialiste de L'Assez, un média OSINT. Ton rôle est de rédiger des flashs infos percutants, neutres et sourcés à partir des données collectées. Style: Direct, professionnel, sans fioritures.";
 
 const NODE_TYPES = {
-    source: {
+    inbound: {
         'rss': { 
             label: 'RSS Feed', icon: 'rss_feed', color: 'text-orange-500', bg: 'bg-orange-50', 
             settings: [{ key: 'rss_feeds', label: 'RSS Feed URLs', value: '' }]
@@ -42,72 +42,73 @@ const NODE_TYPES = {
             label: 'Google News', icon: 'search', color: 'text-blue-600', bg: 'bg-blue-100', 
             settings: [{ key: 'google_news_queries', label: 'Search Queries', value: '' }]
         },
-        'x': { 
-            label: 'X / Twitter', icon: 'close', color: 'text-slate-900', bg: 'bg-slate-50', 
-            settings: [{ key: 'x_accounts', label: 'Accounts', value: '' }]
-        },
     },
-    processor: {
+    pipeline: {
+        'ingestion': { 
+            label: 'Ingestion (N1)', icon: 'sensors', color: 'text-slate-900', bg: 'bg-slate-100', 
+            settings: [{ key: 'scrapingInterval', label: 'Polling Interval (min)', value: '60' }]
+        },
         'dedup': { 
-            label: 'Deduplicator', icon: 'content_copy', color: 'text-purple-600', bg: 'bg-purple-50', 
+            label: 'Deduplicator (N2)', icon: 'content_copy', color: 'text-purple-600', bg: 'bg-purple-50', 
             settings: [
-                { key: 'dedup_similarity_threshold', label: 'Similarity Threshold', value: '0.65' },
-                { key: 'dedup_recent_hours', label: 'Lookback Period', value: '24' }
+                { key: 'similarityThreshold', label: 'Similarity Threshold', value: '0.45' },
+                { key: 'dedupLookbackHours', label: 'Lookback Period (h)', value: '24' }
             ] 
         },
-        'distribution': { 
-            label: 'Distribution', icon: 'share', color: 'text-indigo-600', bg: 'bg-indigo-50', 
-            settings: [{ key: 'social_targets_by_type_json', label: 'Targets Config', value: '{}' }] 
-        },
-    },
-    agent: {
         'research': { 
-            label: 'Researcher', icon: 'travel_explore', color: 'text-emerald-600', bg: 'bg-emerald-50', 
-            settings: [
-                { key: 'ai_model_breaking', label: 'AI Model', value: 'gpt-4o' },
-                { key: 'google_search_breaking_enabled', label: 'Web Search', value: true }
-            ] 
+            label: 'Researcher (N3)', icon: 'psychology', color: 'text-emerald-600', bg: 'bg-emerald-50', 
+            settings: [{ key: 'aiModelFlash', label: 'AI Model (Flash)', value: 'gemini-2.0-flash' }] 
         },
         'editor': { 
-            label: 'Editorialist', icon: 'edit_note', color: 'text-amber-600', bg: 'bg-amber-50', 
+            label: 'Editorialist (N4)', icon: 'edit_note', color: 'text-amber-600', bg: 'bg-amber-50', 
             settings: [
-                { key: 'ai_model_main', label: 'AI Model', value: 'gpt-4o' },
-                { key: 'ai_prompt', label: 'System Prompt', value: DEFAULT_PROMPT }
+                { key: 'aiModelPro', label: 'AI Model (Pro)', value: 'gemini-1.5-pro' },
+                { key: 'customPromptModifier', label: 'Prompt instructions', value: DEFAULT_PROMPT }
             ] 
         },
-        'validator': { 
-            label: 'Validator', icon: 'fact_check', color: 'text-rose-600', bg: 'bg-rose-50', 
-            settings: [
-                { key: 'auto_approve_enabled', label: 'Auto Approve', value: false },
-                { key: 'auto_pilot_enabled', label: 'Auto Pilot', value: false }
-            ] 
+        'media': { 
+            label: 'Media (N5)', icon: 'image', color: 'text-indigo-600', bg: 'bg-indigo-50', 
+            settings: [{ key: 'allowSourceImages', label: 'Allow Source Images', value: true }] 
         },
     },
-    target: {
-        'payload': { label: 'L\'Assez CMS', icon: 'publish', color: 'text-slate-900', bg: 'bg-slate-100' },
-        'discord': { label: 'Discord', icon: 'chat', color: 'text-indigo-500', bg: 'bg-indigo-50' },
+    outbound: {
+        'publisher': { 
+            label: 'Publisher (N6)', icon: 'rocket_launch', color: 'text-rose-600', bg: 'bg-rose-50', 
+            settings: [
+                { key: 'enableAutoPublish', label: 'Auto-publish', value: true },
+                { key: 'minPublishDelay', label: 'Min Delay (min)', value: '60' }
+            ] 
+        },
+        'matrix': { 
+            label: 'Social Matrix', icon: 'share', color: 'text-blue-600', bg: 'bg-blue-50', 
+            settings: [{ key: 'social_targets_by_type_json', label: 'Social Routing Map', value: '{}' }] 
+        },
     }
 };
 
 const INITIAL_NODES: Node[] = [
-    { id: 'source-rss', x: 100, y: 150, label: 'RSS Feed', type: 'rss', icon: 'rss_feed', color: 'text-orange-500', bg: 'bg-orange-50', settings: NODE_TYPES.source.rss.settings },
-    { id: 'source-telegram', x: 100, y: 280, label: 'Telegram', type: 'telegram', icon: 'send', color: 'text-blue-500', bg: 'bg-blue-50', settings: NODE_TYPES.source.telegram.settings },
-    { id: 'proc-dedup', x: 350, y: 220, label: 'Deduplicator', type: 'dedup', icon: 'content_copy', color: 'text-purple-600', bg: 'bg-purple-50', settings: NODE_TYPES.processor.dedup.settings },
-    { id: 'agent-research', x: 600, y: 220, label: 'Researcher', type: 'research', icon: 'travel_explore', color: 'text-emerald-600', bg: 'bg-emerald-50', settings: NODE_TYPES.agent.research.settings },
-    { id: 'agent-editor', x: 850, y: 220, label: 'Editorialist', type: 'editor', icon: 'edit_note', color: 'text-amber-600', bg: 'bg-amber-50', settings: NODE_TYPES.agent.editor.settings },
-    { id: 'proc-dist', x: 1100, y: 220, label: 'Distribution', type: 'distribution', icon: 'share', color: 'text-indigo-600', bg: 'bg-indigo-50', settings: NODE_TYPES.processor.distribution.settings },
-    { id: 'target-cms', x: 1350, y: 150, label: 'L\'Assez CMS', type: 'payload', icon: 'publish', color: 'text-slate-900', bg: 'bg-slate-100' },
-    { id: 'target-discord', x: 1350, y: 300, label: 'Discord', type: 'discord', icon: 'chat', color: 'text-indigo-500', bg: 'bg-indigo-50' }
+    { id: 'in-rss', x: 80, y: 150, label: 'RSS Feed', type: 'rss', icon: 'rss_feed', color: 'text-orange-500', bg: 'bg-orange-50', settings: NODE_TYPES.inbound.rss.settings },
+    { id: 'in-telegram', x: 80, y: 280, label: 'Telegram', type: 'telegram', icon: 'send', color: 'text-blue-500', bg: 'bg-blue-50', settings: NODE_TYPES.inbound.telegram.settings },
+    
+    { id: 'p-ingestion', x: 300, y: 220, label: 'Ingestion (N1)', type: 'ingestion', icon: 'sensors', color: 'text-slate-900', bg: 'bg-slate-100', settings: NODE_TYPES.pipeline.ingestion.settings },
+    { id: 'p-dedup', x: 520, y: 220, label: 'Deduplicator (N2)', type: 'dedup', icon: 'content_copy', color: 'text-purple-600', bg: 'bg-purple-50', settings: NODE_TYPES.pipeline.dedup.settings },
+    { id: 'p-research', x: 740, y: 220, label: 'Researcher (N3)', type: 'research', icon: 'psychology', color: 'text-emerald-600', bg: 'bg-emerald-50', settings: NODE_TYPES.pipeline.research.settings },
+    { id: 'p-editor', x: 960, y: 220, label: 'Editorialist (N4)', type: 'editor', icon: 'edit_note', color: 'text-amber-600', bg: 'bg-amber-50', settings: NODE_TYPES.pipeline.editor.settings },
+    { id: 'p-media', x: 1180, y: 220, label: 'Media (N5)', type: 'media', icon: 'image', color: 'text-indigo-600', bg: 'bg-indigo-50', settings: NODE_TYPES.pipeline.media.settings },
+    
+    { id: 'p-publisher', x: 1400, y: 220, label: 'Publisher (N6)', type: 'publisher', icon: 'rocket_launch', color: 'text-rose-600', bg: 'bg-rose-50', settings: NODE_TYPES.outbound.publisher.settings },
+    { id: 'out-matrix', x: 1620, y: 220, label: 'Social Matrix', type: 'matrix', icon: 'share', color: 'text-blue-600', bg: 'bg-blue-50', settings: NODE_TYPES.outbound.matrix.settings },
 ];
 
 const INITIAL_CONNECTIONS: Connection[] = [
-    { id: 'c1', from: 'source-rss', to: 'proc-dedup' },
-    { id: 'c2', from: 'source-telegram', to: 'proc-dedup' },
-    { id: 'c4', from: 'proc-dedup', to: 'agent-research' },
-    { id: 'c5', from: 'agent-research', to: 'agent-editor' },
-    { id: 'c6', from: 'agent-editor', to: 'proc-dist' },
-    { id: 'c8', from: 'proc-dist', to: 'target-cms' },
-    { id: 'c9', from: 'proc-dist', to: 'target-discord' }
+    { id: 'c1', from: 'in-rss', to: 'p-ingestion' },
+    { id: 'c2', from: 'in-telegram', to: 'p-ingestion' },
+    { id: 'c3', from: 'p-ingestion', to: 'p-dedup' },
+    { id: 'c4', from: 'p-dedup', to: 'p-research' },
+    { id: 'c5', from: 'p-research', to: 'p-editor' },
+    { id: 'c6', from: 'p-editor', to: 'p-media' },
+    { id: 'c7', from: 'p-media', to: 'p-publisher' },
+    { id: 'c8', from: 'p-publisher', to: 'out-matrix' },
 ];
 
 export default function FlowPage() {
@@ -120,7 +121,6 @@ export default function FlowPage() {
     const { selectedNodeId, setSelectedNodeId } = useUI();
 
     useEffect(() => {
-        // Polling daemon status for scanner updates
         const interval = setInterval(async () => {
             try {
                 const res = await fetch('/api/radar/daemon-status');
@@ -181,7 +181,6 @@ export default function FlowPage() {
             let loadedNodes = INITIAL_NODES;
             let loadedConns = INITIAL_CONNECTIONS;
             
-            // Try to load from DB first to ensure synchronization across all clients
             try {
                 const res = await fetch('/api/radar/settings');
                 const data = await res.json();
@@ -247,10 +246,6 @@ export default function FlowPage() {
     const handleDeploy = async () => {
         setIsDeploying(true);
         try {
-            // 1. Sync all settings from nodes first (just in case)
-            // (Already mostly handled by updateNodeData, but we want the full graph structure too)
-            
-            // 2. Save the graph structure to the DB
             const res = await fetch('/api/radar/settings', {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
@@ -261,7 +256,6 @@ export default function FlowPage() {
             
             if (!res.ok) throw new Error('Deploy failed');
             
-            // 3. Trigger a manual scan to verify the new pipeline in real-time
             await fetch('/api/radar/trigger', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -315,29 +309,37 @@ export default function FlowPage() {
 
     return (
         <ModernDashboardLayout title="Pipeline" fullBleed={true} actions={
-            <div className="flex items-center gap-2">
-                <button onClick={handleReset} className="px-4 py-1.5 border border-slate-200 text-[10px] font-black uppercase rounded-sm hover:bg-slate-50 transition-colors">Reset</button>
+            <div className="flex items-center gap-1.5">
+                <button 
+                    onClick={handleReset} 
+                    className="h-7 px-3 border border-slate-200 text-[10px] font-bold rounded-sm hover:bg-slate-50 transition-colors"
+                >
+                    Reset
+                </button>
                 <button 
                     onClick={handleDeploy} 
                     disabled={isDeploying}
-                    className={`px-4 py-1.5 bg-black text-white text-[10px] font-black uppercase rounded-sm shadow-lg hover:bg-zinc-800 transition-colors flex items-center gap-2 ${isDeploying ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    className={`h-7 px-4 bg-black text-white text-[10px] font-bold rounded-sm shadow-sm hover:bg-zinc-800 transition-colors flex items-center gap-2 ${isDeploying ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                     {isDeploying ? (
                         <>
                             <div className="w-2 h-2 border-2 border-white border-t-transparent rounded-full animate-spin" />
                             Deploying...
                         </>
-                    ) : 'Deploy'}
+                    ) : 'Deploy pipeline'}
                 </button>
             </div>
         }>
-            <div className="flex-1 relative w-full h-full overflow-hidden bg-white">
+            <div className="flex-1 relative w-full h-full overflow-hidden bg-slate-50">
+                <div className="absolute inset-0 opacity-[0.03] pointer-events-none" style={{ backgroundImage: 'radial-gradient(#000 1px, transparent 1px)', backgroundSize: '24px 24px' }} />
+                
                 {scannerState.status !== 'idle' && scannerState.status !== undefined && scannerState.status !== 'ok' && scannerState.status !== 'late' && scannerState.status !== 'paused' && scannerState.status !== 'unknown' && scannerState.status !== 'running' && (
-                    <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-50 bg-slate-900 border border-slate-700 shadow-2xl rounded-full px-6 py-3 flex items-center gap-3">
-                        <span className="material-icons-outlined text-emerald-400 animate-spin text-sm">rotate_right</span>
-                        <span className="text-white text-sm font-medium">{scannerState.message || scannerState.status}</span>
+                    <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-50 bg-black text-white shadow-2xl rounded-sm px-4 py-2 flex items-center gap-3 border border-zinc-800">
+                        <span className="material-symbols-outlined text-emerald-400 animate-spin text-[16px]">sync</span>
+                        <span className="text-[11px] font-mono font-bold tracking-tight">{scannerState.message || scannerState.status}</span>
                     </div>
                 )}
+                
                 {isHydrated && (
                     <>
                         <FlowCanvas 
@@ -364,19 +366,18 @@ export default function FlowPage() {
                             isDaemonRunning={false}
                         />
 
-                        {/* Node Palette (Floating Dock) */}
-                        <div className="fixed left-8 top-1/2 -translate-y-1/2 z-[500] flex flex-col gap-6">
+                        <div className="fixed left-6 top-1/2 -translate-y-1/2 z-[500] flex flex-col gap-4">
                             {Object.entries(NODE_TYPES).map(([cat, types]) => (
-                                <div key={cat} className="flex flex-col gap-2 p-2 bg-white border border-slate-200 rounded-sm shadow-xl">
-                                    <span className="text-[7px] font-black uppercase text-slate-300 tracking-widest text-center mb-1">{cat}</span>
+                                <div key={cat} className="flex flex-col gap-1.5 p-1.5 bg-white border border-slate-200 rounded-sm shadow-xl">
+                                    <span className="text-[8px] font-bold uppercase text-slate-400 tracking-tighter text-center mb-1">{cat}</span>
                                     {Object.entries(types).map(([type, config]: [string, any]) => (
                                         <button 
                                             key={type}
                                             onClick={() => addNode(type, cat)}
-                                            className={`w-10 h-10 flex items-center justify-center rounded-sm transition-all hover:scale-110 hover:shadow-lg ${config.bg} ${config.color} group relative`}
+                                            className={`w-9 h-9 flex items-center justify-center rounded-sm transition-all hover:bg-slate-50 border border-transparent hover:border-slate-200 ${config.color} group relative`}
                                         >
-                                            <span className="material-symbols-outlined text-[20px]">{config.icon}</span>
-                                            <div className="absolute left-full ml-4 px-3 py-1.5 bg-black text-white text-[8px] font-black uppercase whitespace-nowrap rounded-sm opacity-0 group-hover:opacity-100 pointer-events-none transition-all tracking-widest translate-x-[-10px] group-hover:translate-x-0">
+                                            <span className="material-symbols-outlined text-[18px]">{config.icon}</span>
+                                            <div className="absolute left-full ml-3 px-2 py-1 bg-black text-white text-[9px] font-bold whitespace-nowrap rounded-sm opacity-0 group-hover:opacity-100 pointer-events-none transition-all translate-x-[-4px] group-hover:translate-x-0">
                                                 Add {config.label}
                                             </div>
                                         </button>

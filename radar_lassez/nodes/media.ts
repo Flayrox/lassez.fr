@@ -15,9 +15,10 @@ export async function runMediaNode() {
         return;
     }
 
+    const settings = await prisma.globalSettings.findFirst();
     console.log(`📸 [Node 5: Media] ${draftedTopics.length} topics prêts pour l'enrichissement média.`);
 
-    // 2. Limiteur de concurrence très restrictif pour éviter les bans IP de Google (2 ou 3)
+    // 2. Limiteur de concurrence restrictif
     const limit = pLimit(2);
 
     const tasks = draftedTopics.map(topic => limit(async () => {
@@ -27,7 +28,31 @@ export async function runMediaNode() {
                 return;
             }
 
-            // 3. Parser le final_draft pour extraire image_search_queries
+            // 3. Vérification de la configuration Globale
+            if (!settings?.allowSourceImages) {
+                console.log(`📸 [Node 5: Media] ⚠️ allowSourceImages GLOBAL désactivé. Passage en PENDING sans recherche d'image.`);
+                await prisma.newsTopic.update({
+                    where: { id: topic.id },
+                    data: { status: 'PENDING' }
+                });
+                return;
+            }
+
+            // 4. Vérification de la configuration par SOURCE (Granulaire)
+            // On regarde l'article principal dans raw_data
+            const rawData = JSON.parse(topic.raw_data);
+            const primaryArticle = rawData.articles?.[0];
+            
+            if (primaryArticle && primaryArticle.allowSourceImages === false) {
+                console.log(`📸 [Node 5: Media] 🚫 Source "${primaryArticle.source_name}" interdit les images. Passage en PENDING.`);
+                await prisma.newsTopic.update({
+                    where: { id: topic.id },
+                    data: { status: 'PENDING' }
+                });
+                return;
+            }
+
+            // 5. Parser le final_draft pour extraire image_search_queries
             const draftData = typeof topic.final_draft === 'string' 
                 ? JSON.parse(topic.final_draft) 
                 : topic.final_draft;
@@ -35,7 +60,6 @@ export async function runMediaNode() {
             const queries = draftData.image_search_queries;
             if (!queries || !Array.isArray(queries) || queries.length === 0) {
                 console.log(`📸 [Node 5: Media] ⚠️ Aucune image_search_queries trouvée pour le topic ${topic.id}. Topic passé en PENDING sans image.`);
-                // Mise à jour quand même pour ne pas bloquer le pipeline
                 await prisma.newsTopic.update({
                     where: { id: topic.id },
                     data: { status: 'PENDING' }
@@ -46,31 +70,22 @@ export async function runMediaNode() {
             let selectedImageUrl: string | null = null;
             let usedQuery = "";
 
-            // Domaines et mots-clés bannis (Réseaux sociaux, Banques d'images à watermark)
+            // Domaines bannis
             const bannedKeywords = [
                 'instagram.com', 'facebook.com', 'pinterest.com', 'tiktok.com', 'twitter.com', 'x.com',
-//                'gettyimages', 'shutterstock', 'istockphoto', 'alamy', 'freepik', '123rf', 'dreamstime',
-//                'depositphotos', 'unsplash', 'pexels', 'pixabay', 'logo', 'icon', 'favicon'
             ];
 
             // Itération sur les "Tirs" fournis par l'IA
             for (const requete of queries) {
                 if (!requete || typeof requete !== 'string') continue;
-                
                 console.log(`📸 [Node 5: Media] 🎯 Tir pour le topic [${topic.id}] avec la requête : "${requete}"`);
                 
                 try {
-                    // 4. Utilisation de googlethis pour récupérer l'image
                     const images = await google.image(requete, { safe: false });
-
-                    // 5. Filtrer pour trouver la première URL d'image valide
                     for (const img of images) {
                         if (img.url && typeof img.url === 'string') {
                             const smallUrl = img.url.toLowerCase();
-                            
-                            // On vérifie aussi l'URL du site source si disponible
                             const originUrl = img.origin?.url ? img.origin.url.toLowerCase() : '';
-                            
                             const isBanned = bannedKeywords.some(banned => 
                                 smallUrl.includes(banned) || originUrl.includes(banned)
                             );
@@ -82,21 +97,14 @@ export async function runMediaNode() {
                             }
                         }
                     }
-
-                    if (selectedImageUrl) {
-                        break; // On a trouvé une super image, on arrête l'entonnoir !
-                    } else {
-                        console.log(`📸 [Node 5: Media] ❌ Le Tir "${requete}" n'a rien donné de valide (images bannies ou introuvables). Passage au tir suivant...`);
-                    }
+                    if (selectedImageUrl) break;
                 } catch(err) {
-                    console.log(`📸 [Node 5: Media] ⚠️ Erreur Google sur la requête "${requete}" :`, err instanceof Error ? err.message : err);
+                    console.log(`📸 [Node 5: Media] ⚠️ Erreur Google sur "${requete}" :`, err instanceof Error ? err.message : err);
                 }
             }
 
             if (selectedImageUrl) {
-                console.log(`📸 [Node 5: Media] ✅ Image trouvée (grâce au Tir: "${usedQuery}") pour le topic [${topic.id}] : ${selectedImageUrl}`);
-
-                // 6. Mise à jour dans la base de données
+                console.log(`📸 [Node 5: Media] ✅ Image trouvée (Tir: "${usedQuery}") pour [${topic.id}]`);
                 await prisma.newsTopic.update({
                     where: { id: topic.id },
                     data: {
@@ -105,7 +113,7 @@ export async function runMediaNode() {
                     }
                 });
             } else {
-                console.log(`📸 [Node 5: Media] ❌ AUCUNE image trouvée ou valide après ${queries.length} tirs. Topic passé en PENDING sans image.`);
+                console.log(`📸 [Node 5: Media] ❌ Aucune image trouvée. Passage en PENDING.`);
                 await prisma.newsTopic.update({
                     where: { id: topic.id },
                     data: { status: 'PENDING' }
@@ -113,10 +121,10 @@ export async function runMediaNode() {
             }
 
         } catch (error) {
-            console.error(`📸 [Node 5: Media] ❌ Erreur lors du scraping pour le topic ${topic.id}:`, error);
+            console.error(`📸 [Node 5: Media] ❌ Erreur fatale sur topic ${topic.id}:`, error);
         }
     }));
 
     await Promise.all(tasks);
-    console.log(`📸 [Node 5: Media] Fin du traitement. Les topics ont été passés en statut PENDING.`);
+    console.log(`📸 [Node 5: Media] Fin du traitement.`);
 }

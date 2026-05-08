@@ -48,7 +48,7 @@ export default function DaemonPage() {
         if (!confirm(`Are you sure you want to ${action} ${target}?`)) return;
         setActionRunning(true);
         try {
-            const res = await fetch('/api/radar/system', {
+            await fetch('/api/radar/system', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ action, target })
@@ -59,19 +59,22 @@ export default function DaemonPage() {
         finally { setActionRunning(false); }
     };
 
+    const feedsCount = JSON.parse(settings?.rss_feeds || '[]').length;
+    const channelsCount = JSON.parse(settings?.telegram_channels || '[]').length;
+
     return (
         <ModernDashboardLayout 
-            title="Daemon Control" 
-            subtitle={countdown || "Autonomous system monitoring..."} 
+            title="Real-time" 
+            subtitle={countdown || "Autonomous system monitoring"} 
             isDaemonRunning={isDaemonRunning}
         >
-            <div className="space-y-8">
-                {/* Status Overview */}
+            <div className="space-y-6">
+                {/* Status Bar */}
                 <DaemonStatusCards status={status} loading={loading} />
 
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
                     {/* PM2 Control */}
-                    <div className="lg:col-span-2">
+                    <div className="lg:col-span-3">
                         <Pm2ControlPanel 
                             pm2States={pm2States} 
                             pm2Loading={pm2Loading} 
@@ -79,58 +82,73 @@ export default function DaemonPage() {
                         />
                     </div>
 
-                    {/* Quick Config / Automation State */}
-                    <div className="space-y-6">
-                        <div className="bg-slate-900 rounded-2xl p-6 text-white shadow-xl">
-                            <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-6">Automation State</h3>
-                            <div className="space-y-4">
-                                <div className="flex items-center justify-between">
-                                    <p className="text-xs font-bold">Auto-Pilot Mode</p>
-                                    <div className={`w-2 h-2 rounded-full ${settings?.auto_pilot_enabled === 'true' ? 'bg-emerald-500' : 'bg-slate-700'}`}></div>
-                                </div>
-                                <div className="flex items-center justify-between">
-                                    <p className="text-xs font-bold">RSS Ingestion</p>
-                                    <div className={`w-2 h-2 rounded-full ${settings?.daemon_rss_enabled !== 'false' ? 'bg-emerald-500' : 'bg-rose-500'}`}></div>
-                                </div>
-                                <div className="pt-4 border-t border-slate-800">
-                                    <p className="text-[9px] text-slate-400 leading-relaxed font-medium">
-                                        The autonomous engine is currently polling {JSON.parse(settings?.rss_feeds || '[]').length} RSS feeds and {JSON.parse(settings?.telegram_channels || '[]').length} Telegram channels.
+                    {/* Sidebar Controls */}
+                    <div className="space-y-4">
+                        <div className="bg-black rounded-sm p-4 text-white shadow-xl">
+                            <h3 className="text-[10px] font-bold uppercase tracking-tighter text-zinc-500 mb-4">Automation metrics</h3>
+                            <div className="space-y-3">
+                                <MetricRow label="Auto-pilot" active={settings?.auto_pilot_enabled === 'true'} />
+                                <MetricRow label="RSS ingestion" active={settings?.daemon_rss_enabled !== 'false'} />
+                                <div className="pt-3 border-t border-zinc-800">
+                                    <p className="text-[9px] text-zinc-500 leading-relaxed font-mono italic">
+                                        Polling {feedsCount} feeds and {channelsCount} channels.
                                     </p>
                                 </div>
                             </div>
                         </div>
 
-                        <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
-                            <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-4">Manual Override</h3>
+                        <div className="bg-white rounded-sm border border-slate-200 p-4 shadow-sm">
+                            <h3 className="text-[10px] font-bold text-slate-400 mb-3">Orchestration</h3>
                             <button 
                                 onClick={() => window.dispatchEvent(new CustomEvent('open-scan-modal'))}
-                                className="w-full py-3 rounded-xl bg-slate-100 text-slate-900 text-xs font-bold uppercase tracking-tight hover:bg-slate-200 transition-all flex items-center justify-center gap-2"
+                                className="w-full py-1.5 rounded-sm bg-slate-100 text-black text-[11px] font-bold hover:bg-black hover:text-white transition-all flex items-center justify-center gap-2"
                             >
-                                <span className="material-symbols-outlined text-sm">rocket_launch</span>
-                                Trigger Manual Scan
+                                <span className="material-symbols-outlined text-[16px]">sync_alt</span>
+                                Manual trigger
                             </button>
                         </div>
                     </div>
                 </div>
 
                 {/* System Logs Preview */}
-                <div className="bg-slate-950 rounded-2xl p-6 shadow-2xl border border-slate-800">
-                    <div className="flex items-center justify-between mb-4">
-                        <div className="flex items-center gap-3">
-                            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-                            <h3 className="text-[10px] font-bold uppercase tracking-widest text-white">Live System Logs</h3>
+                <div className="bg-white rounded-sm shadow-sm border border-slate-200 overflow-hidden">
+                    <div className="px-4 py-2 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                        <div className="flex items-center gap-2">
+                            <div className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse"></div>
+                            <h3 className="text-[11px] font-bold text-black">Live telemetry stream</h3>
                         </div>
-                        <button className="text-[10px] font-bold uppercase tracking-widest text-slate-500 hover:text-white transition-colors">Clear Stream</button>
+                        <button className="text-[10px] font-bold text-slate-400 hover:text-black transition-colors">Clear</button>
                     </div>
-                    <div className="bg-black/40 rounded-xl p-4 h-64 font-mono text-[11px] text-slate-300 overflow-y-auto leading-relaxed border border-white/5">
-                        <p className="text-emerald-400">[INFO] System check passed. Daemon healthy.</p>
-                        <p className="text-slate-500">[{new Date().toLocaleTimeString()}] Polling RSS sources...</p>
-                        <p className="text-slate-500">[{new Date().toLocaleTimeString()}] No new items found in Mediapart.</p>
-                        <p className="text-blue-400">[{new Date().toLocaleTimeString()}] 1 new item found in Telegram @FranceInsoumise.</p>
-                        <p className="text-amber-400">[{new Date().toLocaleTimeString()}] Starting AI analysis for: "Manifestation retraites..."</p>
+                    <div className="p-4 h-64 font-mono text-[11px] text-slate-600 overflow-y-auto leading-tight bg-white">
+                        <div className="space-y-0.5">
+                            <LogLine color="text-emerald-600" msg="System check passed. Daemon healthy." />
+                            <LogLine msg="Polling RSS sources..." time />
+                            <LogLine msg="No new items found in Mediapart." time />
+                            <LogLine color="text-blue-600" msg="1 new item found in Telegram @FranceInsoumise." time />
+                            <LogLine color="text-amber-600" msg='Starting AI analysis for: "Manifestation retraites..."' time />
+                            <LogLine msg="Connection persistent on port 5173." time />
+                        </div>
                     </div>
                 </div>
             </div>
         </ModernDashboardLayout>
+    );
+}
+
+function MetricRow({ label, active }: { label: string, active: boolean }) {
+    return (
+        <div className="flex items-center justify-between">
+            <p className="text-[10px] font-medium text-zinc-400">{label}</p>
+            <div className={`w-1 h-1 rounded-full ${active ? 'bg-emerald-500 shadow-[0_0_3px_rgba(16,185,129,0.5)]' : 'bg-zinc-700'}`}></div>
+        </div>
+    );
+}
+
+function LogLine({ msg, color = "text-slate-400", time }: { msg: string, color?: string, time?: boolean }) {
+    return (
+        <div className="flex gap-3">
+            <span className="text-slate-200 shrink-0 select-none">[{time ? new Date().toLocaleTimeString() : 'INIT'}]</span>
+            <span className={`${color} flex-1`}>{msg}</span>
+        </div>
     );
 }

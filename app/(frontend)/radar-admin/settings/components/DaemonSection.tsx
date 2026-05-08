@@ -8,23 +8,21 @@ interface DaemonSectionProps {
 }
 
 const DAYS = [
-    { key: 'LUN', label: 'Lundi' },
-    { key: 'MAR', label: 'Mardi' },
-    { key: 'MER', label: 'Mercredi' },
-    { key: 'JEU', label: 'Jeudi' },
-    { key: 'VEN', label: 'Vendredi' },
-    { key: 'SAM', label: 'Samedi' },
-    { key: 'DIM', label: 'Dimanche' },
+    { key: 'LUN', label: 'Lun' },
+    { key: 'MAR', label: 'Mar' },
+    { key: 'MER', label: 'Mer' },
+    { key: 'JEU', label: 'Jeu' },
+    { key: 'VEN', label: 'Ven' },
+    { key: 'SAM', label: 'Sam' },
+    { key: 'DIM', label: 'Dim' },
 ];
 
 export function DaemonSection({ form, updateForm }: DaemonSectionProps) {
-    // Parse the schedule string into an object { LUN: ['08:00', '12:00'], ... }
     const parseSchedule = (raw: string) => {
         const schedule: Record<string, string[]> = {
             LUN: [], MAR: [], MER: [], JEU: [], VEN: [], SAM: [], DIM: []
         };
         if (!raw) return schedule;
-        
         const lines = raw.split(/[\n;]+/).map(l => l.trim()).filter(Boolean);
         lines.forEach(line => {
             const parts = line.split(/\s+/);
@@ -59,7 +57,7 @@ export function DaemonSection({ form, updateForm }: DaemonSectionProps) {
     };
 
     const addTime = (day: string) => {
-        const time = prompt('Ajouter une heure (format HH:MM)', '08:00');
+        const time = prompt('Format HH:MM', '08:00');
         if (time && /^(\d{1,2}):(\d{2})$/.test(time)) {
             const newTimes = Array.from(new Set([...schedule[day], time])).sort();
             updateSchedule({ ...schedule, [day]: newTimes });
@@ -72,125 +70,59 @@ export function DaemonSection({ form, updateForm }: DaemonSectionProps) {
     };
 
     return (
-        <div className="space-y-10">
-            <div>
-                <h3 className="text-sm font-black uppercase tracking-widest text-slate-900 mb-1">Daemon & Chronos</h3>
-                <p className="text-[11px] text-slate-500 font-medium italic">Configure the heartbeat and publication pacing of the Cortex.</p>
+        <div className="space-y-6">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-2">
+                <h3 className="text-sm font-semibold text-black">Daemon & Chronos</h3>
+                <div className="flex items-center gap-2">
+                    <span className="text-[10px] text-slate-400 font-medium">Autopilot</span>
+                    <button 
+                        onClick={() => updateForm('enableAutoPublish', !form.enableAutoPublish)}
+                        className={`w-6 h-3.5 rounded-full relative transition-all ${form.enableAutoPublish ? 'bg-black' : 'bg-slate-200'}`}
+                    >
+                        <div className={`absolute top-0.5 w-2.5 h-2.5 rounded-full bg-white transition-all ${form.enableAutoPublish ? 'left-3' : 'left-0.5'}`} />
+                    </button>
+                </div>
             </div>
 
-            <div className="grid gap-8">
-                {/* 1. Global Activation - AUTO PUBLISH */}
-                <section className="p-6 bg-black rounded-2xl border border-black space-y-4 shadow-xl">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-4">
-                            <div className="w-10 h-10 rounded-xl bg-zinc-800 flex items-center justify-center">
-                                <span className="material-symbols-outlined text-white">rocket_launch</span>
-                            </div>
-                            <div>
-                                <h4 className="text-xs font-bold text-white uppercase tracking-widest">Auto-Publish Autopilot</h4>
-                                <p className="text-[10px] text-zinc-400 font-medium">Automatic distribution of approved intelligence.</p>
-                            </div>
-                        </div>
-                        <button 
-                            onClick={() => updateForm('enableAutoPublish', !form.enableAutoPublish)}
-                            className={`w-12 h-6 rounded-full transition-all relative ${form.enableAutoPublish ? 'bg-emerald-500' : 'bg-zinc-800'}`}
-                        >
-                            <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${form.enableAutoPublish ? 'left-7' : 'left-1'}`} />
-                        </button>
-                    </div>
-                </section>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {/* 2. Scraping Control */}
-                    <section className="p-5 bg-white rounded-2xl border border-slate-200 space-y-4 shadow-sm hover:border-slate-400 transition-all">
-                        <div className="flex items-center gap-3">
-                            <span className="material-symbols-outlined text-slate-400 text-sm">sync</span>
-                            <h4 className="text-[10px] font-black text-slate-900 uppercase tracking-widest">Scraping Pulse</h4>
-                        </div>
-                        <div className="space-y-2">
-                            <label className="text-[9px] font-bold text-slate-400 uppercase">Interval (Minutes)</label>
-                            <input 
-                                type="number"
-                                value={form.scrapingInterval || 60}
-                                onChange={(e) => updateForm('scrapingInterval', parseInt(e.target.value))}
-                                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2 text-xs font-bold outline-none focus:bg-white focus:border-black transition-all"
-                            />
-                        </div>
-                    </section>
-
-                    {/* 3. Publication Delays */}
-                    <section className="p-5 bg-white rounded-2xl border border-slate-200 space-y-4 shadow-sm hover:border-slate-400 transition-all">
-                        <div className="flex items-center gap-3">
-                            <span className="material-symbols-outlined text-slate-400 text-sm">timer</span>
-                            <h4 className="text-[10px] font-black text-slate-900 uppercase tracking-widest">Publication Pacing</h4>
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                                <label className="text-[9px] font-bold text-slate-400 uppercase">Min Delay (m)</label>
-                                <input 
-                                    type="number"
-                                    value={form.minPublishDelay || 60}
-                                    onChange={(e) => updateForm('minPublishDelay', parseInt(e.target.value))}
-                                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2 text-xs font-bold outline-none focus:bg-white focus:border-black transition-all"
-                                />
-                            </div>
-                            <div className="space-y-2">
-                                <label className="text-[9px] font-bold text-slate-400 uppercase">Max Delay (m)</label>
-                                <input 
-                                    type="number"
-                                    value={form.maxPublishDelay || 120}
-                                    onChange={(e) => updateForm('maxPublishDelay', parseInt(e.target.value))}
-                                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2 text-xs font-bold outline-none focus:bg-white focus:border-black transition-all"
-                                />
-                            </div>
-                        </div>
-                    </section>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="space-y-1">
+                    <label className="text-[10px] font-medium text-slate-400">Scraping pulse (min)</label>
+                    <input type="number" value={form.scrapingInterval || 60} onChange={(e) => updateForm('scrapingInterval', parseInt(e.target.value))} className="w-full bg-white border border-slate-200 rounded-sm px-2 py-1 text-[11px] font-mono font-bold focus:border-black outline-none transition-all" />
                 </div>
+                <div className="space-y-1">
+                    <label className="text-[10px] font-medium text-slate-400">Min delay (min)</label>
+                    <input type="number" value={form.minPublishDelay || 60} onChange={(e) => updateForm('minPublishDelay', parseInt(e.target.value))} className="w-full bg-white border border-slate-200 rounded-sm px-2 py-1 text-[11px] font-mono font-bold focus:border-black outline-none transition-all" />
+                </div>
+                <div className="space-y-1">
+                    <label className="text-[10px] font-medium text-slate-400">Max delay (min)</label>
+                    <input type="number" value={form.maxPublishDelay || 120} onChange={(e) => updateForm('maxPublishDelay', parseInt(e.target.value))} className="w-full bg-white border border-slate-200 rounded-sm px-2 py-1 text-[11px] font-mono font-bold focus:border-black outline-none transition-all" />
+                </div>
+            </div>
 
-                {/* 4. Weekly Scheduling Matrix */}
-                <section className="space-y-6 pt-4 border-t border-slate-100">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                            <span className="material-symbols-outlined text-sm text-slate-400">calendar_month</span>
-                            <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Weekly Scheduling Matrix</h4>
-                        </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                        {DAYS.map(day => (
-                            <div key={day.key} className="p-4 bg-slate-50 rounded-xl border border-slate-100 group hover:bg-white hover:border-slate-300 transition-all">
-                                <div className="flex justify-between items-center mb-3">
-                                    <span className="text-[10px] font-black text-slate-900 uppercase tracking-tighter">{day.label}</span>
-                                    <button 
-                                        onClick={() => addTime(day.key)}
-                                        className="w-5 h-5 rounded-full bg-white border border-slate-200 flex items-center justify-center hover:bg-black hover:text-white transition-all shadow-sm"
-                                    >
-                                        <span className="material-symbols-outlined text-[14px]">add</span>
-                                    </button>
-                                </div>
-                                <div className="flex flex-wrap gap-1.5 min-h-[30px]">
-                                    {schedule[day.key]?.map(time => (
-                                        <div 
-                                            key={time}
-                                            className="px-2 py-1 bg-white border border-slate-200 rounded-md text-[9px] font-black flex items-center gap-1 group/item hover:border-red-200"
-                                        >
-                                            {time}
-                                            <button 
-                                                onClick={() => removeTime(day.key, time)}
-                                                className="opacity-0 group-hover/item:opacity-100 text-slate-400 hover:text-red-500 transition-all"
-                                            >
-                                                <span className="material-symbols-outlined text-[12px]">close</span>
-                                            </button>
-                                        </div>
-                                    ))}
-                                    {(!schedule[day.key] || schedule[day.key].length === 0) && (
-                                        <span className="text-[9px] text-slate-300 italic">No slots</span>
-                                    )}
-                                </div>
+            <div className="pt-4 space-y-3">
+                <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">Weekly schedule matrix</h4>
+                <div className="grid grid-cols-7 gap-1">
+                    {DAYS.map(day => (
+                        <div key={day.key} className="border border-slate-100 rounded-sm bg-slate-50/50 p-2 min-h-[80px] flex flex-col gap-2">
+                            <div className="flex justify-between items-center">
+                                <span className="text-[9px] font-bold text-black">{day.label}</span>
+                                <button onClick={() => addTime(day.key)} className="text-slate-400 hover:text-black transition-all">
+                                    <span className="material-symbols-outlined text-[14px]">add</span>
+                                </button>
                             </div>
-                        ))}
-                    </div>
-                </section>
+                            <div className="flex flex-col gap-1">
+                                {schedule[day.key]?.map(time => (
+                                    <div key={time} className="px-1 py-0.5 bg-white border border-slate-200 rounded-sm text-[9px] font-mono flex justify-between items-center group">
+                                        {time}
+                                        <button onClick={() => removeTime(day.key, time)} className="opacity-0 group-hover:opacity-100 text-slate-300 hover:text-red-500 transition-all">
+                                            <span className="material-symbols-outlined text-[10px]">close</span>
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    ))}
+                </div>
             </div>
         </div>
     );

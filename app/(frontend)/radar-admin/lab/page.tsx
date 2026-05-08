@@ -2,59 +2,73 @@
 
 import React, { useState } from 'react';
 import { useRadarAdmin } from '../components/RadarAdminContext';
-import { DashboardLayout } from '../components/DashboardLayout';
+import { ModernDashboardLayout } from '../components/ModernDashboardLayout';
 import { ConsoleTab } from '../components/ConsoleTab';
 import { TestIATab } from '../components/TestIATab';
+import { motion, AnimatePresence } from 'framer-motion';
 
 export default function LabPage() {
     const { isDaemonRunning, countdown } = useRadarAdmin();
     const [activeTab, setActiveTab] = useState<'CONSOLE' | 'TEST_IA'>('CONSOLE');
 
+    const tabs = [
+        { key: 'CONSOLE', label: 'Daemon console', icon: 'terminal' },
+        { key: 'TEST_IA', label: 'Cortex IA testing', icon: 'psychology_alt' },
+    ];
+
     return (
-        <DashboardLayout 
-            title="LABORATOIRE" 
-            subtitle={countdown || "Diagnostics système et tests IA..."} 
+        <ModernDashboardLayout 
+            title="Laboratory" 
+            subtitle={countdown || "System diagnostics & AI prototyping"} 
             isDaemonRunning={isDaemonRunning}
         >
-            <div className="max-w-6xl space-y-8 font-label">
-                <header className="flex justify-between items-end border-b-4 border-stone-200 pb-6">
-                    <div>
-                        <h2 className="text-3xl font-black uppercase tracking-tighter font-headline mb-2">Laboratoire</h2>
-                        <p className="text-xs font-bold text-stone-500 uppercase tracking-widest">Extraction de signaux et ingénierie de prompts IA</p>
-                    </div>
-                    <nav className="flex gap-4">
+            <div className="space-y-6">
+                <div className="flex items-center gap-1 border-b border-slate-200">
+                    {tabs.map(tab => (
                         <button
-                            onClick={() => setActiveTab('CONSOLE')}
-                            className={`px-6 py-2 font-black uppercase text-[10px] tracking-widest border-4 transition-all ${
-                                activeTab === 'CONSOLE' 
-                                    ? 'bg-stone-900 text-white border-stone-900 shadow-[4px_4px_0px_0px_#bc0100]' 
-                                    : 'bg-white text-stone-400 border-stone-200 hover:border-stone-400'
+                            key={tab.key}
+                            onClick={() => setActiveTab(tab.key as any)}
+                            className={`px-4 py-2 text-[11px] font-semibold transition-all relative ${
+                                activeTab === tab.key 
+                                    ? 'text-black' 
+                                    : 'text-slate-400 hover:text-black'
                             }`}
                         >
-                            Console daemon
+                            <div className="flex items-center gap-1.5">
+                                <span className="material-symbols-outlined text-[16px]">{tab.icon}</span>
+                                {tab.label}
+                            </div>
+                            {activeTab === tab.key && (
+                                <div className="absolute bottom-0 left-0 right-0 h-[1.5px] bg-black" />
+                            )}
                         </button>
-                        <button
-                            onClick={() => setActiveTab('TEST_IA')}
-                            className={`px-6 py-2 font-black uppercase text-[10px] tracking-widest border-4 transition-all ${
-                                activeTab === 'TEST_IA' 
-                                    ? 'bg-stone-900 text-white border-stone-900 shadow-[4px_4px_0px_0px_#bc0100]' 
-                                    : 'bg-white text-stone-400 border-stone-200 hover:border-stone-400'
-                            }`}
-                        >
-                            Test Cortex IA
-                        </button>
-                    </nav>
-                </header>
-
-                <div className="bg-white border-4 border-stone-900 shadow-[8px_8px_0px_0px_#1A1C1C] overflow-hidden min-h-[600px]">
-                    {activeTab === 'CONSOLE' ? <ConsoleTab /> : <TestIATab />}
+                    ))}
                 </div>
 
-                <footer className="bg-stone-900 text-stone-500 p-4 font-mono text-[10px] uppercase tracking-widest flex items-center gap-4">
-                    <span className="w-2 h-2 rounded-full bg-red-600 animate-pulse" />
-                    Environnement Lab actif // Prêt pour exécution
+                <div className="bg-white border border-slate-200 rounded-sm shadow-sm overflow-hidden min-h-[500px]">
+                    <AnimatePresence mode="wait">
+                        <motion.div
+                            key={activeTab}
+                            initial={{ opacity: 0, y: 4 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -4 }}
+                            transition={{ duration: 0.15 }}
+                            className="p-1"
+                        >
+                            {activeTab === 'CONSOLE' ? <ConsoleTab /> : <TestIATab />}
+                        </motion.div>
+                    </AnimatePresence>
+                </div>
+
+                <footer className="bg-slate-50 border border-slate-200 p-2 rounded-sm flex items-center gap-3">
+                    <div className="flex items-center gap-1.5 ml-2">
+                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_4px_rgba(16,185,129,0.5)] animate-pulse" />
+                        <span className="text-[10px] font-mono font-bold text-slate-500 uppercase tracking-tighter">Lab environment active</span>
+                    </div>
+                    <div className="h-3 w-px bg-slate-200" />
+                    <span className="text-[10px] text-slate-400 font-medium italic">Ready for neural execution</span>
                 </footer>
             </div>
-        </DashboardLayout>
+        </ModernDashboardLayout>
     );
 }

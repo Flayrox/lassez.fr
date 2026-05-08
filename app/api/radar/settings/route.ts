@@ -25,8 +25,8 @@ export async function PATCH(request: Request) {
         // 1. Toggles (Booleans)
         const boolFields = [
             'enableAutoPublish', 'enableX', 'enableMastodon', 
-            'enableBluesky', 'enableDiscord', 'enablePayloadCMS', 
-            'videoIngestEnabled'
+            'enableBluesky', 'enableDiscord', 'enablePayloadCMS',
+            'allowSourceImages'
         ];
         boolFields.forEach(f => {
             if (body[f] !== undefined) updateData[f] = !!body[f];
@@ -44,7 +44,8 @@ export async function PATCH(request: Request) {
         const stringFields = [
             'discordPublishMode', 'xPublishMode', 'blueskyPublishMode',
             'aiModelFlash', 'aiModelPro', 'customPromptModifier', 
-            'daemonSchedule', 'pipelineGraphJson', 'keywords', 'bannedKeywords'
+            'daemonSchedule', 'pipelineGraphJson', 'keywords', 'bannedKeywords',
+            'rss_feeds', 'telegram_channels', 'google_news_queries', 'social_targets_by_type_json'
         ];
         stringFields.forEach(f => {
             if (body[f] !== undefined) {

@@ -27,7 +27,7 @@ export async function GET() {
 export async function POST(request: Request) {
     try {
         const body = await request.json();
-        const { url, type, source_name, source_bias, trust_score } = body;
+        const { url, type, source_name, source_bias, trust_score, allowSourceImages } = body;
 
         if (!url || !type || !source_name) {
             return NextResponse.json({ success: false, error: 'Champs requis manquants' }, { status: 400 });
@@ -40,7 +40,7 @@ export async function POST(request: Request) {
                 source_name,
                 source_bias: source_bias || 'Centre',
                 trust_score: parseInt(trust_score as any) || 5,
-                allowSourceImages: true,
+                allowSourceImages: allowSourceImages !== undefined ? !!allowSourceImages : true,
                 active: true
             }
         });
@@ -67,6 +67,8 @@ export async function PATCH(request: Request) {
         // On prépare les données proprement
         const dataToUpdate: any = { ...updates };
         if (updates.trust_score !== undefined) dataToUpdate.trust_score = parseInt(updates.trust_score as any);
+        if (updates.allowSourceImages !== undefined) dataToUpdate.allowSourceImages = !!updates.allowSourceImages;
+        if (updates.active !== undefined) dataToUpdate.active = !!updates.active;
         
         const source = await (prisma.source as any).update({
             where: { id },

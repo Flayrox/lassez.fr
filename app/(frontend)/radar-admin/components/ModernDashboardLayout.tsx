@@ -44,7 +44,7 @@ export function ModernDashboardLayout({
             />
             {/* The main container MUST be flex-1 and h-full to allow canvas stretching */}
             <main className="flex-1 relative flex flex-col overflow-hidden">
-                <div className={`${fullBleed ? 'flex-1 h-full overflow-hidden flex flex-col' : 'p-10 max-w-[1600px] w-full mx-auto overflow-y-auto'} relative z-10 h-full`}>
+                <div className={`${fullBleed ? 'flex-1 h-full overflow-hidden flex flex-col' : 'p-6 max-w-[1400px] w-full mx-auto overflow-y-auto'} relative z-10 h-full`}>
                     {children}
                 </div>
             </main>

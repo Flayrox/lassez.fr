@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 
 type LogItem = {
     id: string;
@@ -18,14 +17,12 @@ type DaemonStatus = {
     postCounts?: Record<string, number>;
 };
 
-type HealthMap = Record<string, { status: string; message: string }>;
-
-const FILTERS: Array<{ key: string; label: string; icon: string }> = [
-    { key: 'all', label: 'All', icon: 'list' },
-    { key: 'Daemon', label: 'Engine', icon: 'settings_input_component' },
-    { key: 'Node 1', label: 'Ingestion', icon: 'rss_feed' },
-    { key: 'Node 6', label: 'Publisher', icon: 'send' },
-    { key: 'ERROR', label: 'Critical', icon: 'report' }
+const FILTERS = [
+    { key: 'all', label: 'All signals' },
+    { key: 'Daemon', label: 'Engine' },
+    { key: 'Node 1', label: 'Ingestion' },
+    { key: 'Node 6', label: 'Publisher' },
+    { key: 'ERROR', label: 'Critical' }
 ];
 
 function formatDate(input?: string | null) {
@@ -35,31 +32,20 @@ function formatDate(input?: string | null) {
     return d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 }
 
-export function LiveLogsPanel({ compact = false }: { compact?: boolean }) {
+export function LiveLogsPanel() {
     const [logs, setLogs] = useState<LogItem[]>([]);
     const [filter, setFilter] = useState<string>('all');
     const [query, setQuery] = useState('');
     const [paused, setPaused] = useState(false);
-    const [pendingCount, setPendingCount] = useState(0);
     const [daemonStatus, setDaemonStatus] = useState<DaemonStatus | null>(null);
-    const [health, setHealth] = useState<HealthMap>({});
 
     const viewportRef = useRef<HTMLDivElement>(null);
-    const latestLengthRef = useRef(0);
-
-    useEffect(() => { latestLengthRef.current = logs.length; }, [logs.length]);
 
     const fetchLogs = async () => {
         try {
             const res = await fetch('/api/radar/logs', { cache: 'no-store' });
             const data = await res.json();
-            if (!data.success) return;
-            const incoming = data.logs || [];
-            if (!paused) { setLogs(incoming); setPendingCount(0); }
-            else {
-                const delta = Math.max(0, incoming.length - latestLengthRef.current);
-                if (delta > 0) setPendingCount(prev => prev + delta);
-            }
+            if (data.success && !paused) setLogs(data.logs || []);
         } catch (e) { console.error(e); }
     };
 
@@ -71,24 +57,11 @@ export function LiveLogsPanel({ compact = false }: { compact?: boolean }) {
         } catch (e) { console.error(e); }
     };
 
-    const fetchHealth = async () => {
-        try {
-            const res = await fetch('/api/radar/health', { cache: 'no-store' });
-            const data = await res.json();
-            if (data.success && data.health) setHealth(data.health);
-        } catch (e) { console.error(e); }
-    };
-
     useEffect(() => {
-        const runUpdates = () => {
-            if (document.hidden) return; 
-            fetchLogs(); fetchDaemonStatus(); fetchHealth();
-        };
-        runUpdates();
-        const logsTimer = setInterval(() => !document.hidden && fetchLogs(), 5000); 
-        const statusTimer = setInterval(() => !document.hidden && fetchDaemonStatus(), 15000);
-        const healthTimer = setInterval(() => !document.hidden && fetchHealth(), 25000);
-        return () => { clearInterval(logsTimer); clearInterval(statusTimer); clearInterval(healthTimer); };
+        fetchLogs(); fetchDaemonStatus();
+        const logsTimer = setInterval(fetchLogs, 5000); 
+        const statusTimer = setInterval(fetchDaemonStatus, 15000);
+        return () => { clearInterval(logsTimer); clearInterval(statusTimer); };
     }, [paused]);
 
     useEffect(() => {
@@ -97,11 +70,17 @@ export function LiveLogsPanel({ compact = false }: { compact?: boolean }) {
         }
     }, [logs, paused]);
 
+    const availableNodes = useMemo(() => {
+        const nodes = new Set<string>();
+        logs.forEach(l => { if (l.nodeId) nodes.add(l.nodeId); });
+        return Array.from(nodes).sort();
+    }, [logs]);
+
     const filtered = useMemo(() => {
         const q = query.trim().toLowerCase();
         return logs.filter((l) => {
             if (filter !== 'all') {
-                if (filter === 'ERROR') {
+                if (filter === 'CRITICAL') {
                     if (l.level !== 'ERROR') return false;
                 } else if (l.nodeId !== filter) {
                     return false;
@@ -113,65 +92,94 @@ export function LiveLogsPanel({ compact = false }: { compact?: boolean }) {
     }, [logs, filter, query]);
 
     return (
-        <div className="flex flex-col h-full bg-white text-slate-900 font-sans">
-            {/* Header Metrics (Payload Grid) */}
-            <div className="px-6 py-4 grid grid-cols-2 md:grid-cols-4 gap-0 border-b border-slate-200">
-                <MetricCard label="Engine Status" value={daemonStatus?.daemonHealth?.message || 'Stable'} active={true} border />
-                <MetricCard label="Next Scan" value={formatDate(daemonStatus?.nextScanAt)} border />
-                <MetricCard label="System Vitals" value={`${Object.keys(health).length} OK`} border />
-                <MetricCard label="Post Queue" value={`${daemonStatus?.postCounts?.PENDING || 0} PENDING`} />
+        <div className="flex flex-col h-full bg-white text-slate-900 font-sans border border-slate-200 rounded-sm overflow-hidden shadow-2xl">
+            {/* Minimal Metrics */}
+            <div className="px-4 py-2 flex items-center gap-6 border-b border-slate-100 bg-white">
+                <MetricItem label="Engine" value={daemonStatus?.daemonHealth?.message || 'Stable'} ok />
+                <MetricItem label="Next scan" value={formatDate(daemonStatus?.nextScanAt)} />
+                <MetricItem label="Pending" value={`${daemonStatus?.postCounts?.PENDING || 0} posts`} />
+                <div className="ml-auto flex items-center gap-2">
+                    <button onClick={() => setPaused(!paused)} className={`px-2 py-0.5 rounded text-[9px] font-bold transition-all ${paused ? 'bg-amber-500 text-white' : 'text-slate-400 hover:text-black'}`}>
+                        {paused ? 'Resume' : 'Pause'}
+                    </button>
+                </div>
             </div>
 
-            {/* Controls (Payload Toolbar) */}
-            <div className="px-5 py-3 flex flex-col md:flex-row gap-4 border-b border-slate-100 bg-slate-50/50">
-                <div className="flex gap-px bg-slate-200 border border-slate-200 rounded-sm overflow-hidden">
-                    {FILTERS.map(f => (
+            {/* Toolbar */}
+            <div className="px-4 py-1.5 flex items-center gap-4 bg-slate-50/50 border-b border-slate-100">
+                <div className="flex gap-1">
+                    <button
+                        onClick={() => setFilter('all')}
+                        className={`px-2 py-0.5 text-[10px] font-bold transition-all rounded-sm ${
+                            filter === 'all' ? 'bg-black text-white shadow-sm' : 'text-slate-400 hover:text-black'
+                        }`}
+                    >
+                        All
+                    </button>
+                    <button
+                        onClick={() => setFilter('CRITICAL')}
+                        className={`px-2 py-0.5 text-[10px] font-bold transition-all rounded-sm ${
+                            filter === 'CRITICAL' ? 'bg-rose-600 text-white shadow-sm' : 'text-rose-400/60 hover:text-rose-600'
+                        }`}
+                    >
+                        Critical
+                    </button>
+                    <div className="h-4 w-px bg-slate-200 mx-1 self-center" />
+                    {availableNodes.map(node => (
                         <button
-                            key={f.key}
-                            onClick={() => setFilter(f.key)}
-                            className={`px-3 py-1.5 text-[9px] font-bold uppercase tracking-widest transition-all ${
-                                filter === f.key ? 'bg-black text-white' : 'bg-white text-slate-500 hover:text-black'
+                            key={node}
+                            onClick={() => setFilter(node)}
+                            className={`px-2 py-0.5 text-[10px] font-bold transition-all rounded-sm uppercase tracking-tighter ${
+                                filter === node ? 'bg-black text-white shadow-sm' : 'text-slate-400 hover:text-black'
                             }`}
                         >
-                            {f.label}
+                            {node}
                         </button>
                     ))}
                 </div>
-                <div className="flex-1 relative">
+                <div className="flex-1">
                     <input
                         type="text"
                         value={query}
                         onChange={(e) => setQuery(e.target.value)}
-                        placeholder="Search logs..."
-                        className="w-full bg-white border border-slate-200 rounded-sm py-1.5 px-3 font-mono text-[11px] focus:outline-none focus:border-black transition-colors"
+                        placeholder="Filter console..."
+                        className="w-full bg-transparent border-none py-0.5 text-[11px] font-mono outline-none placeholder:text-slate-300"
                     />
                 </div>
             </div>
 
-            {/* Terminal Viewport */}
+            {/* Terminal */}
             <div 
                 ref={viewportRef} 
-                className="flex-1 overflow-y-auto p-5 font-mono text-[11px] bg-white space-y-0"
+                className="flex-1 overflow-y-auto p-4 font-mono text-[11px] bg-white"
             >
-                {filtered.map((line, idx) => (
-                    <div key={line.id || idx} className="flex gap-4 py-0.5 border-b border-slate-50 hover:bg-slate-50 transition-colors group">
-                        <span className="text-slate-300 shrink-0 select-none w-20">[{formatDate(line.timestamp)}]</span>
-                        <span className={`shrink-0 font-bold w-24 ${line.level === 'ERROR' ? 'text-rose-600' : 'text-black'}`}>
-                            {(line.nodeId || 'SYSTEM').toUpperCase()}
-                        </span>
-                        <span className="text-slate-600 flex-1">{line.message}</span>
-                    </div>
-                ))}
+                <div className="space-y-0.5">
+                    {filtered.map((line, idx) => (
+                        <div key={line.id || idx} className="flex gap-3 leading-tight group">
+                            <span className="text-slate-300 shrink-0 select-none font-mono">[{formatDate(line.timestamp)}]</span>
+                            <span className={`shrink-0 font-bold w-20 ${
+                                line.level === 'ERROR' ? 'text-rose-600' : 
+                                line.level === 'SUCCESS' ? 'text-emerald-600' : 
+                                'text-slate-400'
+                            }`}>
+                                {line.nodeId || 'SYSTEM'}
+                            </span>
+                            <span className={`${line.level === 'SUCCESS' ? 'text-emerald-700/80 font-medium' : 'text-slate-600'} truncate group-hover:whitespace-normal group-hover:overflow-visible transition-all`}>
+                                {line.message}
+                            </span>
+                        </div>
+                    ))}
+                </div>
             </div>
         </div>
     );
 }
 
-function MetricCard({ label, value, active, border }: { label: string, value: string, active?: boolean, border?: boolean }) {
+function MetricItem({ label, value, ok }: { label: string, value: string, ok?: boolean }) {
     return (
-        <div className={`flex flex-col px-4 ${border ? 'border-r border-slate-100' : ''}`}>
-            <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">{label}</span>
-            <span className={`text-[10px] font-bold uppercase ${active ? 'text-emerald-600' : 'text-black'}`}>{value}</span>
+        <div className="flex items-baseline gap-1.5">
+            <span className="text-[9px] font-medium text-slate-400">{label}</span>
+            <span className={`text-[10px] font-bold font-mono ${ok ? 'text-emerald-600' : 'text-black'}`}>{value}</span>
         </div>
     );
 }

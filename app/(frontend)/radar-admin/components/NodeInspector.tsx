@@ -86,7 +86,6 @@ export function NodeInspector({ nodes, onUpdateNode, onDeleteNode }: NodeInspect
         const isModelSelector = key.includes('model');
         const isSlider = key.includes('threshold') || key.includes('similarity');
         
-        // Advanced Toggle Detection
         const isToggle = typeof value === 'boolean' || 
                          ['true', 'false', '1', '0'].includes(String(value).toLowerCase()) ||
                          label.toLowerCase().includes('enabled') || 
@@ -101,36 +100,37 @@ export function NodeInspector({ nodes, onUpdateNode, onDeleteNode }: NodeInspect
             let obj: any = {};
             try { obj = JSON.parse(value); } catch (e) { obj = {}; }
             return (
-                <div className="space-y-4 bg-white border border-slate-200 p-4 rounded-sm overflow-hidden">
-                    <div className="overflow-x-auto">
-                        <table className="w-full border-collapse">
-                            <thead>
-                                <tr>
-                                    <th className="text-left py-2 pr-4 text-[7px] font-black uppercase text-slate-300 tracking-tighter">Content Type</th>
-                                    {SOCIAL_PLATFORMS.map(p => (
-                                        <th key={p.key} className="text-center py-2 px-1 text-[7px] font-black uppercase text-slate-300 tracking-tighter" title={p.label}>{p.icon}</th>
-                                    ))}
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100">
-                                {CONTENT_TYPES.map(type => (
-                                    <tr key={type} className="group hover:bg-slate-50 transition-colors">
-                                        <td className="py-2.5 pr-4"><span className="text-[9px] font-black text-slate-500 whitespace-nowrap">{type}</span></td>
-                                        {SOCIAL_PLATFORMS.map(p => {
-                                            const isActive = obj[type]?.[p.key];
-                                            return (
-                                                <td key={p.key} className="text-center py-2 px-1">
-                                                    <button onClick={() => toggleRouting(type, p.key, value, idx)} className={`w-5 h-5 rounded-sm border flex items-center justify-center transition-all ${isActive ? 'bg-black border-black shadow-sm' : 'bg-white border-slate-200 opacity-30 hover:opacity-100'}`}>
-                                                        {isActive && <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />}
-                                                    </button>
-                                                </td>
-                                            );
-                                        })}
-                                    </tr>
+                <div className="bg-white border border-slate-100 rounded-sm overflow-hidden">
+                    <table className="w-full border-collapse">
+                        <thead>
+                            <tr className="bg-slate-50 border-b border-slate-100">
+                                <th className="text-left py-1.5 px-3 text-[8px] font-bold text-slate-400 uppercase tracking-tighter">Content type</th>
+                                {SOCIAL_PLATFORMS.map(p => (
+                                    <th key={p.key} className="text-center py-1.5 px-1 text-[8px] font-bold text-slate-400 uppercase tracking-tighter" title={p.label}>{p.icon}</th>
                                 ))}
-                            </tbody>
-                        </table>
-                    </div>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-50 font-mono text-[10px]">
+                            {CONTENT_TYPES.map(type => (
+                                <tr key={type} className="hover:bg-slate-50/50 transition-colors">
+                                    <td className="py-1.5 px-3 font-medium text-slate-600 truncate max-w-[120px]">{type.replace(/[^\w\s]/gi, '').trim()}</td>
+                                    {SOCIAL_PLATFORMS.map(p => {
+                                        const isActive = obj[type]?.[p.key];
+                                        return (
+                                            <td key={p.key} className="text-center py-1 px-1">
+                                                <button 
+                                                    onClick={() => toggleRouting(type, p.key, value, idx)} 
+                                                    className={`w-3.5 h-3.5 mx-auto rounded-sm border transition-all ${isActive ? 'bg-black border-black' : 'bg-white border-slate-200'}`}
+                                                >
+                                                    {isActive && <div className="w-1 h-1 mx-auto rounded-full bg-emerald-400" />}
+                                                </button>
+                                            </td>
+                                        );
+                                    })}
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
                 </div>
             );
         }
@@ -139,8 +139,8 @@ export function NodeInspector({ nodes, onUpdateNode, onDeleteNode }: NodeInspect
             const floatVal = parseFloat(value) || 0.65;
             const displayVal = Math.round(floatVal * 100);
             return (
-                <div className="space-y-3 py-1">
-                    <div className="flex justify-between items-center"><span className="text-[10px] font-mono text-black font-black">{displayVal}%</span></div>
+                <div className="space-y-2 py-1">
+                    <div className="flex justify-between items-center"><span className="text-[10px] font-mono text-black font-bold">{displayVal}%</span></div>
                     <input type="range" min="0.3" max="0.95" step="0.01" value={floatVal} onChange={(e) => handleChange('settings', e.target.value, true, idx)} className="w-full h-1 bg-slate-100 rounded-full appearance-none cursor-pointer accent-black" />
                 </div>
             );
@@ -149,7 +149,7 @@ export function NodeInspector({ nodes, onUpdateNode, onDeleteNode }: NodeInspect
         if (isModelSelector) {
             return (
                 <div className="relative">
-                    <select value={value} onChange={(e) => handleChange('settings', e.target.value, true, idx)} className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[10px] font-bold focus:border-black outline-none appearance-none cursor-pointer pr-8">
+                    <select value={value} onChange={(e) => handleChange('settings', e.target.value, true, idx)} className="w-full bg-white border border-slate-200 rounded-sm px-2 py-1.5 text-[11px] font-mono font-bold focus:border-black outline-none appearance-none cursor-pointer pr-8">
                         <option value="">Select model...</option>
                         {AI_MODELS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
                     </select>
@@ -163,22 +163,22 @@ export function NodeInspector({ nodes, onUpdateNode, onDeleteNode }: NodeInspect
             return (
                 <button 
                     onClick={() => handleChange('settings', !val, true, idx)} 
-                    className={`flex items-center gap-3 px-4 py-2 rounded-sm border text-[9px] font-black transition-all ${val ? 'bg-black text-white border-black shadow-md' : 'bg-white text-slate-400 border-slate-200'}`}
+                    className={`flex items-center gap-2 px-3 py-1 rounded-sm border text-[10px] font-bold transition-all ${val ? 'bg-black text-white border-black' : 'bg-white text-slate-500 border-slate-200'}`}
                 >
-                    <div className={`w-1.5 h-1.5 rounded-full ${val ? 'bg-emerald-400' : 'bg-slate-300'}`} />
-                    {val ? 'ENABLED' : 'DISABLED'}
+                    <div className={`w-1 h-1 rounded-full ${val ? 'bg-emerald-400 shadow-[0_0_2px_rgba(52,211,153,1)]' : 'bg-slate-300'}`} />
+                    {val ? 'Enabled' : 'Disabled'}
                 </button>
             );
         }
 
         if (isTextarea) {
             return (
-                <textarea value={value} rows={6} onChange={(e) => handleChange('settings', e.target.value, true, idx)} className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[10px] font-mono focus:border-black outline-none transition-all resize-none leading-relaxed" placeholder="Enter values..." />
+                <textarea value={value} rows={5} onChange={(e) => handleChange('settings', e.target.value, true, idx)} className="w-full bg-slate-50 border border-slate-200 rounded-sm px-3 py-2 text-[11px] font-mono focus:bg-white focus:border-black outline-none transition-all resize-none leading-relaxed" placeholder="Enter values..." />
             );
         }
 
         return (
-            <input type="text" value={value} onChange={(e) => handleChange('settings', e.target.value, true, idx)} className="w-full border border-slate-200 bg-white rounded-sm px-3 py-2 text-[10px] font-mono focus:border-black outline-none transition-all" />
+            <input type="text" value={value} onChange={(e) => handleChange('settings', e.target.value, true, idx)} className="w-full border border-slate-200 bg-white rounded-sm px-3 py-1.5 text-[11px] font-mono focus:border-black outline-none transition-all" />
         );
     };
 
@@ -186,39 +186,37 @@ export function NodeInspector({ nodes, onUpdateNode, onDeleteNode }: NodeInspect
         <AnimatePresence>
             <motion.div 
                 drag dragMomentum={false}
-                initial={{ opacity: 0, scale: 0.98, x: 20 }}
-                animate={{ opacity: 1, scale: 1, x: 0 }}
-                exit={{ opacity: 0, scale: 0.98, x: 20 }}
-                className="fixed z-[800] w-[420px] pointer-events-auto right-12 top-24"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 20 }}
+                className="fixed z-[800] w-[380px] pointer-events-auto right-8 top-16"
             >
-                <div className="bg-white border border-slate-300 rounded-sm shadow-[0_32px_64px_-12px_rgba(0,0,0,0.22)] overflow-hidden flex flex-col max-h-[90vh]">
-                    <div className="px-5 py-4 bg-white border-b border-slate-100 flex items-center justify-between cursor-move select-none">
-                        <div className="flex items-center gap-3">
+                <div className="bg-white border border-slate-200 rounded-sm shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
+                    <div className="px-4 py-3 bg-white border-b border-slate-100 flex items-center justify-between cursor-move select-none">
+                        <div className="flex items-center gap-2">
                             <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: localNode.color?.replace('text-', '') || '#000' }} />
-                            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-black">Orchestrator Settings</span>
+                            <span className="text-[11px] font-bold text-black uppercase tracking-tighter">Node inspector</span>
                         </div>
-                        <button onClick={() => setSelectedNodeId(null)} className="w-6 h-6 flex items-center justify-center hover:bg-slate-100 rounded-sm transition-colors group">
-                            <span className="material-symbols-outlined text-[16px] text-slate-400 group-hover:text-black">close</span>
+                        <button onClick={() => setSelectedNodeId(null)} className="text-slate-400 hover:text-black transition-colors">
+                            <span className="material-symbols-outlined text-[18px]">close</span>
                         </button>
                     </div>
                     
-                    <div className="p-6 space-y-8 overflow-y-auto custom-scrollbar">
-                        <section>
-                            <label className="text-[8px] font-black text-slate-300 uppercase tracking-[0.2em] block mb-4">Identification</label>
-                            <div className="flex flex-col gap-2">
-                                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">Instance Label</span>
-                                <input type="text" value={localNode.label || ''} onChange={(e) => handleChange('label', e.target.value)} className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[11px] font-bold focus:border-black outline-none shadow-sm" />
+                    <div className="p-5 space-y-6 overflow-y-auto custom-scrollbar bg-white">
+                        <section className="space-y-2">
+                            <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block">Identity</label>
+                            <div className="flex flex-col gap-1">
+                                <span className="text-[10px] font-medium text-slate-500">Instance label</span>
+                                <input type="text" value={localNode.label || ''} onChange={(e) => handleChange('label', e.target.value)} className="w-full bg-slate-50 border border-slate-100 rounded-sm px-3 py-1.5 text-[11px] font-bold focus:bg-white focus:border-black outline-none transition-all" />
                             </div>
                         </section>
 
-                        <section>
-                            <label className="text-[8px] font-black text-slate-300 uppercase tracking-[0.2em] block mb-5">Rules Engine</label>
-                            <div className="space-y-7">
+                        <section className="space-y-4">
+                            <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block">Rules engine</label>
+                            <div className="space-y-5">
                                 {localNode.settings?.map((s: any, idx: number) => (
-                                    <div key={idx} className="flex flex-col gap-3">
-                                        <div className="flex items-center justify-between">
-                                            <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">{s?.label || s?.key}</span>
-                                        </div>
+                                    <div key={idx} className="space-y-1.5">
+                                        <span className="text-[10px] font-bold text-slate-500">{s?.label || s?.key}</span>
                                         {renderField(s, idx)}
                                     </div>
                                 ))}
@@ -226,26 +224,24 @@ export function NodeInspector({ nodes, onUpdateNode, onDeleteNode }: NodeInspect
                         </section>
                     </div>
 
-                    <div className="px-5 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                            <button 
-                                onClick={() => onDeleteNode?.(localNode.id)}
-                                className="flex items-center gap-2 text-rose-500 hover:text-rose-700 transition-colors group"
-                            >
-                                <span className="material-symbols-outlined text-[18px]">delete</span>
-                                <span className="text-[9px] font-black uppercase tracking-widest">Delete Node</span>
-                            </button>
-                        </div>
+                    <div className="px-4 py-3 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
+                        <button 
+                            onClick={() => onDeleteNode?.(localNode.id)}
+                            className="flex items-center gap-1.5 text-slate-400 hover:text-rose-500 transition-colors"
+                        >
+                            <span className="material-symbols-outlined text-[16px]">delete</span>
+                            <span className="text-[10px] font-bold">Delete</span>
+                        </button>
                         <div className="flex gap-2">
-                            <button onClick={() => setSelectedNodeId(null)} className="px-4 py-2 text-slate-400 text-[10px] font-black uppercase rounded-sm hover:text-black transition-all">Cancel</button>
+                            <button onClick={() => setSelectedNodeId(null)} className="px-3 py-1 text-slate-400 text-[11px] font-bold hover:text-black transition-all">Cancel</button>
                             <button 
                                 onClick={handleCommit}
                                 disabled={syncStatus === 'syncing'}
-                                className={`px-8 py-2 text-[10px] font-black uppercase rounded-sm transition-all shadow-lg ${
-                                    syncStatus === 'pending' ? 'bg-black text-white hover:bg-zinc-800' : 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                                className={`px-5 py-1 text-[11px] font-bold rounded-sm transition-all ${
+                                    syncStatus === 'pending' ? 'bg-black text-white' : 'bg-slate-200 text-slate-400 cursor-not-allowed'
                                 }`}
                             >
-                                Commit
+                                {syncStatus === 'syncing' ? 'Syncing...' : 'Commit changes'}
                             </button>
                         </div>
                     </div>

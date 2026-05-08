@@ -8,79 +8,54 @@ interface DiffusionSectionProps {
 }
 
 const PLATFORMS = [
-    { id: 'enableDiscord', mode: 'discordPublishMode', label: 'Discord', icon: 'forum', color: 'text-indigo-500', bg: 'bg-indigo-50' },
-    { id: 'enableX', mode: 'xPublishMode', label: 'X (Twitter)', icon: 'brand_family', color: 'text-slate-900', bg: 'bg-slate-50' },
-    { id: 'enableBluesky', mode: 'blueskyPublishMode', label: 'Bluesky', icon: 'cloud', color: 'text-blue-500', bg: 'bg-blue-50' },
-    { id: 'enableMastodon', mode: 'enableMastodon', label: 'Mastodon', icon: 'share', color: 'text-purple-500', bg: 'bg-purple-50' },
-    { id: 'enablePayloadCMS', mode: 'enablePayloadCMS', label: 'Payload CMS', icon: 'article', color: 'text-emerald-500', bg: 'bg-emerald-50' },
+    { id: 'enableDiscord', mode: 'discordPublishMode', label: 'Discord' },
+    { id: 'enableX', mode: 'xPublishMode', label: 'X (Twitter)' },
+    { id: 'enableBluesky', mode: 'blueskyPublishMode', label: 'Bluesky' },
+    { id: 'enableMastodon', mode: 'enableMastodon', label: 'Mastodon' },
+    { id: 'enablePayloadCMS', mode: 'enablePayloadCMS', label: 'Payload CMS' },
 ];
 
 export function DiffusionSection({ form, updateForm }: DiffusionSectionProps) {
     return (
-        <div className="space-y-10">
-            <div>
-                <h3 className="text-sm font-black uppercase tracking-widest text-slate-900 mb-1">Social Matrix</h3>
-                <p className="text-[11px] text-slate-500 font-medium italic">Configure the cross-platform distribution of your investigative payloads.</p>
+        <div className="space-y-6">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-2">
+                <h3 className="text-sm font-semibold text-black">Social matrix</h3>
+                <span className="text-[10px] text-slate-400 font-mono italic">Payload distribution routing</span>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                 {PLATFORMS.map((p) => (
                     <div 
                         key={p.id}
-                        className={`p-6 rounded-2xl border transition-all ${
-                            form[p.id] ? 'bg-white border-slate-300 shadow-md' : 'bg-slate-50/50 border-slate-100 opacity-60'
+                        className={`p-3 rounded-sm border transition-all ${
+                            form[p.id] ? 'bg-white border-slate-200 shadow-sm' : 'bg-slate-50 border-slate-100 opacity-60'
                         }`}
                     >
-                        <div className="flex justify-between items-start mb-6">
-                            <div className="flex items-center gap-4">
-                                <div className={`w-10 h-10 rounded-xl ${p.bg} flex items-center justify-center`}>
-                                    <span className={`material-symbols-outlined ${p.color}`}>{p.icon}</span>
-                                </div>
-                                <div>
-                                    <h4 className="text-xs font-black text-slate-900 uppercase tracking-widest">{p.label}</h4>
-                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">
-                                        {form[p.id] ? 'Connection Active' : 'Offline'}
-                                    </p>
-                                </div>
-                            </div>
+                        <div className="flex justify-between items-center mb-2">
+                            <span className="text-[11px] font-bold text-black">{p.label}</span>
                             <button 
                                 onClick={() => updateForm(p.id, !form[p.id])}
-                                className={`w-10 h-5 rounded-full transition-all relative ${form[p.id] ? 'bg-black' : 'bg-slate-300'}`}
+                                className={`w-6 h-3.5 rounded-full relative transition-all ${form[p.id] ? 'bg-black' : 'bg-slate-200'}`}
                             >
-                                <div className={`absolute top-1 w-3 h-3 rounded-full bg-white transition-all ${form[p.id] ? 'left-6' : 'left-1'}`} />
+                                <div className={`absolute top-0.5 w-2.5 h-2.5 rounded-full bg-white transition-all ${form[p.id] ? 'left-3' : 'left-0.5'}`} />
                             </button>
                         </div>
 
                         {form[p.id] && p.mode && (
-                            <div className="space-y-4 pt-4 border-t border-slate-50">
-                                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Publishing Strategy</label>
-                                <div className="grid grid-cols-2 gap-2">
+                            <div className="flex gap-1 pt-2 border-t border-slate-50">
+                                {['DIRECT', 'SCHEDULED'].map(m => (
                                     <button 
-                                        onClick={() => updateForm(p.mode, 'DIRECT')}
-                                        className={`px-3 py-2 rounded-lg text-[10px] font-bold transition-all border ${
-                                            form[p.mode] === 'DIRECT' 
-                                                ? 'bg-black text-white border-black' 
-                                                : 'bg-white text-slate-500 border-slate-200 hover:border-slate-400'
+                                        key={m}
+                                        onClick={() => updateForm(p.mode, m)}
+                                        className={`flex-1 py-1 text-[9px] font-bold rounded-sm border transition-all ${
+                                            form[p.mode] === m 
+                                                ? 'bg-slate-900 text-white border-slate-900' 
+                                                : 'bg-white text-slate-400 border-slate-100 hover:border-slate-300'
                                         }`}
                                     >
-                                        DIRECT
+                                        {m}
                                     </button>
-                                    <button 
-                                        onClick={() => updateForm(p.mode, 'SCHEDULED')}
-                                        className={`px-3 py-2 rounded-lg text-[10px] font-bold transition-all border ${
-                                            form[p.mode] === 'SCHEDULED' 
-                                                ? 'bg-black text-white border-black' 
-                                                : 'bg-white text-slate-500 border-slate-200 hover:border-slate-400'
-                                        }`}
-                                    >
-                                        SCHEDULED
-                                    </button>
-                                </div>
-                                <p className="text-[9px] text-slate-400 italic">
-                                    {form[p.mode] === 'DIRECT' 
-                                        ? 'Posts will be published immediately after approval.' 
-                                        : 'Posts will be queued according to the daemon schedule.'}
-                                </p>
+                                ))}
                             </div>
                         )}
                     </div>

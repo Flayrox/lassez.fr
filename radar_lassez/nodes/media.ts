@@ -1,36 +1,37 @@
 import { prisma } from '../lib/prisma';
 import pLimit from 'p-limit';
 import * as google from 'googlethis';
+import { getEffectiveParam } from '../lib/config-resolver';
 
 export async function runMediaNode() {
     console.log(`\n📸 [Node 5: Media] Démarrage de la recherche d'images (OSINT)`);
 
-    // 1. Récupérer les NewsTopic au statut DRAFTED
-    const draftedTopics = await prisma.newsTopic.findMany({
-        where: { status: 'DRAFTED' },
+    // 1. Récupérer les NewsTopic au statut VALIDATED (approuvés par le Node 5)
+    const validatedTopics = await prisma.newsTopic.findMany({
+        where: { status: 'VALIDATED' },
     });
 
-    if (draftedTopics.length === 0) {
-        console.log(`📸 [Node 5: Media] Aucun topic en statut DRAFTED à traiter.`);
+    if (validatedTopics.length === 0) {
+        console.log(`📸 [Node 6: Media] Aucun topic en statut VALIDATED à traiter.`);
         return;
     }
 
-    const settings = await prisma.globalSettings.findFirst();
-    console.log(`📸 [Node 5: Media] ${draftedTopics.length} topics prêts pour l'enrichissement média.`);
+    const allowGlobalImages = await getEffectiveParam('media', 'allowSourceImages', true);
+    console.log(`📸 [Node 6: Media] ${validatedTopics.length} topics prêts pour l'enrichissement média.`);
 
     // 2. Limiteur de concurrence restrictif
     const limit = pLimit(2);
 
-    const tasks = draftedTopics.map(topic => limit(async () => {
+    const tasks = validatedTopics.map(topic => limit(async () => {
         try {
             if (!topic.final_draft) {
                 console.log(`📸 [Node 5: Media] ⚠️ Le topic ${topic.id} n'a pas de final_draft. Ignoré.`);
                 return;
             }
 
-            // 3. Vérification de la configuration Globale
-            if (!settings?.allowSourceImages) {
-                console.log(`📸 [Node 5: Media] ⚠️ allowSourceImages GLOBAL désactivé. Passage en PENDING sans recherche d'image.`);
+            // 3. Vérification de la configuration Globale/Node
+            if (!allowGlobalImages) {
+                console.log(`📸 [Node 6: Media] ⚠️ allowSourceImages désactivé. Passage en PENDING.`);
                 await prisma.newsTopic.update({
                     where: { id: topic.id },
                     data: { status: 'PENDING' }

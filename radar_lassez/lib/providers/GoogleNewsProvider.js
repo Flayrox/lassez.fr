@@ -37,7 +37,7 @@ export class GoogleNewsProvider {
                 }));
         } catch (error) {
             console.error('[Provider:GoogleNews] Error:', error.message);
-            return [];
+            throw error;
         }
     }
 }

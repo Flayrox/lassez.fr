@@ -1,5 +1,6 @@
 import Parser from 'rss-parser';
 import { prisma } from '../lib/prisma';
+import { getEffectiveParam } from '../lib/config-resolver';
 
 const parser = new Parser();
 
@@ -14,7 +15,10 @@ export interface IngestedArticle {
     allowSourceImages: boolean;
 }
 
-export async function runIngestionNode(timeWindowHours: number = 12): Promise<IngestedArticle[]> {
+export async function runIngestionNode(timeWindowHoursOverride?: number): Promise<IngestedArticle[]> {
+    // Résolution de la fenêtre temporelle : Override > Node > Global > Default (12)
+    const timeWindowHours = timeWindowHoursOverride ?? await getEffectiveParam('ingestion', 'rss_lookback_hours', 12);
+    
     console.log(`[Node 1: Ingestion] 🌐 Démarrage de l'aspiration (Fenêtre temporelle: ${timeWindowHours}h)`);
     
     // 1. Récupération des paramètres globaux (Flow-Driven)

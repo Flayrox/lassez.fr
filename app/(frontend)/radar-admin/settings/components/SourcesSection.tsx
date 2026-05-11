@@ -12,6 +12,11 @@ interface Source {
     source_bias: string;
     trust_score: number;
     allowSourceImages: boolean;
+    health?: {
+        status: 'HEALTHY' | 'DEGRADED' | 'DISABLED';
+        consecutive_failures: number;
+        last_error?: string;
+    };
 }
 
 type SortConfig = { key: keyof Source; direction: 'asc' | 'desc' } | null;
@@ -37,12 +42,27 @@ export function SourcesSection() {
         allowSourceImages: true
     });
 
+    const [healthData, setHealthData] = useState<any[]>([]);
+
     const fetchSources = async () => {
         setLoading(true);
         try {
-            const res = await fetch('/api/radar/sources');
-            const data = await res.json();
-            if (data.success) setSources(data.sources);
+            const [sourcesRes, healthRes] = await Promise.all([
+                fetch('/api/radar/sources'),
+                fetch('/api/radar/sources/health')
+            ]);
+            
+            const sData = await sourcesRes.json();
+            const hData = await healthRes.json();
+            
+            if (sData.success) {
+                const combined = sData.sources.map((s: Source) => ({
+                    ...s,
+                    health: hData.success ? hData.health.find((h: any) => h.url === s.url) : undefined
+                }));
+                setSources(combined);
+            }
+            if (hData.success) setHealthData(hData.health);
         } catch (e) { console.error(e); }
         setLoading(false);
     };
@@ -105,6 +125,21 @@ export function SourcesSection() {
         } catch (e) { console.error(e); }
     };
 
+    const handleResetHealth = async (url: string) => {
+        try {
+            const res = await fetch('/api/radar/sources/health', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ url })
+            });
+            if (res.ok) fetchSources();
+        } catch (e) { console.error(e); }
+    };
+
+    const quarantinedSources = useMemo(() => {
+        return sources.filter(s => s.health && s.health.status !== 'HEALTHY');
+    }, [sources]);
+
     const sortedSources = useMemo(() => {
         if (!sortConfig) return sources;
         return [...sources].sort((a, b) => {
@@ -158,6 +193,7 @@ export function SourcesSection() {
                                 Trust / Images
                             </th>
                             <th className="w-16 px-4 py-2 text-[10px] font-bold text-slate-400 uppercase tracking-tighter text-center">Status</th>
+                            <th className="w-20 px-4 py-2 text-[10px] font-bold text-slate-400 uppercase tracking-tighter text-center">Health</th>
                             <th className="w-10 px-4 py-2"></th>
                         </tr>
                     </thead>
@@ -195,6 +231,21 @@ export function SourcesSection() {
                                             >
                                                 <div className={`absolute top-0.5 w-2.5 h-2.5 rounded-full bg-white transition-all ${source.active ? 'left-3' : 'left-0.5'}`} />
                                             </button>
+                                        </div>
+                                    </td>
+                                    <td className="px-4 py-2">
+                                        <div className="flex justify-center">
+                                            {source.health ? (
+                                                <div className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold border ${
+                                                    source.health.status === 'HEALTHY' ? 'border-emerald-200 text-emerald-600 bg-emerald-50' :
+                                                    source.health.status === 'DEGRADED' ? 'border-amber-200 text-amber-600 bg-amber-50' :
+                                                    'border-red-200 text-red-600 bg-red-50'
+                                                }`}>
+                                                    {source.health.status}
+                                                </div>
+                                            ) : (
+                                                <span className="text-[9px] text-slate-300">--</span>
+                                            )}
                                         </div>
                                     </td>
                                     <td className="px-4 py-2 text-right">

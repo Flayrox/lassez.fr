@@ -1,6 +1,7 @@
 import stringSimilarity from 'string-similarity';
 import { prisma } from '../lib/prisma';
 import { IngestedArticle } from './ingestion';
+import { getEffectiveParam } from '../lib/config-resolver';
 
 export interface MergedTopic {
     clusterTitle: string;
@@ -14,9 +15,8 @@ export async function runDeduplicatorNode(articles: IngestedArticle[]) {
     
     if (articles.length === 0) return;
 
-    // Récupération dynamique du seuil autorisé depuis l'UI
-    const settings = await prisma.globalSettings.findFirst();
-    const threshold = settings?.similarityThreshold ?? 0.45;
+    // Récupération dynamique du seuil autorisé (Cascade)
+    const threshold = await getEffectiveParam('dedup', 'similarityThreshold', 0.45);
 
     const clusters: MergedTopic[] = [];
 

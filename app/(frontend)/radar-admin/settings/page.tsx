@@ -9,11 +9,12 @@ import { DaemonSection } from './components/DaemonSection';
 import { DiffusionSection } from './components/DiffusionSection';
 import { HealthSection } from './components/HealthSection';
 import { UserSection } from './components/UserSection';
+import { AdvancedSection } from './components/AdvancedSection';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function SettingsPage() {
     const { settings, fetchSettings, isDaemonRunning, countdown } = useRadarAdmin();
-    const [activeTab, setActiveTab] = useState<'sources' | 'pipeline' | 'daemon' | 'diffusion' | 'health' | 'users'>('sources');
+    const [activeTab, setActiveTab] = useState<'sources' | 'pipeline' | 'daemon' | 'diffusion' | 'health' | 'users' | 'advanced'>('sources');
     const [form, setForm] = useState<any>({});
     const [isSaving, setIsSaving] = useState(false);
     const [isDirty, setIsDirty] = useState(false);
@@ -54,6 +55,7 @@ export default function SettingsPage() {
         { key: 'diffusion', label: 'Social matrix', icon: 'share' },
         { key: 'health', label: 'System health', icon: 'health_and_safety' },
         { key: 'users', label: 'Access control', icon: 'group' },
+        { key: 'advanced', label: 'Advanced registry', icon: 'settings_input_component' },
     ];
 
     return (
@@ -115,8 +117,9 @@ export default function SettingsPage() {
                             {activeTab === 'pipeline' && <PipelineSection form={form} updateForm={updateForm} />}
                             {activeTab === 'daemon' && <DaemonSection form={form} updateForm={updateForm} />}
                             {activeTab === 'diffusion' && <DiffusionSection form={form} updateForm={updateForm} />}
-                            {activeTab === 'health' && <HealthSection />}
-                            {activeTab === 'users' && <UserSection />}
+                            { activeTab === 'health' && <HealthSection /> }
+                            { activeTab === 'users' && <UserSection /> }
+                            { activeTab === 'advanced' && <AdvancedSection form={form} updateForm={updateForm} /> }
                         </motion.div>
                     </AnimatePresence>
                 </div>

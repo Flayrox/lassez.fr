@@ -7,18 +7,20 @@ export class JournalisticPipeline {
     constructor(apiKey, settings = {}, graph = null, db = null) {
         this.graph = graph;
         this.db = db;
+        
+        // Configuration dynamique basée sur les réglages du Radar
         this.researcher = new ResearcherAgent(
             apiKey, 
-            settings.ai_model_breaking || 'gemini-3-flash-preview'
+            settings.aiModelFlash || 'gemini-3-flash-preview'
         );
         this.editor = new EditorAgent(
             apiKey, 
-            settings.ai_model_main || 'gemini-3-flash-preview',
-            settings.ai_prompt || ''
+            settings.aiModelPro || 'gemini-3-flash-preview',
+            settings.customPromptModifier || ''
         );
         this.validator = new ValidatorAgent(
             apiKey,
-            settings.ai_model_validator || 'gemini-3.1-flash-lite-preview'
+            settings.aiModelValidator || 'gemini-3.1-flash-lite-preview'
         );
         this.discordWebhook = 'https://discord.com/api/webhooks/1501249195477307605/l9bk9HPS38PL2ctC4a5HWp-7l3DSFssTveiEjwDjJDXghsSgeUaOOx8bU2eTGDjkIsW3';
     }

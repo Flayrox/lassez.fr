@@ -7,15 +7,17 @@ interface PipelineSectionProps {
     updateForm: (key: string, val: any) => void;
 }
 
-const MODELS = [
-    'gemini-3.1-pro-preview',
-    'gemini-3-flash-preview',
-    'gemini-3.1-flash-lite-preview',
-    'gemini-2.0-pro-exp',
-    'gemini-1.5-pro',
-];
-
 export function PipelineSection({ form, updateForm }: PipelineSectionProps) {
+    const [models, setModels] = React.useState<any[]>([]);
+
+    React.useEffect(() => {
+        try {
+            const parsed = JSON.parse(form.availableModelsJson || '[]');
+            setModels(Array.isArray(parsed) ? parsed : []);
+        } catch (e) {
+            setModels([]);
+        }
+    }, [form.availableModelsJson]);
     return (
         <div className="space-y-8">
             <div className="flex justify-between items-center border-b border-slate-100 pb-2">
@@ -29,21 +31,21 @@ export function PipelineSection({ form, updateForm }: PipelineSectionProps) {
                     <div className="space-y-1.5">
                         <label className="text-[10px] font-medium text-slate-400">Editorialist (IA Pro)</label>
                         <select 
-                            value={form.aiModelPro || 'gemini-3-flash-preview'} 
+                            value={form.aiModelPro || 'gemini-3.1-pro-preview'} 
                             onChange={e => updateForm('aiModelPro', e.target.value)}
                             className="w-full bg-white border border-slate-200 rounded-sm px-2 py-1.5 text-[11px] font-mono font-bold focus:border-black outline-none transition-all"
                         >
-                            {MODELS.map(m => <option key={m} value={m}>{m}</option>)}
+                            {models.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
                         </select>
                     </div>
                     <div className="space-y-1.5">
                         <label className="text-[10px] font-medium text-slate-400">Researcher (IA Flash)</label>
                         <select 
-                            value={form.aiModelFlash || 'gemini-3.1-flash-lite-preview'} 
+                            value={form.aiModelFlash || 'gemini-3-flash-preview'} 
                             onChange={e => updateForm('aiModelFlash', e.target.value)}
                             className="w-full bg-white border border-slate-200 rounded-sm px-2 py-1.5 text-[11px] font-mono font-bold focus:border-black outline-none transition-all"
                         >
-                            {MODELS.map(m => <option key={m} value={m}>{m}</option>)}
+                            {models.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
                         </select>
                     </div>
                 </div>

@@ -1,6 +1,7 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import pLimit from 'p-limit';
 import { prisma } from '../lib/prisma';
+import { getEffectiveParam } from '../lib/config-resolver';
 
 export async function runEditorialistNode() {
     console.log(`\n[Node 4: Editorialist] ✍️ Lancement de la rédaction IA (Gemini Pro)...`);
@@ -16,9 +17,6 @@ export async function runEditorialistNode() {
 
     console.log(`[Node 4] 📝 ${topics.length} sujets en attente de rédaction experte.`);
 
-    const settings = await prisma.globalSettings.findFirst();
-    if (!settings) throw new Error("GlobalSettings introuvables");
-
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
         console.warn(`[Node 4] ⚠️ Variable d'environnement GEMINI_API_KEY absente.`);
@@ -26,6 +24,10 @@ export async function runEditorialistNode() {
     }
 
     const genAI = new GoogleGenerativeAI(apiKey);
+    
+    // Résolution en cascade : Node > Global > Default
+    const requestedModel = await getEffectiveParam('editor', 'aiModelPro', 'gemini-3.1-pro-preview');
+    const concurrencyLimit = await getEffectiveParam('editor', 'maxConcurrentTasks', 5);
 
     // Fonction pour générer le prompt adéquat selon la taxonomie
     const getSystemPrompt = (taxonomy: string) => {
@@ -213,13 +215,8 @@ Tu dois structurer ta réponse dans ce format JSON exact pour notre architecture
 }`;
     };
 
-    const requestedModel = settings.aiModelPro || 'gemini-3-flash-preview';
-    const editorialModel = requestedModel.includes('3.1') ? 'gemini-3-flash-preview' : requestedModel;
-    if (editorialModel !== requestedModel) {
-        console.warn(`[Node 4] ⚠️ Modèle ${requestedModel} ignoré (instable). Forçage sur ${editorialModel}.`);
-    }
-
-    const limit = pLimit(settings.maxConcurrentTasks || 5);
+    const editorialModel = requestedModel;
+    const limit = pLimit(Number(concurrencyLimit));
     let draftedCount = 0;
 
     await Promise.all(topics.map(topic => limit(async () => {

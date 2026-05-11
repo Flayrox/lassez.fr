@@ -6,15 +6,16 @@ import { useUI } from '../context/UIContext';
 
 interface NodeInspectorProps {
     nodes: any[];
+    settings?: any;
     onUpdateNode: (id: string, updates: any) => Promise<void>;
     onDeleteNode?: (id: string) => void;
 }
 
-const AI_MODELS = [
-    { value: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' },
-    { value: 'gemini-2.0-pro-exp', label: 'Gemini 2.0 Pro Exp' },
-    { value: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro' },
-    { value: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash' },
+// Fallback models if registry is empty
+const DEFAULT_AI_MODELS = [
+    { value: 'gemini-3.1-pro-preview', label: 'Gemini 3.1 Pro (Preview)' },
+    { value: 'gemini-3-flash-preview', label: 'Gemini 3 Flash (Preview)' },
+    { value: 'gemini-3.1-flash-lite-preview', label: 'Gemini 3.1 Flash-Lite' },
 ];
 
 const SOCIAL_PLATFORMS = [
@@ -31,11 +32,20 @@ const CONTENT_TYPES = [
     '🗓️ À VENIR'
 ];
 
-export function NodeInspector({ nodes, onUpdateNode, onDeleteNode }: NodeInspectorProps) {
+export function NodeInspector({ nodes, settings, onUpdateNode, onDeleteNode }: NodeInspectorProps) {
     const { selectedNodeId, setSelectedNodeId } = useUI();
     const [localNode, setLocalNode] = useState<any>(null);
     const [syncStatus, setSyncStatus] = useState<'idle' | 'pending' | 'syncing' | 'saved' | 'error'>('idle');
     const syncTimeout = useRef<NodeJS.Timeout | null>(null);
+
+    const aiModels = React.useMemo(() => {
+        try {
+            const parsed = JSON.parse(settings?.availableModelsJson || '[]');
+            return Array.isArray(parsed) && parsed.length > 0 ? parsed : DEFAULT_AI_MODELS;
+        } catch (e) {
+            return DEFAULT_AI_MODELS;
+        }
+    }, [settings?.availableModelsJson]);
     
     useEffect(() => {
         const n = nodes.find(item => item.id === selectedNodeId);
@@ -151,7 +161,7 @@ export function NodeInspector({ nodes, onUpdateNode, onDeleteNode }: NodeInspect
                 <div className="relative">
                     <select value={value} onChange={(e) => handleChange('settings', e.target.value, true, idx)} className="w-full bg-white border border-slate-200 rounded-sm px-2 py-1.5 text-[11px] font-mono font-bold focus:border-black outline-none appearance-none cursor-pointer pr-8">
                         <option value="">Select model...</option>
-                        {AI_MODELS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+                        {aiModels.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
                     </select>
                     <span className="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 text-[14px] text-slate-400 pointer-events-none">unfold_more</span>
                 </div>

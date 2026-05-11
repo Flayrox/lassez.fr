@@ -38,7 +38,7 @@ export class RSSProvider {
                 }));
         } catch (error) {
             console.error(`[Provider:RSS] Error fetching ${url}:`, error.message);
-            return [];
+            throw error; // Let CoreEngine handle health reporting
         }
     }
 

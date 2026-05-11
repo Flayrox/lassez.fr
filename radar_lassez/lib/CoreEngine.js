@@ -73,29 +73,67 @@ export class CoreEngine {
         // 1. Ingestion
         this.updateScannerStatus('ingesting', `Ingestion en cours (${sources.rss.length} RSS, ${sources.telegram.length} TG...)`);
         console.log(`🌐 [CoreEngine] Starting ingestion for ${sources.rss.length} RSS, ${sources.telegram.length} TG, ${sources.x.length} X, ${sources.google_news.length} GN...`);
+        
+        // Helper to check if source is disabled
+        const isSourceDisabled = (url) => {
+            const health = this.db.prepare('SELECT status FROM radar_source_health WHERE url = ?').get(url);
+            return health?.status === 'DISABLED';
+        };
+
         for (const url of sources.rss) {
+            if (isSourceDisabled(url)) {
+                console.log(`⏭️ [RSS] Skipping disabled source: ${url}`);
+                continue;
+            }
             console.log(`📡 [RSS] Fetching: ${url}`);
-            const items = await this.rssProvider.fetch(url, parseInt(settings.rss_lookback_hours || '24'));
-            console.log(`   -> Found ${items.length} items`);
-            allArticles.push(...items);
+            try {
+                const items = await this.rssProvider.fetch(url, parseInt(settings.rss_lookback_hours || '24'));
+                console.log(`   -> Found ${items.length} items`);
+                allArticles.push(...items);
+                this.reportSourceHealth(url, 'rss', true);
+            } catch (error) {
+                console.error(`[RSS] Failed ${url}:`, error.message);
+                this.reportSourceHealth(url, 'rss', false, error.message);
+            }
         }
         for (const handle of sources.telegram) {
+            const url = `tg://${handle}`;
+            if (isSourceDisabled(url)) continue;
             console.log(`📡 [Telegram] Fetching: @${handle}`);
-            const items = await this.tgProvider.fetch(handle);
-            console.log(`   -> Found ${items.length} items`);
-            allArticles.push(...items);
+            try {
+                const items = await this.tgProvider.fetch(handle);
+                console.log(`   -> Found ${items.length} items`);
+                allArticles.push(...items);
+                this.reportSourceHealth(url, 'telegram', true);
+            } catch (error) {
+                this.reportSourceHealth(url, 'telegram', false, error.message);
+            }
         }
         for (const user of sources.x) {
+            const url = `x://${user}`;
+            if (isSourceDisabled(url)) continue;
             console.log(`📡 [X] Fetching: @${user}`);
-            const items = await this.xProvider.fetchAccount(user);
-            console.log(`   -> Found ${items.length} items`);
-            allArticles.push(...items);
+            try {
+                const items = await this.xProvider.fetchAccount(user);
+                console.log(`   -> Found ${items.length} items`);
+                allArticles.push(...items);
+                this.reportSourceHealth(url, 'x', true);
+            } catch (error) {
+                this.reportSourceHealth(url, 'x', false, error.message);
+            }
         }
         for (const query of sources.google_news) {
+            const url = `gn://${query}`;
+            if (isSourceDisabled(url)) continue;
             console.log(`📡 [GoogleNews] Fetching: "${query}"`);
-            const items = await this.googleNewsProvider.fetch(query, parseInt(settings.rss_lookback_hours || '24'));
-            console.log(`   -> Found ${items.length} items`);
-            allArticles.push(...items);
+            try {
+                const items = await this.googleNewsProvider.fetch(query, parseInt(settings.rss_lookback_hours || '24'));
+                console.log(`   -> Found ${items.length} items`);
+                allArticles.push(...items);
+                this.reportSourceHealth(url, 'google_news', true);
+            } catch (error) {
+                this.reportSourceHealth(url, 'google_news', false, error.message);
+            }
         }
 
         console.log(`📥 [CoreEngine] Total ingested: ${allArticles.length} articles.`);
@@ -134,29 +172,46 @@ export class CoreEngine {
 
         console.log(`✨ [CoreEngine] ${pertinentArticles.length} articles retenus pour édition.`);
 
-        // 4. Édition à l'unité (Agent 2)
+        // 4. Édition (Agent 2) - Parallel Processing
         const maxArticles = parseInt(settings.max_articles || '5');
+        const concurrency = parseInt(settings.max_concurrent_tasks || '3');
+        const toProcess = pertinentArticles.slice(0, maxArticles);
+        
+        console.log(`🚀 [CoreEngine] Starting parallel processing of ${toProcess.length} articles (concurrency: ${concurrency})...`);
+        
         let processedCount = 0;
+        const chunks = [];
+        for (let i = 0; i < toProcess.length; i += concurrency) {
+            chunks.push(toProcess.slice(i, i + concurrency));
+        }
 
-        for (const article of pertinentArticles) {
-            if (processedCount >= maxArticles) {
-                console.log(`⏹️ [CoreEngine] Reached max_articles (${maxArticles}). Stopping.`);
-                break;
+        for (const [chunkIdx, chunk] of chunks.entries()) {
+            console.log(`📦 [CoreEngine] Processing Batch ${chunkIdx + 1}/${chunks.length}...`);
+            const batchPromises = chunk.map(async (article, idx) => {
+                const currentIdx = chunkIdx * concurrency + idx + 1;
+                this.updateScannerStatus('editing', `Rédaction flash ${currentIdx}/${toProcess.length}...`);
+                
+                try {
+                    const flash = await this.pipeline.processSingle(article, 'BREAKING');
+                    if (flash) {
+                        console.log(`   ✅ [CoreEngine] Flash generated: ${flash.shortTitle}`);
+                        this.enqueuePost(article.id || article.url, article.sourceTitle || "Source", flash);
+                        return true;
+                    }
+                } catch (e) {
+                    console.error(`   ❌ [CoreEngine] Pipeline failed for article ${article.id}:`, e.message);
+                }
+                return false;
+            });
+            
+            const batchResults = await Promise.all(batchPromises);
+            processedCount += batchResults.filter(r => r).length;
+            
+            // Tempo entre les batches
+            if (chunkIdx < chunks.length - 1) {
+                console.log(`⏳ [CoreEngine] Waiting for API cooldown (2s)...`);
+                await new Promise(r => setTimeout(r, 2000));
             }
-            this.updateScannerStatus('editing', `Rédaction flash ${processedCount+1}/${Math.min(maxArticles, pertinentArticles.length)}...`);
-            
-            const flash = await this.pipeline.processSingle(article, 'BREAKING');
-            
-            if (flash) {
-                console.log(`✅ [CoreEngine] Flash generated successfully: ${flash.shortTitle}`);
-                this.enqueuePost(article.id || article.url, article.sourceTitle || "Source", flash);
-                processedCount++;
-            } else {
-                console.warn(`❌ [CoreEngine] Pipeline failed for article ${article.id}`);
-            }
-            
-            // Tempo d'1 seconde entre les rédactions
-            await new Promise(r => setTimeout(r, 1000));
         }
 
         console.log(`🏁 [CoreEngine] Scan complete. ${processedCount} flashes enqueued.`);
@@ -190,6 +245,35 @@ export class CoreEngine {
             console.log(`   -> OK! Saved.`);
         } catch (e) {
             console.error('⚠️ [CoreEngine] Error during enqueue:', e.message);
+        }
+    }
+
+    reportSourceHealth(url, type, success, errorMsg = null) {
+        try {
+            const existing = this.db.prepare('SELECT consecutive_failures FROM radar_source_health WHERE url = ?').get(url);
+            
+            if (success) {
+                this.db.prepare(`
+                    INSERT OR REPLACE INTO radar_source_health (url, type, consecutive_failures, status, last_status, last_error, last_check_at)
+                    VALUES (?, ?, 0, 'HEALTHY', 200, NULL, CURRENT_TIMESTAMP)
+                `).run(url, type);
+            } else {
+                const newFailures = (existing?.consecutive_failures || 0) + 1;
+                let newStatus = 'HEALTHY';
+                if (newFailures >= 5) newStatus = 'DISABLED';
+                else if (newFailures >= 3) newStatus = 'DEGRADED';
+
+                this.db.prepare(`
+                    INSERT OR REPLACE INTO radar_source_health (url, type, consecutive_failures, status, last_status, last_error, last_check_at)
+                    VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                `).run(url, type, newFailures, newStatus, 500, errorMsg);
+                
+                if (newStatus !== 'HEALTHY') {
+                    console.warn(`⚠️ [CoreEngine] Source ${url} is now ${newStatus} (${newFailures} failures)`);
+                }
+            }
+        } catch (e) {
+            console.error('⚠️ [CoreEngine] Failed to report source health:', e.message);
         }
     }
 }

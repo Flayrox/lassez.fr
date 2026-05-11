@@ -1,13 +1,14 @@
 import { GoogleGenAI } from '@google/genai';
+import { BaseAgent } from './BaseAgent.js';
 
 /**
  * Editor Agent (v3.0 - Gemini 3 Flash Edition)
  * Mission: Rewrite the article with the "L'Assez" tone based on the research.
  */
-export class EditorAgent {
+export class EditorAgent extends BaseAgent {
     constructor(apiKey, modelName = 'gemini-3-flash-preview', customPrompt = '') {
+        super(apiKey, modelName);
         this.client = new GoogleGenAI({ apiKey });
-        this.modelName = modelName;
         this.customPrompt = customPrompt;
     }
 
@@ -62,7 +63,8 @@ export class EditorAgent {
 
         try {
             console.log(`[Agent:Editor] Calling Gemini API...`);
-            const response = await this.client.models.generateContent({
+            
+            const response = await this.callWithRetry(() => this.client.models.generateContent({
                 model: this.modelName,
                 contents: prompt,
                 config: {
@@ -71,13 +73,13 @@ export class EditorAgent {
                     },
                     responseMimeType: 'application/json'
                 }
-            });
+            }));
+
             const parsed = JSON.parse(response.text);
             console.log(`[Agent:Editor] Rewrite complete: ${parsed.shortTitle}`);
             return parsed;
         } catch (error) {
             console.error('[Agent:Editor] ❌ Error during writing:', error.message);
-            console.error('Raw response might be:', response?.text);
             return null;
         }
     }

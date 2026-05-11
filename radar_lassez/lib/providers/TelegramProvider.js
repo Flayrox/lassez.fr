@@ -41,7 +41,7 @@ export class TelegramProvider {
             return messages;
         } catch (error) {
             console.error(`[Provider:Telegram] Error scraping @${handle}:`, error.message);
-            return [];
+            throw error;
         }
     }
 }

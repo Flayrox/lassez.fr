@@ -1,4 +1,5 @@
 import { prisma } from '../lib/prisma';
+import { getEffectiveParam } from '../lib/config-resolver';
 import { TwitterApi } from 'twitter-api-v2';
 import { BskyAgent } from '@atproto/api';
 
@@ -16,11 +17,16 @@ function getRandomInt(min: number, max: number): number {
 export async function runPublisherNode() {
     console.log(`\n🚀 [Node 6: Publisher] Lancement de la Tour de Contrôle (Scheduling & Diffusion)`);
 
-    const settings = await prisma.globalSettings.findFirst();
-    if (!settings) {
-        console.error(`🚀 [Node 6: Publisher] ❌ GlobalSettings introuvables.`);
-        return;
-    }
+    // Résolution en cascade
+    const enableDiscord = await getEffectiveParam('publisher', 'enableDiscord', true);
+    const enableX = await getEffectiveParam('publisher', 'enableX', false);
+    const enableMastodon = await getEffectiveParam('publisher', 'enableMastodon', false);
+    const enableBluesky = await getEffectiveParam('publisher', 'enableBluesky', false);
+    const enablePayloadCMS = await getEffectiveParam('publisher', 'enablePayloadCMS', true);
+    
+    const minDelay = await getEffectiveParam('publisher', 'minPublishDelay', 60);
+    const maxDelay = await getEffectiveParam('publisher', 'maxPublishDelay', 120);
+    const enableAutoPublish = await getEffectiveParam('publisher', 'enableAutoPublish', true);
 
     // ========================================================
     // PHASE A : CRÉATION DES MISSIONS (L'ENFILEUR)
@@ -40,11 +46,11 @@ export async function runPublisherNode() {
         for (const topic of pendingTopics) {
             // Déterminer les réseaux à provisionner
             const platforms = [];
-            if (settings.enableDiscord) platforms.push({ name: 'DISCORD', mode: settings.discordPublishMode });
-            if (settings.enableX) platforms.push({ name: 'X', mode: settings.xPublishMode });
-            if (settings.enableBluesky) platforms.push({ name: 'BLUESKY', mode: settings.blueskyPublishMode });
-            if (settings.enableMastodon) platforms.push({ name: 'MASTODON', mode: 'SCHEDULED' });
-            if (settings.enablePayloadCMS) platforms.push({ name: 'PAYLOAD', mode: 'DIRECT' });
+            if (enableDiscord) platforms.push({ name: 'DISCORD', mode: await getEffectiveParam('publisher', 'discordPublishMode', 'DIRECT') });
+            if (enableX) platforms.push({ name: 'X', mode: await getEffectiveParam('publisher', 'xPublishMode', 'SCHEDULED') });
+            if (enableBluesky) platforms.push({ name: 'BLUESKY', mode: await getEffectiveParam('publisher', 'blueskyPublishMode', 'SCHEDULED') });
+            if (enableMastodon) platforms.push({ name: 'MASTODON', mode: 'SCHEDULED' });
+            if (enablePayloadCMS) platforms.push({ name: 'PAYLOAD', mode: 'DIRECT' });
 
             for (const platform of platforms) {
                 let finalScheduledAt = new Date();
@@ -61,7 +67,7 @@ export async function runPublisherNode() {
                         baseDate = lastPub.scheduledAt;
                     }
                     
-                    const delayMinutes = getRandomInt(settings.minPublishDelay, settings.maxPublishDelay);
+                    const delayMinutes = getRandomInt(Number(minDelay), Number(maxDelay));
                     finalScheduledAt = new Date(baseDate.getTime() + delayMinutes * 60000);
                 }
 
@@ -90,8 +96,8 @@ export async function runPublisherNode() {
     // ========================================================
     // PHASE B : EXÉCUTION (LE DIFFUSEUR)
     // ========================================================
-    if (!settings.enableAutoPublish) {
-        console.log(`🚀 [Node 6: Phase B] ⚠️ L'auto-publication (exécution) est DÉSACTIVÉE dans les réglages.`);
+    if (!enableAutoPublish) {
+        console.log(`🚀 [Node 6: Phase B] ⚠️ L'auto-publication (exécution) est DÉSACTIVÉE.`);
         return;
     }
 

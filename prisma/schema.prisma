@@ -48,6 +48,7 @@ model GlobalSettings {
   keywords             String  @default("[]")
   bannedKeywords       String  @default("[]")
   pipelineGraphJson    String? // Stored as stringified JSON
+  availableModelsJson  String  @default("[{\"value\":\"gemini-3.1-pro-preview\",\"label\":\"Gemini 3.1 Pro (Preview)\"},{\"value\":\"gemini-3-flash-preview\",\"label\":\"Gemini 3 Flash (Preview)\"},{\"value\":\"gemini-3.1-flash-lite-preview\",\"label\":\"Gemini 3.1 Flash-Lite\"}]")
 
   updatedAt            DateTime @updatedAt
 }

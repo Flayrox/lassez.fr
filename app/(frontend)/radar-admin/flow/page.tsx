@@ -46,18 +46,25 @@ const NODE_TYPES = {
     pipeline: {
         'ingestion': { 
             label: 'Ingestion (N1)', icon: 'sensors', color: 'text-slate-900', bg: 'bg-slate-100', 
-            settings: [{ key: 'scrapingInterval', label: 'Polling Interval (min)', value: '60' }]
+            settings: [
+                { key: 'scrapingInterval', label: 'Polling Interval (min)', value: '60' },
+                { key: 'rss_lookback_hours', label: 'Lookback Period (h)', value: '24' }
+            ]
         },
         'dedup': { 
             label: 'Deduplicator (N2)', icon: 'content_copy', color: 'text-purple-600', bg: 'bg-purple-50', 
             settings: [
                 { key: 'similarityThreshold', label: 'Similarity Threshold', value: '0.45' },
-                { key: 'dedupLookbackHours', label: 'Lookback Period (h)', value: '24' }
+                { key: 'dedupLookbackHours', label: 'Deduplication Lookback (h)', value: '24' }
             ] 
         },
         'research': { 
             label: 'Researcher (N3)', icon: 'psychology', color: 'text-emerald-600', bg: 'bg-emerald-50', 
-            settings: [{ key: 'aiModelFlash', label: 'AI Model (Flash)', value: 'gemini-2.0-flash' }] 
+            settings: [
+                { key: 'aiModelFlash', label: 'AI Model (Flash)', value: 'gemini-2.0-flash' },
+                { key: 'max_articles', label: 'Max Articles/Scan', value: '5' },
+                { key: 'max_concurrent_tasks', label: 'Concurrency limit', value: '3' }
+            ] 
         },
         'editor': { 
             label: 'Editorialist (N4)', icon: 'edit_note', color: 'text-amber-600', bg: 'bg-amber-50', 
@@ -66,14 +73,18 @@ const NODE_TYPES = {
                 { key: 'customPromptModifier', label: 'Prompt instructions', value: DEFAULT_PROMPT }
             ] 
         },
+        'validator': { 
+            label: 'Validator (N5)', icon: 'fact_check', color: 'text-rose-600', bg: 'bg-rose-50', 
+            settings: [{ key: 'aiModelValidator', label: 'AI Model (Lite)', value: 'gemini-1.5-flash' }] 
+        },
         'media': { 
-            label: 'Media (N5)', icon: 'image', color: 'text-indigo-600', bg: 'bg-indigo-50', 
+            label: 'Media (N6)', icon: 'image', color: 'text-indigo-600', bg: 'bg-indigo-50', 
             settings: [{ key: 'allowSourceImages', label: 'Allow Source Images', value: true }] 
         },
     },
     outbound: {
         'publisher': { 
-            label: 'Publisher (N6)', icon: 'rocket_launch', color: 'text-rose-600', bg: 'bg-rose-50', 
+            label: 'Publisher (N7)', icon: 'rocket_launch', color: 'text-rose-600', bg: 'bg-rose-50', 
             settings: [
                 { key: 'enableAutoPublish', label: 'Auto-publish', value: true },
                 { key: 'minPublishDelay', label: 'Min Delay (min)', value: '60' }
@@ -94,10 +105,11 @@ const INITIAL_NODES: Node[] = [
     { id: 'p-dedup', x: 520, y: 220, label: 'Deduplicator (N2)', type: 'dedup', icon: 'content_copy', color: 'text-purple-600', bg: 'bg-purple-50', settings: NODE_TYPES.pipeline.dedup.settings },
     { id: 'p-research', x: 740, y: 220, label: 'Researcher (N3)', type: 'research', icon: 'psychology', color: 'text-emerald-600', bg: 'bg-emerald-50', settings: NODE_TYPES.pipeline.research.settings },
     { id: 'p-editor', x: 960, y: 220, label: 'Editorialist (N4)', type: 'editor', icon: 'edit_note', color: 'text-amber-600', bg: 'bg-amber-50', settings: NODE_TYPES.pipeline.editor.settings },
-    { id: 'p-media', x: 1180, y: 220, label: 'Media (N5)', type: 'media', icon: 'image', color: 'text-indigo-600', bg: 'bg-indigo-50', settings: NODE_TYPES.pipeline.media.settings },
+    { id: 'p-validator', x: 1180, y: 220, label: 'Validator (N5)', type: 'validator', icon: 'fact_check', color: 'text-rose-600', bg: 'bg-rose-50', settings: NODE_TYPES.pipeline.validator.settings },
+    { id: 'p-media', x: 1400, y: 220, label: 'Media (N6)', type: 'media', icon: 'image', color: 'text-indigo-600', bg: 'bg-indigo-50', settings: NODE_TYPES.pipeline.media.settings },
     
-    { id: 'p-publisher', x: 1400, y: 220, label: 'Publisher (N6)', type: 'publisher', icon: 'rocket_launch', color: 'text-rose-600', bg: 'bg-rose-50', settings: NODE_TYPES.outbound.publisher.settings },
-    { id: 'out-matrix', x: 1620, y: 220, label: 'Social Matrix', type: 'matrix', icon: 'share', color: 'text-blue-600', bg: 'bg-blue-50', settings: NODE_TYPES.outbound.matrix.settings },
+    { id: 'p-publisher', x: 1620, y: 220, label: 'Publisher (N7)', type: 'publisher', icon: 'rocket_launch', color: 'text-rose-600', bg: 'bg-rose-50', settings: NODE_TYPES.outbound.publisher.settings },
+    { id: 'out-matrix', x: 1840, y: 220, label: 'Social Matrix', type: 'matrix', icon: 'share', color: 'text-blue-600', bg: 'bg-blue-50', settings: NODE_TYPES.outbound.matrix.settings },
 ];
 
 const INITIAL_CONNECTIONS: Connection[] = [
@@ -106,9 +118,10 @@ const INITIAL_CONNECTIONS: Connection[] = [
     { id: 'c3', from: 'p-ingestion', to: 'p-dedup' },
     { id: 'c4', from: 'p-dedup', to: 'p-research' },
     { id: 'c5', from: 'p-research', to: 'p-editor' },
-    { id: 'c6', from: 'p-editor', to: 'p-media' },
-    { id: 'c7', from: 'p-media', to: 'p-publisher' },
-    { id: 'c8', from: 'p-publisher', to: 'out-matrix' },
+    { id: 'c6', from: 'p-editor', to: 'p-validator' },
+    { id: 'c7', from: 'p-validator', to: 'p-media' },
+    { id: 'c8', from: 'p-media', to: 'p-publisher' },
+    { id: 'c9', from: 'p-publisher', to: 'out-matrix' },
 ];
 
 export default function FlowPage() {
@@ -388,6 +401,7 @@ export default function FlowPage() {
 
                         <NodeInspector 
                             nodes={nodes} 
+                            settings={settings}
                             onUpdateNode={updateNodeData} 
                             onDeleteNode={deleteNode}
                         />

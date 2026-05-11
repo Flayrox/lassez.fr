@@ -1,6 +1,7 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import pLimit from 'p-limit';
 import { prisma } from '../lib/prisma';
+import { getEffectiveParam } from '../lib/config-resolver';
 
 export async function runResearcherNode() {
     console.log(`\n[Node 3: Researcher] 🧠 Lancement du filtrage IA (Triage Rapide)...`);
@@ -17,24 +18,22 @@ export async function runResearcherNode() {
 
     console.log(`[Node 3] 🔍 ${topics.length} sujets en attente d'analyse IA.`);
 
-    // 2. Récupération de la configuration IA
-    const settings = await prisma.globalSettings.findFirst();
-    if (!settings) throw new Error("GlobalSettings introuvables");
-
+    // 2. Récupération de la configuration IA (Graph-Driven)
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
-        console.warn(`[Node 3] ⚠️ Variable d'environnement GEMINI_API_KEY absente. Impossible d'appeler l'IA.`);
+        console.warn(`[Node 3] ⚠️ Variable d'environnement GEMINI_API_KEY absente.`);
         return;
     }
 
     const genAI = new GoogleGenerativeAI(apiKey);
-    const requestedModel = settings.aiModelFlash || 'gemini-3-flash-preview';
-    const researcherModel = requestedModel.includes('3.1') ? 'gemini-3-flash-preview' : requestedModel;
-    if (researcherModel !== requestedModel) {
-        console.warn(`[Node 3] ⚠️ Modèle ${requestedModel} ignoré (instable). Forçage sur ${researcherModel}.`);
-    }
+    
+    // Résolution en cascade : Node > Global > Default
+    const requestedModel = await getEffectiveParam('research', 'aiModelFlash', 'gemini-3-flash-preview');
+    const customPrompt = await getEffectiveParam('research', 'customPromptModifier', '');
+    const concurrencyLimit = await getEffectiveParam('research', 'maxConcurrentTasks', 5);
+
     const model = genAI.getGenerativeModel({
-        model: researcherModel,
+        model: requestedModel,
         generationConfig: {
             responseMimeType: "application/json",
         }
@@ -45,7 +44,7 @@ export async function runResearcherNode() {
 Garde les sujets systémiques : inégalités, luttes sociales, corruption, extrême-droite, mensonges médiatiques, impérialisme.
 Jette les polémiques stériles, les faits divers, la communication gouvernementale classique.
 RÈGLE DU BIAIS : Observe le source_bias. Si une source de 'Droite/Extrême-Droite' attaque un sujet ou une figure 'Décoloniale/Gauche', sois hyper critique : rejette si c'est de la désinformation pure, ou ajoute un flag 'CRITICAL_CROSSCHECK'.
-${settings.customPromptModifier ? `\nDIRECTIVE SPÉCIALE DU JOUR : ${settings.customPromptModifier}` : ''}
+${customPrompt ? `\nDIRECTIVE SPÉCIALE DU JOUR : ${customPrompt}` : ''}
 
 === CATÉGORISATION (Taxonomie) ===
 Tu dois assigner une taxonomie aux sujets que tu gardes :
@@ -67,9 +66,9 @@ Réponds UNIQUEMENT par un JSON avec la structure exacte suivante :
   ]
 }`;
 
-    // 3. Batches concurrency par blocs de 15 topics (pour minimiser les tokens par payload et requêtes)
+    // 3. Batches concurrency par blocs de 15 topics
     const CHUNK_SIZE = 15;
-    const limit = pLimit(settings.maxConcurrentTasks || 5);
+    const limit = pLimit(Number(concurrencyLimit));
     const chunks = [];
     for (let i = 0; i < topics.length; i += CHUNK_SIZE) {
         chunks.push(topics.slice(i, i + CHUNK_SIZE));

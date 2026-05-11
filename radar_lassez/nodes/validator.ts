@@ -18,14 +18,17 @@ export async function runValidatorNode() {
     if (!apiKey) return;
 
     const genAI = new GoogleGenerativeAI(apiKey);
-    const requestedModel = await getEffectiveParam('validator', 'aiModelValidator', 'gemini-2.0-flash');
+    const requestedModel = await getEffectiveParam('validator', 'aiModelValidator', 'gemini-3-flash-preview');
+    const concurrencyLimit = await getEffectiveParam('validator', 'maxConcurrentTasks', 5);
 
     const model = genAI.getGenerativeModel({
         model: requestedModel,
         generationConfig: { responseMimeType: "application/json" }
     });
 
-    for (const topic of topics) {
+    const limit = pLimit(Number(concurrencyLimit));
+
+    await Promise.all(topics.map(topic => limit(async () => {
         try {
             const draft = JSON.parse(topic.final_draft || '{}');
             const systemPrompt = `Tu es le Secrétaire de Rédaction de "L'Assez". Ton rôle est de VALIDER ou CORRIGER les drafts produits par l'IA éditoriale.
@@ -64,5 +67,5 @@ Réponds en JSON :
         } catch (e) {
             console.error(`[Node 5] Erreur sur ${topic.id}`, e);
         }
-    }
+    })));
 }

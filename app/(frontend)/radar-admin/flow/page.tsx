@@ -26,7 +26,7 @@ interface Connection {
     to: string;
 }
 
-const DEFAULT_PROMPT = "Tu es l'éditorialiste de L'Assez, un média OSINT. Ton rôle est de rédiger des flashs infos percutants, neutres et sourcés à partir des données collectées. Style: Direct, professionnel, sans fioritures.";
+const DEFAULT_PROMPT = "(Géré par les blocs de prompt en base de données)";
 
 const NODE_TYPES = {
     inbound: {
@@ -61,7 +61,7 @@ const NODE_TYPES = {
         'research': { 
             label: 'Researcher (N3)', icon: 'psychology', color: 'text-emerald-600', bg: 'bg-emerald-50', 
             settings: [
-                { key: 'aiModelFlash', label: 'AI Model (Flash)', value: 'gemini-2.0-flash' },
+                { key: 'aiModelFlash', label: 'AI Model (Flash)', value: 'gemini-3-flash-preview' },
                 { key: 'max_articles', label: 'Max Articles/Scan', value: '5' },
                 { key: 'max_concurrent_tasks', label: 'Concurrency limit', value: '3' }
             ] 
@@ -69,13 +69,13 @@ const NODE_TYPES = {
         'editor': { 
             label: 'Editorialist (N4)', icon: 'edit_note', color: 'text-amber-600', bg: 'bg-amber-50', 
             settings: [
-                { key: 'aiModelPro', label: 'AI Model (Pro)', value: 'gemini-1.5-pro' },
+                { key: 'aiModelPro', label: 'AI Model (Pro)', value: 'gemini-3.1-pro-preview' },
                 { key: 'customPromptModifier', label: 'Prompt instructions', value: DEFAULT_PROMPT }
             ] 
         },
         'validator': { 
             label: 'Validator (N5)', icon: 'fact_check', color: 'text-rose-600', bg: 'bg-rose-50', 
-            settings: [{ key: 'aiModelValidator', label: 'AI Model (Lite)', value: 'gemini-1.5-flash' }] 
+            settings: [{ key: 'aiModelValidator', label: 'AI Model (Lite)', value: 'gemini-3.1-flash-lite-preview' }] 
         },
         'media': { 
             label: 'Media (N6)', icon: 'image', color: 'text-indigo-600', bg: 'bg-indigo-50', 
@@ -197,8 +197,8 @@ export default function FlowPage() {
             try {
                 const res = await fetch('/api/radar/settings');
                 const data = await res.json();
-                if (data.success && data.settings?.pipeline_graph_json) {
-                    const parsed = JSON.parse(data.settings.pipeline_graph_json);
+                if (data.success && data.settings?.pipelineGraphJson) {
+                    const parsed = JSON.parse(data.settings.pipelineGraphJson);
                     if (parsed.nodes && parsed.nodes.length > 0) {
                         loadedNodes = parsed.nodes;
                         loadedConns = parsed.connections || [];

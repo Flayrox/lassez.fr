@@ -14,6 +14,7 @@ export default function DaemonPage() {
     const [loading, setLoading] = useState(true);
     const [pm2Loading, setPm2Loading] = useState(false);
     const [actionRunning, setActionRunning] = useState(false);
+    const [logs, setLogs] = useState<any[]>([]);
 
     const fetchDaemonStatus = async () => {
         try {
@@ -34,13 +35,23 @@ export default function DaemonPage() {
         finally { setPm2Loading(false); }
     };
 
+    const fetchLogs = async () => {
+        try {
+            const res = await fetch('/api/radar/logs');
+            const data = await res.json();
+            if (data.success) setLogs(data.logs);
+        } catch (e) {}
+    };
+
     useEffect(() => {
         fetchDaemonStatus();
         fetchPm2Status();
+        fetchLogs();
         const id = setInterval(() => {
             fetchDaemonStatus();
             fetchPm2Status();
-        }, 15000);
+            fetchLogs();
+        }, 5000); // Plus rapide pour les logs
         return () => clearInterval(id);
     }, []);
 
@@ -119,14 +130,18 @@ export default function DaemonPage() {
                         </div>
                         <button className="text-[10px] font-bold text-slate-400 hover:text-black transition-colors">Clear</button>
                     </div>
-                    <div className="p-4 h-64 font-mono text-[11px] text-slate-600 overflow-y-auto leading-tight bg-white">
+                    <div className="p-4 h-64 font-mono text-[11px] text-slate-600 overflow-y-auto leading-tight bg-white flex flex-col-reverse">
                         <div className="space-y-0.5">
-                            <LogLine color="text-emerald-600" msg="System check passed. Daemon healthy." />
-                            <LogLine msg="Polling RSS sources..." time />
-                            <LogLine msg="No new items found in Mediapart." time />
-                            <LogLine color="text-blue-600" msg="1 new item found in Telegram @FranceInsoumise." time />
-                            <LogLine color="text-amber-600" msg='Starting AI analysis for: "Manifestation retraites..."' time />
-                            <LogLine msg="Connection persistent on port 5173." time />
+                            {logs.length > 0 ? logs.map((log: any, idx: number) => (
+                                <LogLine 
+                                    key={log.id || idx}
+                                    color={log.level === 'ERROR' ? 'text-rose-600' : log.level === 'SUCCESS' ? 'text-emerald-600' : log.level === 'WARN' ? 'text-amber-600' : 'text-slate-500'} 
+                                    msg={`[${log.nodeId || 'SYS'}] ${log.message}`} 
+                                    time={log.timestamp} 
+                                />
+                            )) : (
+                                <p className="text-slate-300 italic">En attente de télémétrie...</p>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -144,10 +159,11 @@ function MetricRow({ label, active }: { label: string, active: boolean }) {
     );
 }
 
-function LogLine({ msg, color = "text-slate-400", time }: { msg: string, color?: string, time?: boolean }) {
+function LogLine({ msg, color = "text-slate-400", time }: { msg: string, color?: string, time?: any }) {
+    const timeStr = time ? new Date(time).toLocaleTimeString() : '--:--:--';
     return (
         <div className="flex gap-3">
-            <span className="text-slate-200 shrink-0 select-none">[{time ? new Date().toLocaleTimeString() : 'INIT'}]</span>
+            <span className="text-slate-200 shrink-0 select-none">[{timeStr}]</span>
             <span className={`${color} flex-1`}>{msg}</span>
         </div>
     );

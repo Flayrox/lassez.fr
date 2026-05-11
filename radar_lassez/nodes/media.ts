@@ -86,7 +86,7 @@ export async function runMediaNode() {
                     for (const img of images) {
                         if (img.url && typeof img.url === 'string') {
                             const smallUrl = img.url.toLowerCase();
-                            const originUrl = img.origin?.url ? img.origin.url.toLowerCase() : '';
+                            const originUrl = (img as any).origin?.url ? (img as any).origin.url.toLowerCase() : '';
                             const isBanned = bannedKeywords.some(banned => 
                                 smallUrl.includes(banned) || originUrl.includes(banned)
                             );

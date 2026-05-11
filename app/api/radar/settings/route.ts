@@ -45,7 +45,11 @@ export async function PATCH(request: Request) {
             'discordPublishMode', 'xPublishMode', 'blueskyPublishMode',
             'aiModelFlash', 'aiModelPro', 'customPromptModifier', 
             'daemonSchedule', 'pipelineGraphJson', 'keywords', 'bannedKeywords',
-            'rss_feeds', 'telegram_channels', 'google_news_queries', 'social_targets_by_type_json'
+            'rss_feeds', 'telegram_channels', 'google_news_queries', 'social_targets_by_type_json',
+            'availableModelsJson',
+            // Prompt Engineering Blocks
+            'baseIdentityPrompt', 'researchMissionPrompt', 'vocabularyRulesPrompt',
+            'imageRulesPrompt', 'researcherSystemPrompt', 'researcherRejectCriteria',
         ];
         stringFields.forEach(f => {
             if (body[f] !== undefined) {

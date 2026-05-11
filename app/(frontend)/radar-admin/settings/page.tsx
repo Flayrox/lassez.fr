@@ -10,11 +10,13 @@ import { DiffusionSection } from './components/DiffusionSection';
 import { HealthSection } from './components/HealthSection';
 import { UserSection } from './components/UserSection';
 import { AdvancedSection } from './components/AdvancedSection';
+import { TaxonomySection } from './components/TaxonomySection';
+import { PromptSection } from './components/PromptSection';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function SettingsPage() {
     const { settings, fetchSettings, isDaemonRunning, countdown } = useRadarAdmin();
-    const [activeTab, setActiveTab] = useState<'sources' | 'pipeline' | 'daemon' | 'diffusion' | 'health' | 'users' | 'advanced'>('sources');
+    const [activeTab, setActiveTab] = useState<'sources' | 'pipeline' | 'taxonomies' | 'prompts' | 'daemon' | 'diffusion' | 'health' | 'users' | 'advanced'>('sources');
     const [form, setForm] = useState<any>({});
     const [isSaving, setIsSaving] = useState(false);
     const [isDirty, setIsDirty] = useState(false);
@@ -48,9 +50,24 @@ export default function SettingsPage() {
         setIsDirty(true);
     };
 
+    const handlePromptSave = async (updates: Record<string, string>) => {
+        setIsSaving(true);
+        try {
+            await fetch('/api/radar/settings', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(updates)
+            });
+            await fetchSettings();
+        } catch (e) { console.error(e); } 
+        finally { setIsSaving(false); }
+    };
+
     const tabs = [
         { key: 'sources', label: 'Sources', icon: 'rss_feed' },
         { key: 'pipeline', label: 'Cortex engine', icon: 'psychology' },
+        { key: 'taxonomies', label: 'Taxonomies', icon: 'category' },
+        { key: 'prompts', label: 'Prompt blocks', icon: 'edit_note' },
         { key: 'daemon', label: 'Daemon & schedule', icon: 'schedule' },
         { key: 'diffusion', label: 'Social matrix', icon: 'share' },
         { key: 'health', label: 'System health', icon: 'health_and_safety' },
@@ -115,11 +132,13 @@ export default function SettingsPage() {
                         >
                             {activeTab === 'sources' && <SourcesSection />}
                             {activeTab === 'pipeline' && <PipelineSection form={form} updateForm={updateForm} />}
+                            {activeTab === 'taxonomies' && <TaxonomySection />}
+                            {activeTab === 'prompts' && <PromptSection settings={settings} onSave={handlePromptSave} />}
                             {activeTab === 'daemon' && <DaemonSection form={form} updateForm={updateForm} />}
                             {activeTab === 'diffusion' && <DiffusionSection form={form} updateForm={updateForm} />}
-                            { activeTab === 'health' && <HealthSection /> }
-                            { activeTab === 'users' && <UserSection /> }
-                            { activeTab === 'advanced' && <AdvancedSection form={form} updateForm={updateForm} /> }
+                            {activeTab === 'health' && <HealthSection />}
+                            {activeTab === 'users' && <UserSection />}
+                            {activeTab === 'advanced' && <AdvancedSection form={form} updateForm={updateForm} />}
                         </motion.div>
                     </AnimatePresence>
                 </div>

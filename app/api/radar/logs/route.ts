@@ -3,33 +3,15 @@ import { prisma } from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET(request: Request) {
+export async function GET() {
     try {
-        const { searchParams } = new URL(request.url);
-        const limit = parseInt(searchParams.get('limit') || '50');
-        const level = searchParams.get('level');
-        const nodeId = searchParams.get('nodeId');
-
-        const where: any = {};
-        if (level) where.level = level;
-        if (nodeId) where.nodeId = nodeId;
-
+        // On récupère les 50 derniers logs
         const logs = await prisma.log.findMany({
-            where,
-            orderBy: { timestamp: 'desc' },
-            take: limit
+            take: 50,
+            orderBy: { timestamp: 'desc' }
         });
-
-        return NextResponse.json({ success: true, logs });
-    } catch (error: any) {
-        return NextResponse.json({ success: false, error: error.message }, { status: 500 });
-    }
-}
-
-export async function DELETE() {
-    try {
-        await prisma.log.deleteMany({});
-        return NextResponse.json({ success: true, message: 'Logs nettoyés' });
+        
+        return NextResponse.json({ success: true, logs: logs.reverse() });
     } catch (error: any) {
         return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     }

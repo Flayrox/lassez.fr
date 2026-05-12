@@ -57,18 +57,61 @@ export async function runDeduplicatorNode(articles: IngestedArticle[]) {
         }
     }
 
-    console.log(`[Node 2: Deduplicator] 📉 Réduction drastique : ${articles.length} articles compilés en ${clusters.length} sujets synthétiques.`);
-    console.log(`[Node 2: Deduplicator] 💾 Synchronisation asynchrone SQLite en cours...`);
+    console.log(`[Node 2: Deduplicator] 📉 Réduction intrajournalière : ${articles.length} articles compilés en ${clusters.length} sujets synthétiques.`);
+    
+    // 2. Dé-duplication HISTORIQUE absolue (Vérification en DB)
+    console.log(`[Node 2: Deduplicator] 🕵️‍♂️ Vérification de l'historique en base de données...`);
+    
+    const lookbackHours = await getEffectiveParam('dedup', 'dedupLookbackHours', 48);
+    const historyCutoffDate = new Date(Date.now() - (lookbackHours * 60 * 60 * 1000));
+
+    // Récupérer les "Titre de clusters" récents pour comparer avec l'existant
+    // On ne reprend pas les REJECTED_ERROR pour leur laisser une chance s'ils ont planté,
+    // mais on filtre tous les statuts normaux (INGESTED, RESEARCHED, REJECTED, PUBLISHED, etc.)
+    const historicalTopics = await prisma.newsTopic.findMany({
+        where: {
+            createdAt: { gte: historyCutoffDate }
+        },
+        select: { raw_data: true }
+    });
+
+    const historicalTitles: string[] = [];
+    for (const h of historicalTopics) {
+        try {
+            const parsed = JSON.parse(h.raw_data);
+            if (parsed && parsed.clusterTitle) {
+                historicalTitles.push(parsed.clusterTitle.toLowerCase());
+            }
+        } catch (e) { }
+    }
 
     let savedCount = 0;
+    let ignoredCount = 0;
 
-    // 2. Persistance dans la base de données (NewsTopic)
-    // Ici, un Promise.all permet d'enregistrer massivement sans attendre la SQLite de block en block
+    // 3. Persistance dans la base de données (NewsTopic)
     await Promise.all(clusters.map(async (cluster) => {
         try {
+            const currentTitleLower = cluster.clusterTitle.toLowerCase();
+            let isDuplicateHistory = false;
+
+            // Vérification de similarité contre l'historique global
+            for (const hTitle of historicalTitles) {
+                // Si la similarité est supérieure au seuil (ex: 0.45) 
+                // ET on ajoute un bonus de +0.2 pour être très strict avec le passé (on veut du neuf !)
+                const histSim = stringSimilarity.compareTwoStrings(currentTitleLower, hTitle);
+                if (histSim >= (threshold * 0.8)) { // Tolérance un peu plus large pour écraser les vieux doublons (80% du seuil)
+                    isDuplicateHistory = true;
+                    break;
+                }
+            }
+
+            if (isDuplicateHistory) {
+                ignoredCount++;
+                return; // On skip complètement l'enregistrement
+            }
+
             await prisma.newsTopic.create({
                 data: {
-                    // Les contraintes SQLite nous obligent à stringifier les flux complexes (raw_data)
                     raw_data: JSON.stringify(cluster),
                     status: 'INGESTED',
                     tags: "[]"
@@ -80,5 +123,5 @@ export async function runDeduplicatorNode(articles: IngestedArticle[]) {
         }
     }));
 
-    console.log(`[Node 2: Deduplicator] ✅ Fin du tamis. ${savedCount} NewsTopics (statut: INGESTED) mis en base.`);
+    console.log(`[Node 2: Deduplicator] ✅ Fin du tamis. ${savedCount} nouveaux NewsTopics injectés. (${ignoredCount} doublons historiques rejetés).`);
 }

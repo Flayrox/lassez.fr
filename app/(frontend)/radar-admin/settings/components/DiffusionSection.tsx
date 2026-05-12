@@ -11,8 +11,8 @@ interface DiffusionSectionProps {
         { id: 'enableDiscord', mode: 'discordPublishMode', label: 'Discord' },
         { id: 'enableX', mode: 'xPublishMode', label: 'X (Twitter)' },
         { id: 'enableBluesky', mode: 'blueskyPublishMode', label: 'Bluesky' },
-        { id: 'enableMastodon', mode: null, label: 'Mastodon' }, // pas de mode pour mastodon/payloadCMS dans prisma
-        { id: 'enablePayloadCMS', mode: null, label: 'Payload CMS' },
+        { id: 'enableMastodon', mode: 'mastodonPublishMode', label: 'Mastodon' },
+        { id: 'enablePayloadCMS', mode: 'payloadPublishMode', label: 'Payload CMS' },
     ];
 
 export function DiffusionSection({ form, updateForm }: DiffusionSectionProps) {
@@ -22,51 +22,73 @@ export function DiffusionSection({ form, updateForm }: DiffusionSectionProps) {
         switch (platformId) {
             case 'enableDiscord':
                 return (
-                    <div className="mt-3 space-y-2 border-t border-slate-100 pt-3">
-                        <label className="text-[9px] font-bold text-slate-400 uppercase">Webhook URL</label>
-                        <input type="password" value={form.discordWebhookUrl || ''} onChange={(e) => updateForm('discordWebhookUrl', e.target.value)} placeholder="https://discord.com/api/webhooks/..." className="w-full bg-slate-50 border border-slate-200 rounded-sm px-2 py-1.5 text-[10px] focus:bg-white focus:border-black outline-none" />
+                    <div className="grid grid-cols-[150px_1fr] items-center gap-4 py-3 border-t border-slate-100">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Webhook URL</label>
+                        <input type="password" value={form.discordWebhookUrl || ''} onChange={(e) => updateForm('discordWebhookUrl', e.target.value)} placeholder="https://discord.com/api/webhooks/..." className="w-full bg-slate-50 border border-slate-200 rounded-sm px-3 py-1.5 text-[11px] focus:bg-white focus:border-black outline-none transition-all shadow-inner" />
                     </div>
                 );
             case 'enableX':
                 return (
-                    <div className="mt-3 space-y-2 border-t border-slate-100 pt-3">
-                        <label className="text-[9px] font-bold text-slate-400 uppercase">API Key</label>
-                        <input type="password" value={form.xApiKey || ''} onChange={(e) => updateForm('xApiKey', e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-sm px-2 py-1.5 text-[10px] focus:bg-white focus:border-black outline-none" />
-                        <label className="text-[9px] font-bold text-slate-400 uppercase">API Secret</label>
-                        <input type="password" value={form.xApiSecret || ''} onChange={(e) => updateForm('xApiSecret', e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-sm px-2 py-1.5 text-[10px] focus:bg-white focus:border-black outline-none" />
-                        <label className="text-[9px] font-bold text-slate-400 uppercase">Access Token</label>
-                        <input type="password" value={form.xAccessToken || ''} onChange={(e) => updateForm('xAccessToken', e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-sm px-2 py-1.5 text-[10px] focus:bg-white focus:border-black outline-none" />
-                        <label className="text-[9px] font-bold text-slate-400 uppercase">Access Secret</label>
-                        <input type="password" value={form.xAccessSecret || ''} onChange={(e) => updateForm('xAccessSecret', e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-sm px-2 py-1.5 text-[10px] focus:bg-white focus:border-black outline-none" />
+                    <div className="space-y-2 border-t border-slate-100 py-3">
+                        <div className="grid grid-cols-[150px_1fr] items-center gap-4">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">API Key</label>
+                            <input type="password" value={form.xApiKey || ''} onChange={(e) => updateForm('xApiKey', e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-sm px-3 py-1.5 text-[11px] focus:bg-white focus:border-black outline-none transition-all shadow-inner" />
+                        </div>
+                        <div className="grid grid-cols-[150px_1fr] items-center gap-4">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">API Secret</label>
+                            <input type="password" value={form.xApiSecret || ''} onChange={(e) => updateForm('xApiSecret', e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-sm px-3 py-1.5 text-[11px] focus:bg-white focus:border-black outline-none transition-all shadow-inner" />
+                        </div>
+                        <div className="grid grid-cols-[150px_1fr] items-center gap-4">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Access Token</label>
+                            <input type="password" value={form.xAccessToken || ''} onChange={(e) => updateForm('xAccessToken', e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-sm px-3 py-1.5 text-[11px] focus:bg-white focus:border-black outline-none transition-all shadow-inner" />
+                        </div>
+                        <div className="grid grid-cols-[150px_1fr] items-center gap-4">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Access Secret</label>
+                            <input type="password" value={form.xAccessSecret || ''} onChange={(e) => updateForm('xAccessSecret', e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-sm px-3 py-1.5 text-[11px] focus:bg-white focus:border-black outline-none transition-all shadow-inner" />
+                        </div>
                     </div>
                 );
             case 'enableBluesky':
                 return (
-                    <div className="mt-3 space-y-2 border-t border-slate-100 pt-3">
-                        <label className="text-[9px] font-bold text-slate-400 uppercase">Identifier (Handle)</label>
-                        <input type="text" value={form.blueskyIdentifier || ''} onChange={(e) => updateForm('blueskyIdentifier', e.target.value)} placeholder="name.bsky.social" className="w-full bg-slate-50 border border-slate-200 rounded-sm px-2 py-1.5 text-[10px] focus:bg-white focus:border-black outline-none" />
-                        <label className="text-[9px] font-bold text-slate-400 uppercase">App Password</label>
-                        <input type="password" value={form.blueskyAppPassword || ''} onChange={(e) => updateForm('blueskyAppPassword', e.target.value)} placeholder="xxxx-xxxx-xxxx-xxxx" className="w-full bg-slate-50 border border-slate-200 rounded-sm px-2 py-1.5 text-[10px] focus:bg-white focus:border-black outline-none" />
+                    <div className="space-y-2 border-t border-slate-100 py-3">
+                        <div className="grid grid-cols-[150px_1fr] items-center gap-4">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Identifier (Handle)</label>
+                            <input type="text" value={form.blueskyIdentifier || ''} onChange={(e) => updateForm('blueskyIdentifier', e.target.value)} placeholder="name.bsky.social" className="w-full bg-slate-50 border border-slate-200 rounded-sm px-3 py-1.5 text-[11px] focus:bg-white focus:border-black outline-none transition-all shadow-inner" />
+                        </div>
+                        <div className="grid grid-cols-[150px_1fr] items-center gap-4">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">App Password</label>
+                            <input type="password" value={form.blueskyAppPassword || ''} onChange={(e) => updateForm('blueskyAppPassword', e.target.value)} placeholder="xxxx-xxxx-xxxx-xxxx" className="w-full bg-slate-50 border border-slate-200 rounded-sm px-3 py-1.5 text-[11px] focus:bg-white focus:border-black outline-none transition-all shadow-inner" />
+                        </div>
                     </div>
                 );
             case 'enableMastodon':
                 return (
-                    <div className="mt-3 space-y-2 border-t border-slate-100 pt-3">
-                        <label className="text-[9px] font-bold text-slate-400 uppercase">Instance URL</label>
-                        <input type="text" value={form.mastodonInstanceUrl || ''} onChange={(e) => updateForm('mastodonInstanceUrl', e.target.value)} placeholder="https://mastodon.social" className="w-full bg-slate-50 border border-slate-200 rounded-sm px-2 py-1.5 text-[10px] focus:bg-white focus:border-black outline-none" />
-                        <label className="text-[9px] font-bold text-slate-400 uppercase">Access Token</label>
-                        <input type="password" value={form.mastodonAccessToken || ''} onChange={(e) => updateForm('mastodonAccessToken', e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-sm px-2 py-1.5 text-[10px] focus:bg-white focus:border-black outline-none" />
+                    <div className="space-y-2 border-t border-slate-100 py-3">
+                        <div className="grid grid-cols-[150px_1fr] items-center gap-4">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Instance URL</label>
+                            <input type="text" value={form.mastodonInstanceUrl || ''} onChange={(e) => updateForm('mastodonInstanceUrl', e.target.value)} placeholder="https://mastodon.social" className="w-full bg-slate-50 border border-slate-200 rounded-sm px-3 py-1.5 text-[11px] focus:bg-white focus:border-black outline-none transition-all shadow-inner" />
+                        </div>
+                        <div className="grid grid-cols-[150px_1fr] items-center gap-4">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Access Token</label>
+                            <input type="password" value={form.mastodonAccessToken || ''} onChange={(e) => updateForm('mastodonAccessToken', e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-sm px-3 py-1.5 text-[11px] focus:bg-white focus:border-black outline-none transition-all shadow-inner" />
+                        </div>
                     </div>
                 );
             case 'enablePayloadCMS':
                 return (
-                    <div className="mt-3 space-y-2 border-t border-slate-100 pt-3">
-                        <label className="text-[9px] font-bold text-slate-400 uppercase">Server URL</label>
-                        <input type="text" value={form.payloadServerUrl || ''} onChange={(e) => updateForm('payloadServerUrl', e.target.value)} placeholder="http://localhost:3000" className="w-full bg-slate-50 border border-slate-200 rounded-sm px-2 py-1.5 text-[10px] focus:bg-white focus:border-black outline-none" />
-                        <label className="text-[9px] font-bold text-slate-400 uppercase">Bot Email</label>
-                        <input type="text" value={form.payloadBotEmail || ''} onChange={(e) => updateForm('payloadBotEmail', e.target.value)} placeholder="bot@lassez.fr" className="w-full bg-slate-50 border border-slate-200 rounded-sm px-2 py-1.5 text-[10px] focus:bg-white focus:border-black outline-none" />
-                        <label className="text-[9px] font-bold text-slate-400 uppercase">Bot Password</label>
-                        <input type="password" value={form.payloadBotPassword || ''} onChange={(e) => updateForm('payloadBotPassword', e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-sm px-2 py-1.5 text-[10px] focus:bg-white focus:border-black outline-none" />
+                    <div className="space-y-2 border-t border-slate-100 py-3">
+                        <div className="grid grid-cols-[150px_1fr] items-center gap-4">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Server URL</label>
+                            <input type="text" value={form.payloadServerUrl || ''} onChange={(e) => updateForm('payloadServerUrl', e.target.value)} placeholder="http://localhost:3000" className="w-full bg-slate-50 border border-slate-200 rounded-sm px-3 py-1.5 text-[11px] focus:bg-white focus:border-black outline-none transition-all shadow-inner" />
+                        </div>
+                        <div className="grid grid-cols-[150px_1fr] items-center gap-4">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Bot Email</label>
+                            <input type="text" value={form.payloadBotEmail || ''} onChange={(e) => updateForm('payloadBotEmail', e.target.value)} placeholder="bot@lassez.fr" className="w-full bg-slate-50 border border-slate-200 rounded-sm px-3 py-1.5 text-[11px] focus:bg-white focus:border-black outline-none transition-all shadow-inner" />
+                        </div>
+                        <div className="grid grid-cols-[150px_1fr] items-center gap-4">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Bot Password</label>
+                            <input type="password" value={form.payloadBotPassword || ''} onChange={(e) => updateForm('payloadBotPassword', e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-sm px-3 py-1.5 text-[11px] focus:bg-white focus:border-black outline-none transition-all shadow-inner" />
+                        </div>
                     </div>
                 );
             default:
@@ -77,49 +99,66 @@ export function DiffusionSection({ form, updateForm }: DiffusionSectionProps) {
     return (
         <div className="space-y-6">
             <div className="flex justify-between items-center border-b border-slate-100 pb-2">
-                <h3 className="text-sm font-semibold text-black">Réseaux Sociaux & Diffusion</h3>
-                <span className="text-[10px] text-slate-400 font-mono italic">Configuration API et Routage</span>
+                <div>
+                    <h3 className="text-sm font-semibold text-black">Réseaux Sociaux & Webhooks</h3>
+                    <p className="text-[10px] text-slate-400 mt-0.5">Configuration des clés API et de la politique de publication.</p>
+                </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {PLATFORMS.map((p) => (
-                    <div 
-                        key={p.id}
-                        className={`p-4 rounded-xl border transition-all ${
-                            form[p.id] ? 'bg-white border-slate-200 shadow-sm' : 'bg-slate-50/50 border-slate-100'
-                        }`}
-                    >
-                        <div className="flex justify-between items-center mb-2">
-                            <span className={`text-[12px] font-bold ${form[p.id] ? 'text-black' : 'text-slate-400'}`}>{p.label}</span>
-                            <button 
-                                onClick={() => updateForm(p.id, !form[p.id])}
-                                className={`w-8 h-4.5 rounded-full relative transition-all shadow-inner ${form[p.id] ? 'bg-emerald-500' : 'bg-slate-200'}`}
-                            >
-                                <div className={`absolute top-0.5 w-3.5 h-3.5 rounded-full bg-white transition-all shadow-sm ${form[p.id] ? 'left-4' : 'left-0.5'}`} />
-                            </button>
-                        </div>
+            <div className="border border-slate-200 rounded-xl overflow-hidden shadow-sm bg-white">
+                <div className="flex bg-slate-50 border-b border-slate-200 py-2 px-4">
+                    <div className="flex-[2] text-[10px] font-bold text-slate-500 uppercase tracking-widest">Réseau / Service</div>
+                    <div className="flex-[1] text-[10px] font-bold text-slate-500 uppercase tracking-widest text-center">Stratégie</div>
+                    <div className="flex-[1] text-[10px] font-bold text-slate-500 uppercase tracking-widest text-right">Statut</div>
+                </div>
 
-                        {form[p.id] && p.mode && (
-                            <div className="flex gap-1 pt-3 mt-2 border-t border-slate-100">
-                                {['DIRECT', 'SCHEDULED'].map(m => (
+                <div className="divide-y divide-slate-100">
+                    {PLATFORMS.map((p) => (
+                        <div key={p.id} className="group transition-all hover:bg-slate-50/50">
+                            <div className="flex items-center px-4 py-3">
+                                <div className="flex-[2] font-semibold text-[13px] text-slate-900 flex items-center gap-2">
+                                    <span className="material-symbols-outlined text-[18px] text-slate-400">{p.id.includes('Discord') ? 'forum' : p.id.includes('X') ? 'flutter_dash' : p.id.includes('Mastodon') ? 'campaign' : p.id.includes('Bluesky') ? 'public' : 'dns'}</span>
+                                    {p.label}
+                                </div>
+                                <div className="flex-[1] flex justify-center">
+                                    {p.mode && form[p.id] ? (
+                                        <div className="flex gap-0.5 bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+                                            {['DIRECT', 'SCHEDULED'].map(m => (
+                                                <button 
+                                                    key={m}
+                                                    onClick={() => updateForm(p.mode, m)}
+                                                    className={`px-3 py-1 text-[9px] font-bold rounded-md transition-all shadow-sm ${
+                                                        form[p.mode] === m 
+                                                            ? 'bg-white text-slate-900 border border-slate-200/60' 
+                                                            : 'bg-transparent text-slate-400 hover:text-slate-600'
+                                                    }`}
+                                                >
+                                                    {m === 'DIRECT' ? 'Temps Réel' : 'Planifié'}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <span className="text-[10px] text-slate-300 italic">—</span>
+                                    )}
+                                </div>
+                                <div className="flex-[1] flex justify-end">
                                     <button 
-                                        key={m}
-                                        onClick={() => updateForm(p.mode, m)}
-                                        className={`flex-1 py-1.5 text-[9px] font-bold rounded-md border transition-all ${
-                                            form[p.mode] === m 
-                                                ? 'bg-slate-900 text-white border-slate-900 shadow-sm' 
-                                                : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'
-                                        }`}
+                                        onClick={() => updateForm(p.id, !form[p.id])}
+                                        className={`w-9 h-5 rounded-full relative transition-all shadow-inner border ${form[p.id] ? 'bg-emerald-500 border-emerald-600' : 'bg-slate-200 border-slate-300 hover:bg-slate-300'}`}
                                     >
-                                        {m === 'DIRECT' ? 'Temps Réel' : 'Planifié'}
+                                        <div className={`absolute top-[1px] w-4 h-4 rounded-full bg-white transition-all shadow-md ${form[p.id] ? 'left-4' : 'left-[1px]'}`} />
                                     </button>
-                                ))}
+                                </div>
                             </div>
-                        )}
 
-                        {renderApiFields(p.id)}
-                    </div>
-                ))}
+                            {form[p.id] && (
+                                <div className="px-4 pb-4 bg-slate-50/30">
+                                    {renderApiFields(p.id)}
+                                </div>
+                            )}
+                        </div>
+                    ))}
+                </div>
             </div>
         </div>
     );

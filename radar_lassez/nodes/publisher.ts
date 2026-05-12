@@ -49,8 +49,8 @@ export async function runPublisherNode() {
             if (enableDiscord) platforms.push({ name: 'DISCORD', mode: await getEffectiveParam('publisher', 'discordPublishMode', 'DIRECT') });
             if (enableX) platforms.push({ name: 'X', mode: await getEffectiveParam('publisher', 'xPublishMode', 'SCHEDULED') });
             if (enableBluesky) platforms.push({ name: 'BLUESKY', mode: await getEffectiveParam('publisher', 'blueskyPublishMode', 'SCHEDULED') });
-            if (enableMastodon) platforms.push({ name: 'MASTODON', mode: 'SCHEDULED' });
-            if (enablePayloadCMS) platforms.push({ name: 'PAYLOAD', mode: 'DIRECT' });
+            if (enableMastodon) platforms.push({ name: 'MASTODON', mode: await getEffectiveParam('publisher', 'mastodonPublishMode', 'SCHEDULED') });
+            if (enablePayloadCMS) platforms.push({ name: 'PAYLOAD', mode: await getEffectiveParam('publisher', 'payloadPublishMode', 'DIRECT') });
 
             for (const platform of platforms) {
                 let finalScheduledAt = new Date();

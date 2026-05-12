@@ -22,6 +22,8 @@ model GlobalSettings {
   discordPublishMode   String  @default("DIRECT")
   xPublishMode         String  @default("SCHEDULED")
   blueskyPublishMode   String  @default("SCHEDULED")
+  mastodonPublishMode  String  @default("SCHEDULED")
+  payloadPublishMode   String  @default("DIRECT")
   
   // API Keys and Webhooks (stored in DB to avoid hardcoded .env dependence)
   discordWebhookUrl    String?
@@ -159,6 +161,14 @@ model Log {
 
   @@index([timestamp])
   @@index([level])
+}
+
+model SeenUrl {
+  id        String   @id @default(uuid())
+  url       String   @unique
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
 }
 
 model AdminUser {

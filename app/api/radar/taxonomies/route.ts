@@ -41,7 +41,7 @@ export async function POST(req: Request) {
         return NextResponse.json({ success: true, taxonomy });
     } catch (error: any) {
         if (error.code === 'P2002') {
-            return NextResponse.json({ success: false, error: `Taxonomy "${body?.name}" already exists.` }, { status: 409 });
+            return NextResponse.json({ success: false, error: `Taxonomy already exists.` }, { status: 409 });
         }
         return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     }

@@ -1,4 +1,5 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenAI, Type } from '@google/genai';
+import pLimit from 'p-limit';
 import { prisma } from '../lib/prisma';
 import { getEffectiveParam } from '../lib/config-resolver';
 
@@ -17,14 +18,19 @@ export async function runValidatorNode() {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) return;
 
-    const genAI = new GoogleGenerativeAI(apiKey);
+    const ai = new GoogleGenAI({ apiKey });
     const requestedModel = await getEffectiveParam('validator', 'aiModelValidator', 'gemini-3-flash-preview');
     const concurrencyLimit = await getEffectiveParam('validator', 'maxConcurrentTasks', 5);
 
-    const model = genAI.getGenerativeModel({
-        model: requestedModel,
-        generationConfig: { responseMimeType: "application/json" }
-    });
+    const responseSchema = {
+        type: Type.OBJECT,
+        properties: {
+            isValid: { type: Type.BOOLEAN, description: "True si validé, False sinon" },
+            corrections: { type: Type.STRING, description: "Le texte corrigé si nécessaire", nullable: true },
+            reason: { type: Type.STRING, description: "Pourquoi tu valides ou non" }
+        },
+        required: ["isValid", "reason"]
+    };
 
     const limit = pLimit(Number(concurrencyLimit));
 
@@ -35,18 +41,23 @@ export async function runValidatorNode() {
 CRITÈRES : 
 1. Le ton doit être froid, clinique et incisif (pas de pathos).
 2. Pas de mots interdits (Oligarchie, Bourgeoisie, etc.).
-3. Précision factuelle absolue.
+3. Précision factuelle absolue.`;
 
-Réponds en JSON :
-{
-  "isValid": true | false,
-  "corrections": "le texte corrigé si nécessaire",
-  "reason": "pourquoi tu valides ou non"
-}`;
+            const prompt = `Voici le draft :\n${draft.body}`;
+            
+            const result = await ai.models.generateContent({
+                model: requestedModel,
+                contents: prompt,
+                config: {
+                    systemInstruction: systemPrompt,
+                    responseMimeType: "application/json",
+                    responseJsonSchema: responseSchema
+                }
+            });
 
-            const prompt = `${systemPrompt}\n\nVoici le draft :\n${draft.body}`;
-            const result = await model.generateContent(prompt);
-            const evaluation = JSON.parse(result.response.text());
+            const responseText = result.text;
+            if (!responseText) throw new Error("Réponse vide de l'IA.");
+            const evaluation = JSON.parse(responseText);
 
             if (evaluation.isValid) {
                 console.log(`[Node 5] ✅ Validé : ${topic.id}`);
@@ -66,6 +77,14 @@ Réponds en JSON :
             }
         } catch (e) {
             console.error(`[Node 5] Erreur sur ${topic.id}`, e);
+            try {
+                await prisma.newsTopic.update({
+                    where: { id: topic.id },
+                    data: { status: 'REJECTED_ERROR' }
+                });
+            } catch (updateErr) {
+                console.error(`[Node 5] Impossible de set REJECTED_ERROR sur ${topic.id}`, updateErr);
+            }
         }
     })));
 }

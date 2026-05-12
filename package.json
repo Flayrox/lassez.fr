@@ -21,12 +21,14 @@
     "payload:generate:types": "payload generate:types"
   },
   "dependencies": {
+    "@anthropic-ai/vertex-sdk": "^0.16.0",
     "@atproto/api": "^0.19.15",
     "@ffmpeg/core": "^0.12.10",
     "@ffmpeg/ffmpeg": "^0.12.15",
     "@ffmpeg/util": "^0.12.2",
     "@fontsource/playfair-display": "^5.2.8",
-    "@google/genai": "^1.51.0",
+    "@google-cloud/vertexai": "^1.12.0",
+    "@google/genai": "^1.52.0",
     "@google/generative-ai": "^0.21.0",
     "@payloadcms/db-postgres": "3.82.1",
     "@payloadcms/live-preview-react": "3.82.1",

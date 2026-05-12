@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenAI, Type } from '@google/genai';
 import pLimit from 'p-limit';
 import { prisma } from '../lib/prisma';
 import { getEffectiveParam } from '../lib/config-resolver';
@@ -30,7 +30,7 @@ export async function runEditorialistNode() {
         return;
     }
 
-    const genAI = new GoogleGenerativeAI(apiKey);
+    const ai = new GoogleGenAI({ apiKey });
     
     // Résolution en cascade : Node > Global > Default
     const requestedModel = await getEffectiveParam('editor', 'aiModelPro', 'gemini-3.1-pro-preview');
@@ -75,14 +75,17 @@ export async function runEditorialistNode() {
             }
         } catch (e) {}
 
-        // Parse output schema
-        let outputBlock = '';
-        try {
-            const schema = JSON.parse(template.outputSchemaJson);
-            outputBlock = `\n\n=== FORMAT DE SORTIE JSON STRICT OBLIGATOIRE ===\n${JSON.stringify(schema, null, 2)}`;
-        } catch (e) {}
+        return `${baseIdentity}\n${researchMission}\n${vocabularyRules}\n${imageRules}\n\n${template.formatInstructions}${examplesBlock}`;
+    };
 
-        return `${baseIdentity}\n${researchMission}\n${vocabularyRules}\n${imageRules}\n\n${template.formatInstructions}${examplesBlock}${outputBlock}`;
+    const getResponseSchema = (taxonomyName: string): any => {
+        const template = taxonomyMap.get(taxonomyName) || taxonomyMap.get('ALERTE');
+        if (!template) return undefined;
+        try {
+            return JSON.parse(template.outputSchemaJson);
+        } catch (e) {
+            return undefined;
+        }
     };
 
     const editorialModel = requestedModel;
@@ -93,30 +96,37 @@ export async function runEditorialistNode() {
         try {
             // Assemble the prompt DYNAMICALLY from DB data
             const systemPromptForTopic = assembleSystemPrompt(topic.taxonomy || 'ALERTE');
+            const schema = getResponseSchema(topic.taxonomy || 'ALERTE');
             
-            const model = genAI.getGenerativeModel({
-                model: editorialModel,
-                systemInstruction: systemPromptForTopic,
-                // @ts-ignore : Feature recente
-                tools: [{ googleSearch: {} }],
-                generationConfig: {
-                    responseMimeType: "application/json",
-                    // @ts-ignore : Feature recente
-                    thinkingConfig: { thinkingLevel: "high" }
-                }
-            });
-
             const parsedData = JSON.parse(topic.raw_data);
             const context = parsedData.articles.map((a: any) => `Source: ${a.source_name}\nBiais: ${a.source_bias}\nTitre: ${a.title}\nContenu: ${a.content}`).join('\n\n');
             const prompt = `Voici le contexte consolidé à traiter pour le format ${topic.taxonomy || 'ALERTE'} :\n${context}`;
 
-            const result = await model.generateContent(prompt);
-            const responseText = result.response.text();
+            const result = await ai.models.generateContent({
+                model: editorialModel,
+                contents: prompt,
+                config: {
+                    systemInstruction: systemPromptForTopic,
+                    responseMimeType: "application/json",
+                    responseJsonSchema: schema,
+                    tools: [{ googleSearch: {} }],
+                    // @ts-ignore : TS issue with ThinkingLevel string vs enum
+                    thinkingConfig: { thinkingLevel: "high" }
+                }
+            });
+
+            const responseText = result.text;
+            if (!responseText) throw new Error("Réponse vide de l'IA.");
+            
             let draft;
             try {
                 draft = JSON.parse(responseText);
             } catch (parseError) {
                 console.error(`[Node 4] ❌ Erreur de parsing JSON pour le sujet ${topic.id}`, responseText);
+                await prisma.newsTopic.update({
+                    where: { id: topic.id },
+                    data: { status: 'REJECTED_ERROR' }
+                });
                 return;
             }
 
@@ -140,6 +150,14 @@ export async function runEditorialistNode() {
             draftedCount++;
         } catch (error) {
             console.error(`[Node 4] ❌ Erreur API sur le sujet ${topic.id} :`, error instanceof Error ? error.message : error);
+            try {
+                await prisma.newsTopic.update({
+                    where: { id: topic.id },
+                    data: { status: 'REJECTED_ERROR' }
+                });
+            } catch (e) {
+                console.error(`[Node 4] Impossible de set REJECTED_ERROR sur ${topic.id}`, e);
+            }
         }
     })));
 

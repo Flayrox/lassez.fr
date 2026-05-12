@@ -1,8 +1,12 @@
 import Parser from 'rss-parser';
+import pLimit from 'p-limit';
 import { prisma } from '../lib/prisma';
 import { getEffectiveParam } from '../lib/config-resolver';
 
-const parser = new Parser();
+// Initialize parser with a timeout
+const parser = new Parser({
+    timeout: 10000, // 10 seconds timeout to prevent freezing
+});
 
 export interface IngestedArticle {
     title: string;
@@ -89,8 +93,11 @@ export async function runIngestionNode(timeWindowHoursOverride?: number): Promis
     const cutoffDate = new Date(Date.now() - timeWindowMs);
     let allArticles: IngestedArticle[] = [];
 
-    // 3. Exécution concurrente de l'aspiration
-    await Promise.all(sourcesToProcess.map(async (source) => {
+    // 3. Exécution concurrente de l'aspiration avec limitation
+    const concurrencyLimit = await getEffectiveParam('ingestion', 'maxConcurrentTasks', 5);
+    const limit = pLimit(Number(concurrencyLimit));
+
+    await Promise.all(sourcesToProcess.map(source => limit(async () => {
         try {
             if (source.type === 'RSS' || source.type === 'GOOGLE_NEWS') {
                 const feed = await parser.parseURL(source.url);
@@ -121,7 +128,7 @@ export async function runIngestionNode(timeWindowHoursOverride?: number): Promis
         } catch (error) {
             console.error(`[Node 1] ❌ Erreur scrap ${source.source_name} (${source.url}):`, error instanceof Error ? error.message : error);
         }
-    }));
+    })));
 
     console.log(`[Node 1: Ingestion] 🏁 Fin. Total : ${allArticles.length} articles.`);
     return allArticles;

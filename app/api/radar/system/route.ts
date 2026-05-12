@@ -74,7 +74,9 @@ export async function POST(req: Request) {
             return NextResponse.json({ success: false, error: 'Target or action not allowed.' }, { status: 400 });
         }
 
-        const command = `pm2 ${action} ${target}`;
+        // Explicitly format path to pm2 if needed, or rely on global pm2
+        const pm2Command = process.env.PM2_PATH || 'pm2';
+        const command = `${pm2Command} ${action} ${target}`;
         
         const { stdout, stderr } = await execAsync(command);
         

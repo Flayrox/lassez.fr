@@ -12,17 +12,22 @@ export async function getEffectiveParam(nodeType: string, key: string, defaultVa
         if (!settings) return defaultValue;
 
         // 1. Tenter de trouver une surcharge dans le graphe du Flow
-        if (settings.pipelineGraphJson) {
+        if (settings.pipelineGraphJson && settings.pipelineGraphJson !== '{}' && settings.pipelineGraphJson !== '[]') {
             try {
                 const graph = JSON.parse(settings.pipelineGraphJson);
-                const node = graph.nodes?.find((n: any) => n.type === nodeType);
-                const localSetting = node?.settings?.find((s: any) => s.key === key);
-                
-                if (localSetting && localSetting.value !== undefined && localSetting.value !== '') {
-                    return localSetting.value;
+                // Sécurité : vérifier que graph et graph.nodes existent avant .find
+                if (graph && Array.isArray(graph.nodes)) {
+                    const node = graph.nodes.find((n: any) => n.type === nodeType);
+                    if (node && Array.isArray(node.settings)) {
+                        const localSetting = node.settings.find((s: any) => s.key === key);
+                        if (localSetting && localSetting.value !== undefined && localSetting.value !== '') {
+                            return localSetting.value;
+                        }
+                    }
                 }
             } catch (e) {
-                console.error(`[ConfigResolver] Erreur de parsing du graphe pour ${nodeType}:${key}`, e);
+                // Silencieux : si le graphe est corrompu on utilise juste les réglages globaux
+                // console.error(`[ConfigResolver] Erreur de parsing du graphe pour ${nodeType}:${key}`, e);
             }
         }
 

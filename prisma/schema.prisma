@@ -23,7 +23,22 @@ model GlobalSettings {
   xPublishMode         String  @default("SCHEDULED")
   blueskyPublishMode   String  @default("SCHEDULED")
   
+  // API Keys and Webhooks (stored in DB to avoid hardcoded .env dependence)
+  discordWebhookUrl    String?
+  xApiKey              String?
+  xApiSecret           String?
+  xAccessToken         String?
+  xAccessSecret        String?
+  mastodonInstanceUrl  String?
+  mastodonAccessToken  String?
+  blueskyIdentifier    String?
+  blueskyAppPassword   String?
+  payloadServerUrl     String?
+  payloadBotEmail      String?
+  payloadBotPassword   String?
+
   // Timing & Scheduling Settings
+  schedulingMode       String  @default("hybrid") // "pulse", "calendar", or "hybrid"
   scrapingInterval     Int     @default(60)
   daemonSchedule       String  @default("[]") // Weekly schedule matrix
   minPublishDelay      Int     @default(60)

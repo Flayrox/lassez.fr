@@ -61,7 +61,7 @@ const NODE_TYPES = {
         'research': { 
             label: 'Researcher (N3)', icon: 'psychology', color: 'text-emerald-600', bg: 'bg-emerald-50', 
             settings: [
-                { key: 'aiModelFlash', label: 'AI Model (Flash)', value: 'gemini-3-flash-preview' },
+                { key: 'aiModelFlash', label: 'AI Model (Flash)', value: 'gemini-3.1-flash-lite-preview' },
                 { key: 'max_articles', label: 'Max Articles/Scan', value: '5' },
                 { key: 'max_concurrent_tasks', label: 'Concurrency limit', value: '3' }
             ] 
@@ -69,8 +69,7 @@ const NODE_TYPES = {
         'editor': { 
             label: 'Editorialist (N4)', icon: 'edit_note', color: 'text-amber-600', bg: 'bg-amber-50', 
             settings: [
-                { key: 'aiModelPro', label: 'AI Model (Pro)', value: 'gemini-3.1-pro-preview' },
-                { key: 'customPromptModifier', label: 'Prompt instructions', value: DEFAULT_PROMPT }
+                { key: 'aiModelPro', label: 'AI Model (Pro)', value: 'gemini-3.1-pro-preview' }
             ] 
         },
         'validator': { 
@@ -92,7 +91,13 @@ const NODE_TYPES = {
         },
         'matrix': { 
             label: 'Social Matrix', icon: 'share', color: 'text-blue-600', bg: 'bg-blue-50', 
-            settings: [{ key: 'social_targets_by_type_json', label: 'Social Routing Map', value: '{}' }] 
+            settings: [
+                { key: 'enableDiscord', label: 'Discord', value: true },
+                { key: 'enableX', label: 'X (Twitter)', value: false },
+                { key: 'enableMastodon', label: 'Mastodon', value: false },
+                { key: 'enableBluesky', label: 'Bluesky', value: false },
+                { key: 'enablePayloadCMS', label: 'Payload CMS', value: true },
+            ] 
         },
     }
 };
@@ -226,10 +231,15 @@ export default function FlowPage() {
     }, []);
 
     const updateNodeData = async (id: string, updates: any) => {
+        // Just update local graph UI state (Draft mode)
         const nextNodes = nodes.map(n => n.id === id ? { ...n, ...updates } : n);
         setNodes(nextNodes);
         saveToLocal(nextNodes, connections);
         
+        // Push settings straight to DB ONLY when we click "Apply Config" which uses full graph deploy later,
+        // BUT NodeInspector still calls this to save settings individually. 
+        // We will make NodeInspector only call this on "Apply Config" so we CAN persist here,
+        // meaning when we arrive here, it's explicitly triggered by the user.
         if (updates.settings) {
             const payload: any = {};
             updates.settings.forEach((s: any) => {
@@ -241,18 +251,26 @@ export default function FlowPage() {
                     } else if (k.includes('json')) {
                         try { payload[s.key] = JSON.stringify(JSON.parse(s.value)); } catch (e) { payload[s.key] = s.value; }
                     } else {
-                        payload[s.key] = s.value;
+                        // For booleans passed as true/false or 'true'/'false'
+                        if (s.value === 'true') payload[s.key] = true;
+                        else if (s.value === 'false') payload[s.key] = false;
+                        else payload[s.key] = s.value;
                     }
                 }
             });
             
-            const res = await fetch('/api/radar/settings', {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-            if (!res.ok) throw new Error('Sync failed');
-            await fetchSettings();
+            try {
+                const res = await fetch('/api/radar/settings', {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (!res.ok) throw new Error('Sync failed');
+                await fetchSettings(); // Refresh global settings to reflect changes
+            } catch (e) {
+                console.error("Partial sync failed", e);
+                throw e;
+            }
         }
     };
     
@@ -263,7 +281,7 @@ export default function FlowPage() {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    pipeline_graph_json: JSON.stringify({ nodes, connections })
+                    pipelineGraphJson: JSON.stringify({ nodes, connections })
                 })
             });
             
@@ -275,10 +293,10 @@ export default function FlowPage() {
                 body: JSON.stringify({ action: 'scan' })
             });
 
-            alert('Pipeline deployed and synchronized! Initializing verification scan...');
+            alert('Pipeline déployée et synchronisée avec le Daemon ! Le scan démarre...');
         } catch (e) {
             console.error(e);
-            alert('Deployment failed. Check console for details.');
+            alert('Échec du déploiement. Vérifiez la console.');
         } finally {
             setIsDeploying(false);
         }
@@ -321,36 +339,47 @@ export default function FlowPage() {
     };
 
     return (
-        <ModernDashboardLayout title="Pipeline" fullBleed={true} actions={
-            <div className="flex items-center gap-1.5">
+        <ModernDashboardLayout title="Orchestrateur (Flow)" fullBleed={true} actions={
+            <div className="flex items-center gap-2">
                 <button 
                     onClick={handleReset} 
-                    className="h-7 px-3 border border-slate-200 text-[10px] font-bold rounded-sm hover:bg-slate-50 transition-colors"
+                    className="h-8 px-4 border border-slate-200 text-[11px] font-medium rounded-lg hover:bg-slate-50 transition-colors flex items-center gap-1.5 text-slate-600 shadow-sm"
                 >
-                    Reset
+                    <span className="material-symbols-outlined text-[14px]">undo</span>
+                    Reset Template
                 </button>
                 <button 
                     onClick={handleDeploy} 
                     disabled={isDeploying}
-                    className={`h-7 px-4 bg-black text-white text-[10px] font-bold rounded-sm shadow-sm hover:bg-zinc-800 transition-colors flex items-center gap-2 ${isDeploying ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    className={`h-8 px-5 bg-slate-900 text-white text-[11px] font-medium rounded-lg shadow-md hover:bg-black transition-all flex items-center gap-2 ${isDeploying ? 'opacity-70 cursor-not-allowed' : 'hover:scale-[1.02]'}`}
                 >
                     {isDeploying ? (
                         <>
-                            <div className="w-2 h-2 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                            Deploying...
+                            <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            Synchronisation...
                         </>
-                    ) : 'Deploy pipeline'}
+                    ) : (
+                        <>
+                            <span className="material-symbols-outlined text-[14px]">cloud_upload</span>
+                            Déployer le Graphe
+                        </>
+                    )}
                 </button>
             </div>
         }>
-            <div className="flex-1 relative w-full h-full overflow-hidden bg-slate-50">
+            <div className="flex-1 relative w-full h-full overflow-hidden bg-slate-50/50">
                 <div className="absolute inset-0 opacity-[0.03] pointer-events-none" style={{ backgroundImage: 'radial-gradient(#000 1px, transparent 1px)', backgroundSize: '24px 24px' }} />
                 
+                {/* Scanner Status Badge (Top Center) */}
                 {scannerState.status !== 'idle' && scannerState.status !== undefined && scannerState.status !== 'ok' && scannerState.status !== 'late' && scannerState.status !== 'paused' && scannerState.status !== 'unknown' && scannerState.status !== 'running' && (
-                    <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-50 bg-black text-white shadow-2xl rounded-sm px-4 py-2 flex items-center gap-3 border border-zinc-800">
-                        <span className="material-symbols-outlined text-emerald-400 animate-spin text-[16px]">sync</span>
-                        <span className="text-[11px] font-mono font-bold tracking-tight">{scannerState.message || scannerState.status}</span>
-                    </div>
+                    <motion.div 
+                        initial={{ y: -20, opacity: 0 }}
+                        animate={{ y: 0, opacity: 1 }}
+                        className="absolute top-6 left-1/2 transform -translate-x-1/2 z-50 bg-slate-900/90 backdrop-blur-md text-white shadow-xl rounded-full px-5 py-2 flex items-center gap-3 border border-slate-700/50"
+                    >
+                        <span className="material-symbols-outlined text-emerald-400 animate-spin text-[16px]">autorenew</span>
+                        <span className="text-[11px] font-medium tracking-wide">{scannerState.message || scannerState.status}</span>
+                    </motion.div>
                 )}
                 
                 {isHydrated && (
@@ -379,19 +408,20 @@ export default function FlowPage() {
                             isDaemonRunning={false}
                         />
 
-                        <div className="fixed left-6 top-1/2 -translate-y-1/2 z-[500] flex flex-col gap-4">
+                        <div className="fixed left-6 top-1/2 -translate-y-1/2 z-[500] flex flex-col gap-3">
                             {Object.entries(NODE_TYPES).map(([cat, types]) => (
-                                <div key={cat} className="flex flex-col gap-1.5 p-1.5 bg-white border border-slate-200 rounded-sm shadow-xl">
-                                    <span className="text-[8px] font-bold uppercase text-slate-400 tracking-tighter text-center mb-1">{cat}</span>
+                                <div key={cat} className="flex flex-col gap-1.5 p-1.5 bg-white/80 backdrop-blur-xl border border-slate-200/60 rounded-xl shadow-xl">
+                                    <span className="text-[8px] font-bold uppercase text-slate-400 tracking-wider text-center mb-1">{cat}</span>
                                     {Object.entries(types).map(([type, config]: [string, any]) => (
                                         <button 
                                             key={type}
                                             onClick={() => addNode(type, cat)}
-                                            className={`w-9 h-9 flex items-center justify-center rounded-sm transition-all hover:bg-slate-50 border border-transparent hover:border-slate-200 ${config.color} group relative`}
+                                            className={`w-10 h-10 flex items-center justify-center rounded-lg transition-all hover:bg-white hover:shadow-sm border border-transparent hover:border-slate-200 ${config.color} group relative`}
                                         >
-                                            <span className="material-symbols-outlined text-[18px]">{config.icon}</span>
-                                            <div className="absolute left-full ml-3 px-2 py-1 bg-black text-white text-[9px] font-bold whitespace-nowrap rounded-sm opacity-0 group-hover:opacity-100 pointer-events-none transition-all translate-x-[-4px] group-hover:translate-x-0">
+                                            <span className="material-symbols-outlined text-[20px] group-hover:scale-110 transition-transform">{config.icon}</span>
+                                            <div className="absolute left-full ml-3 px-2.5 py-1.5 bg-slate-900 text-white text-[10px] font-medium whitespace-nowrap rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none transition-all translate-x-[-8px] group-hover:translate-x-0 shadow-lg">
                                                 Add {config.label}
+                                                <div className="absolute left-[-4px] top-1/2 -translate-y-1/2 border-[5px] border-transparent border-r-slate-900"></div>
                                             </div>
                                         </button>
                                     ))}

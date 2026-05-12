@@ -102,11 +102,21 @@ async function main() {
 
     await ensureGlobalSettings();
 
-    // Calcul du prochain délai selon la matrice
+    // Calcul du prochain délai selon le mode choisi et la matrice
     const getDelayToNextScan = (settings: any) => {
         const fallbackMs = (settings?.scrapingInterval ?? 60) * 60 * 1000;
+        const mode = settings?.schedulingMode || 'hybrid';
         
-        if (!settings?.daemonSchedule || settings.daemonSchedule.trim() === '[]' || settings.daemonSchedule.trim() === '{}') {
+        // Mode "Fréquence Continue" pur
+        if (mode === 'pulse') {
+            return { ms: fallbackMs, type: 'interval', label: `${settings?.scrapingInterval ?? 60} minutes` };
+        }
+
+        const hasNoSchedule = (!settings?.daemonSchedule || settings.daemonSchedule.trim() === '[]' || settings.daemonSchedule.trim() === '{}');
+
+        // Mode Hybride sans calendrier = fallback
+        // Mode Calendrier sans calendrier = on force à attendre 1h pour ne pas boucler à l'infini (sécurité)
+        if (hasNoSchedule) {
             return { ms: fallbackMs, type: 'interval', label: `${settings?.scrapingInterval ?? 60} minutes` };
         }
 

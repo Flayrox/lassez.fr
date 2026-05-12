@@ -149,9 +149,9 @@ export async function runPublisherNode() {
 
             // Logique de diffusion spécifique par plateforme
             if (pub.platform === 'DISCORD') {
-                const webhookUrl = process.env.DISCORD_WEBHOOK_URL;
+                const webhookUrl = await getEffectiveParam('publisher', 'discordWebhookUrl', process.env.DISCORD_WEBHOOK_URL);
                 if (!webhookUrl) {
-                    console.error(`🚀 [Node 6: Phase B] ❌ DISCORD_WEBHOOK_URL manquante pour pub ${pub.id}`);
+                    console.error(`🚀 [Node 6: Phase B] ❌ Webhook URL manquante pour Discord (pub ${pub.id})`);
                     continue;
                 }
 
@@ -181,13 +181,13 @@ export async function runPublisherNode() {
                 }
 
             } else if (pub.platform === 'X') {
-                const appKey = process.env.TWITTER_API_KEY;
-                const appSecret = process.env.TWITTER_API_SECRET;
-                const accessToken = process.env.TWITTER_ACCESS_TOKEN;
-                const accessSecret = process.env.TWITTER_ACCESS_SECRET;
+                const appKey = await getEffectiveParam('publisher', 'xApiKey', process.env.TWITTER_API_KEY);
+                const appSecret = await getEffectiveParam('publisher', 'xApiSecret', process.env.TWITTER_API_SECRET);
+                const accessToken = await getEffectiveParam('publisher', 'xAccessToken', process.env.TWITTER_ACCESS_TOKEN);
+                const accessSecret = await getEffectiveParam('publisher', 'xAccessSecret', process.env.TWITTER_ACCESS_SECRET);
                 
                 if (!appKey || !appSecret || !accessToken || !accessSecret) {
-                    console.error(`🚀 [Node 6: Phase B] ❌ Variables X (Twitter) manquantes.`);
+                    console.error(`🚀 [Node 6: Phase B] ❌ Variables API manquantes pour X (Twitter).`);
                     continue;
                 }
 
@@ -204,11 +204,11 @@ export async function runPublisherNode() {
                 }
 
             } else if (pub.platform === 'BLUESKY') {
-                const identifier = process.env.BLUESKY_IDENTIFIER;
-                const password = process.env.BLUESKY_APP_PASSWORD;
+                const identifier = await getEffectiveParam('publisher', 'blueskyIdentifier', process.env.BLUESKY_IDENTIFIER);
+                const password = await getEffectiveParam('publisher', 'blueskyAppPassword', process.env.BLUESKY_APP_PASSWORD);
 
                 if (!identifier || !password) {
-                    console.error(`🚀 [Node 6: Phase B] ❌ Variables Bluesky manquantes.`);
+                    console.error(`🚀 [Node 6: Phase B] ❌ Variables d'authentification manquantes pour Bluesky.`);
                     continue;
                 }
 
@@ -223,11 +223,11 @@ export async function runPublisherNode() {
                 }
 
             } else if (pub.platform === 'MASTODON') {
-                const url = process.env.MASTODON_INSTANCE_URL;
-                const token = process.env.MASTODON_ACCESS_TOKEN;
+                const url = await getEffectiveParam('publisher', 'mastodonInstanceUrl', process.env.MASTODON_INSTANCE_URL);
+                const token = await getEffectiveParam('publisher', 'mastodonAccessToken', process.env.MASTODON_ACCESS_TOKEN);
 
                 if (!url || !token) {
-                    console.error(`🚀 [Node 6: Phase B] ❌ Variables Mastodon manquantes.`);
+                    console.error(`🚀 [Node 6: Phase B] ❌ Variables d'authentification manquantes pour Mastodon.`);
                     continue;
                 }
 
@@ -255,12 +255,12 @@ export async function runPublisherNode() {
                 }
 
             } else if (pub.platform === 'PAYLOAD') {
-                const url = process.env.PAYLOAD_SERVER_URL;
-                const email = process.env.PAYLOAD_BOT_EMAIL;
-                const password = process.env.PAYLOAD_BOT_PASSWORD;
+                const url = await getEffectiveParam('publisher', 'payloadServerUrl', process.env.PAYLOAD_SERVER_URL);
+                const email = await getEffectiveParam('publisher', 'payloadBotEmail', process.env.PAYLOAD_BOT_EMAIL);
+                const password = await getEffectiveParam('publisher', 'payloadBotPassword', process.env.PAYLOAD_BOT_PASSWORD);
 
                 if (!url || !email || !password) {
-                    console.error(`🚀 [Node 6: Phase B] ❌ Variables Payload CMS manquantes.`);
+                    console.error(`🚀 [Node 6: Phase B] ❌ Variables d'authentification manquantes pour Payload CMS.`);
                     continue;
                 }
 
@@ -300,7 +300,9 @@ export async function runPublisherNode() {
                     };
 
                     // Mapper la taxonomie depuis la DB vers le champ niveau_alerte de Payload
-                    const niveauAlerte = topicTaxonomy === 'ALERTE' ? 'Public' : 'Public';
+                    // D'après payload/collections/revelations.ts, le champ niveau_alerte accepte 'Public' ou 'Confidentiel'.
+                    // On peut mapper ALERTE sur Confidentiel si besoin, mais par défaut on met 'Public'.
+                    const niveauAlerte = topicTaxonomy === 'ALERTE' ? 'Confidentiel' : 'Public';
                     
                     // Traiter les tags depuis la DB : chercher/créer les tags et récupérer leurs IDs
                     let tagIds: string[] = [];

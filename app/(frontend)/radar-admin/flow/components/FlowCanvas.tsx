@@ -76,7 +76,37 @@ export function FlowCanvas({ nodes, connections, onNodeClick, onNodeMove, onNode
     const canvasRef = useRef<HTMLDivElement>(null);
     const isDraggingCanvas = useRef(false);
 
+    const [activeEngineNode, setActiveEngineNode] = useState<string | null>(null);
+
     const GRID_SIZE = 20;
+
+    useEffect(() => {
+        const fetchStatus = async () => {
+            if (!isDaemonRunning) {
+                setActiveEngineNode(null);
+                return;
+            }
+            try {
+                const res = await fetch('/api/radar/daemon-status');
+                const data = await res.json();
+                if (data.success && data.status) {
+                    const statusStr = data.status.scanner_status || '';
+                    if (statusStr.includes('ingestion') || statusStr.includes('1')) setActiveEngineNode('p-ingestion');
+                    else if (statusStr.includes('dedup') || statusStr.includes('2')) setActiveEngineNode('p-dedup');
+                    else if (statusStr.includes('research') || statusStr.includes('triage') || statusStr.includes('3')) setActiveEngineNode('p-research');
+                    else if (statusStr.includes('draft') || statusStr.includes('editor') || statusStr.includes('4')) setActiveEngineNode('p-editor');
+                    else if (statusStr.includes('validat') || statusStr.includes('5')) setActiveEngineNode('p-validator');
+                    else if (statusStr.includes('media') || statusStr.includes('6')) setActiveEngineNode('p-media');
+                    else if (statusStr.includes('publish') || statusStr.includes('7')) setActiveEngineNode('p-publisher');
+                    else setActiveEngineNode(null);
+                }
+            } catch (e) { }
+        };
+
+        const interval = setInterval(fetchStatus, 3000);
+        fetchStatus();
+        return () => clearInterval(interval);
+    }, [isDaemonRunning]);
 
     const handleWheel = (e: React.WheelEvent) => {
         if (e.ctrlKey) {
@@ -139,6 +169,7 @@ export function FlowCanvas({ nodes, connections, onNodeClick, onNodeMove, onNode
                 {nodes.map(node => (
                     <NodeComponent 
                         key={node.id} node={node} viewPort={viewPort} GRID_SIZE={GRID_SIZE} activeNodeId={activeNodeId}
+                        isEngineActive={activeEngineNode === node.id}
                         onNodeMove={onNodeMove} onNodeMoveEnd={onNodeMoveEnd} onNodeClick={onNodeClick}
                         onStartConnection={(x, y) => setDraggingConnection({ from: node.id, startX: x, startY: y, currentX: x, currentY: y })}
                         onEndConnection={() => {
@@ -166,7 +197,7 @@ export function FlowCanvas({ nodes, connections, onNodeClick, onNodeMove, onNode
     );
 }
 
-const NodeComponent = memo(({ node, viewPort, GRID_SIZE, activeNodeId, onNodeMove, onNodeMoveEnd, onNodeClick, onStartConnection, onEndConnection }: any) => {
+const NodeComponent = memo(({ node, viewPort, GRID_SIZE, activeNodeId, isEngineActive, onNodeMove, onNodeMoveEnd, onNodeClick, onStartConnection, onEndConnection }: any) => {
     const dragControls = useDragControls();
     const { setSelectedNodeId } = useUI();
     const startPos = useRef({ x: node.x, y: node.y });
@@ -182,16 +213,22 @@ const NodeComponent = memo(({ node, viewPort, GRID_SIZE, activeNodeId, onNodeMov
             }}
             onDragEnd={onNodeMoveEnd}
             style={{ x: node.x, y: node.y }}
-            className="absolute pointer-events-auto"
+            className={`absolute pointer-events-auto ${isEngineActive ? 'z-50' : 'z-10'}`}
         >
-            <div className={`w-48 group bg-white rounded-sm border transition-all duration-200 ${ activeNodeId === node.id ? 'border-black ring-4 ring-slate-100 shadow-xl' : 'border-slate-200 shadow-sm hover:border-slate-300' }`}>
+            {isEngineActive && (
+                <div className="absolute -inset-2 bg-emerald-400/20 blur-md rounded-xl animate-pulse pointer-events-none" />
+            )}
+            <div className={`relative w-48 group bg-white rounded-xl border transition-all duration-300 ${ activeNodeId === node.id ? 'border-black ring-4 ring-slate-100 shadow-xl scale-[1.02]' : isEngineActive ? 'border-emerald-400 shadow-[0_0_20px_rgba(52,211,153,0.3)] scale-[1.02]' : 'border-slate-200 shadow-sm hover:border-slate-300' }`}>
                 <motion.div 
                     onPointerDown={(e) => { e.stopPropagation(); dragControls.start(e); }}
                     onTap={() => { setSelectedNodeId(node.id); onNodeClick(node); }}
-                    className="p-3.5 flex items-center gap-3.5 cursor-grab active:cursor-grabbing select-none"
+                    className="p-3.5 flex items-center gap-3.5 cursor-grab active:cursor-grabbing select-none overflow-hidden rounded-xl"
                 >
-                    <div className={`w-9 h-9 rounded-sm ${node.bg} flex items-center justify-center shrink-0 border border-slate-100`}>
-                        <span className={`material-symbols-outlined text-[18px] ${node.color}`}>{node.icon}</span>
+                    {isEngineActive && (
+                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/50 to-transparent -translate-x-full animate-[shimmer_1.5s_infinite] pointer-events-none" />
+                    )}
+                    <div className={`w-10 h-10 rounded-lg ${isEngineActive ? 'bg-emerald-50 border-emerald-200' : node.bg + ' border-slate-100'} flex items-center justify-center shrink-0 border transition-colors`}>
+                        <span className={`material-symbols-outlined text-[20px] ${isEngineActive ? 'text-emerald-600 animate-bounce' : node.color}`}>{node.icon}</span>
                     </div>
                     <div className="flex-1 min-w-0">
                         <p className="text-[8px] font-black text-slate-300 uppercase tracking-widest truncate">{node.type}</p>

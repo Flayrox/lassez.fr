@@ -83,25 +83,30 @@ export function NodeInspector({ nodes, settings, onUpdateNode, onDeleteNode }: N
     return (
         <AnimatePresence>
             <motion.div 
+                drag
+                dragMomentum={false}
+                dragConstraints={{ left: 0, right: window.innerWidth - 420, top: 0, bottom: window.innerHeight - 600 }}
                 initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }}
                 className="fixed z-[1000] w-[420px] right-8 top-20 bottom-8 pointer-events-none"
+                style={{ touchAction: 'none' }}
             >
-                <div className="bg-white border border-slate-200 rounded-sm shadow-[0_32px_64px_-12px_rgba(0,0,0,0.14)] overflow-hidden flex flex-col h-full pointer-events-auto">
+                <div className="bg-white border border-slate-200 rounded-xl shadow-[0_32px_64px_-12px_rgba(0,0,0,0.14)] overflow-hidden flex flex-col h-full pointer-events-auto">
                     {/* Industrial Header */}
-                    <div className={`px-5 py-4 flex items-center justify-between border-b border-slate-100 ${localNode.bg || 'bg-slate-50'}`}>
+                    {/* Industrial Header (Draggable Area) */}
+                    <div className={`px-5 py-4 flex items-center justify-between border-b border-slate-100 cursor-move ${localNode.bg || 'bg-slate-50'}`}>
                         <div className="flex items-center gap-4">
-                            <div className="p-2 bg-white rounded-sm shadow-sm">
+                            <div className="p-2 bg-white/50 backdrop-blur-sm rounded-lg shadow-sm border border-slate-100">
                                 <span className={`material-symbols-outlined text-[20px] ${localNode.color}`}>{localNode.icon}</span>
                             </div>
-                            <div className="flex flex-col gap-0.5">
+                            <div className="flex flex-col gap-0.5 pointer-events-none">
                                 <span className="text-[12px] font-black text-black uppercase tracking-tight">{localNode.label}</span>
                                 <div className="flex items-center gap-1.5">
-                                    <span className="text-[9px] text-slate-400 font-mono bg-white px-1 border border-slate-100 rounded-sm">{localNode.id}</span>
+                                    <span className="text-[9px] text-slate-400 font-mono bg-white/50 px-1 border border-slate-100 rounded-sm">{localNode.id}</span>
                                     <span className="text-[8px] font-bold text-slate-300 uppercase tracking-widest">Instance</span>
                                 </div>
                             </div>
                         </div>
-                        <button onClick={() => setSelectedNodeId(null)} className="p-1.5 hover:bg-black/5 rounded-full transition-all">
+                        <button onClick={(e) => { e.stopPropagation(); setSelectedNodeId(null); }} className="p-1.5 hover:bg-black/5 rounded-full transition-all cursor-pointer">
                             <span className="material-symbols-outlined text-[20px] text-slate-400">close</span>
                         </button>
                     </div>
@@ -243,10 +248,12 @@ function renderProComponent(s: any, idx: number, onChange: any, aiModels: any[])
 
     // 4. Sliders
     if (key.includes('threshold') || key.includes('similarity')) {
+        const parsedVal = parseFloat(value);
+        const safeVal = isNaN(parsedVal) ? 0.5 : parsedVal;
         return (
             <input 
                 type="range" min="0.1" max="0.95" step="0.05"
-                value={value || 0.5}
+                value={safeVal}
                 onChange={(e) => onChange('settings', parseFloat(e.target.value), true, idx)}
                 className="w-full h-1.5 bg-slate-100 rounded-full appearance-none cursor-pointer accent-black"
             />
@@ -320,57 +327,40 @@ function CollectionManager({ items, onChange, placeholder }: { items: string[], 
     );
 }
 
-// Composant Interne: Pro Social Matrix
+// Composant Interne: Pro Social Matrix (Network Toggles)
 function ProSocialMatrix({ value, onChange }: { value: any, onChange: (next: any) => void }) {
     const PLATFORMS = [
-        { key: 'twitter', icon: '🐦', color: 'text-sky-500' },
-        { key: 'bluesky', icon: '🦋', color: 'text-blue-400' },
-        { key: 'mastodon', icon: '🐘', color: 'text-purple-500' },
-        { key: 'discord', icon: '🔔', color: 'text-indigo-400' },
+        { key: 'twitter', label: 'X / Twitter', icon: '🐦' },
+        { key: 'bluesky', label: 'Bluesky', icon: '🦋' },
+        { key: 'mastodon', label: 'Mastodon', icon: '🐘' },
+        { key: 'discord', label: 'Discord', icon: '🔔' },
+        { key: 'payload', label: 'Payload CMS', icon: '📝' },
     ];
-    const TYPES = ['🔴 ALERTE INFO', '📌 LE FAIT DU JOUR', '🔎 DÉCRYPTAGE', '🗓️ À VENIR'];
 
-    const toggle = (type: string, platform: string) => {
+    const toggle = (platform: string) => {
         const next = { ...value };
-        if (!next[type]) next[type] = {};
-        next[type][platform] = !next[type][platform];
+        next[platform] = !next[platform];
         onChange(next);
     };
 
     return (
-        <div className="border border-slate-100 rounded-sm overflow-hidden shadow-sm">
-            <table className="w-full border-collapse">
-                <thead className="bg-slate-50 border-b border-slate-100">
-                    <tr>
-                        <th className="text-left p-2 text-[8px] font-black text-slate-400 uppercase tracking-tighter">Event Category</th>
-                        {PLATFORMS.map(p => (
-                            <th key={p.key} className="p-2 text-center" title={p.key.toUpperCase()}>
-                                <span className={`text-[12px] ${p.color}`}>{p.icon}</span>
-                            </th>
-                        ))}
-                    </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-50">
-                    {TYPES.map(type => (
-                        <tr key={type} className="hover:bg-slate-50/30 transition-colors">
-                            <td className="p-2 text-[9px] font-black text-slate-600">{type}</td>
-                            {PLATFORMS.map(p => {
-                                const active = value[type]?.[p.key];
-                                return (
-                                    <td key={p.key} className="p-1 text-center">
-                                        <button 
-                                            onClick={() => toggle(type, p.key)}
-                                            className={`w-4 h-4 mx-auto rounded-sm border transition-all flex items-center justify-center ${active ? 'bg-black border-black' : 'bg-white border-slate-100'}`}
-                                        >
-                                            {active && <div className="w-1 h-1 rounded-full bg-emerald-400 shadow-[0_0_4px_rgba(52,211,153,1)]" />}
-                                        </button>
-                                    </td>
-                                );
-                            })}
-                        </tr>
-                    ))}
-                </tbody>
-            </table>
+        <div className="grid grid-cols-2 gap-2">
+            {PLATFORMS.map(p => {
+                const isActive = value[p.key] ?? false; // false by default unless enabled
+                return (
+                    <button 
+                        key={p.key}
+                        onClick={() => toggle(p.key)}
+                        className={`flex items-center gap-3 p-3 rounded-xl border transition-all duration-200 ${isActive ? 'bg-slate-900 border-slate-800 text-white shadow-md' : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300 hover:bg-slate-50'}`}
+                    >
+                        <span className="text-[16px]">{p.icon}</span>
+                        <span className="text-[11px] font-bold tracking-tight">{p.label}</span>
+                        <div className={`ml-auto w-3 h-3 rounded-full border flex items-center justify-center transition-all ${isActive ? 'border-emerald-400 bg-emerald-400/20' : 'border-slate-300'}`}>
+                            {isActive && <div className="w-1.5 h-1.5 bg-emerald-400 rounded-full" />}
+                        </div>
+                    </button>
+                );
+            })}
         </div>
     );
 }

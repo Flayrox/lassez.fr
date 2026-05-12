@@ -102,6 +102,72 @@ async function main() {
 
     await ensureGlobalSettings();
 
+    // Calcul du prochain délai selon la matrice
+    const getDelayToNextScan = (settings: any) => {
+        const fallbackMs = (settings?.scrapingInterval ?? 60) * 60 * 1000;
+        
+        if (!settings?.daemonSchedule || settings.daemonSchedule.trim() === '[]' || settings.daemonSchedule.trim() === '{}') {
+            return { ms: fallbackMs, type: 'interval', label: `${settings?.scrapingInterval ?? 60} minutes` };
+        }
+
+        const lines = settings.daemonSchedule.split(/[\n;]+/).map((l: string) => l.trim()).filter(Boolean);
+        if (lines.length === 0) return { ms: fallbackMs, type: 'interval', label: `${settings?.scrapingInterval ?? 60} minutes` };
+
+        const dayMap: Record<string, number> = { 'DIM': 0, 'LUN': 1, 'MAR': 2, 'MER': 3, 'JEU': 4, 'VEN': 5, 'SAM': 6 };
+        
+        const now = new Date();
+        const currentDay = now.getDay();
+        const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+        let bestDelayMs = Infinity;
+        let bestTargetLabel = '';
+
+        for (const line of lines) {
+            const parts = line.split(/\s+/);
+            if (parts.length >= 2) {
+                const days = parts[0].toUpperCase().split(',');
+                const time = parts[1];
+                const [targetHour, targetMin] = time.split(':').map(Number);
+                const targetTotalMinutes = targetHour * 60 + targetMin;
+
+                for (const d of days) {
+                    const cleanD = d.trim();
+                    const targetDay = dayMap[cleanD];
+                    if (targetDay === undefined) continue;
+
+                    let daysDiff = targetDay - currentDay;
+                    let minutesDiff = targetTotalMinutes - currentMinutes;
+
+                    if (daysDiff < 0 || (daysDiff === 0 && minutesDiff <= 0)) {
+                        daysDiff += 7;
+                    }
+
+                    if (daysDiff === 0 && minutesDiff > 0) {
+                        // C'est aujourd'hui et dans le futur
+                        const delayMs = minutesDiff * 60 * 1000 - (now.getSeconds() * 1000 + now.getMilliseconds());
+                        if (delayMs < bestDelayMs) {
+                            bestDelayMs = delayMs;
+                            bestTargetLabel = `Aujourd'hui à ${time}`;
+                        }
+                    } else if (daysDiff > 0) {
+                        // C'est un autre jour
+                        const delayMs = (daysDiff * 24 * 60 + minutesDiff) * 60 * 1000 - (now.getSeconds() * 1000 + now.getMilliseconds());
+                        if (delayMs < bestDelayMs) {
+                            bestDelayMs = delayMs;
+                            bestTargetLabel = `${cleanD} à ${time}`;
+                        }
+                    }
+                }
+            }
+        }
+
+        if (bestDelayMs !== Infinity) {
+            return { ms: bestDelayMs, type: 'schedule', label: bestTargetLabel };
+        }
+
+        return { ms: fallbackMs, type: 'interval', label: `${settings?.scrapingInterval ?? 60} minutes` };
+    };
+
     // 1. Boucle du Pipeline Principal (Scraping & IA)
     const runMainCycle = async () => {
         try {
@@ -112,11 +178,10 @@ async function main() {
 
         // Planification du prochain cycle
         const settings = await prisma.globalSettings.findFirst();
-        const intervalMinutes = settings?.scrapingInterval ?? 60;
-        const intervalMs = intervalMinutes * 60 * 1000;
+        const nextScan = getDelayToNextScan(settings);
 
-        logger.info("Daemon", `⏳ Prochain scan complet programmé dans ${intervalMinutes} minutes.`);
-        setTimeout(runMainCycle, intervalMs);
+        logger.info("Daemon", `⏳ Prochain scan programmé : ${nextScan.label} (${Math.round(nextScan.ms / 60000)} min).`);
+        setTimeout(runMainCycle, nextScan.ms);
     };
 
     // 2. Boucle Indépendante de la Tour de Contrôle (Node 7: Publisher)

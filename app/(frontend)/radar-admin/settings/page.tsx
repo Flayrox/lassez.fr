@@ -22,10 +22,10 @@ export default function SettingsPage() {
     const [isDirty, setIsDirty] = useState(false);
 
     useEffect(() => {
-        if (settings) {
+        if (settings && !isDirty) {
             setForm({ ...settings });
-            setIsDirty(false);
         }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [settings]);
 
     const handleSave = async () => {

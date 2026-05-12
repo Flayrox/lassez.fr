@@ -18,55 +18,115 @@ const DAYS = [
 ];
 
 export function DaemonSection({ form, updateForm }: DaemonSectionProps) {
-    const parseSchedule = (raw: string) => {
-        const schedule: Record<string, string[]> = {
-            LUN: [], MAR: [], MER: [], JEU: [], VEN: [], SAM: [], DIM: []
-        };
-        if (!raw) return schedule;
+    const HOURS = Array.from({ length: 24 }).map((_, i) => `${i.toString().padStart(2, '0')}:00`);
+    
+    // Parse l'ancien format string en un Set de "JOUR-HEURE" pour le rendu O(1)
+    const parseToSet = (raw: string) => {
+        const selected = new Set<string>();
+        if (!raw) return selected;
         const lines = raw.split(/[\n;]+/).map(l => l.trim()).filter(Boolean);
         lines.forEach(line => {
             const parts = line.split(/\s+/);
             if (parts.length >= 2) {
                 const days = parts[0].toUpperCase().split(',');
-                const time = parts[1];
-                days.forEach(d => {
-                    const cleanD = d.trim();
-                    if (schedule[cleanD]) schedule[cleanD].push(time);
-                });
+                const time = parts[1]; // Format attendu: HH:00
+                days.forEach(d => selected.add(`${d.trim()}-${time}`));
             }
         });
-        return schedule;
+        return selected;
     };
 
-    const serializeSchedule = (obj: Record<string, string[]>) => {
-        return Object.entries(obj)
+    // Reconvertit le Set en string pour le backend
+    const serializeFromSet = (selected: Set<string>) => {
+        const schedule: Record<string, string[]> = {
+            LUN: [], MAR: [], MER: [], JEU: [], VEN: [], SAM: [], DIM: []
+        };
+        selected.forEach(entry => {
+            const [day, time] = entry.split('-');
+            if (schedule[day]) schedule[day].push(time);
+        });
+        
+        return Object.entries(schedule)
             .filter(([_, times]) => times.length > 0)
-            .map(([day, times]) => times.map(t => `${day} ${t}`).join('\n'))
+            .map(([day, times]) => times.sort().map(t => `${day} ${t}`).join('\n'))
             .join('\n');
     };
 
-    const [schedule, setSchedule] = useState<Record<string, string[]>>({});
+    const [selectedSlots, setSelectedSlots] = useState<Set<string>>(new Set());
+    
+    // Rectangle Selection State
+    const [dragStart, setDragStart] = useState<{ dayIdx: number, hourIdx: number } | null>(null);
+    const [dragCurrent, setDragCurrent] = useState<{ dayIdx: number, hourIdx: number } | null>(null);
+    const [dragMode, setDragMode] = useState<'add' | 'remove' | null>(null);
 
     useEffect(() => {
-        setSchedule(parseSchedule(form.daemonSchedule || ''));
+        setSelectedSlots(parseToSet(form.daemonSchedule || ''));
     }, [form.daemonSchedule]);
 
-    const updateSchedule = (newSchedule: Record<string, string[]>) => {
-        setSchedule(newSchedule);
-        updateForm('daemonSchedule', serializeSchedule(newSchedule));
+    const handleSave = (newSlots: Set<string>) => {
+        setSelectedSlots(newSlots);
+        updateForm('daemonSchedule', serializeFromSet(newSlots));
     };
 
-    const addTime = (day: string) => {
-        const time = prompt('Format HH:MM', '08:00');
-        if (time && /^(\d{1,2}):(\d{2})$/.test(time)) {
-            const newTimes = Array.from(new Set([...schedule[day], time])).sort();
-            updateSchedule({ ...schedule, [day]: newTimes });
+    const handleMouseDown = (dayIdx: number, hourIdx: number) => {
+        const slotKey = `${DAYS[dayIdx].key}-${HOURS[hourIdx]}`;
+        const mode = selectedSlots.has(slotKey) ? 'remove' : 'add';
+        setDragMode(mode);
+        setDragStart({ dayIdx, hourIdx });
+        setDragCurrent({ dayIdx, hourIdx });
+    };
+
+    const handleMouseEnter = (dayIdx: number, hourIdx: number) => {
+        if (dragStart) {
+            setDragCurrent({ dayIdx, hourIdx });
         }
     };
 
-    const removeTime = (day: string, time: string) => {
-        const newTimes = schedule[day].filter(t => t !== time);
-        updateSchedule({ ...schedule, [day]: newTimes });
+    useEffect(() => {
+        const handleMouseUp = () => {
+            if (dragStart && dragCurrent && dragMode) {
+                const minDay = Math.min(dragStart.dayIdx, dragCurrent.dayIdx);
+                const maxDay = Math.max(dragStart.dayIdx, dragCurrent.dayIdx);
+                const minHour = Math.min(dragStart.hourIdx, dragCurrent.hourIdx);
+                const maxHour = Math.max(dragStart.hourIdx, dragCurrent.hourIdx);
+
+                const newSlots = new Set(selectedSlots);
+
+                for (let d = minDay; d <= maxDay; d++) {
+                    for (let h = minHour; h <= maxHour; h++) {
+                        const slotKey = `${DAYS[d].key}-${HOURS[h]}`;
+                        if (dragMode === 'add') {
+                            newSlots.add(slotKey);
+                        } else {
+                            newSlots.delete(slotKey);
+                        }
+                    }
+                }
+
+                handleSave(newSlots);
+            }
+            setDragStart(null);
+            setDragCurrent(null);
+            setDragMode(null);
+        };
+
+        window.addEventListener('mouseup', handleMouseUp);
+        return () => window.removeEventListener('mouseup', handleMouseUp);
+    }, [dragStart, dragCurrent, dragMode, selectedSlots]);
+
+    const isSlotInDragRange = (dayIdx: number, hourIdx: number) => {
+        if (!dragStart || !dragCurrent) return false;
+        const minDay = Math.min(dragStart.dayIdx, dragCurrent.dayIdx);
+        const maxDay = Math.max(dragStart.dayIdx, dragCurrent.dayIdx);
+        const minHour = Math.min(dragStart.hourIdx, dragCurrent.hourIdx);
+        const maxHour = Math.max(dragStart.hourIdx, dragCurrent.hourIdx);
+        return dayIdx >= minDay && dayIdx <= maxDay && hourIdx >= minHour && hourIdx <= maxHour;
+    };
+
+    const clearSchedule = () => {
+        if (confirm('Voulez-vous effacer toute la planification ?')) {
+            handleSave(new Set());
+        }
     };
 
     return (
@@ -99,29 +159,70 @@ export function DaemonSection({ form, updateForm }: DaemonSectionProps) {
                 </div>
             </div>
 
-            <div className="pt-4 space-y-3">
-                <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">Weekly schedule matrix</h4>
-                <div className="grid grid-cols-7 gap-1">
-                    {DAYS.map(day => (
-                        <div key={day.key} className="border border-slate-100 rounded-sm bg-slate-50/50 p-2 min-h-[80px] flex flex-col gap-2">
-                            <div className="flex justify-between items-center">
-                                <span className="text-[9px] font-bold text-black">{day.label}</span>
-                                <button onClick={() => addTime(day.key)} className="text-slate-400 hover:text-black transition-all">
-                                    <span className="material-symbols-outlined text-[14px]">add</span>
-                                </button>
+            <div className="pt-6 space-y-4">
+                <div className="flex justify-between items-center">
+                    <div>
+                        <h4 className="text-[12px] font-bold text-slate-900 tracking-tight flex items-center gap-2">
+                            <span className="material-symbols-outlined text-[16px]">calendar_month</span>
+                            Interactive Schedule Matrix
+                        </h4>
+                        <p className="text-[10px] text-slate-400 mt-0.5">Click and drag to select scanning hours (Calendly style).</p>
+                    </div>
+                    <button onClick={clearSchedule} className="text-[10px] font-bold text-red-500 hover:text-white transition-all bg-red-50 hover:bg-red-500 px-3 py-1.5 rounded-md border border-red-100 shadow-sm">
+                        Clear all
+                    </button>
+                </div>
+                
+                {/* Drag to select Calendar Grid */}
+                <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm select-none">
+                    {/* Header Row (Days) */}
+                    <div className="flex border-b border-slate-200 bg-slate-50">
+                        <div className="w-16 shrink-0 border-r border-slate-200"></div>
+                        {DAYS.map(day => (
+                            <div key={day.key} className="flex-1 text-center py-2 border-r border-slate-200 last:border-r-0">
+                                <span className="text-[10px] font-bold text-slate-500 uppercase">{day.label}</span>
                             </div>
-                            <div className="flex flex-col gap-1">
-                                {schedule[day.key]?.map(time => (
-                                    <div key={time} className="px-1 py-0.5 bg-white border border-slate-200 rounded-sm text-[9px] font-mono flex justify-between items-center group">
-                                        {time}
-                                        <button onClick={() => removeTime(day.key, time)} className="opacity-0 group-hover:opacity-100 text-slate-300 hover:text-red-500 transition-all">
-                                            <span className="material-symbols-outlined text-[10px]">close</span>
-                                        </button>
-                                    </div>
-                                ))}
+                        ))}
+                    </div>
+                    
+                    {/* Time Rows */}
+                    <div className="max-h-[400px] overflow-y-auto custom-scrollbar relative bg-white">
+                        {HOURS.map((hour, hourIdx) => (
+                            <div key={hour} className="flex border-b border-slate-100 last:border-b-0 group">
+                                <div className="w-16 shrink-0 border-r border-slate-200 py-1 flex items-center justify-center bg-slate-50 z-10 sticky left-0">
+                                    <span className="text-[9px] font-mono text-slate-400 group-hover:text-black transition-colors">{hour}</span>
+                                </div>
+                                {DAYS.map((day, dayIdx) => {
+                                    const slotKey = `${day.key}-${hour}`;
+                                    const isSelected = selectedSlots.has(slotKey);
+                                    const inRange = isSlotInDragRange(dayIdx, hourIdx);
+                                    const effectivelySelected = inRange ? dragMode === 'add' : isSelected;
+                                    const isActivelyChanging = inRange; // To apply a pulse/highlight during drag
+
+                                    return (
+                                        <div 
+                                            key={slotKey}
+                                            onMouseDown={() => handleMouseDown(dayIdx, hourIdx)}
+                                            onMouseEnter={() => handleMouseEnter(dayIdx, hourIdx)}
+                                            className={`flex-1 border-r border-slate-100/50 last:border-r-0 cursor-crosshair transition-all duration-75 select-none ${
+                                                effectivelySelected 
+                                                    ? 'bg-black shadow-[inset_0_0_0_1px_rgba(255,255,255,0.15)]' 
+                                                    : 'bg-transparent hover:bg-slate-100/50'
+                                            } ${isActivelyChanging ? 'opacity-80 scale-[0.98]' : ''}`}
+                                        >
+                                            <div className="h-6 w-full flex items-center justify-center">
+                                                {effectivelySelected && (
+                                                    <span className={`material-symbols-outlined text-[14px] ${isActivelyChanging ? 'text-white/60' : 'text-white/90'}`}>
+                                                        check
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
                             </div>
-                        </div>
-                    ))}
+                        ))}
+                    </div>
                 </div>
             </div>
         </div>

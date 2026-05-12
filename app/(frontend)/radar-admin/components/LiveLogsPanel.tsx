@@ -43,7 +43,7 @@ export function LiveLogsPanel({ compact }: { compact?: boolean }) {
 
     const fetchLogs = async () => {
         try {
-            const res = await fetch('/api/radar/logs', { cache: 'no-store' });
+            const res = await fetch('/radar-api-logs', { cache: 'no-store' });
             const data = await res.json();
             if (data.success && !paused) setLogs(data.logs || []);
         } catch (e) { console.error(e); }

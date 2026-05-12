@@ -3,7 +3,7 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 
 const execAsync = promisify(exec);
-const TRACKED_PROCESSES = ['radar-daemon-rss', 'radar-daemon', 'radar-admin'] as const;
+const TRACKED_PROCESSES = ['radar-daemon'] as const;
 
 export const dynamic = 'force-dynamic';
 
@@ -63,11 +63,11 @@ export async function GET() {
 export async function POST(req: Request) {
     try {
         const body = await req.json().catch(() => ({}));
-        const target = body.target || 'radar-daemon-rss';
+        const target = body.target || 'radar-daemon';
         const action = body.action || 'restart';
 
         // Security check for allowed targets and actions
-        const allowedTargets = ['radar-daemon-rss', 'radar-daemon', 'all'];
+        const allowedTargets = ['radar-daemon', 'all'];
         const allowedActions = ['start', 'stop', 'restart', 'reload'];
 
         if (!allowedTargets.includes(target) || !allowedActions.includes(action)) {

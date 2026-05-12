@@ -29,19 +29,12 @@ module.exports = {
         },
         {
             name: 'radar-daemon',
-            script: './radar_lassez/daemon.js',
+            script: 'npx',
+            args: 'tsx ./radar_lassez/daemon.ts',
             cwd: '/var/www/lassez-api',
             instances: 1,
             exec_mode: 'fork',
             env: { NODE_ENV: 'production', PORT: 3005 }
-        },
-        {
-            name: 'radar-daemon-rss',
-            script: './radar_lassez/daemon_rss.js',
-            cwd: '/var/www/lassez-api',
-            instances: 1,
-            exec_mode: 'fork',
-            env: { NODE_ENV: 'production', PORT: 3006 }
         }
     ]
 };

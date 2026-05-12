@@ -91,7 +91,17 @@ export async function runIngestionNode(timeWindowHoursOverride?: number): Promis
 
     const timeWindowMs = timeWindowHours * 60 * 60 * 1000;
     const cutoffDate = new Date(Date.now() - timeWindowMs);
+    
+    // Purger les vieilles URL de plus de 7 jours pour garder la base légère
+    try {
+        const purgeDate = new Date(Date.now() - (7 * 24 * 60 * 60 * 1000));
+        await prisma.seenUrl.deleteMany({
+            where: { createdAt: { lt: purgeDate } }
+        });
+    } catch(e) {}
+
     let allArticles: IngestedArticle[] = [];
+    let duplicateUrlsCount = 0;
 
     // 3. Exécution concurrente de l'aspiration avec limitation
     const concurrencyLimit = await getEffectiveParam('ingestion', 'maxConcurrentTasks', 5);
@@ -108,19 +118,40 @@ export async function runIngestionNode(timeWindowHoursOverride?: number): Promis
                     return date >= cutoffDate;
                 });
 
-                const formatted: IngestedArticle[] = validItems.map(item => ({
-                    title: item.title || 'Sans titre',
-                    url: item.link || '',
-                    content: item.contentSnippet || item.content || item.summary || '',
-                    pubDate: new Date(item.isoDate || item.pubDate || ''),
-                    source_name: source.source_name,
-                    source_bias: source.source_bias,
-                    trust_score: source.trust_score,
-                    allowSourceImages: source.allowSourceImages
-                }));
+                const newArticles: IngestedArticle[] = [];
+                for (const item of validItems) {
+                    const url = item.link || '';
+                    if (!url) continue;
 
-                allArticles.push(...formatted);
-                console.log(`[Node 1] ✅ [${source.source_name}] : ${formatted.length} articles retenus.`);
+                    // Vérification EXACTE d'URL en base de données
+                    const existingUrl = await prisma.seenUrl.findUnique({
+                        where: { url }
+                    });
+
+                    if (existingUrl) {
+                        duplicateUrlsCount++;
+                        continue; // URL déjà traitée, on jette l'article immédiatement
+                    }
+
+                    // Enregistrer la nouvelle URL
+                    try {
+                        await prisma.seenUrl.create({ data: { url } });
+                    } catch(e) { continue; /* Concurrency issue if 2 nodes insert at same ms */ }
+
+                    newArticles.push({
+                        title: item.title || 'Sans titre',
+                        url: url,
+                        content: item.contentSnippet || item.content || item.summary || '',
+                        pubDate: new Date(item.isoDate || item.pubDate || ''),
+                        source_name: source.source_name,
+                        source_bias: source.source_bias,
+                        trust_score: source.trust_score,
+                        allowSourceImages: source.allowSourceImages
+                    });
+                }
+
+                allArticles.push(...newArticles);
+                console.log(`[Node 1] ✅ [${source.source_name}] : ${newArticles.length} nouveaux articles retenus.`);
             } 
             else if (source.type === 'TELEGRAM') {
                 console.log(`[Node 1] 🚧 [${source.source_name}] Mock: Aspiration Telegram simulée.`);
@@ -130,6 +161,6 @@ export async function runIngestionNode(timeWindowHoursOverride?: number): Promis
         }
     })));
 
-    console.log(`[Node 1: Ingestion] 🏁 Fin. Total : ${allArticles.length} articles.`);
+    console.log(`[Node 1: Ingestion] 🏁 Fin. Total : ${allArticles.length} articles inédits. (${duplicateUrlsCount} URLs déjà connues bloquées).`);
     return allArticles;
 }

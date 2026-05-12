@@ -42,7 +42,7 @@ export async function PATCH(request: Request) {
         
         // 3. Strings
         const stringFields = [
-            'discordPublishMode', 'xPublishMode', 'blueskyPublishMode',
+            'discordPublishMode', 'xPublishMode', 'blueskyPublishMode', 'mastodonPublishMode', 'payloadPublishMode',
             'aiModelFlash', 'aiModelPro', 'customPromptModifier', 
             'daemonSchedule', 'pipelineGraphJson', 'keywords', 'bannedKeywords',
             'rss_feeds', 'telegram_channels', 'google_news_queries', 'social_targets_by_type_json',

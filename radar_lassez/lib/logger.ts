@@ -9,17 +9,17 @@ type LogLevel = 'INFO' | 'WARN' | 'ERROR' | 'SUCCESS';
 class Logger {
     private async writeToDB(level: LogLevel, nodeId: string, message: string) {
         try {
-            // Utilisation de executeRaw pour éviter les blocages de types Prisma Client stale
-            await prisma.$executeRawUnsafe(
-                `INSERT INTO Log (id, level, message, nodeId, timestamp) VALUES (?, ?, ?, ?, ?)`,
-                crypto.randomUUID(),
-                level,
-                message,
-                nodeId,
-                new Date().toISOString()
-            );
-        } catch (e) {
-            // On ne bloque pas si la DB est occupée, on écrit au moins dans le fichier
+            await prisma.log.create({
+                data: {
+                    level,
+                    message,
+                    nodeId,
+                    timestamp: new Date()
+                }
+            });
+        } catch (e: any) {
+            // On affiche l'erreur dans la console pour le debug PM2
+            console.error(`[Logger] Erreur DB: ${e.message}`);
         }
     }
 

@@ -132,30 +132,43 @@ export function DaemonSection({ form, updateForm }: DaemonSectionProps) {
     return (
         <div className="space-y-6">
             <div className="flex justify-between items-center border-b border-slate-100 pb-2">
-                <h3 className="text-sm font-semibold text-black">Daemon & Chronos</h3>
-                <div className="flex items-center gap-2">
-                    <span className="text-[10px] text-slate-400 font-medium">Autopilot</span>
+                <div>
+                    <h3 className="text-sm font-semibold text-black">Publication Automatique</h3>
+                    <p className="text-[10px] text-slate-400 mt-0.5">Contrôlez le rythme de publication et l'autonomie de l'IA.</p>
+                </div>
+                <div className="flex items-center gap-2 group relative">
+                    <span className="text-[10px] text-slate-400 font-medium cursor-help" title="Désactivez pour que l'IA rédige mais que rien ne soit publié publiquement (mise en file d'attente uniquement).">Publier automatiquement sur les réseaux</span>
                     <button 
                         onClick={() => updateForm('enableAutoPublish', !form.enableAutoPublish)}
-                        className={`w-6 h-3.5 rounded-full relative transition-all ${form.enableAutoPublish ? 'bg-black' : 'bg-slate-200'}`}
+                        className={`w-6 h-3.5 rounded-full relative transition-all shadow-inner ${form.enableAutoPublish ? 'bg-emerald-500' : 'bg-slate-200'}`}
+                        title={form.enableAutoPublish ? "L'IA publie automatiquement." : "Publications gelées. L'IA ne fait que préparer des brouillons."}
                     >
-                        <div className={`absolute top-0.5 w-2.5 h-2.5 rounded-full bg-white transition-all ${form.enableAutoPublish ? 'left-3' : 'left-0.5'}`} />
+                        <div className={`absolute top-0.5 w-2.5 h-2.5 rounded-full bg-white transition-all shadow-sm ${form.enableAutoPublish ? 'left-3' : 'left-0.5'}`} />
                     </button>
                 </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-1">
-                    <label className="text-[10px] font-medium text-slate-400">Scraping pulse (min)</label>
-                    <input type="number" value={form.scrapingInterval || 60} onChange={(e) => updateForm('scrapingInterval', parseInt(e.target.value))} className="w-full bg-white border border-slate-200 rounded-sm px-2 py-1 text-[11px] font-mono font-bold focus:border-black outline-none transition-all" />
+                    <label className="text-[10px] font-medium text-slate-400 flex items-center gap-1 cursor-help" title="Filet de sécurité : Si le calendrier (matrice) est vide, le système aspirera les news tous les X minutes.">
+                        <span className="material-symbols-outlined text-[12px]">update</span>
+                        Fréquence de recherche (min)
+                    </label>
+                    <input type="number" value={form.scrapingInterval || 60} onChange={(e) => updateForm('scrapingInterval', parseInt(e.target.value))} className="w-full bg-slate-50 border border-slate-200 rounded-md px-2 py-1.5 text-[11px] font-mono font-bold focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/20 outline-none transition-all" />
                 </div>
                 <div className="space-y-1">
-                    <label className="text-[10px] font-medium text-slate-400">Min delay (min)</label>
-                    <input type="number" value={form.minPublishDelay || 60} onChange={(e) => updateForm('minPublishDelay', parseInt(e.target.value))} className="w-full bg-white border border-slate-200 rounded-sm px-2 py-1 text-[11px] font-mono font-bold focus:border-black outline-none transition-all" />
+                    <label className="text-[10px] font-medium text-slate-400 flex items-center gap-1 cursor-help" title="Anti-robot : Attente minimale avant qu'un brouillon d'IA soit posté sur les réseaux sociaux.">
+                        <span className="material-symbols-outlined text-[12px]">hourglass_empty</span>
+                        Délai anti-robot Min (min)
+                    </label>
+                    <input type="number" value={form.minPublishDelay || 60} onChange={(e) => updateForm('minPublishDelay', parseInt(e.target.value))} className="w-full bg-slate-50 border border-slate-200 rounded-md px-2 py-1.5 text-[11px] font-mono font-bold focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/20 outline-none transition-all" />
                 </div>
                 <div className="space-y-1">
-                    <label className="text-[10px] font-medium text-slate-400">Max delay (min)</label>
-                    <input type="number" value={form.maxPublishDelay || 120} onChange={(e) => updateForm('maxPublishDelay', parseInt(e.target.value))} className="w-full bg-white border border-slate-200 rounded-sm px-2 py-1 text-[11px] font-mono font-bold focus:border-black outline-none transition-all" />
+                    <label className="text-[10px] font-medium text-slate-400 flex items-center gap-1 cursor-help" title="Anti-robot : Attente maximale avant qu'un brouillon soit posté. Le délai final est aléatoire entre Min et Max.">
+                        <span className="material-symbols-outlined text-[12px]">hourglass_bottom</span>
+                        Délai anti-robot Max (min)
+                    </label>
+                    <input type="number" value={form.maxPublishDelay || 120} onChange={(e) => updateForm('maxPublishDelay', parseInt(e.target.value))} className="w-full bg-slate-50 border border-slate-200 rounded-md px-2 py-1.5 text-[11px] font-mono font-bold focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/20 outline-none transition-all" />
                 </div>
             </div>
 
@@ -163,10 +176,10 @@ export function DaemonSection({ form, updateForm }: DaemonSectionProps) {
                 <div className="flex justify-between items-center">
                     <div>
                         <h4 className="text-[12px] font-bold text-slate-900 tracking-tight flex items-center gap-2">
-                            <span className="material-symbols-outlined text-[16px]">calendar_month</span>
-                            Interactive Schedule Matrix
+                            <span className="material-symbols-outlined text-[16px] text-emerald-600">calendar_month</span>
+                            Calendrier d'Aspiration des News
                         </h4>
-                        <p className="text-[10px] text-slate-400 mt-0.5">Click and drag to select scanning hours (Calendly style).</p>
+                        <p className="text-[10px] text-slate-400 mt-0.5 cursor-help" title="Le système ne s'activera qu'aux heures noircies. S'il n'y a rien de noirci, il utilisera la 'Fréquence de recherche'.">Cliquez et glissez pour sélectionner vos heures de veille.</p>
                     </div>
                     <button onClick={clearSchedule} className="text-[10px] font-bold text-red-500 hover:text-white transition-all bg-red-50 hover:bg-red-500 px-3 py-1.5 rounded-md border border-red-100 shadow-sm">
                         Clear all

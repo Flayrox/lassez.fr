@@ -64,21 +64,21 @@ export default function SettingsPage() {
     };
 
     const tabs = [
-        { key: 'sources', label: 'Sources', icon: 'rss_feed' },
-        { key: 'pipeline', label: 'Cortex engine', icon: 'psychology' },
-        { key: 'taxonomies', label: 'Taxonomies', icon: 'category' },
-        { key: 'prompts', label: 'Prompt blocks', icon: 'edit_note' },
-        { key: 'daemon', label: 'Daemon & schedule', icon: 'schedule' },
-        { key: 'diffusion', label: 'Social matrix', icon: 'share' },
-        { key: 'health', label: 'System health', icon: 'health_and_safety' },
-        { key: 'users', label: 'Access control', icon: 'group' },
-        { key: 'advanced', label: 'Advanced registry', icon: 'settings_input_component' },
+        { key: 'sources', label: 'Sources d\'informations', icon: 'rss_feed' },
+        { key: 'pipeline', label: 'Moteur IA & Filtres', icon: 'psychology' },
+        { key: 'taxonomies', label: 'Formats de News', icon: 'category' },
+        { key: 'prompts', label: 'Ligne Éditoriale', icon: 'edit_note' },
+        { key: 'daemon', label: 'Planification', icon: 'schedule' },
+        { key: 'diffusion', label: 'Réseaux Sociaux', icon: 'share' },
+        { key: 'health', label: 'Santé du système', icon: 'health_and_safety' },
+        { key: 'users', label: 'Équipe', icon: 'group' },
+        { key: 'advanced', label: 'Modèles IA (Avancé)', icon: 'settings_input_component' },
     ];
 
     return (
         <ModernDashboardLayout 
-            title="Settings" 
-            subtitle="Cortex configuration" 
+            title="Réglages" 
+            subtitle="Configuration de la plateforme" 
             isDaemonRunning={isDaemonRunning}
         >
             <div className="flex flex-col lg:flex-row gap-8">
@@ -110,11 +110,11 @@ export default function SettingsPage() {
                                     : 'bg-slate-100 text-slate-400 cursor-not-allowed'
                             }`}
                         >
-                            {isSaving ? 'Saving...' : 'Save changes'}
+                            {isSaving ? 'Sauvegarde...' : 'Sauvegarder'}
                         </button>
                         {isDirty && (
                             <p className="text-[9px] text-amber-600 font-bold text-center italic">
-                                Unsaved changes
+                                Modifications non sauvegardées
                             </p>
                         )}
                     </div>

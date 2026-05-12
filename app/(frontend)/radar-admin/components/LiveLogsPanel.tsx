@@ -32,7 +32,7 @@ function formatDate(input?: string | null) {
     return d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 }
 
-export function LiveLogsPanel() {
+export function LiveLogsPanel({ compact }: { compact?: boolean }) {
     const [logs, setLogs] = useState<LogItem[]>([]);
     const [filter, setFilter] = useState<string>('all');
     const [query, setQuery] = useState('');

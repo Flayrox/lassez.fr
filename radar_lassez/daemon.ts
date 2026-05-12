@@ -46,7 +46,7 @@ export async function runPipeline() {
         let rawArticles: any[] = [];
         if (activeNodes.has('ingestion')) {
             logger.info("Node 1", "📡 Lancement de l'Ingestion...");
-            rawArticles = await runIngestionNode(settings.rss_lookback_hours || 12);
+            rawArticles = await runIngestionNode(12); // Fallback hardcodé au lieu de settings.rss_lookback_hours manquant
         } else {
             logger.info("Daemon", "⏭️ Node Ingestion absent du graphe. Skip.");
         }

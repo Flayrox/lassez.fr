@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenAI, Type } from '@google/genai';
 import pLimit from 'p-limit';
 import { prisma } from '../lib/prisma';
 import { getEffectiveParam } from '../lib/config-resolver';
@@ -29,7 +29,7 @@ export async function runResearcherNode() {
         return;
     }
 
-    const genAI = new GoogleGenerativeAI(apiKey);
+    const ai = new GoogleGenAI({ apiKey });
     
     // Résolution en cascade : Node > Global > Default
     const requestedModel = await getEffectiveParam('research', 'aiModelFlash', 'gemini-3-flash-preview');
@@ -53,18 +53,36 @@ export async function runResearcherNode() {
         ? `=== CATÉGORISATION (Taxonomie) ===\nTu dois assigner une taxonomie aux sujets que tu gardes :\n${taxonomyTemplates.map(t => `- ${t.name} : ${t.description}`).join('\n')}`
         : `=== CATÉGORISATION ===\n- ALERTE : Sujet grave.\n- INFO : Actualité marquante.\n- FLASH : Fait ponctuel.\n- CITATION : Phrase choc.`;
 
-    const taxonomyNames = taxonomyTemplates.length > 0
-        ? taxonomyTemplates.map(t => `"${t.name}"`).join(' | ')
-        : '"ALERTE" | "INFO" | "FLASH" | "CITATION"';
+    const taxonomyNamesArray = taxonomyTemplates.length > 0
+        ? taxonomyTemplates.map(t => t.name)
+        : ["ALERTE", "INFO", "FLASH", "CITATION"];
 
     console.log(`[Node 3] 📋 Taxonomies actives: ${taxonomyTemplates.map(t => t.name).join(', ')}`);
 
-    const model = genAI.getGenerativeModel({
-        model: requestedModel,
-        generationConfig: {
-            responseMimeType: "application/json",
-        }
-    });
+    // Schema definition for Structured Output
+    const responseSchema = {
+        type: Type.OBJECT,
+        properties: {
+            results: {
+                type: Type.ARRAY,
+                items: {
+                    type: Type.OBJECT,
+                    properties: {
+                        id: { type: Type.STRING, description: "uuid-du-topic" },
+                        pertinent: { type: Type.BOOLEAN, description: "True si on garde le sujet, False sinon." },
+                        taxonomy: { 
+                            type: Type.STRING, 
+                            description: "La taxonomie choisie (ou null si pertinent=false)"
+                        },
+                        flag: { type: Type.STRING, description: "un drapeau optionnel comme CRITICAL_CROSSCHECK", nullable: true },
+                        reason: { type: Type.STRING, description: "une justification ultra-courte de pourquoi tu le gardes ou le jettes" }
+                    },
+                    required: ["id", "pertinent", "reason"]
+                }
+            }
+        },
+        required: ["results"]
+    };
 
     // Build the system prompt dynamically
     const systemPrompt = `${researcherSystem}
@@ -72,20 +90,7 @@ ${customPrompt ? `\nDIRECTIVE SPÉCIALE DU JOUR : ${customPrompt}` : ''}
 
 ${taxonomySection}
 
-${rejectCriteria}
-
-Réponds UNIQUEMENT par un JSON avec la structure exacte suivante :
-{
-  "results": [
-    {
-      "id": "uuid-du-topic",
-      "pertinent": true,
-      "taxonomy": ${taxonomyNames},
-      "flag": "un drapeau optionnel comme CRITICAL_CROSSCHECK ou null",
-      "reason": "une justification ultra-courte de pourquoi tu le gardes ou le jettes"
-    }
-  ]
-}`;
+${rejectCriteria}`;
 
     // Batches concurrency par blocs de 15 topics
     const CHUNK_SIZE = 15;
@@ -114,9 +119,20 @@ Réponds UNIQUEMENT par un JSON avec la structure exacte suivante :
 
             const titleMap = new Map(articlesPayload.map(a => [a.id, a.title]));
 
-            const prompt = `${systemPrompt}\n\nVoici les sujets à analyser :\n${JSON.stringify(articlesPayload, null, 2)}`;
-            const result = await model.generateContent(prompt);
-            const responseText = result.response.text();
+            const prompt = `Voici les sujets à analyser :\n${JSON.stringify(articlesPayload, null, 2)}`;
+            
+            const result = await ai.models.generateContent({
+                model: requestedModel,
+                contents: prompt,
+                config: {
+                    systemInstruction: systemPrompt,
+                    responseMimeType: "application/json",
+                    responseJsonSchema: responseSchema,
+                }
+            });
+
+            const responseText = result.text;
+            if (!responseText) throw new Error("Réponse vide de l'IA.");
             const data = JSON.parse(responseText);
 
             for (const evaluation of data.results) {
@@ -143,6 +159,17 @@ Réponds UNIQUEMENT par un JSON avec la structure exacte suivante :
 
         } catch (error) {
             console.error(`[Node 3] ❌ Erreur API sur un chunk ou parsing JSON défaillant :`, error instanceof Error ? error.message : error);
+            // Marquer les topics du chunk en erreur pour éviter la boucle infinie
+            for (const t of chunk) {
+                try {
+                    await prisma.newsTopic.update({
+                        where: { id: t.id },
+                        data: { status: 'REJECTED_ERROR' } // Sortie de boucle
+                    });
+                } catch (e) {
+                    console.error(`[Node 3] Impossible de set REJECTED_ERROR sur ${t.id}`, e);
+                }
+            }
         }
     })));
 

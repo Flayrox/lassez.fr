@@ -47,9 +47,14 @@ export async function PATCH(request: Request) {
             'daemonSchedule', 'pipelineGraphJson', 'keywords', 'bannedKeywords',
             'rss_feeds', 'telegram_channels', 'google_news_queries', 'social_targets_by_type_json',
             'availableModelsJson',
+            // API Keys & Webhooks
+            'discordWebhookUrl', 'xApiKey', 'xApiSecret', 'xAccessToken', 'xAccessSecret',
+            'mastodonInstanceUrl', 'mastodonAccessToken', 'blueskyIdentifier', 'blueskyAppPassword',
+            'payloadServerUrl', 'payloadBotEmail', 'payloadBotPassword',
             // Prompt Engineering Blocks
             'baseIdentityPrompt', 'researchMissionPrompt', 'vocabularyRulesPrompt',
             'imageRulesPrompt', 'researcherSystemPrompt', 'researcherRejectCriteria',
+            'schedulingMode'
         ];
         stringFields.forEach(f => {
             if (body[f] !== undefined) {

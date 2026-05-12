@@ -148,9 +148,41 @@ export function DaemonSection({ form, updateForm }: DaemonSectionProps) {
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* SÉLECTEUR DE MODE DE PLANIFICATION */}
+            <div className="pt-2 border-b border-slate-100 pb-6">
+                <div className="flex items-center justify-between mb-3">
+                    <div>
+                        <h4 className="text-[11px] font-bold text-slate-900 uppercase tracking-widest">Mode de planification</h4>
+                        <p className="text-[10px] text-slate-400">Comment le Daemon doit-il aspirer l'information ?</p>
+                    </div>
+                </div>
+                
+                <div className="flex bg-slate-100 p-1 rounded-lg">
+                    {[
+                        { id: 'hybrid', icon: 'auto_awesome', label: 'Hybride', desc: 'Mix Calendrier & Pulse' },
+                        { id: 'pulse', icon: 'update', label: 'Fréquence Continue', desc: 'Scan toutes les X minutes' },
+                        { id: 'calendar', icon: 'calendar_month', label: 'Calendrier Strict', desc: 'Heures noircies uniquement' }
+                    ].map(mode => {
+                        const isActive = (form.schedulingMode || 'hybrid') === mode.id;
+                        return (
+                            <button
+                                key={mode.id}
+                                onClick={() => updateForm('schedulingMode', mode.id)}
+                                className={`flex-1 flex flex-col items-center gap-1 p-2 rounded-md transition-all duration-200 ${isActive ? 'bg-white shadow-sm ring-1 ring-slate-200' : 'text-slate-500 hover:bg-slate-200/50'}`}
+                            >
+                                <span className={`material-symbols-outlined text-[18px] ${isActive ? 'text-black' : ''}`}>{mode.icon}</span>
+                                <span className={`text-[10px] font-bold ${isActive ? 'text-black' : ''}`}>{mode.label}</span>
+                                <span className="text-[8px] text-slate-400">{mode.desc}</span>
+                            </button>
+                        );
+                    })}
+                </div>
+            </div>
+
+            {/* OPTIONS DE FRÉQUENCE (PULSE) */}
+            <div className={`grid grid-cols-1 md:grid-cols-3 gap-4 transition-all duration-300 ${(form.schedulingMode || 'hybrid') === 'calendar' ? 'opacity-30 pointer-events-none grayscale' : ''}`}>
                 <div className="space-y-1">
-                    <label className="text-[10px] font-medium text-slate-400 flex items-center gap-1 cursor-help" title="Filet de sécurité : Si le calendrier (matrice) est vide, le système aspirera les news tous les X minutes.">
+                    <label className="text-[10px] font-medium text-slate-400 flex items-center gap-1 cursor-help" title="Fréquence continue d'aspiration 24h/24.">
                         <span className="material-symbols-outlined text-[12px]">update</span>
                         Fréquence de recherche (min)
                     </label>
@@ -172,14 +204,15 @@ export function DaemonSection({ form, updateForm }: DaemonSectionProps) {
                 </div>
             </div>
 
-            <div className="pt-6 space-y-4">
+            {/* OPTIONS DE CALENDRIER */}
+            <div className={`pt-4 space-y-4 transition-all duration-300 ${(form.schedulingMode || 'hybrid') === 'pulse' ? 'opacity-30 pointer-events-none grayscale' : ''}`}>
                 <div className="flex justify-between items-center">
                     <div>
                         <h4 className="text-[12px] font-bold text-slate-900 tracking-tight flex items-center gap-2">
                             <span className="material-symbols-outlined text-[16px] text-emerald-600">calendar_month</span>
                             Calendrier d'Aspiration des News
                         </h4>
-                        <p className="text-[10px] text-slate-400 mt-0.5 cursor-help" title="Le système ne s'activera qu'aux heures noircies. S'il n'y a rien de noirci, il utilisera la 'Fréquence de recherche'.">Cliquez et glissez pour sélectionner vos heures de veille.</p>
+                        <p className="text-[10px] text-slate-400 mt-0.5">Cliquez et glissez pour sélectionner vos heures de veille strictes.</p>
                     </div>
                     <button onClick={clearSchedule} className="text-[10px] font-bold text-red-500 hover:text-white transition-all bg-red-50 hover:bg-red-500 px-3 py-1.5 rounded-md border border-red-100 shadow-sm">
                         Clear all

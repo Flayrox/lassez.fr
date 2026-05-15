@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { logger } from '@/radar_lassez/lib/logger';
 
 export const dynamic = 'force-dynamic';
 
@@ -68,6 +69,8 @@ export async function PATCH(request: Request) {
             update: updateData,
             create: { id: 1, ...updateData }
         });
+
+        logger.info('System', 'Settings updated via UI');
 
         return NextResponse.json({ success: true, message: 'Paramètres mis à jour' });
     } catch (error: any) {

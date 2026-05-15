@@ -96,6 +96,8 @@ export async function runPipeline() {
 }
 
 async function main() {
+    logger.overrideConsole();
+    
     console.log("==========================================");
     console.log("   L'ASSEZ V3 - INVESTIGATION DAEMON      ");
     console.log("==========================================");

@@ -3,6 +3,10 @@ import { getEffectiveParam } from '../lib/config-resolver';
 import { TwitterApi } from 'twitter-api-v2';
 import { BskyAgent } from '@atproto/api';
 
+// Cache for Payload CMS token
+let cachedPayloadToken: string | null = null;
+let payloadTokenExpiresAt: number = 0;
+
 // Fonction utilitaire pour convertir une couleur Hex (#DC2626) en décimal pour Discord
 function hexToDecimal(hex: string): number {
     const cleanedHex = hex.replace('#', '');
@@ -33,60 +37,75 @@ export async function runPublisherNode() {
     // ========================================================
     console.log(`🚀 [Node 6: Phase A] Recherche de nouveaux articles à planifier...`);
 
-    const pendingTopics = await prisma.newsTopic.findMany({
-        where: { 
-            status: 'PENDING',
-            publications: { none: {} } // Uniquement ceux sans aucune publication
+    const pendingTopics = await prisma.$transaction(async (tx) => {
+        const topics = await tx.newsTopic.findMany({
+            where: { 
+                status: 'PENDING',
+                publications: { none: {} } // Uniquement ceux sans aucune publication
+            }
+        });
+
+        if (topics.length > 0) {
+            await tx.newsTopic.updateMany({
+                where: { id: { in: topics.map(t => t.id) } },
+                data: { status: 'QUEUED' }
+            });
         }
+
+        return topics;
     });
 
     if (pendingTopics.length > 0) {
         console.log(`🚀 [Node 6: Phase A] 📤 ${pendingTopics.length} nouveaux articles à enfiler.`);
 
-        for (const topic of pendingTopics) {
-            // Déterminer les réseaux à provisionner
-            const platforms = [];
-            if (enableDiscord) platforms.push({ name: 'DISCORD', mode: await getEffectiveParam('publisher', 'discordPublishMode', 'DIRECT') });
-            if (enableX) platforms.push({ name: 'X', mode: await getEffectiveParam('publisher', 'xPublishMode', 'SCHEDULED') });
-            if (enableBluesky) platforms.push({ name: 'BLUESKY', mode: await getEffectiveParam('publisher', 'blueskyPublishMode', 'SCHEDULED') });
-            if (enableMastodon) platforms.push({ name: 'MASTODON', mode: await getEffectiveParam('publisher', 'mastodonPublishMode', 'SCHEDULED') });
-            if (enablePayloadCMS) platforms.push({ name: 'PAYLOAD', mode: await getEffectiveParam('publisher', 'payloadPublishMode', 'DIRECT') });
+        // Déterminer les réseaux à provisionner
+        const platforms = [];
+        if (enableDiscord) platforms.push({ name: 'DISCORD', mode: await getEffectiveParam('publisher', 'discordPublishMode', 'DIRECT') });
+        if (enableX) platforms.push({ name: 'X', mode: await getEffectiveParam('publisher', 'xPublishMode', 'SCHEDULED') });
+        if (enableBluesky) platforms.push({ name: 'BLUESKY', mode: await getEffectiveParam('publisher', 'blueskyPublishMode', 'SCHEDULED') });
+        if (enableMastodon) platforms.push({ name: 'MASTODON', mode: await getEffectiveParam('publisher', 'mastodonPublishMode', 'SCHEDULED') });
+        if (enablePayloadCMS) platforms.push({ name: 'PAYLOAD', mode: await getEffectiveParam('publisher', 'payloadPublishMode', 'DIRECT') });
 
+        const lastScheduledDates: Record<string, Date> = {};
+        for (const p of platforms) {
+            if (p.mode === 'SCHEDULED') {
+                const lastPub = await prisma.publication.findFirst({
+                    where: { platform: p.name },
+                    orderBy: { scheduledAt: 'desc' }
+                });
+                lastScheduledDates[p.name] = lastPub?.scheduledAt && lastPub.scheduledAt > new Date() ? lastPub.scheduledAt : new Date();
+            } else {
+                lastScheduledDates[p.name] = new Date();
+            }
+        }
+
+        const publicationsToCreate = [];
+
+        for (const topic of pendingTopics) {
             for (const platform of platforms) {
                 let finalScheduledAt = new Date();
 
                 if (platform.mode === "SCHEDULED") {
-                    // Trouver la dernière publication programmée pour ce réseau
-                    const lastPub = await prisma.publication.findFirst({
-                        where: { platform: platform.name },
-                        orderBy: { scheduledAt: 'desc' }
-                    });
-
-                    let baseDate = new Date();
-                    if (lastPub && lastPub.scheduledAt > baseDate) {
-                        baseDate = lastPub.scheduledAt;
-                    }
-                    
+                    let baseDate = lastScheduledDates[platform.name];
                     const delayMinutes = getRandomInt(Number(minDelay), Number(maxDelay));
                     finalScheduledAt = new Date(baseDate.getTime() + delayMinutes * 60000);
+                    lastScheduledDates[platform.name] = finalScheduledAt; // Update for next topic
                 }
 
-                await prisma.publication.create({
-                    data: {
-                        topicId: topic.id,
-                        platform: platform.name,
-                        status: 'PENDING',
-                        scheduledAt: finalScheduledAt
-                    }
+                publicationsToCreate.push({
+                    topicId: topic.id,
+                    platform: platform.name,
+                    status: 'PENDING',
+                    scheduledAt: finalScheduledAt
                 });
                 
                 console.log(`🚀 [Node 6: Phase A] 📅 [${platform.name}] Planifié pour : ${finalScheduledAt.toLocaleString()}`);
             }
+        }
 
-            // Bascule le Topic en QUEUED (il a été distribué en file d'attente)
-            await prisma.newsTopic.update({
-                where: { id: topic.id },
-                data: { status: 'QUEUED' }
+        if (publicationsToCreate.length > 0) {
+            await prisma.publication.createMany({
+                data: publicationsToCreate
             });
         }
     } else {
@@ -265,18 +284,24 @@ export async function runPublisherNode() {
                 }
 
                 try {
-                    // Login
-                    const loginRes = await fetch(`${url}/api/users/login`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ email, password })
-                    });
-                    
-                    if (!loginRes.ok) {
-                        console.error(`🚀 [Node 6: Phase B] ❌ [PAYLOAD] Erreur d'authentification.`);
-                        continue;
+                    let token = cachedPayloadToken;
+                    if (!token || Date.now() > payloadTokenExpiresAt) {
+                        // Login
+                        const loginRes = await fetch(`${url}/api/users/login`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ email, password })
+                        });
+                        
+                        if (!loginRes.ok) {
+                            console.error(`🚀 [Node 6: Phase B] ❌ [PAYLOAD] Erreur d'authentification.`);
+                            continue;
+                        }
+                        const loginData = await loginRes.json();
+                        token = loginData.token;
+                        cachedPayloadToken = token;
+                        payloadTokenExpiresAt = Date.now() + 60 * 60 * 1000; // Cache for 1 hour
                     }
-                    const { token } = await loginRes.json();
 
                     // Extraire et préparer les données depuis le final_draft (contenu éditorial)
                     const contentPayload = {

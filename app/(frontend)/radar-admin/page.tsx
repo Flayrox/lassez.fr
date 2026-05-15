@@ -6,6 +6,7 @@ import { ModernRadarTable } from './components/ModernRadarTable';
 import { ModernDashboardLayout } from './components/ModernDashboardLayout';
 import { ManualScanModal } from './components/ManualScanModal';
 import { BulkActionBar } from './components/BulkActionBar';
+import { EditPostModal } from './components/EditPostModal';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function RadarAdminPage() {
@@ -15,6 +16,7 @@ export default function RadarAdminPage() {
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
     const [isScanModalOpen, setIsScanModalOpen] = useState(false);
+    const [editingPost, setEditingPost] = useState<any | null>(null);
 
     useEffect(() => {
         fetchQueue(activeTab, geoFilter);
@@ -30,6 +32,30 @@ export default function RadarAdminPage() {
             });
             fetchQueue(activeTab, geoFilter);
             setSelectedIds([]);
+        } catch (e) { console.error(e); }
+    };
+
+    const handleBulkDelete = async () => {
+        if (!confirm(`Are you sure you want to PERMANENTLY DELETE ${selectedIds.length} items from the database?`)) return;
+        try {
+            await fetch('/api/radar', {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ids: selectedIds })
+            });
+            fetchQueue(activeTab, geoFilter);
+            setSelectedIds([]);
+        } catch (e) { console.error(e); }
+    };
+
+    const handleSaveEdit = async (id: string, data: any) => {
+        try {
+            await fetch('/api/radar', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id, ...data })
+            });
+            fetchQueue(activeTab, geoFilter);
         } catch (e) { console.error(e); }
     };
 
@@ -150,6 +176,7 @@ export default function RadarAdminPage() {
                     selectedIds={selectedIds}
                     onToggleSelect={handleToggleSelect}
                     onToggleAll={handleToggleAll}
+                    onRowClick={setEditingPost}
                 />
             </div>
 
@@ -157,6 +184,7 @@ export default function RadarAdminPage() {
             <BulkActionBar 
                 selectedIds={selectedIds} 
                 onStatusUpdate={handleBulkStatus} 
+                onBulkDelete={handleBulkDelete}
                 onClearSelection={() => setSelectedIds([])} 
             />
 
@@ -165,6 +193,14 @@ export default function RadarAdminPage() {
                 isOpen={isScanModalOpen} 
                 onClose={() => setIsScanModalOpen(false)} 
                 onLaunch={handleLaunchScan} 
+            />
+
+            {/* Edit Post Modal */}
+            <EditPostModal
+                isOpen={!!editingPost}
+                post={editingPost}
+                onClose={() => setEditingPost(null)}
+                onSave={handleSaveEdit}
             />
         </ModernDashboardLayout>
     );

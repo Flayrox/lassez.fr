@@ -130,15 +130,15 @@ export async function GET(request: Request) {
 export async function PATCH(request: Request) {
     try {
         const body = await request.json();
-        const { id, ids, status, flash_content, image_keyword, source_title } = body;
+        const { id, ids, status, flash_content, image_keyword, source_title, tags } = body;
 
         const idsArray = ids || (id ? [id] : []);
-        if (idsArray.length === 0 || !status) {
-            return NextResponse.json({ success: false, error: 'ID(s) et Status requis' }, { status: 400 });
+        if (idsArray.length === 0) {
+            return NextResponse.json({ success: false, error: 'ID(s) requis' }, { status: 400 });
         }
 
         const validStatuses = ['APPROVED', 'REJECTED', 'PENDING', 'PUBLISHED', 'INGESTED', 'RESEARCHED', 'DRAFTED', 'QUEUED'];
-        if (!validStatuses.includes(status)) {
+        if (status && !validStatuses.includes(status)) {
             return NextResponse.json({ success: false, error: 'Status invalide' }, { status: 400 });
         }
 
@@ -153,12 +153,16 @@ export async function PATCH(request: Request) {
             if (source_title !== undefined) finalDraft.headline = source_title;
 
             const updateData: any = {
-                status: status,
+                status: status || currentTopic.status,
                 final_draft: JSON.stringify(finalDraft)
             };
 
             if (image_keyword !== undefined) {
                 updateData.image_url = image_keyword;
+            }
+            if (tags !== undefined) {
+                // Keep the array format or comma-separated string depending on what we receive
+                updateData.tags = Array.isArray(tags) ? JSON.stringify(tags) : tags;
             }
 
             // --- LOGIQUE SPÉCIFIQUE V3 ---
@@ -214,6 +218,32 @@ export async function PATCH(request: Request) {
         return NextResponse.json({ success: true, message: `Statut modifié pour ${status}` });
     } catch (error: any) {
         console.error("Erreur API Radar (PATCH):", error);
+        return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    }
+}
+
+export async function DELETE(request: Request) {
+    try {
+        const body = await request.json();
+        const { id, ids } = body;
+
+        const idsArray = ids || (id ? [id] : []);
+        if (idsArray.length === 0) {
+            return NextResponse.json({ success: false, error: 'ID(s) requis pour suppression' }, { status: 400 });
+        }
+
+        // Delete publications first to respect foreign keys if any
+        await prisma.publication.deleteMany({
+            where: { topicId: { in: idsArray } }
+        });
+
+        const deleted = await prisma.newsTopic.deleteMany({
+            where: { id: { in: idsArray } }
+        });
+
+        return NextResponse.json({ success: true, message: `${deleted.count} posts supprimés de la base de données.` });
+    } catch (error: any) {
+        console.error("Erreur API Radar (DELETE):", error);
         return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     }
 }

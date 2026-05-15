@@ -11,6 +11,7 @@ interface ModernRadarTableProps {
     selectedIds: string[];
     onToggleSelect: (id: string, selected: boolean) => void;
     onToggleAll: (selected: boolean) => void;
+    onRowClick?: (post: any) => void;
 }
 
 export function ModernRadarTable({ 
@@ -20,7 +21,8 @@ export function ModernRadarTable({
     activeTab, 
     selectedIds, 
     onToggleSelect,
-    onToggleAll 
+    onToggleAll,
+    onRowClick
 }: ModernRadarTableProps) {
     const isLab = activeTab === 'LAB';
     const isReview = activeTab === 'REVIEW';
@@ -66,8 +68,12 @@ export function ModernRadarTable({
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-[11px]">
                     {posts.map(post => (
-                        <tr key={post.id} className={`group hover:bg-slate-50/50 transition-colors ${selectedIds.includes(post.id) ? 'bg-slate-50/80' : ''}`}>
-                            <td className="px-4 py-2 text-center">
+                        <tr 
+                            key={post.id} 
+                            onClick={() => onRowClick && onRowClick(post)}
+                            className={`group hover:bg-slate-50/50 transition-colors cursor-pointer ${selectedIds.includes(post.id) ? 'bg-slate-50/80' : ''}`}
+                        >
+                            <td className="px-4 py-2 text-center" onClick={(e) => e.stopPropagation()}>
                                 <input 
                                     type="checkbox" 
                                     checked={selectedIds.includes(post.id)}
@@ -114,7 +120,7 @@ export function ModernRadarTable({
                                     </div>
                                 )}
                             </td>
-                            <td className="px-4 py-2 text-right">
+                            <td className="px-4 py-2 text-right" onClick={(e) => e.stopPropagation()}>
                                 <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                     {isReview && (
                                         <>

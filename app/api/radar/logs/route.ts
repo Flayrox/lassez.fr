@@ -1,9 +1,8 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { exec } from 'child_process';
-import { promisify } from 'util';
-
-const execAsync = promisify(exec);
+import fs from 'fs';
+import path from 'path';
+import os from 'os';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,57 +16,66 @@ export async function GET() {
         
         let allLogs = [...logsDb];
 
-        // On essaie aussi d'aller chercher les 50 dernières lignes de la sortie PM2 pour radar-daemon
+        // On va chercher les logs de sortie PM2 pour radar-daemon directement dans les fichiers (plus rapide et fiable)
         try {
-            const pm2Command = process.env.PM2_PATH || 'pm2';
-            
-            // L'API s'exécute déjà sur le serveur (via PM2), donc on peut utiliser la commande pm2 locale
-            const { stdout } = await execAsync(`${pm2Command} logs radar-daemon --raw --lines 50 --nostream`);
+            const pm2LogsDir = path.join(os.homedir(), '.pm2', 'logs');
+            let pm2Lines: string[] = [];
 
-            // Format PM2 log brut (grâce à --raw) : "[Daemon] 🚀 Démarrage..." ou "[34m[Daemon] GlobalSettings chargées.[0m"
-            const pm2Lines = stdout.split('\n')
-                .filter(l => l.trim().length > 0 && !l.includes('Tailing last'))
-                .map((line, idx) => {
-                    // Supprimer les codes ANSI de couleurs (ex: [34m)
-                    let cleanMsg = line.replace(/\x1B\[\d+m/g, '').trim();
-                    
-                    // Si on n'a pas mis --raw ou si PM2 rajoute encore "3|radar-da |", on l'enlève en fallback
-                    if (cleanMsg.includes('|radar-da')) {
-                         cleanMsg = cleanMsg.split('|').slice(2).join('|').trim();
-                    }
-                    if (cleanMsg.startsWith('3|radar-da | ')) {
-                        cleanMsg = cleanMsg.substring(15).trim();
-                    }
-                    
-                    // On essaie de deviner le niveau de log grossièrement
-                    let level = 'INFO';
-                    if (cleanMsg.includes('❌') || cleanMsg.includes('Erreur')) level = 'ERROR';
-                    else if (cleanMsg.includes('✅') || cleanMsg.includes('SUCCESS') || cleanMsg.includes('terminé')) level = 'SUCCESS';
-                    else if (cleanMsg.includes('⚠️') || cleanMsg.includes('Impossible')) level = 'WARN';
-                    
-                    let nodeId = 'PM2';
-                    if (cleanMsg.includes('[Daemon]')) nodeId = 'Daemon';
-                    else if (cleanMsg.includes('[Node 1')) nodeId = 'Node 1';
-                    else if (cleanMsg.includes('[Node 2')) nodeId = 'Node 2';
-                    else if (cleanMsg.includes('[Node 3')) nodeId = 'Node 3';
-                    else if (cleanMsg.includes('[Node 4')) nodeId = 'Node 4';
-                    else if (cleanMsg.includes('[Node 5')) nodeId = 'Node 5';
-                    else if (cleanMsg.includes('[Node 6')) nodeId = 'Node 6';
-
-                    return {
-                        id: `pm2-${Date.now()}-${idx}`,
-                        timestamp: new Date().toISOString(),
-                        level,
-                        nodeId: nodeId,
-                        message: cleanMsg
-                    };
-                });
+            if (fs.existsSync(pm2LogsDir)) {
+                // Trouver le fichier radar-daemon-out*.log le plus récent
+                const files = fs.readdirSync(pm2LogsDir);
+                const daemonLogFiles = files.filter(f => f.startsWith('radar-daemon-out') && f.endsWith('.log'));
                 
-            allLogs = [...pm2Lines.reverse(), ...allLogs];
-            // On garde les 50 plus récents au total (sachant que pm2Lines sont pseudo "maintenant")
+                // Trier par date de modif
+                daemonLogFiles.sort((a, b) => {
+                    return fs.statSync(path.join(pm2LogsDir, b)).mtimeMs - fs.statSync(path.join(pm2LogsDir, a)).mtimeMs;
+                });
+
+                if (daemonLogFiles.length > 0) {
+                    const latestLogPath = path.join(pm2LogsDir, daemonLogFiles[0]);
+                    const content = fs.readFileSync(latestLogPath, 'utf8');
+                    pm2Lines = content.split('\n').filter(l => l.trim().length > 0).slice(-40);
+                }
+            }
+
+            // Formater les lignes brutes lues du fichier
+            const formattedPm2Logs = pm2Lines.map((line, idx) => {
+                // pm2 out raw ressemble souvent juste à la chaîne brute
+                let cleanMsg = line.replace(/\x1B\[\d+m/g, '').trim();
+                
+                // Si la ligne commence par un pattern PM2 (ex: "3|radar-da | ")
+                if (cleanMsg.includes('|radar-da')) {
+                    cleanMsg = cleanMsg.split('|').slice(2).join('|').trim();
+                }
+                
+                // On essaie de deviner le niveau de log grossièrement
+                let level = 'INFO';
+                if (cleanMsg.includes('❌') || cleanMsg.includes('Erreur')) level = 'ERROR';
+                else if (cleanMsg.includes('✅') || cleanMsg.includes('SUCCESS') || cleanMsg.includes('terminé')) level = 'SUCCESS';
+                else if (cleanMsg.includes('⚠️') || cleanMsg.includes('Impossible')) level = 'WARN';
+                
+                let nodeId = 'PM2';
+                if (cleanMsg.includes('[Daemon]')) nodeId = 'Daemon';
+                else if (cleanMsg.includes('[Node 1')) nodeId = 'Node 1';
+                else if (cleanMsg.includes('[Node 2')) nodeId = 'Node 2';
+                else if (cleanMsg.includes('[Node 3')) nodeId = 'Node 3';
+                else if (cleanMsg.includes('[Node 4')) nodeId = 'Node 4';
+                else if (cleanMsg.includes('[Node 5')) nodeId = 'Node 5';
+                else if (cleanMsg.includes('[Node 6')) nodeId = 'Node 6';
+
+                return {
+                    id: `pm2-file-${Date.now()}-${idx}`,
+                    timestamp: new Date().toISOString(), // Approximation car le .log raw n'a pas toujours le TS
+                    level,
+                    nodeId: nodeId,
+                    message: cleanMsg
+                };
+            });
+            
+            allLogs = [...formattedPm2Logs.reverse(), ...allLogs];
             allLogs = allLogs.slice(0, 50);
         } catch (pm2Err) {
-            console.error("Impossible de récupérer les logs PM2:", pm2Err);
+            console.error("Impossible de récupérer les logs PM2 via fs:", pm2Err);
         }
 
         return NextResponse.json({ success: true, logs: allLogs.reverse() });

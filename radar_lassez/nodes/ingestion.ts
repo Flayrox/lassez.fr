@@ -148,13 +148,12 @@ export async function runIngestionNode(timeWindowHoursOverride?: number): Promis
                 }
 
                 if (newArticles.length > 0) {
-                    const newUrlsToSave = newArticles.map(a => a.url);
-                    try {
-                        await prisma.seenUrl.createMany({
-                            data: Array.from(new Set(newUrlsToSave)).map(u => ({ url: u })),
-                            skipDuplicates: true
-                        });
-                    } catch(e) { /* ignore */ }
+                    const newUrlsToSave = Array.from(new Set(newArticles.map(a => a.url)));
+                    for (const u of newUrlsToSave) {
+                        try {
+                            await prisma.seenUrl.create({ data: { url: u } });
+                        } catch(e) { /* ignore */ }
+                    }
                 }
 
                 allArticles.push(...newArticles);

@@ -3,7 +3,7 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 
 const execAsync = promisify(exec);
-const TRACKED_PROCESSES = ['radar-daemon'] as const;
+const TRACKED_PROCESSES = ['radar-daemon', 'radar-api', 'radar-front', 'radar-studio'] as const;
 
 export const dynamic = 'force-dynamic';
 

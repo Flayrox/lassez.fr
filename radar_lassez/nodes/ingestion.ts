@@ -100,6 +100,10 @@ export async function runIngestionNode(timeWindowHoursOverride?: number): Promis
         });
     } catch(e) {}
 
+    // Pré-chargement de toutes les URLs connues pour éviter les N+1 requêtes (Cache Local)
+    const allKnownUrlsDb = await prisma.seenUrl.findMany({ select: { url: true } });
+    const globalUrlCache = new Set(allKnownUrlsDb.map(u => u.url));
+
     let allArticles: IngestedArticle[] = [];
     let duplicateUrlsCount = 0;
 
@@ -123,20 +127,10 @@ export async function runIngestionNode(timeWindowHoursOverride?: number): Promis
                     const url = item.link || '';
                     if (!url) continue;
 
-                    // Vérification EXACTE d'URL en base de données
-                    const existingUrl = await prisma.seenUrl.findUnique({
-                        where: { url }
-                    });
-
-                    if (existingUrl) {
+                    if (globalUrlCache.has(url)) {
                         duplicateUrlsCount++;
-                        continue; // URL déjà traitée, on jette l'article immédiatement
+                        continue;
                     }
-
-                    // Enregistrer la nouvelle URL
-                    try {
-                        await prisma.seenUrl.create({ data: { url } });
-                    } catch(e) { continue; /* Concurrency issue if 2 nodes insert at same ms */ }
 
                     newArticles.push({
                         title: item.title || 'Sans titre',
@@ -148,6 +142,19 @@ export async function runIngestionNode(timeWindowHoursOverride?: number): Promis
                         trust_score: source.trust_score,
                         allowSourceImages: source.allowSourceImages
                     });
+                    
+                    // Add to global cache to prevent duplicates across feeds
+                    globalUrlCache.add(url);
+                }
+
+                if (newArticles.length > 0) {
+                    const newUrlsToSave = newArticles.map(a => a.url);
+                    try {
+                        await prisma.seenUrl.createMany({
+                            data: Array.from(new Set(newUrlsToSave)).map(u => ({ url: u })),
+                            skipDuplicates: true
+                        });
+                    } catch(e) { /* ignore */ }
                 }
 
                 allArticles.push(...newArticles);

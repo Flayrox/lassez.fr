@@ -1,4 +1,5 @@
 import stringSimilarity from 'string-similarity';
+import pLimit from 'p-limit';
 import { prisma } from '../lib/prisma';
 import { IngestedArticle } from './ingestion';
 import { getEffectiveParam } from '../lib/config-resolver';
@@ -89,7 +90,9 @@ export async function runDeduplicatorNode(articles: IngestedArticle[]) {
     let ignoredCount = 0;
 
     // 3. Persistance dans la base de données (NewsTopic)
-    await Promise.all(clusters.map(async (cluster) => {
+    const topicsToCreate = [];
+
+    for (const cluster of clusters) {
         try {
             const currentTitleLower = cluster.clusterTitle.toLowerCase();
             let isDuplicateHistory = false;
@@ -107,21 +110,30 @@ export async function runDeduplicatorNode(articles: IngestedArticle[]) {
 
             if (isDuplicateHistory) {
                 ignoredCount++;
-                return; // On skip complètement l'enregistrement
+                continue; // On skip complètement l'enregistrement
             }
 
-            await prisma.newsTopic.create({
-                data: {
-                    raw_data: JSON.stringify(cluster),
-                    status: 'INGESTED',
-                    tags: "[]"
-                }
+            topicsToCreate.push({
+                raw_data: JSON.stringify(cluster),
+                status: 'INGESTED',
+                tags: "[]"
             });
             savedCount++;
         } catch (error) {
-            console.error(`[Node 2] ❌ Erreur lors de l'insertion DB pour le topic "${cluster.clusterTitle}":`, error);
+            console.error(`[Node 2] ❌ Erreur lors de la préparation pour le topic "${cluster.clusterTitle}":`, error);
         }
-    }));
+    }
+
+    if (topicsToCreate.length > 0) {
+        try {
+            // Insertion en masse
+            await prisma.newsTopic.createMany({
+                data: topicsToCreate
+            });
+        } catch (error) {
+            console.error(`[Node 2] ❌ Erreur lors de l'insertion DB en masse :`, error);
+        }
+    }
 
     console.log(`[Node 2: Deduplicator] ✅ Fin du tamis. ${savedCount} nouveaux NewsTopics injectés. (${ignoredCount} doublons historiques rejetés).`);
 }

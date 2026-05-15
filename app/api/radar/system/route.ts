@@ -1,13 +1,26 @@
 import { NextResponse } from 'next/server';
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import { logger } from '@/radar_lassez/lib/logger';
 
 const execAsync = promisify(exec);
 const TRACKED_PROCESSES = ['radar-daemon', 'radar-api', 'radar-front', 'radar-studio'] as const;
 
 export const dynamic = 'force-dynamic';
 
+// Cache pour pm2 jlist
+let pm2Cache: {
+    data: Record<string, { online: boolean; status: string; pid: number | null }>;
+    expiresAt: number;
+} | null = null;
+
 async function getPm2States() {
+    const now = Date.now();
+    // Retourner le cache s'il est encore valide (2 secondes)
+    if (pm2Cache && pm2Cache.expiresAt > now) {
+        return pm2Cache.data;
+    }
+
     const { stdout } = await execAsync('pm2 jlist');
     
     // Safety fallback: if pm2 prints warnings, find the first '['
@@ -40,6 +53,11 @@ async function getPm2States() {
             pid
         };
     }
+
+    pm2Cache = {
+        data: states,
+        expiresAt: Date.now() + 2000
+    };
 
     return states;
 }
@@ -81,6 +99,9 @@ export async function POST(req: Request) {
         const { stdout, stderr } = await execAsync(command);
         
         const states = await getPm2States().catch(() => null);
+
+        // Log the action to the daemon logs so it shows in the UI
+        logger.info('System', `Executed PM2 Action: ${action} on ${target}`);
 
         return NextResponse.json({ 
             success: true, 

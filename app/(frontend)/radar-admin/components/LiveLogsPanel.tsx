@@ -43,7 +43,7 @@ export function LiveLogsPanel({ compact }: { compact?: boolean }) {
 
     const fetchLogs = async () => {
         try {
-            const res = await fetch('/radar-api-logs', { cache: 'no-store' });
+            const res = await fetch('/api/radar/logs', { cache: 'no-store' });
             const data = await res.json();
             if (data.success && !paused) setLogs(data.logs || []);
         } catch (e) { console.error(e); }
@@ -59,7 +59,7 @@ export function LiveLogsPanel({ compact }: { compact?: boolean }) {
 
     useEffect(() => {
         fetchLogs(); fetchDaemonStatus();
-        const logsTimer = setInterval(fetchLogs, 5000); 
+        const logsTimer = setInterval(fetchLogs, 5000);
         const statusTimer = setInterval(fetchDaemonStatus, 15000);
         return () => { clearInterval(logsTimer); clearInterval(statusTimer); };
     }, [paused]);
@@ -110,17 +110,15 @@ export function LiveLogsPanel({ compact }: { compact?: boolean }) {
                 <div className="flex gap-1">
                     <button
                         onClick={() => setFilter('all')}
-                        className={`px-2 py-0.5 text-[10px] font-bold transition-all rounded-sm ${
-                            filter === 'all' ? 'bg-black text-white shadow-sm' : 'text-slate-400 hover:text-black'
-                        }`}
+                        className={`px-2 py-0.5 text-[10px] font-bold transition-all rounded-sm ${filter === 'all' ? 'bg-black text-white shadow-sm' : 'text-slate-400 hover:text-black'
+                            }`}
                     >
                         All
                     </button>
                     <button
                         onClick={() => setFilter('CRITICAL')}
-                        className={`px-2 py-0.5 text-[10px] font-bold transition-all rounded-sm ${
-                            filter === 'CRITICAL' ? 'bg-rose-600 text-white shadow-sm' : 'text-rose-400/60 hover:text-rose-600'
-                        }`}
+                        className={`px-2 py-0.5 text-[10px] font-bold transition-all rounded-sm ${filter === 'CRITICAL' ? 'bg-rose-600 text-white shadow-sm' : 'text-rose-400/60 hover:text-rose-600'
+                            }`}
                     >
                         Critical
                     </button>
@@ -129,9 +127,8 @@ export function LiveLogsPanel({ compact }: { compact?: boolean }) {
                         <button
                             key={node}
                             onClick={() => setFilter(node)}
-                            className={`px-2 py-0.5 text-[10px] font-bold transition-all rounded-sm uppercase tracking-tighter ${
-                                filter === node ? 'bg-black text-white shadow-sm' : 'text-slate-400 hover:text-black'
-                            }`}
+                            className={`px-2 py-0.5 text-[10px] font-bold transition-all rounded-sm uppercase tracking-tighter ${filter === node ? 'bg-black text-white shadow-sm' : 'text-slate-400 hover:text-black'
+                                }`}
                         >
                             {node}
                         </button>
@@ -149,19 +146,18 @@ export function LiveLogsPanel({ compact }: { compact?: boolean }) {
             </div>
 
             {/* Terminal */}
-            <div 
-                ref={viewportRef} 
+            <div
+                ref={viewportRef}
                 className="flex-1 overflow-y-auto p-4 font-mono text-[11px] bg-white"
             >
                 <div className="space-y-0.5">
                     {filtered.map((line, idx) => (
                         <div key={line.id || idx} className="flex gap-3 leading-tight group">
                             <span className="text-slate-300 shrink-0 select-none font-mono">[{formatDate(line.timestamp)}]</span>
-                            <span className={`shrink-0 font-bold w-20 ${
-                                line.level === 'ERROR' ? 'text-rose-600' : 
-                                line.level === 'SUCCESS' ? 'text-emerald-600' : 
-                                'text-slate-400'
-                            }`}>
+                            <span className={`shrink-0 font-bold w-20 ${line.level === 'ERROR' ? 'text-rose-600' :
+                                    line.level === 'SUCCESS' ? 'text-emerald-600' :
+                                        'text-slate-400'
+                                }`}>
                                 {line.nodeId || 'SYSTEM'}
                             </span>
                             <span className={`${line.level === 'SUCCESS' ? 'text-emerald-700/80 font-medium' : 'text-slate-600'} truncate group-hover:whitespace-normal group-hover:overflow-visible transition-all`}>

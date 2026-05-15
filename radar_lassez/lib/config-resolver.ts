@@ -14,7 +14,7 @@ export async function getEffectiveParam(nodeType: string, key: string, defaultVa
         // 1. Tenter de trouver une surcharge dans le graphe du Flow
         if (settings.pipelineGraphJson && settings.pipelineGraphJson !== '{}' && settings.pipelineGraphJson !== '[]') {
             try {
-                const graph = JSON.parse(settings.pipelineGraphJson);
+                const graph = typeof settings.pipelineGraphJson === 'string' ? JSON.parse(settings.pipelineGraphJson) : settings.pipelineGraphJson;
                 // Sécurité : vérifier que graph et graph.nodes existent avant .find
                 if (graph && Array.isArray(graph.nodes)) {
                     const node = graph.nodes.find((n: any) => n.type === nodeType);

@@ -36,7 +36,7 @@ async function run() {
 
         console.log(`\n🗜️ [2/4] Préparation de l'archive ${archiveName}...`);
         if (fs.existsSync(archiveName)) fs.unlinkSync(archiveName);
-        execSync(`tar -czf ${archiveName} --exclude=node_modules --exclude=.git --exclude=.next --exclude=.gemini --exclude=logs --exclude=media --exclude=deploy.tar.gz --exclude=lassez-deploy.tar.gz --exclude=${archiveName} .`);
+        execSync(`tar -czf ${archiveName} --exclude=node_modules --exclude=.git --exclude=.next --exclude=.gemini --exclude=./logs --exclude=media --exclude=deploy.tar.gz --exclude=lassez-deploy.tar.gz --exclude=${archiveName} .`);
         console.log('✅ Archive créée.');
 
         console.log(`\n🚀 [3/4] Transfert vers le VPS (${VPS_CONFIG.host})...`);

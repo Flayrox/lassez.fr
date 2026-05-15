@@ -21,17 +21,9 @@ export async function GET() {
         try {
             const pm2Command = process.env.PM2_PATH || 'pm2';
             
-            // On utilise ssh si le PM2 est sur le VPS distant
-            let stdout = '';
-            if (process.env.NODE_ENV === 'production' && process.env.VPS_HOST) {
-                 const { stdout: remoteStdout } = await execAsync(`ssh root@${process.env.VPS_HOST} "pm2 logs radar-daemon --raw --lines 25 --nostream"`);
-                 stdout = remoteStdout;
-            } else {
-                 const { stdout: localStdout } = await execAsync(`${pm2Command} logs radar-daemon --raw --lines 25 --nostream`);
-                 stdout = localStdout;
-            }
+            // L'API s'exécute déjà sur le serveur (via PM2), donc on peut utiliser la commande pm2 locale
+            const { stdout } = await execAsync(`${pm2Command} logs radar-daemon --raw --lines 50 --nostream`);
 
-            
             // Format PM2 log brut (grâce à --raw) : "[Daemon] 🚀 Démarrage..." ou "[34m[Daemon] GlobalSettings chargées.[0m"
             const pm2Lines = stdout.split('\n')
                 .filter(l => l.trim().length > 0 && !l.includes('Tailing last'))

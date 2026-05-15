@@ -22,22 +22,34 @@ export async function GET() {
             const pm2Command = process.env.PM2_PATH || 'pm2';
             const { stdout } = await execAsync(`${pm2Command} logs radar-daemon --lines 25 --nostream`);
             
-            // Format basique PM2 log : "3|radar-da | [Daemon] 🚀 Démarrage..."
+            // Format PM2 log: "3|radar-da | [Daemon] 🚀 Démarrage..." ou "3|radar-da | [34m[Daemon] GlobalSettings chargées.[0m"
             const pm2Lines = stdout.split('\n')
                 .filter(l => l.includes('|radar-da'))
                 .map((line, idx) => {
-                    const cleanMsg = line.split('|').slice(2).join('|').trim();
+                    // Supprimer les codes ANSI de couleurs (ex: [34m)
+                    const cleanAnsi = line.replace(/\x1B\[\d+m/g, '');
+                    const cleanMsg = cleanAnsi.split('|').slice(2).join('|').trim();
+                    
                     // On essaie de deviner le niveau de log grossièrement
                     let level = 'INFO';
                     if (cleanMsg.includes('❌') || cleanMsg.includes('Erreur')) level = 'ERROR';
-                    else if (cleanMsg.includes('✅') || cleanMsg.includes('SUCCESS')) level = 'SUCCESS';
-                    else if (cleanMsg.includes('⚠️')) level = 'WARN';
+                    else if (cleanMsg.includes('✅') || cleanMsg.includes('SUCCESS') || cleanMsg.includes('terminé')) level = 'SUCCESS';
+                    else if (cleanMsg.includes('⚠️') || cleanMsg.includes('Impossible')) level = 'WARN';
                     
+                    let nodeId = 'PM2';
+                    if (cleanMsg.includes('[Daemon]')) nodeId = 'Daemon';
+                    else if (cleanMsg.includes('[Node 1')) nodeId = 'Node 1';
+                    else if (cleanMsg.includes('[Node 2')) nodeId = 'Node 2';
+                    else if (cleanMsg.includes('[Node 3')) nodeId = 'Node 3';
+                    else if (cleanMsg.includes('[Node 4')) nodeId = 'Node 4';
+                    else if (cleanMsg.includes('[Node 5')) nodeId = 'Node 5';
+                    else if (cleanMsg.includes('[Node 6')) nodeId = 'Node 6';
+
                     return {
                         id: `pm2-${Date.now()}-${idx}`,
                         timestamp: new Date().toISOString(),
                         level,
-                        nodeId: 'PM2',
+                        nodeId: nodeId,
                         message: cleanMsg
                     };
                 });

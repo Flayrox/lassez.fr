@@ -5,10 +5,11 @@ import React from 'react';
 interface BulkActionBarProps {
     selectedIds: any[];
     onStatusUpdate: (status: string) => Promise<void>;
+    onBulkDelete: () => Promise<void>;
     onClearSelection: () => void;
 }
 
-export function BulkActionBar({ selectedIds, onStatusUpdate, onClearSelection }: BulkActionBarProps) {
+export function BulkActionBar({ selectedIds, onStatusUpdate, onBulkDelete, onClearSelection }: BulkActionBarProps) {
     if (selectedIds.length === 0) return null;
 
     return (
@@ -38,6 +39,14 @@ export function BulkActionBar({ selectedIds, onStatusUpdate, onClearSelection }:
                     className="px-4 py-1 bg-white text-black rounded-sm text-[10px] font-bold hover:bg-zinc-200 transition-all"
                 >
                     Publish now
+                </button>
+                <div className="w-[1px] h-4 bg-zinc-800 self-center mx-1"></div>
+                <button 
+                    onClick={onBulkDelete} 
+                    className="px-3 py-1 text-[10px] font-bold text-zinc-500 hover:text-red-500 transition-colors flex items-center gap-1"
+                >
+                    <span className="material-symbols-outlined text-[14px]">delete_forever</span>
+                    Delete
                 </button>
                 <button 
                     onClick={onClearSelection} 

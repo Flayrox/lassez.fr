@@ -43,6 +43,9 @@ export async function GET() {
                     if (cleanMsg.includes('|radar-da')) {
                          cleanMsg = cleanMsg.split('|').slice(2).join('|').trim();
                     }
+                    if (cleanMsg.startsWith('3|radar-da | ')) {
+                        cleanMsg = cleanMsg.substring(15).trim();
+                    }
                     
                     // On essaie de deviner le niveau de log grossièrement
                     let level = 'INFO';

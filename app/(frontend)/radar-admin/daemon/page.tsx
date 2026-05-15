@@ -3,12 +3,14 @@
 import React, { useEffect, useState } from 'react';
 import { ModernDashboardLayout } from '../components/ModernDashboardLayout';
 import { useRadarAdmin } from '../components/RadarAdminContext';
+import { useUI } from '../context/UIContext';
 import { DaemonStatusCards } from './components/DaemonStatusCards';
 import { Pm2ControlPanel } from './components/Pm2ControlPanel';
 import { motion } from 'framer-motion';
 
 export default function DaemonPage() {
     const { settings, fetchSettings, isDaemonRunning, countdown } = useRadarAdmin();
+    const { setTerminalOpen } = useUI();
     const [status, setStatus] = useState<any>(null);
     const [pm2States, setPm2States] = useState<any>({});
     const [loading, setLoading] = useState(true);
@@ -58,6 +60,7 @@ export default function DaemonPage() {
     const handleCommand = async (action: string, target: string) => {
         if (!confirm(`Are you sure you want to ${action} ${target}?`)) return;
         setActionRunning(true);
+        setTerminalOpen(true); // Ouvre le panneau flottant des logs de la console
         try {
             await fetch('/api/radar/system', {
                 method: 'POST',

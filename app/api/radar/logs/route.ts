@@ -20,15 +20,29 @@ export async function GET() {
         // On essaie aussi d'aller chercher les 50 dernières lignes de la sortie PM2 pour radar-daemon
         try {
             const pm2Command = process.env.PM2_PATH || 'pm2';
-            const { stdout } = await execAsync(`${pm2Command} logs radar-daemon --lines 25 --nostream`);
             
-            // Format PM2 log: "3|radar-da | [Daemon] 🚀 Démarrage..." ou "3|radar-da | [34m[Daemon] GlobalSettings chargées.[0m"
+            // On utilise ssh si le PM2 est sur le VPS distant
+            let stdout = '';
+            if (process.env.NODE_ENV === 'production' && process.env.VPS_HOST) {
+                 const { stdout: remoteStdout } = await execAsync(`ssh root@${process.env.VPS_HOST} "pm2 logs radar-daemon --raw --lines 25 --nostream"`);
+                 stdout = remoteStdout;
+            } else {
+                 const { stdout: localStdout } = await execAsync(`${pm2Command} logs radar-daemon --raw --lines 25 --nostream`);
+                 stdout = localStdout;
+            }
+
+            
+            // Format PM2 log brut (grâce à --raw) : "[Daemon] 🚀 Démarrage..." ou "[34m[Daemon] GlobalSettings chargées.[0m"
             const pm2Lines = stdout.split('\n')
-                .filter(l => l.includes('|radar-da'))
+                .filter(l => l.trim().length > 0 && !l.includes('Tailing last'))
                 .map((line, idx) => {
                     // Supprimer les codes ANSI de couleurs (ex: [34m)
-                    const cleanAnsi = line.replace(/\x1B\[\d+m/g, '');
-                    const cleanMsg = cleanAnsi.split('|').slice(2).join('|').trim();
+                    let cleanMsg = line.replace(/\x1B\[\d+m/g, '').trim();
+                    
+                    // Si on n'a pas mis --raw ou si PM2 rajoute encore "3|radar-da |", on l'enlève en fallback
+                    if (cleanMsg.includes('|radar-da')) {
+                         cleanMsg = cleanMsg.split('|').slice(2).join('|').trim();
+                    }
                     
                     // On essaie de deviner le niveau de log grossièrement
                     let level = 'INFO';

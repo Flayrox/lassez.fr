@@ -78,11 +78,60 @@ export async function runEditorialistNode() {
         return `${baseIdentity}\n${researchMission}\n${vocabularyRules}\n${imageRules}\n\n${template.formatInstructions}${examplesBlock}`;
     };
 
+    const convertSampleJsonToSchema = (sampleJson: any): any => {
+        if (sampleJson === null || sampleJson === undefined) return undefined;
+        
+        const typeOf = typeof sampleJson;
+        
+        if (typeOf === 'string') {
+            return { type: Type.STRING };
+        }
+        if (typeOf === 'number') {
+            return { type: Type.NUMBER };
+        }
+        if (typeOf === 'boolean') {
+            return { type: Type.BOOLEAN };
+        }
+        if (Array.isArray(sampleJson)) {
+            const itemSchema = sampleJson.length > 0 ? convertSampleJsonToSchema(sampleJson[0]) : { type: Type.STRING };
+            return {
+                type: Type.ARRAY,
+                items: itemSchema
+            };
+        }
+        if (typeOf === 'object') {
+            const properties: Record<string, any> = {};
+            const required: string[] = [];
+            
+            for (const key of Object.keys(sampleJson)) {
+                properties[key] = convertSampleJsonToSchema(sampleJson[key]);
+                required.push(key);
+            }
+            
+            return {
+                type: Type.OBJECT,
+                properties,
+                required
+            };
+        }
+        
+        return { type: Type.STRING };
+    };
+
     const getResponseSchema = (taxonomyName: string): any => {
         const template = taxonomyMap.get(taxonomyName) || taxonomyMap.get('ALERTE');
         if (!template) return undefined;
         try {
-            return JSON.parse(template.outputSchemaJson);
+            const parsed = JSON.parse(template.outputSchemaJson);
+            if (parsed && typeof parsed === 'object') {
+                // If it is already a valid schema (has top-level 'type' field), return it as is
+                if (parsed.type === 'OBJECT' || parsed.type === 'object') {
+                    return parsed;
+                }
+                // Otherwise, convert the sample JSON into a valid OpenAPI JSON Schema
+                return convertSampleJsonToSchema(parsed);
+            }
+            return undefined;
         } catch (e) {
             return undefined;
         }

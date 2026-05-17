@@ -86,6 +86,13 @@ async function run() {
             mkdir -p ${REMOTE_PATHS.unpack}
             tar -xzf /tmp/${archiveName} -C ${REMOTE_PATHS.unpack}
             
+            echo "--- Clean Up Existing Symlinks for Copy ---"
+            # Remove any existing symlinks to avoid conflicts during copying
+            rm -f ${REMOTE_PATHS.front}/prisma/radar.db
+            rm -f ${REMOTE_PATHS.studio}/prisma/radar.db
+            rm -rf ${REMOTE_PATHS.front}/logs
+            rm -rf ${REMOTE_PATHS.studio}/logs
+            
             echo "--- Distributing to API ---"
             cp -r ${REMOTE_PATHS.unpack}/* ${REMOTE_PATHS.api}/
             

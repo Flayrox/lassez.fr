@@ -36,7 +36,7 @@ async function run() {
 
         console.log(`\n🗜️ [2/4] Préparation de l'archive ${archiveName}...`);
         if (fs.existsSync(archiveName)) fs.unlinkSync(archiveName);
-        execSync(`tar -czf ${archiveName} --exclude=node_modules --exclude=.git --exclude=.next --exclude=.gemini --exclude=daemon*.log --exclude=media --exclude=deploy.tar.gz --exclude=lassez-deploy.tar.gz --exclude=${archiveName} .`);
+        execSync(`tar -czf ${archiveName} --exclude=node_modules --exclude=.git --exclude=.next --exclude=.gemini --exclude=daemon*.log --exclude=media --exclude=deploy.tar.gz --exclude=lassez-deploy.tar.gz --exclude=*.db --exclude=*.db-journal --exclude=${archiveName} .`);
         console.log('✅ Archive créée.');
 
         console.log(`\n🚀 [3/4] Transfert vers le VPS (${VPS_CONFIG.host})...`);
@@ -68,15 +68,66 @@ async function run() {
         
         const deployScript = `
             set -e
+            
+            echo "--- Backing up Active Production Database ---"
+            # We backup the front-end's database as it holds the active 174 topics and custom user prompts/settings
+            if [ -f "${REMOTE_PATHS.front}/prisma/radar.db" ]; then
+                cp "${REMOTE_PATHS.front}/prisma/radar.db" /tmp/radar_prod.db
+                echo "✓ Active production database backed up to /tmp/radar_prod.db"
+            elif [ -f "${REMOTE_PATHS.api}/prisma/radar.db" ]; then
+                cp "${REMOTE_PATHS.api}/prisma/radar.db" /tmp/radar_prod.db
+                echo "✓ API database backed up to /tmp/radar_prod.db as fallback"
+            else
+                echo "⚠️ No active database found on VPS to backup!"
+            fi
+
             echo "--- Unpacking ---"
             rm -rf ${REMOTE_PATHS.unpack}
             mkdir -p ${REMOTE_PATHS.unpack}
             tar -xzf /tmp/${archiveName} -C ${REMOTE_PATHS.unpack}
             
-            echo "--- Distributing ---"
-            cp -r ${REMOTE_PATHS.unpack}/* ${REMOTE_PATHS.front}/
+            echo "--- Distributing to API ---"
             cp -r ${REMOTE_PATHS.unpack}/* ${REMOTE_PATHS.api}/
+            
+            echo "--- Distributing to Front ---"
+            cp -r ${REMOTE_PATHS.unpack}/* ${REMOTE_PATHS.front}/
+            
+            echo "--- Distributing to Studio ---"
             cp -r ${REMOTE_PATHS.unpack}/* ${REMOTE_PATHS.studio}/
+            
+            echo "--- Restoring Primary Database and Symlinking ---"
+            mkdir -p ${REMOTE_PATHS.api}/prisma
+            if [ -f /tmp/radar_prod.db ]; then
+                cp /tmp/radar_prod.db ${REMOTE_PATHS.api}/prisma/radar.db
+                echo "✓ Primary production database restored at ${REMOTE_PATHS.api}/prisma/radar.db"
+            else
+                echo "⚠️ No backup to restore, let Prisma create a new one or keep existing."
+            fi
+            
+            # Setup Front Symlink to API Database
+            rm -f ${REMOTE_PATHS.front}/prisma/radar.db
+            rm -f ${REMOTE_PATHS.front}/prisma/radar.db-journal
+            ln -sf ${REMOTE_PATHS.api}/prisma/radar.db ${REMOTE_PATHS.front}/prisma/radar.db
+            echo "✓ Linked Front database to API database"
+            
+            # Setup Studio Symlink to API Database
+            rm -f ${REMOTE_PATHS.studio}/prisma/radar.db
+            rm -f ${REMOTE_PATHS.studio}/prisma/radar.db-journal
+            ln -sf ${REMOTE_PATHS.api}/prisma/radar.db ${REMOTE_PATHS.studio}/prisma/radar.db
+            echo "✓ Linked Studio database to API database"
+
+            echo "--- Sharing Log Directories ---"
+            # Ensure the logs directory exists in the API directory (source of truth)
+            mkdir -p ${REMOTE_PATHS.api}/logs
+            
+            # Remove Front and Studio logs and symlink them to API logs
+            rm -rf ${REMOTE_PATHS.front}/logs
+            ln -sf ${REMOTE_PATHS.api}/logs ${REMOTE_PATHS.front}/logs
+            echo "✓ Symlinked Front logs to API logs"
+            
+            rm -rf ${REMOTE_PATHS.studio}/logs
+            ln -sf ${REMOTE_PATHS.api}/logs ${REMOTE_PATHS.studio}/logs
+            echo "✓ Symlinked Studio logs to API logs"
             
             echo "--- Building API & Migrating ---"
             cd ${REMOTE_PATHS.api}
@@ -100,10 +151,11 @@ async function run() {
             pm2 save
             
             echo "--- Cleanup ---"
-            rm /tmp/${archiveName}
+            rm -f /tmp/${archiveName}
             rm -rf ${REMOTE_PATHS.unpack}
+            rm -f /tmp/radar_prod.db
             
-            echo "✅ DÉPLOIEMENT TERMINÉ AVEC SUCCÈS !"
+            echo "✅ DÉPLOIEMENT ET SYNCHRONISATION TERMINÉS AVEC SUCCÈS !"
         `;
 
         await new Promise((resolve, reject) => {

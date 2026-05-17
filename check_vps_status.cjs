@@ -11,14 +11,20 @@ const VPS_CONFIG = {
 
 const conn = new Client();
 conn.on('ready', () => {
-    console.log('SSH Connecté.');
-    const cmd = `ls -li /var/www/lassez-api/prisma/radar.db /var/www/lassez-front/prisma/radar.db /var/www/lassez-studio/prisma/radar.db || true`;
+    console.log('✓ SSH Connected to VPS.');
+    
+    // Command to check pm2 processes
+    const cmd = `
+        pm2 list
+    `;
+    
     conn.exec(cmd, (err, stream) => {
         if (err) throw err;
         let output = '';
         stream.on('close', (code) => {
             conn.end();
-            console.log('Command closed with code', code);
+            console.log('Command finished with code', code);
+            console.log('\n--- REMOTE OUTPUT ---');
             console.log(output);
         }).on('data', (data) => {
             output += data.toString();

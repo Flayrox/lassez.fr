@@ -95,39 +95,31 @@ async function run() {
             echo "--- Distributing to Studio ---"
             cp -r ${REMOTE_PATHS.unpack}/* ${REMOTE_PATHS.studio}/
             
-            echo "--- Restoring Primary Database and Symlinking ---"
+            echo "--- Preparing Clean Build Directories ---"
+            # Next.js Turbopack compiles at build-time and crashes if it scans symlinks that point outside
+            # the project root folder. We keep clean, normal folders during build, and symlink them AFTER the build completes.
+            
+            # API Setup
             mkdir -p ${REMOTE_PATHS.api}/prisma
             if [ -f /tmp/radar_prod.db ]; then
                 cp /tmp/radar_prod.db ${REMOTE_PATHS.api}/prisma/radar.db
-                echo "✓ Primary production database restored at ${REMOTE_PATHS.api}/prisma/radar.db"
-            else
-                echo "⚠️ No backup to restore, let Prisma create a new one or keep existing."
+                echo "✓ Primary database placed in API folder"
             fi
-            
-            # Setup Front Symlink to API Database
+            mkdir -p ${REMOTE_PATHS.api}/logs
+
+            # Front Build Prep (Normal folders/files, NO out-of-bounds symlinks during build)
+            rm -rf ${REMOTE_PATHS.front}/logs
+            mkdir -p ${REMOTE_PATHS.front}/logs
             rm -f ${REMOTE_PATHS.front}/prisma/radar.db
             rm -f ${REMOTE_PATHS.front}/prisma/radar.db-journal
-            ln -sf ${REMOTE_PATHS.api}/prisma/radar.db ${REMOTE_PATHS.front}/prisma/radar.db
-            echo "✓ Linked Front database to API database"
+            touch ${REMOTE_PATHS.front}/prisma/radar.db
             
-            # Setup Studio Symlink to API Database
+            # Studio Build Prep
+            rm -rf ${REMOTE_PATHS.studio}/logs
+            mkdir -p ${REMOTE_PATHS.studio}/logs
             rm -f ${REMOTE_PATHS.studio}/prisma/radar.db
             rm -f ${REMOTE_PATHS.studio}/prisma/radar.db-journal
-            ln -sf ${REMOTE_PATHS.api}/prisma/radar.db ${REMOTE_PATHS.studio}/prisma/radar.db
-            echo "✓ Linked Studio database to API database"
-
-            echo "--- Sharing Log Directories ---"
-            # Ensure the logs directory exists in the API directory (source of truth)
-            mkdir -p ${REMOTE_PATHS.api}/logs
-            
-            # Remove Front and Studio logs and symlink them to API logs
-            rm -rf ${REMOTE_PATHS.front}/logs
-            ln -sf ${REMOTE_PATHS.api}/logs ${REMOTE_PATHS.front}/logs
-            echo "✓ Symlinked Front logs to API logs"
-            
-            rm -rf ${REMOTE_PATHS.studio}/logs
-            ln -sf ${REMOTE_PATHS.api}/logs ${REMOTE_PATHS.studio}/logs
-            echo "✓ Symlinked Studio logs to API logs"
+            touch ${REMOTE_PATHS.studio}/prisma/radar.db
             
             echo "--- Building API & Migrating ---"
             cd ${REMOTE_PATHS.api}
@@ -144,6 +136,25 @@ async function run() {
             cd ${REMOTE_PATHS.studio}
             npm install --production=false
             npm run build
+            
+            echo "--- Establishing Runtime Symlinks (Post-Build) ---"
+            # 1. Symlink Databases
+            rm -f ${REMOTE_PATHS.front}/prisma/radar.db
+            ln -sf ${REMOTE_PATHS.api}/prisma/radar.db ${REMOTE_PATHS.front}/prisma/radar.db
+            echo "✓ Linked Front database to API database"
+            
+            rm -f ${REMOTE_PATHS.studio}/prisma/radar.db
+            ln -sf ${REMOTE_PATHS.api}/prisma/radar.db ${REMOTE_PATHS.studio}/prisma/radar.db
+            echo "✓ Linked Studio database to API database"
+            
+            # 2. Symlink Logs
+            rm -rf ${REMOTE_PATHS.front}/logs
+            ln -sf ${REMOTE_PATHS.api}/logs ${REMOTE_PATHS.front}/logs
+            echo "✓ Symlinked Front logs to API logs"
+            
+            rm -rf ${REMOTE_PATHS.studio}/logs
+            ln -sf ${REMOTE_PATHS.api}/logs ${REMOTE_PATHS.studio}/logs
+            echo "✓ Symlinked Studio logs to API logs"
             
             echo "--- Restarting All Services (PM2) ---"
             cd ${REMOTE_PATHS.api}

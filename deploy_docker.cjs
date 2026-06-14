@@ -47,6 +47,7 @@ async function run() {
                         conn.sftp((err, sftp) => {
                             if (err) return rejectSftp(err);
                             sftp.fastPut(archiveName, `/tmp/${archiveName}`, (putErr) => {
+                                sftp.end(); // Fermer le canal SFTP
                                 if (putErr) return rejectSftp(putErr);
                                 console.log('✅ Archive transférée.');
                                 resolveSftp();

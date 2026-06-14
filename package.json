@@ -8,6 +8,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "deploy": "node deploy_docker.cjs",
+    "deploy:docker": "node deploy_docker.cjs",
     "deploy:vps": "node scripts/deploy_vps_unified.cjs",
     "payload:seed": "payload run ./payload/seed.ts",
     "payload:fix-legal": "payload run ./payload/fix-legal-v2.js",

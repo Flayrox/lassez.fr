@@ -65,12 +65,22 @@ async function run() {
                         mkdir -p /var/www/lassez-shared/logs
                         mkdir -p /var/www/lassez-shared/prisma
                         mkdir -p /var/www/lassez-shared/radar_lassez
+                        mkdir -p /var/www/lassez-shared/media
                         
                         echo "--- Migration/copie des bases de données SQLite ---"
                         if [ -f "/var/www/radar.db" ] && [ ! -f "/var/www/lassez-shared/radar_lassez/radar.db" ]; then
                             cp /var/www/radar.db /var/www/lassez-shared/radar_lassez/radar.db
                             echo "✓ Base de données radar.db copiée vers le stockage partagé."
                         fi
+                        
+                        echo "--- Migration/copie des médias Payload ---"
+                        if [ -d "/var/www/lassez-api/media" ]; then
+                            echo "✓ Ancien dossier media trouvé dans /var/www/lassez-api/media. Copie des fichiers..."
+                            # Utiliser cp -rn pour copier récursivement sans écraser
+                            cp -rn /var/www/lassez-api/media/. /var/www/lassez-shared/media/ || true
+                            echo "✓ Médias copiés vers le stockage partagé."
+                        fi
+                        chmod -R 777 /var/www/lassez-shared/media || true
                         
                         echo "--- Extraction de l'archive ---"
                         tar -xzf /tmp/${archiveName} -C ${REMOTE_DIR}

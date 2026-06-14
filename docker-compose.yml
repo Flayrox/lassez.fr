@@ -20,6 +20,7 @@ services:
       - /var/www/lassez-shared/logs:/app/logs
       - /var/www/lassez-shared/radar_lassez/radar.db:/app/radar_lassez/radar.db
       - /var/run/docker.sock:/var/run/docker.sock
+      - /var/www/lassez-shared/media:/app/media
 
   radar-front:
     image: lassez-app:latest
@@ -53,6 +54,7 @@ services:
       - /var/www/lassez-shared/logs:/app/logs
       - /var/www/lassez-shared/radar_lassez/radar.db:/app/radar_lassez/radar.db
       - /var/run/docker.sock:/var/run/docker.sock
+      - /var/www/lassez-shared/media:/app/media
     depends_on:
       - radar-api
 

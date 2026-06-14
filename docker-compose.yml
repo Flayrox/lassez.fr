@@ -5,6 +5,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      network: host
     image: lassez-app:latest
     container_name: radar-api
     restart: always

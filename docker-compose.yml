@@ -9,6 +9,9 @@ services:
     image: lassez-app:latest
     container_name: radar-api
     restart: always
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     ports:
       - "3001:3001"
     environment:
@@ -19,11 +22,16 @@ services:
     volumes:
       - /var/www/lassez-shared/prisma:/app/prisma
       - /var/www/lassez-shared/logs:/app/logs
+      - /var/www/lassez-shared/radar_lassez:/app/radar_lassez
+      - /var/run/docker.sock:/var/run/docker.sock
 
   radar-front:
     image: lassez-app:latest
     container_name: radar-front
     restart: always
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     ports:
       - "3000:3000"
     environment:
@@ -34,6 +42,7 @@ services:
     volumes:
       - /var/www/lassez-shared/prisma:/app/prisma
       - /var/www/lassez-shared/logs:/app/logs
+      - /var/www/lassez-shared/radar_lassez:/app/radar_lassez
     depends_on:
       - radar-api
 
@@ -41,6 +50,9 @@ services:
     image: lassez-app:latest
     container_name: radar-studio
     restart: always
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     ports:
       - "3002:3002"
     environment:
@@ -51,6 +63,8 @@ services:
     volumes:
       - /var/www/lassez-shared/prisma:/app/prisma
       - /var/www/lassez-shared/logs:/app/logs
+      - /var/www/lassez-shared/radar_lassez:/app/radar_lassez
+      - /var/run/docker.sock:/var/run/docker.sock
     depends_on:
       - radar-api
 
@@ -59,6 +73,9 @@ services:
     container_name: radar-daemon
     restart: always
     command: npx tsx ./radar_lassez/daemon.ts
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     environment:
       - NODE_ENV=production
     env_file:
@@ -66,5 +83,7 @@ services:
     volumes:
       - /var/www/lassez-shared/prisma:/app/prisma
       - /var/www/lassez-shared/logs:/app/logs
+      - /var/www/lassez-shared/radar_lassez:/app/radar_lassez
     depends_on:
       - radar-api
+

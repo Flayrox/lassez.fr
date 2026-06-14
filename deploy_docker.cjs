@@ -64,6 +64,13 @@ async function run() {
                         mkdir -p ${REMOTE_DIR}
                         mkdir -p /var/www/lassez-shared/logs
                         mkdir -p /var/www/lassez-shared/prisma
+                        mkdir -p /var/www/lassez-shared/radar_lassez
+                        
+                        echo "--- Migration/copie des bases de données SQLite ---"
+                        if [ -f "/var/www/radar.db" ] && [ ! -f "/var/www/lassez-shared/radar_lassez/radar.db" ]; then
+                            cp /var/www/radar.db /var/www/lassez-shared/radar_lassez/radar.db
+                            echo "✓ Base de données radar.db copiée vers le stockage partagé."
+                        fi
                         
                         echo "--- Extraction de l'archive ---"
                         tar -xzf /tmp/${archiveName} -C ${REMOTE_DIR}

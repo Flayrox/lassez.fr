@@ -1,0 +1,69 @@
+version: '3.8'
+
+services:
+  radar-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: lassez-app:latest
+    container_name: radar-api
+    restart: always
+    ports:
+      - "3001:3001"
+    environment:
+      - PORT=3001
+      - NODE_ENV=production
+    env_file:
+      - .env
+    volumes:
+      - /var/www/lassez-shared/prisma:/app/prisma
+      - /var/www/lassez-shared/logs:/app/logs
+
+  radar-front:
+    image: lassez-app:latest
+    container_name: radar-front
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - NODE_ENV=production
+    env_file:
+      - .env
+    volumes:
+      - /var/www/lassez-shared/prisma:/app/prisma
+      - /var/www/lassez-shared/logs:/app/logs
+    depends_on:
+      - radar-api
+
+  radar-studio:
+    image: lassez-app:latest
+    container_name: radar-studio
+    restart: always
+    ports:
+      - "3002:3002"
+    environment:
+      - PORT=3002
+      - NODE_ENV=production
+    env_file:
+      - .env
+    volumes:
+      - /var/www/lassez-shared/prisma:/app/prisma
+      - /var/www/lassez-shared/logs:/app/logs
+    depends_on:
+      - radar-api
+
+  radar-daemon:
+    image: lassez-app:latest
+    container_name: radar-daemon
+    restart: always
+    command: npx tsx ./radar_lassez/daemon.ts
+    environment:
+      - NODE_ENV=production
+    env_file:
+      - .env
+    volumes:
+      - /var/www/lassez-shared/prisma:/app/prisma
+      - /var/www/lassez-shared/logs:/app/logs
+    depends_on:
+      - radar-api

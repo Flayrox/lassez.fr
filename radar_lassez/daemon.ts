@@ -34,12 +34,13 @@ export async function runPipeline() {
         if (settings.pipelineGraphJson && settings.pipelineGraphJson.trim() !== '' && settings.pipelineGraphJson !== '{}' && settings.pipelineGraphJson !== '[]') {
             try {
                 const graph = JSON.parse(settings.pipelineGraphJson);
-                if (graph && Array.isArray(graph.nodes)) {
-                    activeNodes = new Set(graph.nodes.map((n: any) => n.type));
-                    logger.info("Daemon", `📊 Graphe chargé : ${graph.nodes.length} nodes configurés.`);
+                if (!graph || !Array.isArray(graph.nodes)) {
+                    throw new Error(`Format inattendu : "nodes" est absent ou n'est pas un tableau (type: ${typeof graph?.nodes})`);
                 }
-            } catch (e) {
-                logger.warn("Daemon", "Impossible de parser le graphe, exécution en mode standard.");
+                activeNodes = new Set(graph.nodes.map((n: any) => n.type).filter(Boolean));
+                logger.info("Daemon", `📊 Graphe chargé : ${graph.nodes.length} nodes configurés.`);
+            } catch (e: any) {
+                logger.warn("Daemon", `⚠️ Impossible de parser le graphe, exécution en mode standard. Erreur: ${e.message}`);
             }
         }
 

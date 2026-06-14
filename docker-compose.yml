@@ -9,11 +9,7 @@ services:
     image: lassez-app:latest
     container_name: radar-api
     restart: always
-    dns:
-      - 8.8.8.8
-      - 1.1.1.1
-    ports:
-      - "3001:3001"
+    network_mode: host
     environment:
       - PORT=3001
       - NODE_ENV=production
@@ -29,11 +25,7 @@ services:
     image: lassez-app:latest
     container_name: radar-front
     restart: always
-    dns:
-      - 8.8.8.8
-      - 1.1.1.1
-    ports:
-      - "3000:3000"
+    network_mode: host
     environment:
       - PORT=3000
       - NODE_ENV=production
@@ -50,11 +42,7 @@ services:
     image: lassez-app:latest
     container_name: radar-studio
     restart: always
-    dns:
-      - 8.8.8.8
-      - 1.1.1.1
-    ports:
-      - "3002:3002"
+    network_mode: host
     environment:
       - PORT=3002
       - NODE_ENV=production
@@ -73,9 +61,7 @@ services:
     container_name: radar-daemon
     restart: always
     command: npx tsx ./radar_lassez/daemon.ts
-    dns:
-      - 8.8.8.8
-      - 1.1.1.1
+    network_mode: host
     environment:
       - NODE_ENV=production
     env_file:

@@ -101,7 +101,7 @@ async function run() {
         await new Promise((resolve, reject) => {
             conn2.on('ready', () => {
                 console.log('✓ SSH Connecté pour exécution.');
-                conn2.exec(deployScript, (err, stream) => {
+                conn2.exec(deployScript.replace(/\r/g, ''), (err, stream) => {
                     if (err) {
                         conn2.end();
                         return reject(err);

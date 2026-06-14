@@ -18,7 +18,7 @@ services:
     volumes:
       - /var/www/lassez-shared/prisma:/app/prisma
       - /var/www/lassez-shared/logs:/app/logs
-      - /var/www/lassez-shared/radar_lassez:/app/radar_lassez
+      - /var/www/lassez-shared/radar_lassez/radar.db:/app/radar_lassez/radar.db
       - /var/run/docker.sock:/var/run/docker.sock
 
   radar-front:
@@ -34,7 +34,7 @@ services:
     volumes:
       - /var/www/lassez-shared/prisma:/app/prisma
       - /var/www/lassez-shared/logs:/app/logs
-      - /var/www/lassez-shared/radar_lassez:/app/radar_lassez
+      - /var/www/lassez-shared/radar_lassez/radar.db:/app/radar_lassez/radar.db
     depends_on:
       - radar-api
 
@@ -51,7 +51,7 @@ services:
     volumes:
       - /var/www/lassez-shared/prisma:/app/prisma
       - /var/www/lassez-shared/logs:/app/logs
-      - /var/www/lassez-shared/radar_lassez:/app/radar_lassez
+      - /var/www/lassez-shared/radar_lassez/radar.db:/app/radar_lassez/radar.db
       - /var/run/docker.sock:/var/run/docker.sock
     depends_on:
       - radar-api
@@ -69,7 +69,8 @@ services:
     volumes:
       - /var/www/lassez-shared/prisma:/app/prisma
       - /var/www/lassez-shared/logs:/app/logs
-      - /var/www/lassez-shared/radar_lassez:/app/radar_lassez
+      - /var/www/lassez-shared/radar_lassez/radar.db:/app/radar_lassez/radar.db
     depends_on:
       - radar-api
+
 

@@ -74,8 +74,8 @@ async function run() {
             
             echo "--- Configuration des Variables d'Environnement (.env) ---"
             if [ -f "/var/www/lassez-api/.env" ]; then
-                cp /var/www/lassez-api/.env ${REMOTE_DIR}/.env
-                echo "✓ Fichier .env copié depuis l'API active."
+                tr -d '\0' < /var/www/lassez-api/.env > ${REMOTE_DIR}/.env
+                echo "✓ Fichier .env copié et nettoyé (sans caractères nuls)."
             elif [ -f "${REMOTE_DIR}/.env.vps.example" ]; then
                 cp ${REMOTE_DIR}/.env.vps.example ${REMOTE_DIR}/.env
                 echo "⚠️ Fichier .env initialisé à partir du template VPS."

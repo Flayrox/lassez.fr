@@ -34,21 +34,22 @@ async function run() {
         console.log('✅ Archive créée.');
 
         console.log(`\n🚀 [3/4] Transfert vers le VPS (${VPS_CONFIG.host})...`);
-        const conn = new Client();
+        const conn1 = new Client();
         
         await new Promise((resolve, reject) => {
-            conn.on('ready', () => {
-                console.log('✓ SSH Connecté.');
-                conn.sftp((err, sftp) => {
-                    if (err) return reject(err);
-                    const readStream = fs.createReadStream(archiveName);
-                    const writeStream = sftp.createWriteStream(`/tmp/${archiveName}`);
-                    
-                    writeStream.on('close', () => {
+            conn1.on('ready', () => {
+                console.log('✓ SSH Connecté pour transfert.');
+                conn1.sftp((err, sftp) => {
+                    if (err) {
+                        conn1.end();
+                        return reject(err);
+                    }
+                    sftp.fastPut(archiveName, `/tmp/${archiveName}`, (putErr) => {
+                        conn1.end();
+                        if (putErr) return reject(putErr);
                         console.log('✅ Archive transférée.');
                         resolve();
                     });
-                    readStream.pipe(writeStream);
                 });
             }).on('error', reject).connect({
                 host: VPS_CONFIG.host,
@@ -96,12 +97,17 @@ async function run() {
             echo "✅ DÉPLOIEMENT DOCKER EFFECTUÉ AVEC SUCCÈS !"
         `;
 
+        const conn2 = new Client();
         await new Promise((resolve, reject) => {
-            conn.on('ready', () => {
-                conn.exec(deployScript, (err, stream) => {
-                    if (err) return reject(err);
+            conn2.on('ready', () => {
+                console.log('✓ SSH Connecté pour exécution.');
+                conn2.exec(deployScript, (err, stream) => {
+                    if (err) {
+                        conn2.end();
+                        return reject(err);
+                    }
                     stream.on('close', (code) => {
-                        conn.end();
+                        conn2.end();
                         if (code === 0) resolve();
                         else reject(new Error(`Deployment failed with code ${code}`));
                     }).on('data', (data) => {
@@ -110,7 +116,7 @@ async function run() {
                         process.stderr.write(data);
                     });
                 });
-            }).connect({
+            }).on('error', reject).connect({
                 host: VPS_CONFIG.host,
                 port: VPS_CONFIG.port,
                 username: VPS_CONFIG.username,

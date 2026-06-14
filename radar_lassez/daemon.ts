@@ -31,11 +31,13 @@ export async function runPipeline() {
 
         // Charger le graphe pour piloter l'exécution
         let activeNodes = new Set(['ingestion', 'dedup', 'research', 'editor', 'media', 'publisher']); // Fallback legacy
-        if (settings.pipelineGraphJson) {
+        if (settings.pipelineGraphJson && settings.pipelineGraphJson.trim() !== '' && settings.pipelineGraphJson !== '{}' && settings.pipelineGraphJson !== '[]') {
             try {
                 const graph = JSON.parse(settings.pipelineGraphJson);
-                activeNodes = new Set(graph.nodes.map((n: any) => n.type));
-                logger.info("Daemon", `📊 Graphe chargé : ${graph.nodes.length} nodes configurés.`);
+                if (graph && Array.isArray(graph.nodes)) {
+                    activeNodes = new Set(graph.nodes.map((n: any) => n.type));
+                    logger.info("Daemon", `📊 Graphe chargé : ${graph.nodes.length} nodes configurés.`);
+                }
             } catch (e) {
                 logger.warn("Daemon", "Impossible de parser le graphe, exécution en mode standard.");
             }
@@ -200,6 +202,17 @@ async function main() {
     const runPublisherCycle = async () => {
         try {
             await runPublisherNode();
+
+            // Heartbeat : mise à jour de updatedAt dans GlobalSettings pour signaler la santé du daemon au Studio
+            const settings = await prisma.globalSettings.findFirst();
+            if (settings) {
+                await prisma.globalSettings.update({
+                    where: { id: settings.id },
+                    data: {
+                        updatedAt: new Date()
+                    }
+                });
+            }
         } catch (err) {
             logger.error("Daemon", `Erreur dans la boucle Publisher : ${err}`);
         }

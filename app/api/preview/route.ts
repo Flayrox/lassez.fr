@@ -49,7 +49,7 @@ export async function GET(request: Request) {
     }
 
     // Use getPublicSiteOrigin() instead of request.url to avoid redirecting to localhost behind Nginx proxy
-    const redirectUrl = new URL(path, getPublicSiteOrigin());
+    const redirectUrl = new URL(path, getPublicSiteOrigin(request));
     redirectUrl.searchParams.set('preview_token', previewToken);
     redirectUrl.searchParams.set('preview_id', previewId);
 

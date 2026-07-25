@@ -46,8 +46,7 @@ export function getPublicSiteOrigin(req?: any) {
 
     if (currentHost) {
         const cleanHost = currentHost.toLowerCase();
-
-        if (cleanHost.endsWith('lassez.fr')) {
+        if (cleanHost.includes('lassez.fr')) {
             const parts = cleanHost.split('.');
             if (parts[0] === 'api' || parts[0] === 'studio') {
                 parts.shift();
@@ -61,6 +60,7 @@ export function getPublicSiteOrigin(req?: any) {
         return explicitEnvSite;
     }
 
+    // Default strict production fallback
     return 'https://lassez.fr';
 }
 

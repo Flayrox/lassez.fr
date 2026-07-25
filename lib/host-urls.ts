@@ -1,22 +1,8 @@
 import 'dotenv/config';
 
-function normalizeUrl(value: string) {
-    const raw = String(value || '').trim().replace(/\/$/, '');
-    if (!raw) return '';
-
-    try {
-        return new URL(raw).origin;
-    } catch {
-        return raw;
-    }
-}
-
 export function getPublicSiteOrigin(req?: any) {
-    if (typeof window !== 'undefined' && window.location) {
-        const host = window.location.host.toLowerCase();
-        if (host.includes('localhost') || host.includes('127.0.0.1')) {
-            return 'http://localhost:5173';
-        }
+    // Always force production domain when in production or on VPS
+    if (process.env.NODE_ENV === 'production') {
         return 'https://lassez.fr';
     }
 
@@ -24,27 +10,28 @@ export function getPublicSiteOrigin(req?: any) {
         const hostHeader = typeof req.headers.get === 'function'
             ? (req.headers.get('x-forwarded-host') || req.headers.get('host'))
             : (req.headers['x-forwarded-host'] || req.headers['host']);
-        
+
         if (hostHeader) {
             const cleanHost = String(hostHeader).toLowerCase().trim();
-            if (cleanHost.includes('localhost') || cleanHost.includes('127.0.0.1')) {
-                return 'http://localhost:5173';
+            if (cleanHost.includes('lassez.fr')) {
+                return 'https://lassez.fr';
             }
         }
     }
 
-    // Default production fallback
+    if (process.env.PAYLOAD_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_SITE_URL) {
+        const envUrl = process.env.PAYLOAD_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_SITE_URL;
+        if (envUrl && !envUrl.includes('localhost')) {
+            return envUrl.replace(/\/$/, '');
+        }
+    }
+
     return 'https://lassez.fr';
 }
 
 export function getApiOrigin() {
-    if (typeof window !== 'undefined' && window.location) {
-        const host = window.location.host.toLowerCase();
-        if (host.includes('localhost') || host.includes('127.0.0.1')) {
-            return 'http://api.localhost:5173';
-        }
+    if (process.env.NODE_ENV === 'production') {
         return 'https://api.lassez.fr';
     }
-
     return 'https://api.lassez.fr';
 }

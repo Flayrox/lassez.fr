@@ -84,11 +84,6 @@ import { revalidateCacheAfterChange, revalidateCacheAfterDelete } from '../hooks
 
 export const posts = {
     slug: 'posts',
-    hooks: {
-        beforeChange: [ensurePostDefaults, generatePostsSeo],
-        afterChange: [revalidateCacheAfterChange],
-        afterDelete: [revalidateCacheAfterDelete],
-    },
     access: {
         read: authenticatedOrPublishedPostRead,
         create: isAuthor,
@@ -118,6 +113,8 @@ export const posts = {
     },
     hooks: {
         beforeValidate: [ensurePostDefaults, generatePostsSeo],
+        afterChange: [revalidateCacheAfterChange],
+        afterDelete: [revalidateCacheAfterDelete],
     },
     versions: {
         drafts: true,

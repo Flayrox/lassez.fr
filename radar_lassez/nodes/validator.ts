@@ -28,8 +28,7 @@ export async function runValidatorNode() {
     }
 
     const ai = new GoogleGenAI({ apiKey });
-    const rawModel = await getEffectiveParam('validator', 'aiModelValidator', 'gemini-2.5-flash');
-    const requestedModel = rawModel.includes('3-') ? 'gemini-2.5-flash' : rawModel;
+    const requestedModel = await getEffectiveParam('validator', 'aiModelValidator', 'gemini-3-flash-preview');
     const concurrencyLimit = await getEffectiveParam('validator', 'maxConcurrentTasks', 5);
 
     const limit = pLimit(Number(concurrencyLimit));

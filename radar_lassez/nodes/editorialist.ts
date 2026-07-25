@@ -36,9 +36,8 @@ export async function runEditorialistNode() {
 
     const ai = new GoogleGenAI({ apiKey });
     
-    // Normalisation sécurisée des chaînes de modèles IA Pro
-    const rawModel = await getEffectiveParam('editor', 'aiModelPro', 'gemini-2.5-pro');
-    const requestedModel = rawModel.includes('3.') ? 'gemini-2.5-pro' : rawModel;
+    // Résolution dynamique du modèle AI Pro depuis Prisma
+    const requestedModel = await getEffectiveParam('editor', 'aiModelPro', 'gemini-3.1-pro-preview');
     const concurrencyLimit = await getEffectiveParam('editor', 'maxConcurrentTasks', 3);
 
     const settings: any = await prisma.globalSettings.findFirst();

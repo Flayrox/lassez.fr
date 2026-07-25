@@ -8,13 +8,21 @@ import { useSettings } from './SettingsProvider';
 
 import { usePathname, useSearchParams } from 'next/navigation';
 
+function checkIsPreview(pathname: string | null, searchParams: ReturnType<typeof useSearchParams>) {
+    if (!pathname) return false;
+    if (pathname.startsWith('/preview')) return true;
+    if (searchParams?.has('preview_token')) return true;
+    if (searchParams?.has('preview_id')) return true;
+    return false;
+}
+
 export function HeaderWrapper() {
     const { setIsSidebarOpen, headerVisible } = useUI();
     const settings = useSettings();
     const pathname = usePathname();
     const searchParams = useSearchParams();
     
-    const isPreview = searchParams?.has('preview_token');
+    const isPreview = checkIsPreview(pathname, searchParams);
     
     if (isPreview) {
         return null;
@@ -38,7 +46,7 @@ export function SidebarWrapper() {
     const settings = useSettings();
     const pathname = usePathname();
     const searchParams = useSearchParams();
-    const isPreview = searchParams?.has('preview_token');
+    const isPreview = checkIsPreview(pathname, searchParams);
 
     if (isPreview) {
         return null;
@@ -62,7 +70,7 @@ export function FooterWrapper() {
     const settings = useSettings();
     const pathname = usePathname();
     const searchParams = useSearchParams();
-    const isPreview = searchParams?.has('preview_token');
+    const isPreview = checkIsPreview(pathname, searchParams);
 
     if (isPreview) {
         return null;

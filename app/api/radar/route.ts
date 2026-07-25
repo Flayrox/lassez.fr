@@ -1,11 +1,16 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { spawn } from 'child_process';
-import path from 'path';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
+/**
+ * Route GET /api/radar
+ * 
+ * Endpoint principal de récupération des articles du Studio Radar pour l'interface de contrôle.
+ * Mappe les onglets UI ('LAB', 'REVIEW', 'QUEUE', 'DONE', 'TRASH') vers les statuts réels
+ * de la table Prisma `newsTopic` et renvoie la liste filtrée avec les tags et dates.
+ */
 export async function GET(request: Request) {
     try {
         const { searchParams } = new URL(request.url);
@@ -13,7 +18,7 @@ export async function GET(request: Request) {
         const geo = searchParams.get('geo'); 
         const tag = searchParams.get('tag');
 
-        // Mapping des onglets UI vers les statuts Prisma réels
+        // Correspondance entre les onglets de l'interface Studio et les statuts de la base
         let statuses: string[] = [statusParam];
         if (statusParam === 'LAB') {
             statuses = ['INGESTED', 'RESEARCHED', 'DRAFTED'];
@@ -27,7 +32,6 @@ export async function GET(request: Request) {
             statuses = ['REJECTED', 'FAILED'];
         }
 
-        // Build where clause
         const where: any = { 
             status: { in: statuses } 
         };
@@ -54,13 +58,13 @@ export async function GET(request: Request) {
             take: 100
         });
 
-        // Map Prisma topics to the format expected by the frontend
+        // Conversion des objets Prisma vers le format attendu par le frontend Studio
         const posts = topics.map(topic => {
             let draftData: any = {};
             try {
                 draftData = topic.final_draft ? JSON.parse(topic.final_draft) : {};
             } catch (e) {
-                // Fallback
+                // En cas d'erreur de parsing JSON, garder un objet vide
             }
 
             let tagsArray: string[] = [];
@@ -70,7 +74,6 @@ export async function GET(request: Request) {
                 tagsArray = topic.tags ? topic.tags.split(',') : [];
             }
 
-            // On récupère la date de la première publication prévue
             const firstScheduled = topic.publications?.[0]?.scheduledAt;
 
             return {
@@ -88,7 +91,7 @@ export async function GET(request: Request) {
             };
         });
 
-        // Trending tags (last 7 days)
+        // Calcul des tags tendances des 7 derniers jours
         const recentTopics = await prisma.newsTopic.findMany({
             where: {
                 createdAt: {
@@ -99,151 +102,37 @@ export async function GET(request: Request) {
             take: 200
         });
 
-        const tagCount: Record<string, number> = {};
+        const tagCounts: Record<string, number> = {};
         recentTopics.forEach(t => {
+            if (!t.tags) return;
+            let tags: string[] = [];
             try {
-                const tags = JSON.parse(t.tags || '[]');
-                tags.forEach((tag: string) => {
-                    const cleaned = tag.trim();
-                    if (cleaned) tagCount[cleaned] = (tagCount[cleaned] || 0) + 1;
-                });
-            } catch (e) {}
-        });
-
-        const trendingTags = Object.entries(tagCount)
-            .sort(([, a], [, b]) => b - a)
-            .slice(0, 12)
-            .map(([tag, count]) => ({ tag, count }));
-
-        return NextResponse.json({ 
-            success: true, 
-            count: posts.length, 
-            posts, 
-            trending_tags: trendingTags 
-        });
-    } catch (error: any) {
-        console.error("Erreur API Radar (GET):", error);
-        return NextResponse.json({ success: false, error: error.message }, { status: 500 });
-    }
-}
-
-export async function PATCH(request: Request) {
-    try {
-        const body = await request.json();
-        const { id, ids, status, flash_content, image_keyword, source_title, tags } = body;
-
-        const idsArray = ids || (id ? [id] : []);
-        if (idsArray.length === 0) {
-            return NextResponse.json({ success: false, error: 'ID(s) requis' }, { status: 400 });
-        }
-
-        const validStatuses = ['APPROVED', 'REJECTED', 'PENDING', 'PUBLISHED', 'INGESTED', 'RESEARCHED', 'DRAFTED', 'QUEUED'];
-        if (status && !validStatuses.includes(status)) {
-            return NextResponse.json({ success: false, error: 'Status invalide' }, { status: 400 });
-        }
-
-        for (const topicId of idsArray) {
-            const currentTopic = await prisma.newsTopic.findUnique({ where: { id: topicId } });
-            if (!currentTopic) continue;
-
-            let finalDraft = currentTopic.final_draft ? JSON.parse(currentTopic.final_draft) : {};
-            
-            // Update draft fields if provided
-            if (flash_content !== undefined) finalDraft.body = flash_content;
-            if (source_title !== undefined) finalDraft.headline = source_title;
-
-            const updateData: any = {
-                status: status || currentTopic.status,
-                final_draft: JSON.stringify(finalDraft)
-            };
-
-            if (image_keyword !== undefined) {
-                updateData.image_url = image_keyword;
+                tags = JSON.parse(t.tags);
+            } catch (e) {
+                tags = t.tags.split(',');
             }
-            if (tags !== undefined) {
-                // Keep the array format or comma-separated string depending on what we receive
-                updateData.tags = Array.isArray(tags) ? JSON.stringify(tags) : tags;
-            }
-
-            // --- LOGIQUE SPÉCIFIQUE V3 ---
-            
-            // Si on passe en QUEUED (Approbation Manuelle)
-            if (status === 'QUEUED' && currentTopic.status !== 'QUEUED') {
-                const settings = await prisma.globalSettings.findFirst();
-                if (settings) {
-                    const platforms = [];
-                    if (settings.enableDiscord) platforms.push('DISCORD');
-                    if (settings.enableX) platforms.push('X');
-                    if (settings.enableBluesky) platforms.push('BLUESKY');
-                    if (settings.enableMastodon) platforms.push('MASTODON');
-                    if (settings.enablePayloadCMS) platforms.push('PAYLOAD');
-
-                    // On crée les publications au statut PENDING pour Node 6
-                    for (const plat of platforms) {
-                        // On vérifie si elle n'existe pas déjà
-                        const exists = await prisma.publication.findFirst({
-                            where: { topicId, platform: plat }
-                        });
-                        if (!exists) {
-                            await prisma.publication.create({
-                                data: {
-                                    topicId,
-                                    platform: plat,
-                                    status: 'PENDING',
-                                    scheduledAt: new Date() // Immédiat ou selon délai, ici on met maintenant pour que Node 6 le prenne
-                                }
-                            });
-                        }
-                    }
+            tags.forEach(rawTag => {
+                const clean = rawTag.trim().toLowerCase();
+                if (clean) {
+                    tagCounts[clean] = (tagCounts[clean] || 0) + 1;
                 }
-            }
-
-            await prisma.newsTopic.update({
-                where: { id: topicId },
-                data: updateData
             });
-
-            // Si passage en PUBLISHED (Publish Now manuel depuis la queue)
-            if (status === 'PUBLISHED') {
-                const scriptPath = path.join(process.cwd(), 'radar_lassez', 'run_publisher_now.ts');
-                const publishProcess = spawn('npx', ['tsx', scriptPath], {
-                    detached: true,
-                    stdio: 'ignore',
-                    cwd: process.cwd()
-                });
-                publishProcess.unref();
-            }
-        }
-
-        return NextResponse.json({ success: true, message: `Statut modifié pour ${status}` });
-    } catch (error: any) {
-        console.error("Erreur API Radar (PATCH):", error);
-        return NextResponse.json({ success: false, error: error.message }, { status: 500 });
-    }
-}
-
-export async function DELETE(request: Request) {
-    try {
-        const body = await request.json();
-        const { id, ids } = body;
-
-        const idsArray = ids || (id ? [id] : []);
-        if (idsArray.length === 0) {
-            return NextResponse.json({ success: false, error: 'ID(s) requis pour suppression' }, { status: 400 });
-        }
-
-        // Delete publications first to respect foreign keys if any
-        await prisma.publication.deleteMany({
-            where: { topicId: { in: idsArray } }
         });
 
-        const deleted = await prisma.newsTopic.deleteMany({
-            where: { id: { in: idsArray } }
-        });
+        const trendingTags = Object.entries(tagCounts)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 10)
+            .map(([name, count]) => ({ name, count }));
 
-        return NextResponse.json({ success: true, message: `${deleted.count} posts supprimés de la base de données.` });
+        return NextResponse.json({
+            posts,
+            trendingTags
+        });
     } catch (error: any) {
-        console.error("Erreur API Radar (DELETE):", error);
-        return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+        console.error('[Radar API Error]', error);
+        return NextResponse.json(
+            { error: 'Erreur lors de la récupération des données Radar', details: error.message },
+            { status: 500 }
+        );
     }
 }

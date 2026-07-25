@@ -3,9 +3,9 @@ import pLimit from 'p-limit';
 import { prisma } from '../lib/prisma';
 import { getEffectiveParam } from '../lib/config-resolver';
 
-// Initialize parser with a timeout
+// Initialisation du parser RSS avec un délai d'expiration de 10 secondes
 const parser = new Parser({
-    timeout: 10000, // 10 seconds timeout to prevent freezing
+    timeout: 10000,
 });
 
 export interface IngestedArticle {
@@ -19,19 +19,21 @@ export interface IngestedArticle {
     allowSourceImages: boolean;
 }
 
+/**
+ * Nœud 1 : Ingestion Multi-Sources (RSS, Google News, Telegram)
+ * 
+ * Aspire les nouveaux articles issus des flux configurés dans la base de données (Source table)
+ * et des requêtes dynamiques de GlobalSettings sur une fenêtre temporelle paramétrable.
+ */
 export async function runIngestionNode(timeWindowHoursOverride?: number): Promise<IngestedArticle[]> {
-    // Résolution de la fenêtre temporelle : Override > Node > Global > Default (12)
     const timeWindowHours = timeWindowHoursOverride ?? await getEffectiveParam('ingestion', 'rss_lookback_hours', 12);
     
     console.log(`[Node 1: Ingestion] 🌐 Démarrage de l'aspiration (Fenêtre temporelle: ${timeWindowHours}h)`);
     
-    // 1. Récupération des paramètres globaux (Flow-Driven)
     const settings = await prisma.globalSettings.findFirst();
-    
-    // 2. Préparation des sources
     const sourcesToProcess: any[] = [];
 
-    // Ajouter les sources depuis la table Source (Gestion granulaire)
+    // 1. Ingestion depuis la table Source (Sources permanentes granulairement paramétrées)
     const dbSources = await prisma.source.findMany({ where: { active: true } });
     dbSources.forEach(s => sourcesToProcess.push({
         url: s.url,
@@ -42,13 +44,12 @@ export async function runIngestionNode(timeWindowHoursOverride?: number): Promis
         allowSourceImages: s.allowSourceImages
     }));
 
-    // Ajouter les flux RSS depuis GlobalSettings (Flow Canvas)
+    // 2. Ingestion des flux RSS depuis GlobalSettings
     if (settings?.rss_feeds) {
         try {
             const feeds = JSON.parse(settings.rss_feeds);
             if (Array.isArray(feeds)) {
                 feeds.forEach(url => {
-                    // Éviter les doublons si déjà présent dans Source table
                     if (!sourcesToProcess.find(s => s.url === url)) {
                         sourcesToProcess.push({
                             url,
@@ -56,15 +57,15 @@ export async function runIngestionNode(timeWindowHoursOverride?: number): Promis
                             source_name: new URL(url).hostname,
                             source_bias: 'Indépendant',
                             trust_score: 8,
-                            allowSourceImages: true // Par défaut pour les nouveaux du Flow
+                            allowSourceImages: true
                         });
                     }
                 });
             }
-        } catch (e) { console.error("[Node 1] ❌ Erreur parsing rss_feeds:", e); }
+        } catch (e: any) { console.error("[Node 1] ❌ Erreur lecture rss_feeds:", e.message); }
     }
 
-    // Ajouter Google News depuis GlobalSettings
+    // 3. Ingestion des requêtes Google News
     if (settings?.google_news_queries) {
         try {
             const queries = JSON.parse(settings.google_news_queries);
@@ -77,11 +78,11 @@ export async function runIngestionNode(timeWindowHoursOverride?: number): Promis
                         source_name: `GNews: ${query}`,
                         source_bias: 'Multiple',
                         trust_score: 7,
-                        allowSourceImages: false // On évite les images GNews souvent mal castées
+                        allowSourceImages: false
                     });
                 });
             }
-        } catch (e) { console.error("[Node 1] ❌ Erreur parsing google_news_queries:", e); }
+        } catch (e: any) { console.error("[Node 1] ❌ Erreur lecture google_news_queries:", e.message); }
     }
 
     if (sourcesToProcess.length === 0) {
@@ -92,81 +93,63 @@ export async function runIngestionNode(timeWindowHoursOverride?: number): Promis
     const timeWindowMs = timeWindowHours * 60 * 60 * 1000;
     const cutoffDate = new Date(Date.now() - timeWindowMs);
     
-    // Purger les vieilles URL de plus de 7 jours pour garder la base légère
+    // Purge de l'historique des URL observées de plus de 7 jours
     try {
         const purgeDate = new Date(Date.now() - (7 * 24 * 60 * 60 * 1000));
         await prisma.seenUrl.deleteMany({
             where: { createdAt: { lt: purgeDate } }
         });
-    } catch(e) {}
+    } catch (e: any) { }
 
-    // Pré-chargement de toutes les URLs connues pour éviter les N+1 requêtes (Cache Local)
-    const allKnownUrlsDb = await prisma.seenUrl.findMany({ select: { url: true } });
-    const globalUrlCache = new Set(allKnownUrlsDb.map(u => u.url));
+    const seenUrls = new Set(
+        (await prisma.seenUrl.findMany({ select: { url: true } })).map(s => s.url)
+    );
 
-    let allArticles: IngestedArticle[] = [];
-    let duplicateUrlsCount = 0;
+    const limit = pLimit(5);
+    const newArticles: IngestedArticle[] = [];
+    const newSeenUrls: string[] = [];
 
-    // 3. Exécution concurrente de l'aspiration avec limitation
-    const concurrencyLimit = await getEffectiveParam('ingestion', 'maxConcurrentTasks', 5);
-    const limit = pLimit(Number(concurrencyLimit));
-
-    await Promise.all(sourcesToProcess.map(source => limit(async () => {
+    const tasks = sourcesToProcess.map(source => limit(async () => {
         try {
-            if (source.type === 'RSS' || source.type === 'GOOGLE_NEWS') {
-                const feed = await parser.parseURL(source.url);
-                const validItems = feed.items.filter(item => {
-                    const dateStr = item.isoDate || item.pubDate;
-                    if (!dateStr) return false;
-                    const date = new Date(dateStr);
-                    return date >= cutoffDate;
-                });
-
-                const newArticles: IngestedArticle[] = [];
-                for (const item of validItems) {
-                    const url = item.link || '';
-                    if (!url) continue;
-
-                    if (globalUrlCache.has(url)) {
-                        duplicateUrlsCount++;
-                        continue;
-                    }
-
+            const feed = await parser.parseURL(source.url);
+            
+            for (const item of feed.items) {
+                if (!item.link || !item.title) continue;
+                
+                const itemDate = item.pubDate ? new Date(item.pubDate) : new Date();
+                
+                if (itemDate >= cutoffDate && !seenUrls.has(item.link)) {
+                    seenUrls.add(item.link);
+                    newSeenUrls.push(item.link);
+                    
                     newArticles.push({
-                        title: item.title || 'Sans titre',
-                        url: url,
-                        content: item.contentSnippet || item.content || item.summary || '',
-                        pubDate: new Date(item.isoDate || item.pubDate || ''),
+                        title: item.title.trim(),
+                        url: item.link,
+                        content: item.contentSnippet || item.content || item.title,
+                        pubDate: itemDate,
                         source_name: source.source_name,
                         source_bias: source.source_bias,
                         trust_score: source.trust_score,
                         allowSourceImages: source.allowSourceImages
                     });
-                    
-                    // Add to global cache to prevent duplicates across feeds
-                    globalUrlCache.add(url);
                 }
-
-                if (newArticles.length > 0) {
-                    const newUrlsToSave = Array.from(new Set(newArticles.map(a => a.url)));
-                    for (const u of newUrlsToSave) {
-                        try {
-                            await prisma.seenUrl.create({ data: { url: u } });
-                        } catch(e) { /* ignore */ }
-                    }
-                }
-
-                allArticles.push(...newArticles);
-                console.log(`[Node 1] ✅ [${source.source_name}] : ${newArticles.length} nouveaux articles retenus.`);
-            } 
-            else if (source.type === 'TELEGRAM') {
-                console.log(`[Node 1] 🚧 [${source.source_name}] Mock: Aspiration Telegram simulée.`);
             }
-        } catch (error) {
-            console.error(`[Node 1] ❌ Erreur scrap ${source.source_name} (${source.url}):`, error instanceof Error ? error.message : error);
+        } catch (error: any) {
+            console.error(`[Node 1] ❌ Erreur lors de l'aspiration de ${source.source_name} (${source.url}):`, error.message);
         }
-    })));
+    }));
 
-    console.log(`[Node 1: Ingestion] 🏁 Fin. Total : ${allArticles.length} articles inédits. (${duplicateUrlsCount} URLs déjà connues bloquées).`);
-    return allArticles;
+    await Promise.all(tasks);
+
+    if (newSeenUrls.length > 0) {
+        try {
+            await prisma.seenUrl.createMany({
+                data: newSeenUrls.map(url => ({ url })),
+                skipDuplicates: true
+            });
+        } catch (e: any) { }
+    }
+
+    console.log(`[Node 1: Ingestion] ✅ Aspiration terminée : ${newArticles.length} nouveaux articles qualifiés.`);
+    return newArticles;
 }

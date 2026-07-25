@@ -7,120 +7,136 @@ import { runEditorialistNode } from './nodes/editorialist';
 import { runValidatorNode } from './nodes/validator';
 import { runMediaNode } from './nodes/media';
 import { runPublisherNode } from './nodes/publisher';
-// import { Queue } from 'bullmq'; // Dé-commenter lors de l'intégration de BullMQ
 
+/**
+ * Initialise et s'assure de la présence de la configuration globale (GlobalSettings)
+ * dans la base de données PostgreSQL de Radar.
+ */
 async function ensureGlobalSettings() {
     const settingsCount = await prisma.globalSettings.count();
     
     if (settingsCount === 0) {
-        logger.warn("Daemon", "Aucune configuration GlobalSettings trouvée. Initialisation...");
+        logger.warn("Daemon", "Aucune configuration GlobalSettings trouvée. Initialisation des paramètres par défaut...");
         await prisma.globalSettings.create({
-            data: {} // Les valeurs @default de schema.prisma prendront le relais
+            data: {} // Utilise les valeurs par défaut définies dans le schéma Prisma
         });
-        logger.success("Daemon", "GlobalSettings initialisées.");
+        logger.success("Daemon", "GlobalSettings initialisées avec succès.");
     } else {
         logger.info("Daemon", "GlobalSettings chargées.");
     }
 }
 
+/**
+ * Exécute un cycle complet du pipeline d'investigation V3
+ * 
+ * Le pipeline orchestre 6 étapes séquentielles :
+ * 1. Ingestion : Aspiration des flux RSS, Google News et Telegram
+ * 2. Deduplicator : Détection et élimination des doublons
+ * 3. Researcher : Analyse de pertinence et scoring de viralité via IA Flash (Gemini Flash)
+ * 4. Editorialist : Rédaction d'articles d'investigation via IA Pro (Gemini Pro)
+ * 5. Validator : Contrôle de conformité et vérification des faits
+ * 6. Media : Enrichissement visuel (génération d'images / Unsplash)
+ */
 export async function runPipeline() {
-    logger.info("Daemon", "🚀 Démarrage d'un cycle du pipeline V3...");
+    logger.info("Daemon", "🚀 Démarrage d'un nouveau cycle du pipeline V3...");
     try {
         const settings = await prisma.globalSettings.findFirst();
         if (!settings) throw new Error("Les paramètres globaux sont introuvables.");
 
-        // Charger le graphe pour piloter l'exécution
-        let activeNodes = new Set(['ingestion', 'dedup', 'research', 'editor', 'media', 'publisher']); // Fallback legacy
+        // Charger et vérifier les nœuds actifs dans le graphe de traitement
+        let activeNodes = new Set(['ingestion', 'dedup', 'research', 'editor', 'media', 'publisher']);
         if (settings.pipelineGraphJson && settings.pipelineGraphJson.trim() !== '' && settings.pipelineGraphJson !== '{}' && settings.pipelineGraphJson !== '[]') {
             try {
                 const graph = JSON.parse(settings.pipelineGraphJson);
                 if (!graph || !Array.isArray(graph.nodes)) {
-                    throw new Error(`Format inattendu : "nodes" est absent ou n'est pas un tableau (type: ${typeof graph?.nodes})`);
+                    throw new Error(`Format inattendu : "nodes" est absent ou invalide`);
                 }
                 activeNodes = new Set(graph.nodes.map((n: any) => n.type).filter(Boolean));
-                logger.info("Daemon", `📊 Graphe chargé : ${graph.nodes.length} nodes configurés.`);
+                logger.info("Daemon", `📊 Graphe dynamiquement chargé : ${graph.nodes.length} nœuds actifs.`);
             } catch (e: any) {
-                logger.warn("Daemon", `⚠️ Impossible de parser le graphe, exécution en mode standard. Erreur: ${e.message}`);
+                logger.warn("Daemon", `⚠️ Erreur de lecture du graphe, bascule en mode standard : ${e.message}`);
             }
         }
 
-        logger.info("Daemon", `🧠 Modèles AI : ${settings.aiModelFlash} (Rapide) / ${settings.aiModelPro} (Édito)`);
+        logger.info("Daemon", `🧠 Modèles IA : ${settings.aiModelFlash} (Analyse Rapide) / ${settings.aiModelPro} (Rédaction Éditologique)`);
         
         let rawArticles: any[] = [];
         if (activeNodes.has('ingestion')) {
-            logger.info("Node 1", "📡 Lancement de l'Ingestion...");
-            rawArticles = await runIngestionNode(12); // Fallback hardcodé au lieu de settings.rss_lookback_hours manquant
+            logger.info("Node 1", "📡 Lancement du nœud d'Ingestion multi-sources...");
+            rawArticles = await runIngestionNode(settings.scrapingInterval ? Math.max(1, Math.round(settings.scrapingInterval / 60)) : 12);
         } else {
-            logger.info("Daemon", "⏭️ Node Ingestion absent du graphe. Skip.");
+            logger.info("Daemon", "⏭️ Nœud Ingestion désactivé dans le graphe. Étape ignorée.");
         }
 
         if (rawArticles.length > 0) {
-            logger.success("Node 1", `${rawArticles.length} articles aspirés.`);
+            logger.success("Node 1", `${rawArticles.length} nouveaux articles aspirés.`);
             
             if (activeNodes.has('dedup')) {
-                logger.info("Node 2", "🗑️ Lancement du Deduplicator...");
+                logger.info("Node 2", "🗑️ Lancement du Deduplicator (Élimination des doublons)...");
                 await runDeduplicatorNode(rawArticles);
-                logger.success("Node 2", "Opération terminée.");
+                logger.success("Node 2", "Dédoublonnage achevé.");
             }
 
             if (activeNodes.has('research')) {
-                logger.info("Node 3", "🤖 Lancement du Researcher (IA Flash)...");
+                logger.info("Node 3", "🤖 Lancement du Researcher (IA Flash / Scoring & Filtrage)...");
                 await runResearcherNode();
-                logger.success("Node 3", "Arbitrage IA terminé.");
+                logger.success("Node 3", "Scoring IA achevé.");
             }
             
             if (activeNodes.has('editor')) {
-                logger.info("Node 4", "✍️ Lancement de l'Editorialist (IA Pro)...");
+                logger.info("Node 4", "✍️ Lancement de l'Editorialist (IA Pro / Rédaction d'investigation)...");
                 await runEditorialistNode();
-                logger.success("Node 4", "Rédaction achevée.");
+                logger.success("Node 4", "Rédaction d'articles terminée.");
             }
 
             if (activeNodes.has('validator')) {
-                logger.info("Node 5", "⚖️ Lancement du Validator...");
+                logger.info("Node 5", "⚖️ Lancement du Validator (Vérification et sécurité)...");
                 await runValidatorNode();
                 logger.success("Node 5", "Validation terminée.");
             }
 
             if (activeNodes.has('media')) {
-                logger.info("Node 6", "📸 Lancement du Media Enrichment...");
+                logger.info("Node 6", "📸 Lancement du Media Enrichment (Création et assignation visuelle)...");
                 await runMediaNode();
-                logger.success("Node 6", "Images assignées, articles PENDING.");
+                logger.success("Node 6", "Enrichissement médias terminé.");
             }
 
         } else if (activeNodes.has('ingestion')) {
-            logger.info("Node 1", "🤷‍♂️ Aucun nouvel article. Cycle suivant.");
+            logger.info("Node 1", "ℹ️ Aucun nouvel article détecté. Passage au cycle suivant.");
         }
 
-        logger.success("Daemon", "✅ Cycle terminé.");
+        logger.success("Daemon", "✅ Cycle du pipeline terminé avec succès.");
 
     } catch (error: any) {
-        logger.error("Daemon", `❌ Erreur critique : ${error.message}`);
+        logger.error("Daemon", `❌ Erreur critique dans le pipeline : ${error.message}`);
     }
 }
 
+/**
+ * Point d'entrée principal du démon d'automatisation Radar
+ */
 async function main() {
     logger.overrideConsole();
     
     console.log("==========================================");
-    console.log("   L'ASSEZ V3 - INVESTIGATION DAEMON      ");
+    console.log("   L'ASSEZ V3 - DEMON AUTOMATE RADAR     ");
     console.log("==========================================");
 
     await ensureGlobalSettings();
 
-    // Calcul du prochain délai selon le mode choisi et la matrice
+    /**
+     * Calcule le délai exact avant le prochain scan selon le mode (Pulse ou Calendrier)
+     */
     const getDelayToNextScan = (settings: any) => {
         const fallbackMs = (settings?.scrapingInterval ?? 60) * 60 * 1000;
         const mode = settings?.schedulingMode || 'hybrid';
         
-        // Mode "Fréquence Continue" pur
         if (mode === 'pulse') {
             return { ms: fallbackMs, type: 'interval', label: `${settings?.scrapingInterval ?? 60} minutes` };
         }
 
         const hasNoSchedule = (!settings?.daemonSchedule || settings.daemonSchedule.trim() === '[]' || settings.daemonSchedule.trim() === '{}');
 
-        // Mode Hybride sans calendrier = fallback
-        // Mode Calendrier sans calendrier = on force à attendre 1h pour ne pas boucler à l'infini (sécurité)
         if (hasNoSchedule) {
             return { ms: fallbackMs, type: 'interval', label: `${settings?.scrapingInterval ?? 60} minutes` };
         }
@@ -158,14 +174,12 @@ async function main() {
                     }
 
                     if (daysDiff === 0 && minutesDiff > 0) {
-                        // C'est aujourd'hui et dans le futur
                         const delayMs = minutesDiff * 60 * 1000 - (now.getSeconds() * 1000 + now.getMilliseconds());
                         if (delayMs < bestDelayMs) {
                             bestDelayMs = delayMs;
                             bestTargetLabel = `Aujourd'hui à ${time}`;
                         }
                     } else if (daysDiff > 0) {
-                        // C'est un autre jour
                         const delayMs = (daysDiff * 24 * 60 + minutesDiff) * 60 * 1000 - (now.getSeconds() * 1000 + now.getMilliseconds());
                         if (delayMs < bestDelayMs) {
                             bestDelayMs = delayMs;
@@ -183,7 +197,7 @@ async function main() {
         return { ms: fallbackMs, type: 'interval', label: `${settings?.scrapingInterval ?? 60} minutes` };
     };
 
-    // 1. Boucle du Pipeline Principal (Scraping & IA)
+    // 1. Boucle principale d'ingestion et de rédaction
     const runMainCycle = async () => {
         try {
             await runPipeline();
@@ -191,7 +205,6 @@ async function main() {
             logger.error("Daemon", `Crash dans le cycle principal : ${err}`);
         }
 
-        // Planification du prochain cycle
         const settings = await prisma.globalSettings.findFirst();
         const nextScan = getDelayToNextScan(settings);
 
@@ -199,12 +212,12 @@ async function main() {
         setTimeout(runMainCycle, nextScan.ms);
     };
 
-    // 2. Boucle Indépendante de la Tour de Contrôle (Node 7: Publisher)
+    // 2. Boucle indépendante de la tour de contrôle (Publisher / Publication Réseaux & CMS)
     const runPublisherCycle = async () => {
         try {
             await runPublisherNode();
 
-            // Heartbeat : mise à jour de updatedAt dans GlobalSettings pour signaler la santé du daemon au Studio
+            // Heartbeat : Mise à jour du battement de cœur pour l'interface de contrôle Studio Radar
             const settings = await prisma.globalSettings.findFirst();
             if (settings) {
                 await prisma.globalSettings.update({
@@ -218,24 +231,24 @@ async function main() {
             logger.error("Daemon", `Erreur dans la boucle Publisher : ${err}`);
         }
 
-        // On tourne toutes les 2 minutes pour la réactivité du scheduling
+        // Vérification toutes les 2 minutes pour la réactivité du calendrier de publication
         setTimeout(runPublisherCycle, 2 * 60 * 1000);
     };
 
-    // Lancement des boucles
+    // Lancement simultané des deux boucles autonomes
     runMainCycle();
     runPublisherCycle();
 }
 
-// Interception propre pour PM2 (arrêt propre du daemon)
+// Gestion des signaux système PM2 pour un arrêt sans perte de données
 process.on('SIGTERM', async () => {
-    console.log("[Daemon] 🛑 Signal SIGTERM reçu, fermeture propre...");
+    console.log("[Daemon] 🛑 Signal SIGTERM reçu, déconnexion propre de la base de données...");
     await prisma.$disconnect();
     process.exit(0);
 });
 
 main().catch(async (e) => {
-    console.error("[Daemon] 💥 Crash fatal :", e);
+    console.error("[Daemon] 💥 Crash fatal du démon :", e);
     await prisma.$disconnect();
     process.exit(1);
 });

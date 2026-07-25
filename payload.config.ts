@@ -46,10 +46,27 @@ export default buildConfig({
             titleSuffix: 'Payload',
         },
         livePreview: {
-            // URL is defined per-collection in each collection's admin.livePreview.url
-            // Do NOT set a global url here — it would be evaluated statically at build-time
-            // and would override the per-collection runtime url functions.
             collections: ['posts', 'lessons', 'revelations'],
+            breakpoints: [
+                {
+                    label: 'Mobile',
+                    name: 'mobile',
+                    width: 375,
+                    height: 667,
+                },
+                {
+                    label: 'Tablet',
+                    name: 'tablet',
+                    width: 768,
+                    height: 1024,
+                },
+                {
+                    label: 'Desktop',
+                    name: 'desktop',
+                    width: 1440,
+                    height: 900,
+                },
+            ],
         },
     },
     cors: {

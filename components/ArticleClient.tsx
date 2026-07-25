@@ -33,8 +33,6 @@ const ArticleClient: React.FC<ArticleClientProps> = ({ post: initialPost, relate
     const [isLoading, setIsLoading] = useState(false);
 
     useEffect(() => {
-        if (!isPreview) return;
-
         const handleMessage = (event: MessageEvent) => {
             if (event.data && event.data.type === 'payload-live-preview') {
                 if (event.data.data) {
@@ -51,7 +49,7 @@ const ArticleClient: React.FC<ArticleClientProps> = ({ post: initialPost, relate
         }
 
         return () => window.removeEventListener('message', handleMessage);
-    }, [isPreview]);
+    }, []);
 
     useEffect(() => {
         if (isPreview) {

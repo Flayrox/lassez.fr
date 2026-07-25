@@ -42,45 +42,22 @@ export const lessons: CollectionConfig = {
         useAsTitle: 'title',
         defaultColumns: ['title', 'chapitre', 'numero_lecon', 'niveau_difficulte', 'status'],
         description: 'Silo Comprendre : Collection 100% didactique.',
-        preview: async ({ doc, req }: any) => {
-            const origin = getPublicSiteOrigin(req);
-            const previewPath = doc?.slug ? `/comprendre/${doc.slug}` : null;
-            const normalizedPath = previewPath ? normalizePreviewPath(previewPath) : null;
-            if (!normalizedPath) return null;
-
-            const previewId = String(doc?.id || '').trim();
+        preview: ({ doc }: any) => {
             const slug = String(doc?.slug || '').trim();
+            const previewId = String(doc?.id || '').trim();
+            if (!slug || !previewId) return 'https://lassez.fr';
+
             const previewToken = createPostPreviewToken({ postId: previewId, slug });
-
-            if (!previewId || !previewToken) return `${origin}${normalizedPath}`;
-
-            const previewUrl = new URL('/api/preview', origin);
-            previewUrl.searchParams.set('path', normalizedPath);
-            previewUrl.searchParams.set('preview_id', previewId);
-            previewUrl.searchParams.set('preview_token', previewToken);
-            return previewUrl.toString();
+            return `https://lassez.fr/api/preview?path=/comprendre/${slug}&preview_id=${previewId}&preview_token=${previewToken}`;
         },
         livePreview: {
-            url: async ({ data, req }: any) => {
-                const previewPath = data?.slug ? `/comprendre/${data.slug}` : null;
-                if (!previewPath) return getPublicSiteOrigin(req);
-                const origin = getPublicSiteOrigin(req);
-                const normalizedPath = normalizePreviewPath(previewPath);
-                if (!normalizedPath) return getPublicSiteOrigin(req);
-
-                const previewId = String(data?.id || '').trim();
+            url: ({ data }: any) => {
                 const slug = String(data?.slug || '').trim();
+                const previewId = String(data?.id || '').trim();
+                if (!slug || !previewId) return 'https://lassez.fr';
 
-                if (!previewId || !slug) {
-                    return `${origin}${normalizedPath}`;
-                }
-
-                return buildSignedPreviewUrl({
-                    origin,
-                    path: normalizedPath,
-                    previewId,
-                    slug,
-                });
+                const previewToken = createPostPreviewToken({ postId: previewId, slug });
+                return `https://lassez.fr/api/preview?path=/comprendre/${slug}&preview_id=${previewId}&preview_token=${previewToken}`;
             },
         },
     },

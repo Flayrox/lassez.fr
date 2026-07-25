@@ -92,54 +92,22 @@ export const posts = {
         useAsTitle: 'title',
         defaultColumns: ['title', 'slug', '_status', 'publishedAt'],
         description: 'Dossier éditorial avec preview, SEO et taxonomies.',
-        preview: async ({ doc, req }: any) => {
-            const previewPath = resolveEditorialPreviewPath(String(doc?.slug || '')) || await buildPostPreviewUrl(doc, req);
-            if (!previewPath) return null;
-
-            // Always use the public production origin — never trust req.headers.host
-            // behind Nginx which resolves to localhost:3001
-            const origin = getPublicSiteOrigin(req);
-
-            const normalizedPath = normalizePreviewPath(previewPath);
-            if (!normalizedPath) return null;
-
-            const previewId = String(doc?.id || '').trim();
+        preview: ({ doc }: any) => {
             const slug = String(doc?.slug || '').trim();
+            const previewId = String(doc?.id || '').trim();
+            if (!slug || !previewId) return 'https://lassez.fr';
+
             const previewToken = createPostPreviewToken({ postId: previewId, slug });
-
-            if (!previewId || !previewToken) {
-                return `${origin}${normalizedPath}`;
-            }
-
-            const previewUrl = new URL('/api/preview', origin);
-            previewUrl.searchParams.set('path', normalizedPath);
-            previewUrl.searchParams.set('preview_id', previewId);
-            previewUrl.searchParams.set('preview_token', previewToken);
-            return previewUrl.toString();
+            return `https://lassez.fr/api/preview?path=/preview/article/${slug}&preview_id=${previewId}&preview_token=${previewToken}`;
         },
         livePreview: {
-            url: async ({ data, req }: any) => {
-                const previewPath = resolveEditorialPreviewPath(String(data?.slug || '')) || await buildPostPreviewUrl(data, req);
-                if (!previewPath) return getPublicSiteOrigin(req);
-                
-                const origin = getPublicSiteOrigin(req);
-                
-                const normalizedPath = normalizePreviewPath(previewPath);
-                if (!normalizedPath) return origin;
-
-                const previewId = String(data?.id || '').trim();
+            url: ({ data }: any) => {
                 const slug = String(data?.slug || '').trim();
+                const previewId = String(data?.id || '').trim();
+                if (!slug || !previewId) return 'https://lassez.fr';
 
-                if (!previewId || !slug) {
-                    return `${origin}${normalizedPath}`;
-                }
-
-                return buildSignedPreviewUrl({
-                    origin,
-                    path: normalizedPath,
-                    previewId,
-                    slug,
-                });
+                const previewToken = createPostPreviewToken({ postId: previewId, slug });
+                return `https://lassez.fr/api/preview?path=/preview/article/${slug}&preview_id=${previewId}&preview_token=${previewToken}`;
             },
         },
     },

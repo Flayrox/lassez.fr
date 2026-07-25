@@ -20,10 +20,6 @@ export function getPublicSiteOrigin(req?: any) {
         ''
     );
 
-    const isExplicitProductionUrl = explicitEnvSite &&
-        !explicitEnvSite.includes('localhost') &&
-        !explicitEnvSite.includes('127.0.0.1');
-
     let currentHost = '';
     let currentProtocol = 'https:';
 
@@ -50,30 +46,22 @@ export function getPublicSiteOrigin(req?: any) {
 
     if (currentHost) {
         const cleanHost = currentHost.toLowerCase();
-        const isLoopbackHost = cleanHost.includes('localhost') ||
-            cleanHost.startsWith('127.') ||
-            cleanHost.startsWith('0.0.0.0') ||
-            cleanHost === '::1';
 
-        if (isLoopbackHost) {
-            if (process.env.NODE_ENV === 'production' || isExplicitProductionUrl) {
-                return explicitEnvSite || 'https://lassez.fr';
+        if (cleanHost.endsWith('lassez.fr')) {
+            const parts = cleanHost.split('.');
+            if (parts[0] === 'api' || parts[0] === 'studio') {
+                parts.shift();
             }
-            if (cleanHost.includes(':')) {
-                return `${currentProtocol}//${cleanHost}`;
-            }
-            return `${currentProtocol}//localhost:5173`;
+            const frontendHost = parts.join('.');
+            return `${currentProtocol}//${frontendHost}`;
         }
-
-        const parts = cleanHost.split('.');
-        if (parts[0] === 'api' || parts[0] === 'studio') {
-            parts.shift();
-        }
-        const frontendHost = parts.join('.');
-        return `${currentProtocol}//${frontendHost}`;
     }
 
-    return explicitEnvSite || 'https://lassez.fr';
+    if (explicitEnvSite && !explicitEnvSite.includes('localhost')) {
+        return explicitEnvSite;
+    }
+
+    return 'https://lassez.fr';
 }
 
 export function getApiOrigin() {
@@ -81,25 +69,9 @@ export function getApiOrigin() {
     if (explicit && !explicit.includes('localhost')) return explicit;
 
     const siteOrigin = getPublicSiteOrigin();
-
-    try {
-        const url = new URL(siteOrigin);
-        if (url.hostname.includes('localhost') || url.hostname.startsWith('127.')) {
-            return explicit || url.origin;
-        }
-
-        const segments = url.hostname.split('.');
-        if (segments[0] === 'www') {
-            segments.shift();
-        }
-
-        if (segments.length > 0) {
-            segments[0] = 'api';
-            url.hostname = segments.join('.');
-        }
-
-        return url.origin;
-    } catch {
-        return explicit || 'https://api.lassez.fr';
+    if (siteOrigin.endsWith('lassez.fr')) {
+        return 'https://api.lassez.fr';
     }
+
+    return explicit || 'https://api.lassez.fr';
 }

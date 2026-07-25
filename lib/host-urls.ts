@@ -12,66 +12,39 @@ function normalizeUrl(value: string) {
 }
 
 export function getPublicSiteOrigin(req?: any) {
-    const explicitEnvSite = normalizeUrl(
-        process.env.PAYLOAD_PREVIEW_SITE_URL ||
-        process.env.PAYLOAD_PUBLIC_SITE_URL ||
-        process.env.NEXT_PUBLIC_SITE_URL ||
-        process.env.FRONTEND_URL ||
-        ''
-    );
-
-    let currentHost = '';
-    let currentProtocol = 'https:';
-
     if (typeof window !== 'undefined' && window.location) {
-        currentHost = window.location.host;
-        currentProtocol = window.location.protocol;
-    } else if (req) {
-        const headers = req.headers;
-        if (headers) {
-            const hostHeader = typeof headers.get === 'function'
-                ? (headers.get('x-forwarded-host') || headers.get('host'))
-                : (headers['x-forwarded-host'] || headers['host']);
-            if (hostHeader) {
-                currentHost = String(hostHeader).trim();
-            }
-            const protoHeader = typeof headers.get === 'function'
-                ? headers.get('x-forwarded-proto')
-                : headers['x-forwarded-proto'];
-            if (protoHeader) {
-                currentProtocol = String(protoHeader).trim() + ':';
+        const host = window.location.host.toLowerCase();
+        if (host.includes('localhost') || host.includes('127.0.0.1')) {
+            return 'http://localhost:5173';
+        }
+        return 'https://lassez.fr';
+    }
+
+    if (req && req.headers) {
+        const hostHeader = typeof req.headers.get === 'function'
+            ? (req.headers.get('x-forwarded-host') || req.headers.get('host'))
+            : (req.headers['x-forwarded-host'] || req.headers['host']);
+        
+        if (hostHeader) {
+            const cleanHost = String(hostHeader).toLowerCase().trim();
+            if (cleanHost.includes('localhost') || cleanHost.includes('127.0.0.1')) {
+                return 'http://localhost:5173';
             }
         }
     }
 
-    if (currentHost) {
-        const cleanHost = currentHost.toLowerCase();
-        if (cleanHost.includes('lassez.fr')) {
-            const parts = cleanHost.split('.');
-            if (parts[0] === 'api' || parts[0] === 'studio') {
-                parts.shift();
-            }
-            const frontendHost = parts.join('.');
-            return `${currentProtocol}//${frontendHost}`;
-        }
-    }
-
-    if (explicitEnvSite && !explicitEnvSite.includes('localhost')) {
-        return explicitEnvSite;
-    }
-
-    // Default strict production fallback
+    // Default production fallback
     return 'https://lassez.fr';
 }
 
 export function getApiOrigin() {
-    const explicit = normalizeUrl(process.env.PAYLOAD_SERVER_URL || '');
-    if (explicit && !explicit.includes('localhost')) return explicit;
-
-    const siteOrigin = getPublicSiteOrigin();
-    if (siteOrigin.endsWith('lassez.fr')) {
+    if (typeof window !== 'undefined' && window.location) {
+        const host = window.location.host.toLowerCase();
+        if (host.includes('localhost') || host.includes('127.0.0.1')) {
+            return 'http://api.localhost:5173';
+        }
         return 'https://api.lassez.fr';
     }
 
-    return explicit || 'https://api.lassez.fr';
+    return 'https://api.lassez.fr';
 }

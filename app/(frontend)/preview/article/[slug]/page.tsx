@@ -67,18 +67,12 @@ export default async function ArticleEditorialPreviewPage({ params, searchParams
     const post = await getPost(slug, isPreview, previewId);
 
     if (!post) {
-        // Render a basic placeholder instead of an outright 404 to keep the Live Preview hook alive.
         return (
-            <main className="mx-auto min-h-screen w-full max-w-5xl px-3 py-4 md:px-5 md:py-6 bg-[#f3efe4] flex items-center justify-center">
-                 <div className="text-center opacity-50">
-                    <p className="font-mono text-xs uppercase">Initialisation de la Preview en cours...</p>
-                    <p className="text-[10px] mt-2">En attente des données de brouillon.</p>
-                 </div>
-                 {/* Mount the Headers component with basic empty data so it can start receiving postMessage */ }
+            <main className="mx-auto min-h-screen w-full max-w-5xl px-3 py-4 md:px-5 md:py-6 bg-[#f3efe4]">
                  <HeadersOriginComponent 
                     post={{ 
                         id: previewId || 'new', 
-                        title: 'Nouveau Brouillon',
+                        title: '',
                         slug: slug,
                         _status: 'draft',
                         categories: []

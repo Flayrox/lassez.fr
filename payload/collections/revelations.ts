@@ -46,19 +46,16 @@ export const revelations: CollectionConfig = {
         preview: ({ doc }: any) => {
             const slug = String(doc?.slug || doc?.id || '').trim();
             const previewId = String(doc?.id || '').trim();
-            if (!slug || !previewId) return 'https://lassez.fr';
+            if (!slug) return 'https://lassez.fr';
 
-            const previewToken = createPostPreviewToken({ postId: previewId, slug });
-            return `https://lassez.fr/api/preview?path=/revelations/${slug}&preview_id=${previewId}&preview_token=${previewToken}`;
+            return `https://lassez.fr/api/preview?path=/revelations/${slug}&preview_id=${previewId}`;
         },
         livePreview: {
             url: ({ data }: any) => {
                 const slug = String(data?.slug || data?.id || '').trim();
-                const previewId = String(data?.id || '').trim();
-                if (!slug || !previewId) return 'https://lassez.fr';
+                if (!slug) return 'https://lassez.fr';
 
-                const previewToken = createPostPreviewToken({ postId: previewId, slug });
-                return `https://lassez.fr/api/preview?path=/revelations/${slug}&preview_id=${previewId}&preview_token=${previewToken}`;
+                return `https://lassez.fr/revelations/${slug}`;
             },
         },
     },

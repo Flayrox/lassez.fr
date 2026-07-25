@@ -95,19 +95,17 @@ export const posts = {
         preview: ({ doc }: any) => {
             const slug = String(doc?.slug || '').trim();
             const previewId = String(doc?.id || '').trim();
-            if (!slug || !previewId) return 'https://lassez.fr';
+            if (!slug) return 'https://lassez.fr';
 
-            const previewToken = createPostPreviewToken({ postId: previewId, slug });
-            return `https://lassez.fr/api/preview?path=/preview/article/${slug}&preview_id=${previewId}&preview_token=${previewToken}`;
+            return `https://lassez.fr/api/preview?path=/preview/article/${slug}&preview_id=${previewId}`;
         },
         livePreview: {
             url: ({ data }: any) => {
                 const slug = String(data?.slug || '').trim();
                 const previewId = String(data?.id || '').trim();
-                if (!slug || !previewId) return 'https://lassez.fr';
+                if (!slug) return 'https://lassez.fr';
 
-                const previewToken = createPostPreviewToken({ postId: previewId, slug });
-                return `https://lassez.fr/api/preview?path=/preview/article/${slug}&preview_id=${previewId}&preview_token=${previewToken}`;
+                return `https://lassez.fr/preview/article/${slug}`;
             },
         },
     },

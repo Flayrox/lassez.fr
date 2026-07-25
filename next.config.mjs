@@ -6,7 +6,7 @@ const cspDirectives = [
     "base-uri 'self'",
     "form-action 'self'",
     "frame-src 'self' https://lassez.fr https://*.lassez.fr http://localhost:5173 https://localhost:5173 http://127.0.0.1:5173 https://127.0.0.1:5173",
-    "frame-ancestors 'self' https://api.lassez.fr http://api.localhost:5173 https://api.localhost:5173 http://localhost:5173 https://localhost:5173",
+    "frame-ancestors 'self' https://lassez.fr https://*.lassez.fr https://api.lassez.fr https://studio.lassez.fr http://api.localhost:5173 https://api.localhost:5173 http://localhost:5173 https://localhost:5173",
     "object-src 'none'",
     "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://cdn.tailwindcss.com https://unpkg.com https://stats.lassez.fr http://stats.lassez.fr blob:",
     "worker-src 'self' blob:",

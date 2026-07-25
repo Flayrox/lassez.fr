@@ -43,8 +43,8 @@ export const revelations: CollectionConfig = {
         useAsTitle: 'titre',
         defaultColumns: ['titre', 'niveau_alerte', '_status', 'createdAt'],
         description: 'Silo Révélations : Live feed orienté action rapide.',
-        preview: async ({ doc }: any) => {
-            const origin = getPublicSiteOrigin();
+        preview: async ({ doc, req }: any) => {
+            const origin = getPublicSiteOrigin(req);
             const previewPath = doc?.slug ? `/revelations/${doc.slug}` : (doc?.id ? `/revelations/${doc.id}` : null);
             const normalizedPath = previewPath ? normalizePreviewPath(previewPath) : null;
             if (!normalizedPath) return null;
@@ -62,12 +62,12 @@ export const revelations: CollectionConfig = {
             return previewUrl.toString();
         },
         livePreview: {
-            url: async ({ data }: any) => {
+            url: async ({ data, req }: any) => {
                 const previewPath = data?.slug ? `/revelations/${data.slug}` : (data?.id ? `/revelations/${data.id}` : null);
-                if (!previewPath) return getPublicSiteOrigin();
-                const origin = getPublicSiteOrigin();
+                if (!previewPath) return getPublicSiteOrigin(req);
+                const origin = getPublicSiteOrigin(req);
                 const normalizedPath = normalizePreviewPath(previewPath);
-                if (!normalizedPath) return getPublicSiteOrigin();
+                if (!normalizedPath) return getPublicSiteOrigin(req);
 
                 const previewId = String(data?.id || '').trim();
                 const slug = String(data?.slug || data?.id || '').trim();

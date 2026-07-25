@@ -98,7 +98,7 @@ export const posts = {
 
             // Always use the public production origin — never trust req.headers.host
             // behind Nginx which resolves to localhost:3001
-            const origin = getPublicSiteOrigin();
+            const origin = getPublicSiteOrigin(req);
 
             const normalizedPath = normalizePreviewPath(previewPath);
             if (!normalizedPath) return null;
@@ -120,9 +120,9 @@ export const posts = {
         livePreview: {
             url: async ({ data, req }: any) => {
                 const previewPath = resolveEditorialPreviewPath(String(data?.slug || '')) || await buildPostPreviewUrl(data, req);
-                if (!previewPath) return getPublicSiteOrigin();
+                if (!previewPath) return getPublicSiteOrigin(req);
                 
-                const origin = getPublicSiteOrigin();
+                const origin = getPublicSiteOrigin(req);
                 
                 const normalizedPath = normalizePreviewPath(previewPath);
                 if (!normalizedPath) return origin;

@@ -1,3 +1,5 @@
+import 'dotenv/config';
+
 function normalizeUrl(value: string) {
     const raw = String(value || '').trim().replace(/\/$/, '');
     if (!raw) return '';
@@ -69,10 +71,6 @@ export function getPublicSiteOrigin(req?: any) {
         }
         const frontendHost = parts.join('.');
         return `${currentProtocol}//${frontendHost}`;
-    }
-
-    if (process.env.NODE_ENV !== 'production' && !isExplicitProductionUrl) {
-        return explicitEnvSite || 'http://localhost:5173';
     }
 
     return explicitEnvSite || 'https://lassez.fr';

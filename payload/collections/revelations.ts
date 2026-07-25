@@ -43,45 +43,22 @@ export const revelations: CollectionConfig = {
         useAsTitle: 'titre',
         defaultColumns: ['titre', 'niveau_alerte', '_status', 'createdAt'],
         description: 'Silo Révélations : Live feed orienté action rapide.',
-        preview: async ({ doc, req }: any) => {
-            const origin = getPublicSiteOrigin(req);
-            const previewPath = doc?.slug ? `/revelations/${doc.slug}` : (doc?.id ? `/revelations/${doc.id}` : null);
-            const normalizedPath = previewPath ? normalizePreviewPath(previewPath) : null;
-            if (!normalizedPath) return null;
-
-            const previewId = String(doc?.id || '').trim();
+        preview: ({ doc }: any) => {
             const slug = String(doc?.slug || doc?.id || '').trim();
+            const previewId = String(doc?.id || '').trim();
+            if (!slug || !previewId) return 'https://lassez.fr';
+
             const previewToken = createPostPreviewToken({ postId: previewId, slug });
-
-            if (!previewId || !previewToken) return `${origin}${normalizedPath}`;
-
-            const previewUrl = new URL('/api/preview', origin);
-            previewUrl.searchParams.set('path', normalizedPath);
-            previewUrl.searchParams.set('preview_id', previewId);
-            previewUrl.searchParams.set('preview_token', previewToken);
-            return previewUrl.toString();
+            return `https://lassez.fr/api/preview?path=/revelations/${slug}&preview_id=${previewId}&preview_token=${previewToken}`;
         },
         livePreview: {
-            url: async ({ data, req }: any) => {
-                const previewPath = data?.slug ? `/revelations/${data.slug}` : (data?.id ? `/revelations/${data.id}` : null);
-                if (!previewPath) return getPublicSiteOrigin(req);
-                const origin = getPublicSiteOrigin(req);
-                const normalizedPath = normalizePreviewPath(previewPath);
-                if (!normalizedPath) return getPublicSiteOrigin(req);
-
-                const previewId = String(data?.id || '').trim();
+            url: ({ data }: any) => {
                 const slug = String(data?.slug || data?.id || '').trim();
+                const previewId = String(data?.id || '').trim();
+                if (!slug || !previewId) return 'https://lassez.fr';
 
-                if (!previewId) {
-                    return `${origin}${normalizedPath}`;
-                }
-
-                return buildSignedPreviewUrl({
-                    origin,
-                    path: normalizedPath,
-                    previewId,
-                    slug,
-                });
+                const previewToken = createPostPreviewToken({ postId: previewId, slug });
+                return `https://lassez.fr/api/preview?path=/revelations/${slug}&preview_id=${previewId}&preview_token=${previewToken}`;
             },
         },
     },

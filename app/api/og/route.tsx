@@ -77,7 +77,7 @@ export async function GET(request: Request) {
                     <div
                         style={{
                             display: 'flex',
-                            justify: 'space-between',
+                            justifyContent: 'space-between',
                             alignItems: 'center',
                             borderTop: '2px solid rgba(255,255,255,0.2)',
                             paddingTop: '20px',

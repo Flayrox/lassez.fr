@@ -35,8 +35,8 @@ export async function runResearcherNode() {
 
     const ai = new GoogleGenAI({ apiKey });
     
-    // Résolution dynamique des modèles et de la concurrence
-    const requestedModel = await getEffectiveParam('research', 'aiModelFlash', 'gemini-2.5-flash');
+    // Résolution dynamique des modèles et de la concurrence depuis Prisma
+    const requestedModel = await getEffectiveParam('research', 'aiModelFlash', 'gemini-3-flash-preview');
     const customPrompt = await getEffectiveParam('research', 'customPromptModifier', '');
     const concurrencyLimit = await getEffectiveParam('research', 'maxConcurrentTasks', 5);
 
@@ -71,7 +71,7 @@ Source : ${rawData.source_name || 'Inconnue'}
             `.trim();
 
             const response = await ai.models.generateContent({
-                model: requestedModel.includes('3-') ? 'gemini-2.5-flash' : requestedModel,
+                model: requestedModel,
                 contents: promptText,
                 config: {
                     responseMimeType: 'application/json',

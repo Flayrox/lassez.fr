@@ -8,6 +8,12 @@ import { useSettings } from './SettingsProvider';
 
 import { usePathname, useSearchParams } from 'next/navigation';
 
+/**
+ * Fonction utilitaire de détection du mode de prévisualisation (Preview / Live Preview)
+ * 
+ * Détermine si la page actuelle est affichée à l'intérieur de l'iframe de prévisualisation
+ * du CMS Payload ou via une URL de brouillon.
+ */
 function checkIsPreview(pathname: string | null, searchParams: ReturnType<typeof useSearchParams>) {
     if (!pathname) return false;
     if (pathname.startsWith('/preview')) return true;
@@ -16,6 +22,12 @@ function checkIsPreview(pathname: string | null, searchParams: ReturnType<typeof
     return false;
 }
 
+/**
+ * Composant Wrapper de l'En-tête (Header)
+ * 
+ * Masque automatiquement l'en-tête global du site sur les routes d'administration,
+ * les fenêtres d'aperçu brouillon (Preview iframe) ou lorsque le mode sans distraction est activé.
+ */
 export function HeaderWrapper() {
     const { setIsSidebarOpen, headerVisible } = useUI();
     const settings = useSettings();
@@ -24,16 +36,17 @@ export function HeaderWrapper() {
     
     const isPreview = checkIsPreview(pathname, searchParams);
     
+    // Masquer sur les pages de prévisualisation brouillon pour un rendu d'article pur
     if (isPreview) {
         return null;
     }
     
-    // Hide on radar-admin (Studio) routes
+    // Masquer sur les routes d'administration du Studio Radar
     if (pathname?.startsWith('/radar-admin') || pathname?.startsWith('/radar-login')) {
         return null;
     }
     
-    // Hide if disabled in CMS OR if focus mode (via UIProvider)
+    // Masquer si désactivé dans la configuration CMS globale ou via le mode Focus UI
     if (!headerVisible || settings.displaySettings?.showHeader === false) {
         return null;
     }
@@ -41,6 +54,12 @@ export function HeaderWrapper() {
     return <Header onMenuClick={() => setIsSidebarOpen(true)} />;
 }
 
+/**
+ * Composant Wrapper de la Barre Latérale (Sidebar)
+ * 
+ * Masque la barre latérale de navigation sur les fenêtres de prévisualisation
+ * et les routes d'administration.
+ */
 export function SidebarWrapper() {
     const { isSidebarOpen, setIsSidebarOpen, headerVisible } = useUI();
     const settings = useSettings();
@@ -52,12 +71,10 @@ export function SidebarWrapper() {
         return null;
     }
     
-    // Hide on radar-admin
     if (pathname?.startsWith('/radar-admin') || pathname?.startsWith('/radar-login')) {
         return null;
     }
     
-    // Sidebar is linked to Header visibility
     if (!headerVisible || settings.displaySettings?.showHeader === false) {
         return null;
     }
@@ -65,6 +82,12 @@ export function SidebarWrapper() {
     return <Sidebar isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />;
 }
 
+/**
+ * Composant Wrapper du Pied de Page (Footer)
+ * 
+ * Masque le pied de page global du site sur les fenêtres de prévisualisation
+ * pour offrir une zone de lecture épurée et sans distraction dans l'éditeur.
+ */
 export function FooterWrapper() {
     const { footerVisible } = useUI();
     const settings = useSettings();

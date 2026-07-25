@@ -30,8 +30,14 @@ function buildSignedPreviewUrl(args: { origin: string; path: string; previewId: 
     return previewUrl.toString();
 }
 
+import { revalidateCacheAfterChange, revalidateCacheAfterDelete } from '../hooks/revalidate-cache';
+
 export const lessons: CollectionConfig = {
     slug: 'lessons',
+    hooks: {
+        afterChange: [revalidateCacheAfterChange],
+        afterDelete: [revalidateCacheAfterDelete],
+    },
     access: {
         read: authenticatedOrPublishedPostRead,
         create: isAuthor,

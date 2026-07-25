@@ -80,8 +80,15 @@ const generatePostsSeo = createGeminiSeoHook({
     outputMode: 'meta',
 });
 
+import { revalidateCacheAfterChange, revalidateCacheAfterDelete } from '../hooks/revalidate-cache';
+
 export const posts = {
     slug: 'posts',
+    hooks: {
+        beforeChange: [ensurePostDefaults, generatePostsSeo],
+        afterChange: [revalidateCacheAfterChange],
+        afterDelete: [revalidateCacheAfterDelete],
+    },
     access: {
         read: authenticatedOrPublishedPostRead,
         create: isAuthor,

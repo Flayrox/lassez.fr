@@ -145,7 +145,6 @@ export async function runIngestionNode(timeWindowHoursOverride?: number): Promis
         try {
             await prisma.seenUrl.createMany({
                 data: newSeenUrls.map(url => ({ url })),
-                skipDuplicates: true
             });
         } catch (e: any) { }
     }

@@ -3,6 +3,9 @@ import { getPayloadClient } from '@/lib/payload';
 
 export const dynamic = 'force-dynamic';
 
+/**
+ * Échappe les caractères spéciaux XML pour prévenir toute corruption du sitemap
+ */
 function escapeXml(value: string) {
     return value
         .replace(/&/g, '&amp;')
@@ -12,15 +15,28 @@ function escapeXml(value: string) {
         .replace(/'/g, '&apos;');
 }
 
+/**
+ * Reconstruit l'URL publique canonique d'un article
+ */
 function buildPostUrl(doc: any) {
-    if (doc?.slug) return `https://lassez.fr/revelations/${doc.slug}`;
-    if (doc?.categories?.[0]?.slug) return `https://lassez.fr/${doc.categories[0].slug}/${doc.slug || doc.id}`;
+    if (doc?.slug) {
+        const cat = (doc.categories && typeof doc.categories[0] === 'object') ? doc.categories[0].slug : 'article';
+        return `https://lassez.fr/${cat}/${doc.slug}`;
+    }
     return `https://lassez.fr/revelations/${doc?.id}`;
 }
 
+/**
+ * Route Dynamic Google News Sitemap XML (/news-sitemap.xml)
+ * 
+ * Cette route génère en temps réel un flux XML conforme au protocole officiel Google News.
+ * Google News exige que seuls les articles publiés au cours des 48 dernières heures soient listés.
+ */
 export async function GET() {
     try {
         const payload = await getPayloadClient();
+        
+        // Fenêtre temporelle stricte de 48 heures conformément aux directives Google News
         const cutoff = new Date(Date.now() - 48 * 60 * 60 * 1000);
 
         const [postsResult, revelationsResult] = await Promise.all([
@@ -33,7 +49,7 @@ export async function GET() {
                     ],
                 },
                 limit: 100,
-                depth: 2, // depth 2 for tags and categories
+                depth: 2,
                 sort: '-publishedAt',
             }),
             payload.find({
@@ -58,9 +74,9 @@ export async function GET() {
 
                 return {
                     url: buildPostUrl(doc),
-                    title: escapeXml(String(doc.meta?.title || doc.title || '')),
+                    title: escapeXml(String(doc.seoTitle || doc.meta?.title || doc.title || '')),
                     publishedAt: new Date(doc.publishedAt || doc.createdAt).toISOString(),
-                    keywords: escapeXml(kws || String(doc.meta?.description || doc.excerpt || 'l\'Assez')),
+                    keywords: escapeXml(kws || String(doc.seoDescription || doc.excerpt || 'l\'Assez')),
                 };
             }),
             ...((revelationsResult.docs || []) as any[]).map(doc => ({
@@ -90,10 +106,13 @@ ${entries.map(entry => `  <url>
 </urlset>`;
 
         return new NextResponse(xml, {
-            headers: { 'Content-Type': 'application/xml; charset=utf-8' },
+            headers: {
+                'Content-Type': 'application/xml; charset=utf-8',
+                'Cache-Control': 'public, max-age=300, s-maxage=600',
+            },
         });
     } catch (error) {
         console.error('[news-sitemap]', error);
-        return new NextResponse('Error', { status: 500 });
+        return new NextResponse('Error generating Google News sitemap', { status: 500 });
     }
 }

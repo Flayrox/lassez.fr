@@ -32,38 +32,6 @@ function buildSignedPreviewUrl(args: { origin: string; path: string; previewId: 
 
 import { revalidateCacheAfterChange, revalidateCacheAfterDelete } from '../hooks/revalidate-cache';
 
-export const lessons: CollectionConfig = {
-    slug: 'lessons',
-    hooks: {
-        afterChange: [revalidateCacheAfterChange],
-        afterDelete: [revalidateCacheAfterDelete],
-    },
-    access: {
-        read: authenticatedOrPublishedPostRead,
-        create: isAuthor,
-        update: isAdminOrEditorOrOwner,
-        delete: isAdminOrEditorOrOwner,
-    },
-    admin: {
-        useAsTitle: 'title',
-        defaultColumns: ['title', 'chapitre', 'numero_lecon', 'niveau_difficulte', 'status'],
-        description: 'Silo Comprendre : Collection 100% didactique.',
-        preview: ({ doc }: any) => {
-            const slug = String(doc?.slug || '').trim();
-            const previewId = String(doc?.id || '').trim();
-            if (!slug) return 'https://lassez.fr';
-
-            return `https://lassez.fr/api/preview?path=/comprendre/${slug}&preview_id=${previewId}`;
-        },
-        livePreview: {
-            url: ({ data }: any) => {
-                const slug = String(data?.slug || '').trim();
-                if (!slug) return 'https://lassez.fr';
-
-                return `https://lassez.fr/comprendre/${slug}`;
-            },
-        },
-    },
     hooks: {
         beforeValidate: [createGeminiSeoHook({
             collectionLabel: 'lessons',
@@ -71,6 +39,8 @@ export const lessons: CollectionConfig = {
             bodyFields: ['content', 'content_html', 'chapitre'],
             outputMode: 'meta',
         })],
+        afterChange: [revalidateCacheAfterChange],
+        afterDelete: [revalidateCacheAfterDelete],
     },
     versions: {
         drafts: true,

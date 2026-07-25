@@ -23,15 +23,16 @@ jobs:
             git fetch origin main
             git reset --hard origin/main
 
-            echo "--- Copie des fichiers mis à jour ---"
+            echo "--- Copie des fichiers vers api, front et studio ---"
             rsync -av --exclude=node_modules --exclude=.next --exclude=.env --exclude=media --exclude=.git /var/www/lassez-repo/ /var/www/lassez-api/
+            rsync -av --exclude=node_modules --exclude=.next --exclude=.env --exclude=media --exclude=.git /var/www/lassez-repo/ /var/www/lassez-front/
+            rsync -av --exclude=node_modules --exclude=.next --exclude=.env --exclude=media --exclude=.git /var/www/lassez-repo/ /var/www/lassez-studio/
 
-            echo "--- Build Next.js ---"
-            cd /var/www/lassez-api
-            npm ci
-            npx prisma generate
-            npm run build
+            echo "--- Build Next.js sur les 3 environnements ---"
+            cd /var/www/lassez-api && npm run build
+            cd /var/www/lassez-front && npm run build
+            cd /var/www/lassez-studio && npm run build
 
-            echo "--- Redémarrage des services PM2 ---"
+            echo "--- Redémarrage de l'ensemble des services PM2 ---"
             pm2 restart all
-            echo "✓ Auto-déploiement terminé avec succès !"
+            echo "✓ Auto-déploiement multi-instances terminé avec succès !"

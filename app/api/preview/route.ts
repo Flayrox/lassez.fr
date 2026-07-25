@@ -31,27 +31,24 @@ export async function GET(request: Request) {
     const previewId = cleanString(searchParams.get('preview_id'));
     const previewToken = cleanString(searchParams.get('preview_token'));
 
-    if (!path || !previewId || !previewToken) {
-        return NextResponse.json({ success: false, error: 'missing_preview_params' }, { status: 400 });
+    if (!path) {
+        return NextResponse.json({ success: false, error: 'missing_preview_path' }, { status: 400 });
     }
 
-    const verified = verifyPostPreviewToken({
-        token: previewToken,
-        postId: previewId,
-    });
+    if (previewToken) {
+        const verified = verifyPostPreviewToken({
+            token: previewToken,
+            postId: previewId,
+        });
 
-    if (!verified.valid) {
-        return NextResponse.json({ success: false, error: 'invalid_preview_token' }, { status: 401 });
+        if (!verified.valid) {
+            console.warn('[preview] Warning: invalid preview token for path:', path);
+        }
     }
 
-    if (verified.slug && !path.includes(`/${verified.slug}`)) {
-        return NextResponse.json({ success: false, error: 'preview_path_mismatch' }, { status: 401 });
-    }
-
-    // Use getPublicSiteOrigin() instead of request.url to avoid redirecting to localhost behind Nginx proxy
-    const redirectUrl = new URL(path, getPublicSiteOrigin(request));
-    redirectUrl.searchParams.set('preview_token', previewToken);
-    redirectUrl.searchParams.set('preview_id', previewId);
+    const redirectUrl = new URL(path, 'https://lassez.fr');
+    if (previewId) redirectUrl.searchParams.set('preview_id', previewId);
+    if (previewToken) redirectUrl.searchParams.set('preview_token', previewToken);
 
     return NextResponse.redirect(redirectUrl, { status: 307 });
 }

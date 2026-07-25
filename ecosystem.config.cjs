@@ -2,8 +2,8 @@ module.exports = {
     apps: [
         {
             name: 'radar-api',
-            script: 'node_modules/next/dist/bin/next',
-            args: 'start',
+            script: 'npm',
+            args: 'run start',
             cwd: '/var/www/lassez-api',
             instances: 1,
             exec_mode: 'fork',
@@ -11,18 +11,18 @@ module.exports = {
         },
         {
             name: 'radar-front',
-            script: 'node_modules/next/dist/bin/next',
-            args: 'start',
-            cwd: '/var/www/lassez-front',
+            script: 'npm',
+            args: 'run start',
+            cwd: '/var/www/lassez-api',
             instances: 1,
             exec_mode: 'fork',
             env: { NODE_ENV: 'production', PORT: 3000 }
         },
         {
             name: 'radar-studio',
-            script: 'node_modules/next/dist/bin/next',
-            args: 'start',
-            cwd: '/var/www/lassez-studio',
+            script: 'npm',
+            args: 'run start',
+            cwd: '/var/www/lassez-api',
             instances: 1,
             exec_mode: 'fork',
             env: { NODE_ENV: 'production', PORT: 3002 }

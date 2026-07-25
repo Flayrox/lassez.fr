@@ -35,10 +35,6 @@ import { revalidateCacheAfterChange, revalidateCacheAfterDelete } from '../hooks
 
 export const revelations: CollectionConfig = {
     slug: 'revelations',
-    hooks: {
-        afterChange: [revalidateCacheAfterChange],
-        afterDelete: [revalidateCacheAfterDelete],
-    },
     access: {
         read: authenticatedOrPublishedPostRead,
         create: isAuthor,
@@ -81,6 +77,8 @@ export const revelations: CollectionConfig = {
                 outputMode: 'meta',
             }),
         ],
+        afterChange: [revalidateCacheAfterChange],
+        afterDelete: [revalidateCacheAfterDelete],
     },
     versions: {
         drafts: true,

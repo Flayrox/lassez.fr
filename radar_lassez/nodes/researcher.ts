@@ -3,11 +3,15 @@ import pLimit from 'p-limit';
 import { prisma } from '../lib/prisma';
 import { getEffectiveParam } from '../lib/config-resolver';
 
+const FALLBACK_RESEARCHER_SYSTEM = `Tu es un rédacteur en chef d'investigation. Ton rôle est de trier et évaluer la valeur journalistique des dépêches brutes.`;
+const FALLBACK_REJECT_CRITERIA = `Rejeter les faits divers mineurs sans portée sociétale, la publicité déguisée et les annonces corporate triviales.`;
+
 /**
- * Node 3: Researcher — Data-Driven Triage Engine
+ * Nœud 3 : Researcher (Filtrage & Triage IA)
  * 
- * The taxonomy list and filtering criteria are loaded from the DB.
- * Adding a new taxonomy in the UI automatically makes the researcher aware of it.
+ * Analyse les dépêches brutes (statut INGESTED) via le modèle Gemini Flash rapide.
+ * Attribue un score d'intérêt journalistique (0 à 100), filtre les sujets triviaux
+ * et associe les taxonomies éditoriales appropriées.
  */
 export async function runResearcherNode() {
     console.log(`\n[Node 3: Researcher] 🧠 Lancement du filtrage IA (Triage Rapide)...`);
@@ -17,7 +21,7 @@ export async function runResearcherNode() {
     });
 
     if (topics.length === 0) {
-        console.log(`[Node 3] 🤷‍♂️ Aucun Topic (statut: INGESTED) à analyser.`);
+        console.log(`[Node 3] ℹ️ Aucun sujet (statut: INGESTED) à analyser.`);
         return;
     }
 
@@ -25,168 +29,94 @@ export async function runResearcherNode() {
 
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
-        console.warn(`[Node 3] ⚠️ Variable d'environnement GEMINI_API_KEY absente.`);
+        console.warn(`[Node 3] ⚠️ Variable d'environnement GEMINI_API_KEY absente. Étape ignorée.`);
         return;
     }
 
     const ai = new GoogleGenAI({ apiKey });
     
-    // Résolution en cascade : Node > Global > Default
-    const requestedModel = await getEffectiveParam('research', 'aiModelFlash', 'gemini-3-flash-preview');
+    // Résolution dynamique des modèles et de la concurrence
+    const requestedModel = await getEffectiveParam('research', 'aiModelFlash', 'gemini-2.5-flash');
     const customPrompt = await getEffectiveParam('research', 'customPromptModifier', '');
     const concurrencyLimit = await getEffectiveParam('research', 'maxConcurrentTasks', 5);
 
-    // ——————————————————————————————————
-    // Load prompt blocks & taxonomies from DB
-    // ——————————————————————————————————
     const settings: any = await prisma.globalSettings.findFirst();
     const researcherSystem = settings?.researcherSystemPrompt || FALLBACK_RESEARCHER_SYSTEM;
     const rejectCriteria = settings?.researcherRejectCriteria || FALLBACK_REJECT_CRITERIA;
 
-    // Load active taxonomies to build the dynamic categorization section
     const taxonomyTemplates: any[] = await (prisma as any).taxonomyTemplate.findMany({
         where: { active: true },
         orderBy: { sortOrder: 'asc' },
     });
 
-    const taxonomySection = taxonomyTemplates.length > 0
-        ? `=== CATÉGORISATION (Taxonomie) ===\nTu dois assigner une taxonomie aux sujets que tu gardes :\n${taxonomyTemplates.map(t => `- ${t.name} : ${t.description}`).join('\n')}`
-        : `=== CATÉGORISATION ===\n- ALERTE : Sujet grave.\n- INFO : Actualité marquante.\n- FLASH : Fait ponctuel.\n- CITATION : Phrase choc.`;
-
-    const taxonomyNamesArray = taxonomyTemplates.length > 0
-        ? taxonomyTemplates.map(t => t.name)
-        : ["ALERTE", "INFO", "FLASH", "CITATION"];
-
-    console.log(`[Node 3] 📋 Taxonomies actives: ${taxonomyTemplates.map(t => t.name).join(', ')}`);
-
-    // Schema definition for Structured Output
-    const responseSchema = {
-        type: Type.OBJECT,
-        properties: {
-            results: {
-                type: Type.ARRAY,
-                items: {
-                    type: Type.OBJECT,
-                    properties: {
-                        id: { type: Type.STRING, description: "uuid-du-topic" },
-                        pertinent: { type: Type.BOOLEAN, description: "True si on garde le sujet, False sinon." },
-                        taxonomy: { 
-                            type: Type.STRING, 
-                            description: "La taxonomie choisie (ou null si pertinent=false)"
-                        },
-                        flag: { type: Type.STRING, description: "un drapeau optionnel comme CRITICAL_CROSSCHECK", nullable: true },
-                        reason: { type: Type.STRING, description: "une justification ultra-courte de pourquoi tu le gardes ou le jettes" }
-                    },
-                    required: ["id", "pertinent", "reason"]
-                }
-            }
-        },
-        required: ["results"]
-    };
-
-    // Build the system prompt dynamically
-    const systemPrompt = `${researcherSystem}
-${customPrompt ? `\nDIRECTIVE SPÉCIALE DU JOUR : ${customPrompt}` : ''}
-
-${taxonomySection}
-
-${rejectCriteria}`;
-
-    // Batches concurrency par blocs de 15 topics
-    const CHUNK_SIZE = 15;
     const limit = pLimit(Number(concurrencyLimit));
-    const chunks = [];
-    for (let i = 0; i < topics.length; i += CHUNK_SIZE) {
-        chunks.push(topics.slice(i, i + CHUNK_SIZE));
-    }
 
-    console.log(`[Node 3] 🚀 Exécution de ${chunks.length} requêtes concurrentes (Max ${concurrencyLimit} à la fois)...`);
-
-    let validCount = 0;
-    let rejectedCount = 0;
-
-    await Promise.all(chunks.map(chunk => limit(async () => {
+    const tasks = topics.map(topic => limit(async () => {
         try {
-            const articlesPayload = chunk.map(t => {
-                const parsedData = JSON.parse(t.raw_data);
-                return {
-                    id: t.id,
-                    title: parsedData.clusterTitle,
-                    biases: parsedData.aggregatedBias,
-                    excerpt: parsedData.articles[0]?.content?.substring(0, 300) + '...'
-                };
-            });
+            let rawData: any = {};
+            try { rawData = JSON.parse(topic.raw_data || '{}'); } catch (e) { }
 
-            const titleMap = new Map(articlesPayload.map(a => [a.id, a.title]));
+            const promptText = `
+${researcherSystem}
 
-            const prompt = `Voici les sujets à analyser :\n${JSON.stringify(articlesPayload, null, 2)}`;
-            
-            const result = await ai.models.generateContent({
-                model: requestedModel,
-                contents: prompt,
+CRITÈRES DE REJET :
+${rejectCriteria}
+
+${customPrompt ? `CONSIGNES ÉDITORIALES SPÉCIFIQUES :\n${customPrompt}\n` : ''}
+
+SUJET À ÉVALUER :
+Titre : ${rawData.clusterTitle || 'Sujet sans titre'}
+Extrait : ${rawData.excerpt || rawData.source_content || ''}
+Source : ${rawData.source_name || 'Inconnue'}
+            `.trim();
+
+            const response = await ai.models.generateContent({
+                model: requestedModel.includes('3-') ? 'gemini-2.5-flash' : requestedModel,
+                contents: promptText,
                 config: {
-                    systemInstruction: systemPrompt,
-                    responseMimeType: "application/json",
-                    responseJsonSchema: responseSchema,
+                    responseMimeType: 'application/json',
+                    responseSchema: {
+                        type: Type.OBJECT,
+                        properties: {
+                            approved: { type: Type.BOOLEAN, description: 'True si le sujet présente une valeur journalistique' },
+                            score: { type: Type.INTEGER, description: 'Note de 0 à 100' },
+                            reason: { type: Type.STRING, description: 'Justification succincte du choix' },
+                            suggestedTaxonomy: { type: Type.STRING, description: 'Catégorie suggérée' },
+                            suggestedGeo: { type: Type.STRING, description: 'Zone géographique concernée (ex: France, International)' }
+                        },
+                        required: ['approved', 'score', 'reason']
+                    }
                 }
             });
 
-            const responseText = result.text;
-            if (!responseText) throw new Error("Réponse vide de l'IA.");
-            const data = JSON.parse(responseText);
+            const resultText = response.text;
+            if (!resultText) throw new Error("Réponse vide générée par Gemini");
 
-            for (const evaluation of data.results) {
-                const isApproved = evaluation.pertinent;
-                const title = titleMap.get(evaluation.id) || "Titre inconnu";
-                
-                if (isApproved) {
-                    console.log(`[Node 3] 🟢 ACCEPTÉ [${evaluation.taxonomy}] : "${title}" ${evaluation.flag ? `(Flag: ${evaluation.flag})` : ''} - Raison: ${evaluation.reason}`);
-                    validCount++;
-                } else {
-                    console.log(`[Node 3] 🔴 REJETÉ : "${title}" - Raison: ${evaluation.reason}`);
-                    rejectedCount++;
-                }
+            const evaluation = JSON.parse(resultText);
 
+            if (evaluation.approved && evaluation.score >= 50) {
                 await prisma.newsTopic.update({
-                    where: { id: evaluation.id },
+                    where: { id: topic.id },
                     data: {
-                        status: isApproved ? 'RESEARCHED' : 'REJECTED',
-                        taxonomy: evaluation.taxonomy || null,
-                        tags: evaluation.flag ? JSON.stringify([evaluation.flag]) : "[]"
+                        status: 'RESEARCHED',
+                        taxonomy: evaluation.suggestedTaxonomy || 'INFO',
+                        geo: evaluation.suggestedGeo || 'FRANCE'
                     }
                 });
+                console.log(`[Node 3] ✅ Approved (Score: ${evaluation.score}/100) : ${rawData.clusterTitle || topic.id}`);
+            } else {
+                await prisma.newsTopic.update({
+                    where: { id: topic.id },
+                    data: { status: 'REJECTED' }
+                });
+                console.log(`[Node 3] ❌ Rejeté (${evaluation.reason}) : ${rawData.clusterTitle || topic.id}`);
             }
 
-        } catch (error) {
-            console.error(`[Node 3] ❌ Erreur API sur un chunk ou parsing JSON défaillant :`, error instanceof Error ? error.message : error);
-            // Marquer les topics du chunk en erreur pour éviter la boucle infinie
-            for (const t of chunk) {
-                try {
-                    await prisma.newsTopic.update({
-                        where: { id: t.id },
-                        data: { status: 'REJECTED_ERROR' } // Sortie de boucle
-                    });
-                } catch (e) {
-                    console.error(`[Node 3] Impossible de set REJECTED_ERROR sur ${t.id}`, e);
-                }
-            }
+        } catch (error: any) {
+            console.error(`[Node 3] ❌ Erreur analyse sujet ${topic.id}:`, error.message);
         }
-    })));
+    }));
 
-    console.log(`[Node 3: Researcher] ✅ Triage IA complété.`);
-    console.log(`[Node 3] 🟢 Topics validés et passés en RESEARCHED : ${validCount}`);
-    console.log(`[Node 3] 🔴 Topics écartés et passés en REJECTED : ${rejectedCount}`);
+    await Promise.all(tasks);
+    console.log(`[Node 3: Researcher] Analyse IA terminée pour tous les sujets.`);
 }
-
-// ——————————————————————————————————
-// Fallback Constants
-// ——————————————————————————————————
-const FALLBACK_RESEARCHER_SYSTEM = `Tu es le filtre éditorial de L'Assez, un média d'investigation anticapitaliste. Ton but est de filtrer l'actualité brute et de la catégoriser.
-Garde les sujets systémiques : inégalités, luttes sociales, corruption, extrême-droite, mensonges médiatiques, impérialisme.
-Jette les polémiques stériles, les faits divers, la communication gouvernementale classique.
-RÈGLE DU BIAIS : Observe le source_bias. Si une source de 'Droite/Extrême-Droite' attaque un sujet ou une figure 'Décoloniale/Gauche', sois hyper critique.`;
-
-const FALLBACK_REJECT_CRITERIA = `REJETTE CATÉGORIQUEMENT :
-- Faits divers isolés (accidents, crimes passionnels, vols).
-- Lifestyle, divertissement, sport, tech "gadget".
-- Micro-polémiques de réseaux sociaux sans enjeu de pouvoir réel.`;

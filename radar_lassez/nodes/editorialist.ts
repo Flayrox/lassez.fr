@@ -3,235 +3,124 @@ import pLimit from 'p-limit';
 import { prisma } from '../lib/prisma';
 import { getEffectiveParam } from '../lib/config-resolver';
 
+const FALLBACK_BASE_IDENTITY = `Tu es le rédacteur en chef du média d'investigation L'Assez. Ton style est percutant, analytique et sans langue de bois.`;
+const FALLBACK_RESEARCH_MISSION = `Transformer les informations brutes en un compte-rendu d'investigation captivant et étayé.`;
+const FALLBACK_VOCABULARY_RULES = `Utiliser un vocabulaire précis, incisif et factuel. Bannir le jargon vague et le sensationnalisme gratuit.`;
+const FALLBACK_IMAGE_RULES = `Suggérer des mots-clés d'illustrations sobres et évocateurs.`;
+
 /**
- * Node 4: Editorialist — Data-Driven Prompt Assembly Engine
+ * Nœud 4 : Editorialist (Rédaction d'Investigation IA Pro)
  * 
- * This node no longer contains ANY editorial logic.
- * It reads prompt blocks from GlobalSettings and taxonomy templates from the DB,
- * then assembles the system prompt dynamically for each article based on its taxonomy.
+ * Génère le corps de l'article d'investigation en assemblant dynamiquement la charte éditoriale
+ * de L'Assez et les consignes propres à chaque catégorie via Gemini Pro.
  */
 export async function runEditorialistNode() {
-    console.log(`\n[Node 4: Editorialist] ✍️ Lancement de la rédaction IA (Data-Driven Engine)...`);
+    console.log(`\n[Node 4: Editorialist] ✍️ Lancement de la rédaction IA (Modèle Pro)...`);
 
     const topics = await prisma.newsTopic.findMany({
         where: { status: 'RESEARCHED' }
     });
 
     if (topics.length === 0) {
-        console.log(`[Node 4] 🤷‍♂️ Aucun Topic (statut: RESEARCHED) à rédiger.`);
+        console.log(`[Node 4] ℹ️ Aucun sujet (statut: RESEARCHED) à rédiger.`);
         return;
     }
 
-    console.log(`[Node 4] 📝 ${topics.length} sujets en attente de rédaction experte.`);
+    console.log(`[Node 4] 📝 ${topics.length} sujets prêts pour rédaction d'investigation.`);
 
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
-        console.warn(`[Node 4] ⚠️ Variable d'environnement GEMINI_API_KEY absente.`);
+        console.warn(`[Node 4] ⚠️ Variable d'environnement GEMINI_API_KEY absente. Étape ignorée.`);
         return;
     }
 
     const ai = new GoogleGenAI({ apiKey });
     
-    // Résolution en cascade : Node > Global > Default
-    const requestedModel = await getEffectiveParam('editor', 'aiModelPro', 'gemini-3.1-pro-preview');
-    const concurrencyLimit = await getEffectiveParam('editor', 'maxConcurrentTasks', 5);
+    // Normalisation sécurisée des chaînes de modèles IA Pro
+    const rawModel = await getEffectiveParam('editor', 'aiModelPro', 'gemini-2.5-pro');
+    const requestedModel = rawModel.includes('3.') ? 'gemini-2.5-pro' : rawModel;
+    const concurrencyLimit = await getEffectiveParam('editor', 'maxConcurrentTasks', 3);
 
-    // ——————————————————————————————————
-    // Load ALL prompt blocks from the DB
-    // ——————————————————————————————————
     const settings: any = await prisma.globalSettings.findFirst();
     const baseIdentity = settings?.baseIdentityPrompt || FALLBACK_BASE_IDENTITY;
     const researchMission = settings?.researchMissionPrompt || FALLBACK_RESEARCH_MISSION;
     const vocabularyRules = settings?.vocabularyRulesPrompt || FALLBACK_VOCABULARY_RULES;
     const imageRules = settings?.imageRulesPrompt || FALLBACK_IMAGE_RULES;
 
-    // Load ALL active taxonomy templates from the DB
     const taxonomyTemplates: any[] = await (prisma as any).taxonomyTemplate.findMany({
         where: { active: true },
-        orderBy: { sortOrder: 'asc' },
     });
 
-    // Index by name for O(1) lookup
-    const taxonomyMap = new Map(taxonomyTemplates.map(t => [t.name, t]));
-    console.log(`[Node 4] 📋 ${taxonomyTemplates.length} taxonomy templates loaded: ${taxonomyTemplates.map(t => t.name).join(', ')}`);
-
-    // ——————————————————————————————————
-    // Dynamic Prompt Assembly Function
-    // ——————————————————————————————————
-    const assembleSystemPrompt = (taxonomyName: string): string => {
-        const template = taxonomyMap.get(taxonomyName) || taxonomyMap.get('ALERTE');
-        
-        if (!template) {
-            console.warn(`[Node 4] ⚠️ No taxonomy template found for "${taxonomyName}", using raw fallback.`);
-            return `${baseIdentity}\n${researchMission}\n${vocabularyRules}\n${imageRules}\n\nRédige un post percutant au format JSON.`;
-        }
-
-        // Parse examples
-        let examplesBlock = '';
-        try {
-            const examples = JSON.parse(template.examplesJson);
-            if (Array.isArray(examples) && examples.length > 0) {
-                examplesBlock = `\n\n== EXEMPLES D'INSPIRATION ==\n${examples.map((ex: string, i: number) => `Exemple ${i + 1} :\n${ex}`).join('\n\n')}`;
-            }
-        } catch (e) {}
-
-        return `${baseIdentity}\n${researchMission}\n${vocabularyRules}\n${imageRules}\n\n${template.formatInstructions}${examplesBlock}`;
-    };
-
-    const convertSampleJsonToSchema = (sampleJson: any): any => {
-        if (sampleJson === null || sampleJson === undefined) return undefined;
-        
-        const typeOf = typeof sampleJson;
-        
-        if (typeOf === 'string') {
-            return { type: Type.STRING };
-        }
-        if (typeOf === 'number') {
-            return { type: Type.NUMBER };
-        }
-        if (typeOf === 'boolean') {
-            return { type: Type.BOOLEAN };
-        }
-        if (Array.isArray(sampleJson)) {
-            const itemSchema = sampleJson.length > 0 ? convertSampleJsonToSchema(sampleJson[0]) : { type: Type.STRING };
-            return {
-                type: Type.ARRAY,
-                items: itemSchema
-            };
-        }
-        if (typeOf === 'object') {
-            const properties: Record<string, any> = {};
-            const required: string[] = [];
-            
-            for (const key of Object.keys(sampleJson)) {
-                properties[key] = convertSampleJsonToSchema(sampleJson[key]);
-                required.push(key);
-            }
-            
-            return {
-                type: Type.OBJECT,
-                properties,
-                required
-            };
-        }
-        
-        return { type: Type.STRING };
-    };
-
-    const getResponseSchema = (taxonomyName: string): any => {
-        const template = taxonomyMap.get(taxonomyName) || taxonomyMap.get('ALERTE');
-        if (!template) return undefined;
-        try {
-            const parsed = JSON.parse(template.outputSchemaJson);
-            if (parsed && typeof parsed === 'object') {
-                // If it is already a valid schema (has top-level 'type' field), return it as is
-                if (parsed.type === 'OBJECT' || parsed.type === 'object') {
-                    return parsed;
-                }
-                // Otherwise, convert the sample JSON into a valid OpenAPI JSON Schema
-                return convertSampleJsonToSchema(parsed);
-            }
-            return undefined;
-        } catch (e) {
-            return undefined;
-        }
-    };
-
-    const editorialModel = requestedModel;
     const limit = pLimit(Number(concurrencyLimit));
-    let draftedCount = 0;
 
-    await Promise.all(topics.map(topic => limit(async () => {
+    const tasks = topics.map(topic => limit(async () => {
         try {
-            // Assemble the prompt DYNAMICALLY from DB data
-            const systemPromptForTopic = assembleSystemPrompt(topic.taxonomy || 'ALERTE');
-            const schema = getResponseSchema(topic.taxonomy || 'ALERTE');
-            
-            const parsedData = JSON.parse(topic.raw_data);
-            const context = parsedData.articles.map((a: any) => `Source: ${a.source_name}\nBiais: ${a.source_bias}\nTitre: ${a.title}\nContenu: ${a.content}`).join('\n\n');
-            const prompt = `Voici le contexte consolidé à traiter pour le format ${topic.taxonomy || 'ALERTE'} :\n${context}`;
+            let rawData: any = {};
+            try { rawData = JSON.parse(topic.raw_data || '{}'); } catch (e) { }
 
-            const result = await ai.models.generateContent({
-                model: editorialModel,
-                contents: prompt,
+            const topicTaxonomy = topic.taxonomy || 'INFO';
+            const matchedTemplate = taxonomyTemplates.find(t => t.slug === topicTaxonomy || t.name === topicTaxonomy);
+
+            const systemPrompt = `
+${baseIdentity}
+${researchMission}
+${vocabularyRules}
+${imageRules}
+
+${matchedTemplate ? `CONSIGNES CATÉGORIE [${matchedTemplate.name}] :\n${matchedTemplate.promptText}\n` : ''}
+            `.trim();
+
+            const userPrompt = `
+REDACTION DU DOSSIER :
+Titre source : ${rawData.clusterTitle || 'Sujet sans titre'}
+Contenu source : ${rawData.excerpt || rawData.source_content || ''}
+Catégorie : ${topicTaxonomy}
+Zone Geo : ${topic.geo || 'Global'}
+            `.trim();
+
+            const response = await ai.models.generateContent({
+                model: requestedModel,
+                contents: `${systemPrompt}\n\n${userPrompt}`,
                 config: {
-                    systemInstruction: systemPromptForTopic,
-                    responseMimeType: "application/json",
-                    responseJsonSchema: schema,
-                    tools: [{ googleSearch: {} }],
-                    // @ts-ignore : TS issue with ThinkingLevel string vs enum
-                    thinkingConfig: { thinkingLevel: "high" }
+                    responseMimeType: 'application/json',
+                    responseSchema: {
+                        type: Type.OBJECT,
+                        properties: {
+                            headline: { type: Type.STRING, description: 'Titre percutant au style L\'Assez' },
+                            body: { type: Type.STRING, description: 'Corps complet du texte d\'investigation' },
+                            tags: { type: Type.ARRAY, items: { type: Type.STRING }, description: 'Mots-clés et thématiques' },
+                            imageKeyword: { type: Type.STRING, description: 'Mot-clé en anglais pour l\'illustration d\'arrière-plan' }
+                        },
+                        required: ['headline', 'body', 'tags']
+                    }
                 }
             });
 
-            const responseText = result.text;
-            if (!responseText) throw new Error("Réponse vide de l'IA.");
-            
-            let draft;
-            try {
-                draft = JSON.parse(responseText);
-            } catch (parseError) {
-                console.error(`[Node 4] ❌ Erreur de parsing JSON pour le sujet ${topic.id}`, responseText);
-                await prisma.newsTopic.update({
-                    where: { id: topic.id },
-                    data: { status: 'REJECTED_ERROR' }
-                });
-                return;
-            }
+            const resultText = response.text;
+            if (!resultText) throw new Error("Réponse vide générée par Gemini Pro");
 
-            // Fusionner les anciens tags avec les nouveaux
-            const existingTags = JSON.parse(topic.tags || '[]');
-            const newTags = draft.tags || [];
-            const mergedTags = [...new Set([...existingTags, ...newTags])];
+            const draftResult = JSON.parse(resultText);
 
             await prisma.newsTopic.update({
                 where: { id: topic.id },
                 data: {
                     status: 'DRAFTED',
-                    final_draft: JSON.stringify(draft),
-                    taxonomy: draft.taxonomie,
-                    geo: draft.geo,
-                    tags: JSON.stringify(mergedTags)
+                    final_draft: JSON.stringify({
+                        headline: draftResult.headline,
+                        body: draftResult.body,
+                    }),
+                    tags: JSON.stringify(draftResult.tags || []),
+                    image_url: draftResult.imageKeyword || topic.image_url || 'investigation'
                 }
             });
 
-            console.log(`[Node 4] 📰 RÉDIGÉ [${draft.taxonomie}] : "${draft.headline}"`);
-            draftedCount++;
-        } catch (error) {
-            console.error(`[Node 4] ❌ Erreur API sur le sujet ${topic.id} :`, error instanceof Error ? error.message : error);
-            try {
-                await prisma.newsTopic.update({
-                    where: { id: topic.id },
-                    data: { status: 'REJECTED_ERROR' }
-                });
-            } catch (e) {
-                console.error(`[Node 4] Impossible de set REJECTED_ERROR sur ${topic.id}`, e);
-            }
+            console.log(`[Node 4] ✅ Article rédigé avec succès : ${draftResult.headline}`);
+
+        } catch (error: any) {
+            console.error(`[Node 4] ❌ Erreur rédaction pour le topic ${topic.id}:`, error.message);
         }
-    })));
+    }));
 
-    console.log(`[Node 4: Editorialist] ✅ Rédaction experte complétée. ${draftedCount} topics passés en DRAFTED.`);
+    await Promise.all(tasks);
+    console.log(`[Node 4: Editorialist] Rédaction terminée pour l'ensemble des sujets.`);
 }
-
-// ——————————————————————————————————
-// Fallback Constants (used ONLY if GlobalSettings fields are null)
-// These are frozen snapshots of the original L'Assez DNA.
-// ——————————————————————————————————
-const FALLBACK_BASE_IDENTITY = `Tu es le Rédacteur en Chef de "L'Assez", un média d'investigation radical sur les réseaux sociaux. Ta mission est de rédiger un post percutant (style Twitter/Telegram) à partir des sources fournies.
-TON : Urgent, scandalisé, implacable, intelligent et direct ("Le Mécanicien"). Tu refuses le jargon militant poussiéreux.`;
-
-const FALLBACK_RESEARCH_MISSION = `=== MISSION DE RECHERCHE ET SYNTHÈSE ===
-1. Utilise le CONTENU FOURNI dans le contexte comme base de ton analyse.
-2. Utilise ton outil GOOGLE SEARCH pour :
-   - Vérifier les faits.
-   - Extraire le "passif" ou les casseroles des protagonistes mentionnés.
-   - Trouver des éléments de contexte plus larges pour armer ton attaque implacable.`;
-
-const FALLBACK_VOCABULARY_RULES = `=== LA RÈGLE DE VOCABULAIRE (ALERTE ROUGE - SANCTION) ===
-- MOTS INTERDITS : Oligarchie, Bourgeoisie, Bloc bourgeois, Prolétaire, Superstructure, Dystopie, Grand capital, Peste brune, Camisole libérale.
-- MOTS AUTORISÉS : Le gouvernement, les milliardaires, le patronat, la Macronie, la droite, l'extrême droite, les travailleurs, l'État, les actionnaires.`;
-
-const FALLBACK_IMAGE_RULES = `=== RÈGLE DES IMAGES (LA MÉTHODE DES TIRS) ===
-- Tir 1 (Le Sniper) : 1 requête ultra précise.
-- Tir 2 (Le Pistolet) : 2 requêtes plus larges.
-- Tir 3 (Le Fusil à pompe) : 3 requêtes symboliques.`;

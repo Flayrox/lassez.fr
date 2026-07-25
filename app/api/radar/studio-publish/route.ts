@@ -2,30 +2,40 @@ import { NextResponse } from 'next/server';
 import path from 'path';
 import fs from 'fs';
 import Database from 'better-sqlite3';
-import { spawn } from 'child_process';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
+/**
+ * Crée récursivement un dossier s'il n'existe pas
+ */
 function ensureDir(p: string) {
     try { fs.mkdirSync(p, { recursive: true }); } catch (e) { }
 }
 
+/**
+ * Initialise la connexion à la base SQLite locale Radar
+ */
 function getDb() {
     const dbPath = path.join(process.cwd(), 'radar_lassez', 'radar.db');
     return new Database(dbPath);
 }
 
+/**
+ * Route POST /api/radar/studio-publish
+ * 
+ * Permet au Studio de soumettre la publication directe d'un brouillon d'investigation
+ * avec décodage de l'image Base64 si une illustration personnalisée a été déposée.
+ */
 export async function POST(request: Request) {
     try {
         const body = await request.json();
         const { id, titre, content, imageBase64 } = body;
 
-        if (!id) return NextResponse.json({ success: false, error: 'id requis' }, { status: 400 });
+        if (!id) return NextResponse.json({ success: false, error: 'Identifiant d\'article requis' }, { status: 400 });
 
         let imagePath: string | null = null;
         if (imageBase64 && typeof imageBase64 === 'string') {
-            // imageBase64 is expected to be a data URL like data:image/png;base64,....
             const m = imageBase64.match(/^data:(image\/[a-zA-Z]+);base64,(.+)$/);
             if (m) {
                 const ext = m[1].split('/')[1] || 'png';
@@ -35,7 +45,7 @@ export async function POST(request: Request) {
                 ensureDir(tmpDir);
                 const outPath = path.join(tmpDir, filename);
                 fs.writeFileSync(outPath, Buffer.from(b64, 'base64'));
-                imagePath = outPath; // local path stored in DB as image_keyword (publishPost.js handles local path or URL)
+                imagePath = outPath;
             }
         }
 
@@ -47,7 +57,7 @@ export async function POST(request: Request) {
             try { db.close(); } catch (e) {}
         }
 
-        // Use existing Radar API PATCH to update status -> that route will spawn publishPost.js
+        // Appel de l'API PATCH interne pour basculer le statut en PUBLISHED
         try {
             const origin = new URL(request.url).origin;
             await fetch(`${origin}/api/radar`, {
@@ -56,12 +66,12 @@ export async function POST(request: Request) {
                 body: JSON.stringify({ id, status: 'PUBLISHED', flash_content: content, image_keyword: imagePath, source_title: titre })
             });
         } catch (e) {
-            console.warn('Failed to call internal /api/radar PATCH:', e);
+            console.warn('Avertissement : Échec de l\'appel PATCH interne vers /api/radar :', e);
         }
 
-        return NextResponse.json({ success: true, message: 'Publish requested', id });
+        return NextResponse.json({ success: true, message: 'Demande de publication enregistrée', id });
     } catch (err: any) {
-        console.error('Erreur studio-publish:', err);
+        console.error('Erreur Studio Publish:', err);
         return NextResponse.json({ success: false, error: err.message || String(err) }, { status: 500 });
     }
 }

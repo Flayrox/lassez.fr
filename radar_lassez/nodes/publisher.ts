@@ -3,25 +3,37 @@ import { getEffectiveParam } from '../lib/config-resolver';
 import { TwitterApi } from 'twitter-api-v2';
 import { BskyAgent } from '@atproto/api';
 
-// Cache for Payload CMS token
+// Cache mémoire pour le jeton JWT Payload CMS
 let cachedPayloadToken: string | null = null;
 let payloadTokenExpiresAt: number = 0;
 
-// Fonction utilitaire pour convertir une couleur Hex (#DC2626) en décimal pour Discord
+/**
+ * Convertit une couleur au format Hexadécimal (#DC2626) en valeur entière pour Discord
+ */
 function hexToDecimal(hex: string): number {
     const cleanedHex = hex.replace('#', '');
     return parseInt(cleanedHex, 16);
 }
 
-// Générer un entier aléatoire entre min et max
+/**
+ * Génère un entier aléatoire dans une plage [min, max] pour espacer les publications
+ */
 function getRandomInt(min: number, max: number): number {
     return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
+/**
+ * Nœud 6 : Tour de Contrôle (Publisher / Diffusion & Réseaux Sociaux)
+ * 
+ * Orchestre en 2 phases distinctes :
+ * Phase A (L'Enfileur) : Récupère les articles qualifiés (PENDING) et programme des missions
+ *                         pour chaque réseau social (Discord, X/Twitter, Bluesky, Mastodon, Payload CMS).
+ * Phase B (Le Diffuseur) : Déclenche les envois réels prévus à l'heure courante via les APIs tierces.
+ */
 export async function runPublisherNode() {
     console.log(`\n🚀 [Node 6: Publisher] Lancement de la Tour de Contrôle (Scheduling & Diffusion)`);
 
-    // Résolution en cascade
+    // Chargement des paramètres de diffusion
     const enableDiscord = await getEffectiveParam('publisher', 'enableDiscord', true);
     const enableX = await getEffectiveParam('publisher', 'enableX', false);
     const enableMastodon = await getEffectiveParam('publisher', 'enableMastodon', false);
@@ -33,7 +45,7 @@ export async function runPublisherNode() {
     const enableAutoPublish = await getEffectiveParam('publisher', 'enableAutoPublish', true);
 
     // ========================================================
-    // PHASE A : CRÉATION DES MISSIONS (L'ENFILEUR)
+    // PHASE A : CRÉATION DES MISSIONS DE PUBLICATION
     // ========================================================
     console.log(`🚀 [Node 6: Phase A] Recherche de nouveaux articles à planifier...`);
 
@@ -41,7 +53,7 @@ export async function runPublisherNode() {
         const topics = await tx.newsTopic.findMany({
             where: { 
                 status: 'PENDING',
-                publications: { none: {} } // Uniquement ceux sans aucune publication
+                publications: { none: {} }
             }
         });
 
@@ -56,9 +68,8 @@ export async function runPublisherNode() {
     });
 
     if (pendingTopics.length > 0) {
-        console.log(`🚀 [Node 6: Phase A] 📤 ${pendingTopics.length} nouveaux articles à enfiler.`);
+        console.log(`🚀 [Node 6: Phase A] 📤 ${pendingTopics.length} nouveaux articles à programmer.`);
 
-        // Déterminer les réseaux à provisionner
         const platforms = [];
         if (enableDiscord) platforms.push({ name: 'DISCORD', mode: await getEffectiveParam('publisher', 'discordPublishMode', 'DIRECT') });
         if (enableX) platforms.push({ name: 'X', mode: await getEffectiveParam('publisher', 'xPublishMode', 'SCHEDULED') });
@@ -89,7 +100,7 @@ export async function runPublisherNode() {
                     let baseDate = lastScheduledDates[platform.name];
                     const delayMinutes = getRandomInt(Number(minDelay), Number(maxDelay));
                     finalScheduledAt = new Date(baseDate.getTime() + delayMinutes * 60000);
-                    lastScheduledDates[platform.name] = finalScheduledAt; // Update for next topic
+                    lastScheduledDates[platform.name] = finalScheduledAt;
                 }
 
                 publicationsToCreate.push({
@@ -98,8 +109,6 @@ export async function runPublisherNode() {
                     status: 'PENDING',
                     scheduledAt: finalScheduledAt
                 });
-                
-                console.log(`🚀 [Node 6: Phase A] 📅 [${platform.name}] Planifié pour : ${finalScheduledAt.toLocaleString()}`);
             }
         }
 
@@ -107,276 +116,143 @@ export async function runPublisherNode() {
             await prisma.publication.createMany({
                 data: publicationsToCreate
             });
+            console.log(`🚀 [Node 6: Phase A] ✅ ${publicationsToCreate.length} missions créées en base.`);
         }
-    } else {
-        console.log(`🚀 [Node 6: Phase A] Aucun nouvel article à planifier.`);
     }
 
     // ========================================================
-    // PHASE B : EXÉCUTION (LE DIFFUSEUR)
+    // PHASE B : EXÉCUTION DES MISSIONS PRÊTES A PARTIR
     // ========================================================
+    console.log(`🚀 [Node 6: Phase B] Vérification des publications programmées prêtes...`);
+
     if (!enableAutoPublish) {
-        console.log(`🚀 [Node 6: Phase B] ⚠️ L'auto-publication (exécution) est DÉSACTIVÉE.`);
+        console.log(`🚀 [Node 6: Phase B] ⏸️ Pilote automatique désactivé (enableAutoPublish=false). Diffusion ignorée.`);
         return;
     }
 
-    console.log(`🚀 [Node 6: Phase B] Inspection des publications dues...`);
-
-    const now = new Date();
     const duePublications = await prisma.publication.findMany({
         where: {
             status: 'PENDING',
-            scheduledAt: { lte: now }
+            scheduledAt: { lte: new Date() }
         },
         include: { topic: true },
-        orderBy: { scheduledAt: 'asc' }
+        take: 10
     });
 
     if (duePublications.length === 0) {
-        console.log(`🚀 [Node 6: Phase B] 💤 Aucune publication attendue pour le moment.`);
+        console.log(`🚀 [Node 6: Phase B] 📭 Aucune publication en attente pour l'instant.`);
         return;
     }
 
-    console.log(`🚀 [Node 6: Phase B] ⚡ ${duePublications.length} publications à exécuter maintenant.`);
+    console.log(`🚀 [Node 6: Phase B] ⚡ ${duePublications.length} publications prêtes à être expédiées.`);
 
     for (const pub of duePublications) {
         try {
             const topic = pub.topic;
-            if (!topic.final_draft) continue;
-
-            const draftData = typeof topic.final_draft === 'string' 
-                ? JSON.parse(topic.final_draft) 
-                : topic.final_draft;
-
-            // =====================================================
-            // DONNÉES CANONIQUES depuis la table NewsTopic
-            // (Source de vérité maintenue par les Nodes 1-5)
-            // =====================================================
-            const accentColor = draftData.metadata?.accent_color ? hexToDecimal(draftData.metadata.accent_color) : 0x000000;
-            const topicTaxonomy = topic.taxonomy || 'INFO'; // Source de vérité depuis la DB
-            const topicTags = topic.tags ? JSON.parse(topic.tags) : []; // Source de vérité depuis la DB (JSON string parsé)
-            const topicGeo = topic.geo || 'international'; // Source de vérité depuis la DB
-            const topicImageUrl = topic.image_url; // Source de vérité depuis la DB
-
-            const tagsString = topicTags.map((t: string) => `#${t}`).join(' ');
-            const geoInfo = `📍 ${topicGeo.toUpperCase()}`;
+            let draftData: any = {};
+            try {
+                draftData = JSON.parse(topic.final_draft || '{}');
+            } catch (e) {
+                console.error(`🚀 [Node 6: Phase B] ❌ Erreur parsing final_draft pour topic ${topic.id}`);
+                await prisma.publication.update({
+                    where: { id: pub.id },
+                    data: { status: 'FAILED' }
+                });
+                continue;
+            }
 
             let isSuccess = false;
 
-            // Base du texte pour les RS (contenu éditorial depuis final_draft)
-            const rsText = `${draftData.headline}\n\n${draftData.body}\n\n${tagsString}`;
-
-            // Logique de diffusion spécifique par plateforme
+            // --- DIFFUSION DISCORD ---
             if (pub.platform === 'DISCORD') {
-                const webhookUrl = await getEffectiveParam('publisher', 'discordWebhookUrl', process.env.DISCORD_WEBHOOK_URL);
+                const webhookUrl = process.env.DISCORD_WEBHOOK_URL;
                 if (!webhookUrl) {
-                    console.error(`🚀 [Node 6: Phase B] ❌ Webhook URL manquante pour Discord (pub ${pub.id})`);
-                    continue;
-                }
-
-                const embed: any = {
-                    title: draftData.headline || "ALERTE INFO",
-                    description: `${draftData.body}\n\n${tagsString}`,
-                    color: accentColor,
-                    footer: { text: `Format: ${topicTaxonomy} | ${geoInfo} | ID: ${topic.id.slice(0, 8)}` },
-                    timestamp: new Date().toISOString()
-                };
-
-                if (topicImageUrl) {
-                    embed.image = { url: topicImageUrl };
-                }
-
-                const response = await fetch(webhookUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ embeds: [embed] }),
-                });
-
-                if (response.ok || response.status === 204) {
-                    isSuccess = true;
-                    console.log(`🚀 [Node 6: Phase B] ✅ [DISCORD] Payload émis avec succès (Topic: ${topic.id})`);
+                    console.error("🚀 [Node 6: Phase B] ❌ DISCORD_WEBHOOK_URL absente du fichier .env");
                 } else {
-                    console.error(`🚀 [Node 6: Phase B] ❌ [DISCORD] Échec HTTP ${response.status}`);
-                }
-
-            } else if (pub.platform === 'X') {
-                const appKey = await getEffectiveParam('publisher', 'xApiKey', process.env.TWITTER_API_KEY);
-                const appSecret = await getEffectiveParam('publisher', 'xApiSecret', process.env.TWITTER_API_SECRET);
-                const accessToken = await getEffectiveParam('publisher', 'xAccessToken', process.env.TWITTER_ACCESS_TOKEN);
-                const accessSecret = await getEffectiveParam('publisher', 'xAccessSecret', process.env.TWITTER_ACCESS_SECRET);
-                
-                if (!appKey || !appSecret || !accessToken || !accessSecret) {
-                    console.error(`🚀 [Node 6: Phase B] ❌ Variables API manquantes pour X (Twitter).`);
-                    continue;
-                }
-
-                const twitterClient = new TwitterApi({
-                    appKey, appSecret, accessToken, accessSecret
-                });
-
-                try {
-                    await twitterClient.v2.tweet(rsText.slice(0, 280)); // X limit = 280
-                    isSuccess = true;
-                    console.log(`🚀 [Node 6: Phase B] ✅ [X] Tweet posté avec succès (Topic: ${topic.id})`);
-                } catch(e) {
-                    console.error(`🚀 [Node 6: Phase B] ❌ [X] Erreur API :`, e);
-                }
-
-            } else if (pub.platform === 'BLUESKY') {
-                const identifier = await getEffectiveParam('publisher', 'blueskyIdentifier', process.env.BLUESKY_IDENTIFIER);
-                const password = await getEffectiveParam('publisher', 'blueskyAppPassword', process.env.BLUESKY_APP_PASSWORD);
-
-                if (!identifier || !password) {
-                    console.error(`🚀 [Node 6: Phase B] ❌ Variables d'authentification manquantes pour Bluesky.`);
-                    continue;
-                }
-
-                const agent = new BskyAgent({ service: 'https://bsky.social' });
-                try {
-                    await agent.login({ identifier, password });
-                    await agent.post({ text: rsText.slice(0, 300) }); // Bluesky limit = 300
-                    isSuccess = true;
-                    console.log(`🚀 [Node 6: Phase B] ✅ [BLUESKY] Posté avec succès (Topic: ${topic.id})`);
-                } catch(e) {
-                    console.error(`🚀 [Node 6: Phase B] ❌ [BLUESKY] Erreur API :`, e);
-                }
-
-            } else if (pub.platform === 'MASTODON') {
-                const url = await getEffectiveParam('publisher', 'mastodonInstanceUrl', process.env.MASTODON_INSTANCE_URL);
-                const token = await getEffectiveParam('publisher', 'mastodonAccessToken', process.env.MASTODON_ACCESS_TOKEN);
-
-                if (!url || !token) {
-                    console.error(`🚀 [Node 6: Phase B] ❌ Variables d'authentification manquantes pour Mastodon.`);
-                    continue;
-                }
-
-                try {
-                    const response = await fetch(`${url}/api/v1/statuses`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${token}`
-                        },
-                        body: JSON.stringify({
-                            status: rsText,
-                            visibility: 'public'
-                        })
-                    });
-
-                    if (response.ok) {
-                        isSuccess = true;
-                        console.log(`🚀 [Node 6: Phase B] ✅ [MASTODON] Pouet posté avec succès (Topic: ${topic.id})`);
-                    } else {
-                        console.error(`🚀 [Node 6: Phase B] ❌ [MASTODON] Échec HTTP ${response.status}`);
-                    }
-                } catch(e) {
-                    console.error(`🚀 [Node 6: Phase B] ❌ [MASTODON] Erreur :`, e);
-                }
-
-            } else if (pub.platform === 'PAYLOAD') {
-                const url = await getEffectiveParam('publisher', 'payloadServerUrl', process.env.PAYLOAD_SERVER_URL);
-                const email = await getEffectiveParam('publisher', 'payloadBotEmail', process.env.PAYLOAD_BOT_EMAIL);
-                const password = await getEffectiveParam('publisher', 'payloadBotPassword', process.env.PAYLOAD_BOT_PASSWORD);
-
-                if (!url || !email || !password) {
-                    console.error(`🚀 [Node 6: Phase B] ❌ Variables d'authentification manquantes pour Payload CMS.`);
-                    continue;
-                }
-
-                try {
-                    let token = cachedPayloadToken;
-                    if (!token || Date.now() > payloadTokenExpiresAt) {
-                        // Login
-                        const loginRes = await fetch(`${url}/api/users/login`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ email, password })
-                        });
-                        
-                        if (!loginRes.ok) {
-                            console.error(`🚀 [Node 6: Phase B] ❌ [PAYLOAD] Erreur d'authentification.`);
-                            continue;
-                        }
-                        const loginData = await loginRes.json();
-                        token = loginData.token;
-                        cachedPayloadToken = token;
-                        payloadTokenExpiresAt = Date.now() + 60 * 60 * 1000; // Cache for 1 hour
-                    }
-
-                    // Extraire et préparer les données depuis le final_draft (contenu éditorial)
-                    const contentPayload = {
-                        root: {
-                            type: 'root',
-                            format: '',
-                            indent: 0,
-                            version: 1,
-                            direction: 'ltr',
-                            children: [
-                                {
-                                    type: 'paragraph',
-                                    format: '',
-                                    indent: 0,
-                                    version: 1,
-                                    direction: 'ltr',
-                                    children: [{ type: 'text', text: draftData.body, format: 0, style: '', detail: 0, mode: 'normal', version: 1 }]
-                                }
-                            ]
-                        }
+                    const embed = {
+                        title: draftData.headline || topic.taxonomy,
+                        description: draftData.body || '',
+                        color: hexToDecimal('#DC2626'),
+                        fields: [
+                            { name: 'Niveau d\'Alerte', value: topic.taxonomy || 'INFO', inline: true },
+                            { name: 'Silo Éditorial', value: topic.geo || 'Global', inline: true }
+                        ],
+                        footer: { text: 'Radar L\'Assez • Investigation' },
+                        timestamp: new Date().toISOString()
                     };
 
-                    // Mapper la taxonomie depuis la DB vers le champ niveau_alerte de Payload
-                    // D'après payload/collections/revelations.ts, le champ niveau_alerte accepte 'Public' ou 'Confidentiel'.
-                    // On peut mapper ALERTE sur Confidentiel si besoin, mais par défaut on met 'Public'.
-                    const niveauAlerte = topicTaxonomy === 'ALERTE' ? 'Confidentiel' : 'Public';
+                    const discordRes = await fetch(webhookUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ embeds: [embed] })
+                    });
+
+                    if (discordRes.ok) {
+                        isSuccess = true;
+                        console.log(`🚀 [Node 6: Phase B] ✅ [DISCORD] Message expédié avec succès pour le topic ${topic.id}`);
+                    } else {
+                        console.error(`🚀 [Node 6: Phase B] ❌ [DISCORD] Erreur HTTP ${discordRes.status}`);
+                    }
+                }
+            }
+
+            // --- DIFFUSION PAYLOAD CMS ---
+            else if (pub.platform === 'PAYLOAD') {
+                try {
+                    const origin = 'https://api.lassez.fr';
                     
-                    // Traiter les tags depuis la DB : chercher/créer les tags et récupérer leurs IDs
-                    let tagIds: string[] = [];
-                    if (topicTags && topicTags.length > 0) {
-                        for (const tagName of topicTags) {
-                            try {
-                                // Chercher le tag existant
-                                const tagSearchRes = await fetch(`${url}/api/tags?where[name][equals]=${encodeURIComponent(tagName)}`, {
-                                    headers: { 'Authorization': `JWT ${token}` }
-                                });
-
-                                let tagId: string | null = null;
-
-                                if (tagSearchRes.ok) {
-                                    const tagSearchData = await tagSearchRes.json();
-                                    if (tagSearchData.docs && tagSearchData.docs.length > 0) {
-                                        tagId = tagSearchData.docs[0].id;
-                                    }
-                                }
-
-                                // Si le tag n'existe pas, le créer
-                                if (!tagId) {
-                                    const tagCreateRes = await fetch(`${url}/api/tags`, {
-                                        method: 'POST',
-                                        headers: {
-                                            'Content-Type': 'application/json',
-                                            'Authorization': `JWT ${token}`
-                                        },
-                                        body: JSON.stringify({ name: tagName })
-                                    });
-
-                                    if (tagCreateRes.ok) {
-                                        const createdTag = await tagCreateRes.json();
-                                        tagId = createdTag.doc?.id || createdTag.id;
-                                    }
-                                }
-
-                                if (tagId) {
-                                    tagIds.push(tagId);
-                                }
-                            } catch (tagErr) {
-                                console.warn(`🚀 [Node 6: Phase B] ⚠️ [PAYLOAD] Erreur lors du traitement du tag "${tagName}"`, tagErr);
-                            }
+                    // Récupération ou rafraîchissement du jeton JWT Payload
+                    if (!cachedPayloadToken || Date.now() > payloadTokenExpiresAt) {
+                        const loginRes = await fetch(`${origin}/api/users/login`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                email: process.env.PAYLOAD_ADMIN_EMAIL || 'admin@lassez.fr',
+                                password: process.env.PAYLOAD_ADMIN_PASSWORD || 'lassez2026'
+                            })
+                        });
+                        const loginData = await loginRes.json();
+                        if (loginData.token) {
+                            cachedPayloadToken = loginData.token;
+                            payloadTokenExpiresAt = Date.now() + (2 * 60 * 60 * 1000);
                         }
                     }
 
-                    // Créer la révélation dans Payload (collection "revelations")
-                    // Utilisant les données canoniques depuis la table NewsTopic
-                    const revelationRes = await fetch(`${url}/api/revelations`, {
+                    const token = cachedPayloadToken;
+                    const contentPayload = draftData.body || '';
+                    const topicGeo = topic.geo || 'FRANCE';
+                    const topicTaxonomy = topic.taxonomy || 'INFO';
+                    let niveauAlerte = 'standard';
+                    if (topicTaxonomy.includes('URGENT') || topicTaxonomy.includes('FLASH')) niveauAlerte = 'flash';
+
+                    let tagIds: string[] = [];
+                    if (topic.tags) {
+                        try {
+                            const parsedTags = JSON.parse(topic.tags);
+                            if (Array.isArray(parsedTags)) {
+                                for (const tagName of parsedTags) {
+                                    const cleanName = String(tagName).trim();
+                                    if (cleanName) {
+                                        const searchRes = await fetch(`${origin}/api/tags?where[name][equals]=${encodeURIComponent(cleanName)}`);
+                                        const searchData = await searchRes.json();
+                                        if (searchData.docs && searchData.docs.length > 0) {
+                                            tagIds.push(searchData.docs[0].id);
+                                        } else {
+                                            const createRes = await fetch(`${origin}/api/tags`, {
+                                                method: 'POST',
+                                                headers: { 'Content-Type': 'application/json', 'Authorization': `JWT ${token}` },
+                                                body: JSON.stringify({ name: cleanName, slug: cleanName.toLowerCase().replace(/[^a-z0-9]+/g, '-') })
+                                            });
+                                            const createData = await createRes.json();
+                                            if (createData.doc?.id) tagIds.push(createData.doc.id);
+                                        }
+                                    }
+                                }
+                            }
+                        } catch (e) { }
+                    }
+
+                    const revelationRes = await fetch(`${origin}/api/revelations`, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
@@ -395,25 +271,23 @@ export async function runPublisherNode() {
 
                     if (revelationRes.ok) {
                         isSuccess = true;
-                        console.log(`🚀 [Node 6: Phase B] ✅ [PAYLOAD] Révélation injectée dans Payload (Taxonomie: ${topicTaxonomy} | Geo: ${topicGeo} | Tags: ${tagIds.length} | Topic: ${topic.id})`);
+                        console.log(`🚀 [Node 6: Phase B] ✅ [PAYLOAD] Révélation injectée dans Payload avec succès (Topic: ${topic.id})`);
                     } else {
                         const errorText = await revelationRes.text();
                         console.error(`🚀 [Node 6: Phase B] ❌ [PAYLOAD] Échec d'injection HTTP ${revelationRes.status} :`, errorText);
                     }
                 } catch(e) {
-                    console.error(`🚀 [Node 6: Phase B] ❌ [PAYLOAD] Erreur Injection :`, e);
+                    console.error(`🚀 [Node 6: Phase B] ❌ [PAYLOAD] Erreur lors de l'injection :`, e);
                 }
             }
 
-            // Met à jour la Publication
+            // Mise à jour du statut de publication
             if (isSuccess) {
                 await prisma.publication.update({
                     where: { id: pub.id },
                     data: { status: 'PUBLISHED', publishedAt: new Date() }
                 });
 
-                // Optionnel : vérifier si on doit basculer le status du Topic global en PUBLISHED 
-                // C-à-d s'il n'y a plus de publications 'PENDING' liées à ce Topic
                 const remaining = await prisma.publication.count({
                     where: { topicId: topic.id, status: 'PENDING' }
                 });
@@ -424,20 +298,19 @@ export async function runPublisherNode() {
                     });
                 }
             } else {
-                // En cas d'erreur de la plateforme, on passe à FAILED pour bloquer tout loop infini
                 await prisma.publication.update({
                     where: { id: pub.id },
                     data: { status: 'FAILED' }
                 });
             }
 
-            // Pause pour éviter les rate limits (2 secondes)
+            // Pause anti-rate-limit entre les envois (2 secondes)
             await new Promise(resolve => setTimeout(resolve, 2000));
 
         } catch (error) {
-            console.error(`🚀 [Node 6: Phase B] ❌ Erreur fatale sur pub ${pub.id}:`, error);
+            console.error(`🚀 [Node 6: Phase B] ❌ Erreur sur la publication ${pub.id}:`, error);
         }
     }
 
-    console.log(`🚀 [Node 6: Publisher] Fin cycle Tour de Contrôle.`);
+    console.log(`🚀 [Node 6: Publisher] Cycle de diffusion achevé.`);
 }

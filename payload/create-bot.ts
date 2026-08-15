@@ -4,8 +4,13 @@ import config from '../payload.config';
 
 async function createBot() {
     const payload = await getPayload({ config });
-    const botEmail = process.env.PAYLOAD_BOT_EMAIL || 'bot@lassez.fr';
-    const botPassword = process.env.PAYLOAD_BOT_PASSWORD || 'LassezBotPassword2026!';
+    const botEmail = process.env.PAYLOAD_BOT_EMAIL;
+    const botPassword = process.env.PAYLOAD_BOT_PASSWORD;
+
+    if (!botEmail || !botPassword) {
+        console.error('❌ PAYLOAD_BOT_EMAIL et PAYLOAD_BOT_PASSWORD sont requis (définis-les dans .env).');
+        process.exit(1);
+    }
     
     try {
         const existing = await payload.find({

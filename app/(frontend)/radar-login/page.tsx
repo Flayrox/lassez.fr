@@ -26,7 +26,7 @@ export default function RadarLoginPage() {
             const data = await res.json();
 
             if (res.ok && data.success) {
-                router.push('/radar-admin');
+                router.push('/templates');
             } else {
                 setError(data.error || 'Accès refusé. Intrusion détectée.');
             }

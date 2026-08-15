@@ -45,9 +45,22 @@ func (id *ID) UnmarshalJSON(data []byte) error {
 // Signal mirrors a document of the Payload "signals" collection. RawData
 // keeps the raw JSON so nodes can extract fields like clusterTitle.
 type Signal struct {
-	ID      ID              `json:"id"`
-	RawData json.RawMessage `json:"raw_data"`
-	Status  string          `json:"status"`
+	ID       ID              `json:"id"`
+	RawData  json.RawMessage `json:"raw_data"`
+	Status   string          `json:"status"`
+	Taxonomy string          `json:"taxonomy"`
+	Geo      string          `json:"geo"`
+	ImageURL string          `json:"image_url"`
+}
+
+// TaxonomyTemplate mirrors a document of the "taxonomy-templates"
+// collection, with the fields the pipeline needs.
+type TaxonomyTemplate struct {
+	Name        string `json:"name"`
+	DisplayName string `json:"display_name"`
+	PromptText  string `json:"format_instructions"`
+	Active      bool   `json:"active"`
+	SortOrder   int    `json:"sort_order"`
 }
 
 // Source mirrors a document of the Payload "sources" collection.
@@ -267,6 +280,26 @@ func (c *Client) GetSignalsByStatus(status string) ([]Signal, error) {
 		return nil, err
 	}
 	return decodeSignalDocs(data)
+}
+
+// GetTaxonomyTemplates returns the taxonomy templates, optionally only the
+// active ones, ordered by sort_order.
+func (c *Client) GetTaxonomyTemplates(activeOnly bool) ([]TaxonomyTemplate, error) {
+	where := ""
+	if activeOnly {
+		where = "?where[active][equals]=true"
+	}
+	data, err := c.request(http.MethodGet, "/taxonomy-templates"+where+"&limit=500&depth=0&sort=sort_order", nil, true)
+	if err != nil {
+		return nil, err
+	}
+	var out struct {
+		Docs []TaxonomyTemplate `json:"docs"`
+	}
+	if err := json.Unmarshal(data, &out); err != nil {
+		return nil, fmt.Errorf("decode taxonomy-templates: %w", err)
+	}
+	return out.Docs, nil
 }
 
 // UpdateSignal patches a signal, coercing JSON string fields to objects.

@@ -48,6 +48,14 @@ func main() {
 	if err := nodes.RunEditorialist(client, resolver); err != nil {
 		log.Printf("[Daemon] ❌ Erreur editorialist : %v", err)
 	}
+
+	if err := nodes.RunValidator(client, resolver); err != nil {
+		log.Printf("[Daemon] ❌ Erreur validator : %v", err)
+	}
+
+	if err := nodes.RunMedia(client, resolver); err != nil {
+		log.Printf("[Daemon] ❌ Erreur media : %v", err)
+	}
 }
 
 // loadEnv mirrors radar_lassez/lib/env.ts: the repo-root .env first, then

@@ -7,9 +7,9 @@ const SIGNAL_STATUSES = ['INGESTED', 'RESEARCHED', 'DRAFTED', 'VALIDATED', 'PEND
 /**
  * Dashboard Radar — vue racine qui remplace le dashboard Payload par défaut.
  *
- * Côté serveur : lit les compteurs par statut, le dernier log (heartbeat du
- * daemon) et les réglages radar-settings via le local API Payload, puis rend
- * le composant client interactif.
+ * Lecture seule : tous les compteurs et listes proviennent des collections
+ * Payload (signals, logs, publications) et chaque carte pointe vers la
+ * collection filtrée correspondante. Aucune donnée n'est dupliquée ici.
  */
 export default function RadarDashboard({ initPageResult, params, searchParams }: AdminViewServerProps) {
     const { req } = initPageResult;
@@ -41,7 +41,7 @@ export default function RadarDashboard({ initPageResult, params, searchParams }:
 async function RadarDashboardServer({ req }: { req: any }) {
     const { payload } = req;
 
-    // 1. Compteurs par statut
+    // 1. Compteurs par statut (chaque étape du pipeline)
     const counts: Record<string, number> = {};
     for (const status of SIGNAL_STATUSES) {
         const { totalDocs } = await payload.count({
@@ -60,7 +60,26 @@ async function RadarDashboardServer({ req }: { req: any }) {
     });
     const lastLog = latestLogs.docs?.[0] || null;
 
-    // 3. Réglages globaux
+    // 3. Les 5 derniers signals, quel que soit leur statut
+    const recentSignals = await payload.find({
+        collection: 'signals',
+        limit: 5,
+        depth: 0,
+        sort: '-createdAt',
+    });
+
+    // 4. Publications dues (PENDING et échues) pour l'action rapide
+    const duePubs = await payload.count({
+        collection: 'publications',
+        where: {
+            and: [
+                { status: { equals: 'PENDING' } },
+                { scheduled_at: { less_than: new Date().toISOString() } },
+            ],
+        },
+    });
+
+    // 5. Réglages globaux
     let settings: any = null;
     try {
         settings = await payload.findGlobal({ slug: 'radar-settings' });
@@ -70,7 +89,7 @@ async function RadarDashboardServer({ req }: { req: any }) {
 
     const total = Object.values(counts).reduce((a, b) => a + b, 0);
 
-    // 4. Santé du daemon : dernier log vs intervalle de scan
+    // 6. Santé du daemon : dernier log vs intervalle de scan
     let daemonHealth: 'ok' | 'late' | 'paused' = 'ok';
     if (settings && settings.enableAutoPublish === false) {
         daemonHealth = 'paused';
@@ -91,6 +110,14 @@ async function RadarDashboardServer({ req }: { req: any }) {
             daemonHealth={daemonHealth}
             autoPublish={settings?.enableAutoPublish ?? true}
             aiModel={settings?.aiModelFlash || settings?.aiModelPro || '—'}
+            recentSignals={(recentSignals.docs || []).map((s: any) => ({
+                id: String(s.id),
+                title: s.source_title || s.id,
+                status: s.status || '—',
+                updatedAt: s.updatedAt || null,
+            }))}
+            duePubs={duePubs.totalDocs || 0}
+            errors={(counts['REJECTED_ERROR'] || 0) + (counts['FAILED'] || 0)}
         />
     );
 }

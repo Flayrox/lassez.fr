@@ -148,7 +148,7 @@ export async function proxy(req: NextRequest) {
 
     // 2. EXCEPTIONS D'AUTHENTIFICATION
     // La route de login/logout et de navigation publique ne doit pas être bloquée
-    if (pathname === '/api/radar/login' || pathname === '/api/radar/logout' || pathname === '/api/radar/nav' || pathname === '/api/radar/config') {
+    if (pathname === '/api/radar/login' || pathname === '/api/radar/nav' || pathname === '/api/radar/config') {
         return NextResponse.next();
     }
 
@@ -239,23 +239,6 @@ export async function proxy(req: NextRequest) {
 
     if (requiredUiPermission && role !== 'admin' && !permissions?.[requiredUiPermission]) {
         return NextResponse.redirect(new URL('/radar-login', req.url));
-    }
-
-    const requiredApiPermission = (() => {
-        if (pathname.startsWith('/api/radar/users')) return 'users';
-        if (pathname.startsWith('/api/radar/daemon-status')) return 'daemon';
-        if (pathname.startsWith('/api/radar/logs')) return 'daemon';
-        if (pathname.startsWith('/api/radar/trigger')) return 'daemon';
-        if (pathname.startsWith('/api/radar/settings')) {
-            const scope = req.nextUrl.searchParams.get('scope');
-            if (scope === 'network') return 'network';
-            return 'settings';
-        }
-        return null;
-    })();
-
-    if (requiredApiPermission && role !== 'admin' && !permissions?.[requiredApiPermission]) {
-        return NextResponse.json({ success: false, error: 'Permission refusee.' }, { status: 403 });
     }
 
     return NextResponse.next({

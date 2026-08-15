@@ -59,7 +59,6 @@ export async function proxy(req: NextRequest) {
     // En local ça sera "studio.localhost", en prod "studio.lassez.fr"
     const isStudioDomain = hostname.startsWith('studio.');
     const isStudioRoute =
-        pathname.startsWith('/radar-admin') ||
         pathname.startsWith('/api/radar') ||
         pathname.startsWith('/radar-login') ||
         pathname.startsWith('/api/elections') ||
@@ -93,19 +92,24 @@ export async function proxy(req: NextRequest) {
         return NextResponse.redirect(new URL(`${pathname}${req.nextUrl.search}`, payloadOrigin));
     }
 
+    // Cockpit legacy (radar-admin) → Payload admin (single login)
+    if (pathname.startsWith('/radar-admin')) {
+        return NextResponse.redirect(new URL('/admin', payloadOrigin));
+    }
+
     // ─── 0. SÉPARATION DES DOMAINES ───
     if (!isStudioDomain) {
         // Le domaine public (lassez.fr) ne DOIT PAS accéder au back-end
-        if (pathname.startsWith('/radar-admin') || pathname.startsWith('/radar-login') || pathname.startsWith('/templates')) {
+        if (pathname.startsWith('/radar-login') || pathname.startsWith('/templates')) {
             return NextResponse.redirect(new URL('/', req.url));
         }
         if (pathname.startsWith('/api/radar')) {
             return NextResponse.json({ success: false, error: 'Not Found' }, { status: 404 });
         }
     } else {
-        // Sur le sous-domaine Studio, on redirige la racine (/) vers le dashboard
+        // Sur le sous-domaine Studio, on redirige la racine (/) vers le Studio de templates
         if (pathname === '/') {
-            return NextResponse.redirect(new URL('/radar-admin', req.url));
+            return NextResponse.redirect(new URL('/templates', req.url));
         }
         if (!isStudioRoute) {
             return new NextResponse('Not Found', { status: 404 });
@@ -153,7 +157,7 @@ export async function proxy(req: NextRequest) {
         if (pathname.startsWith('/api/radar') && pathname !== '/api/radar/nav' && pathname !== '/api/radar/config') {
             return NextResponse.json({ success: false, error: 'Radar auth is not configured.' }, { status: 503 });
         }
-        if (pathname.startsWith('/radar-admin') || pathname.startsWith('/radar-login') || pathname.startsWith('/templates')) {
+        if (pathname.startsWith('/radar-login') || pathname.startsWith('/templates')) {
             return NextResponse.redirect(new URL('/', req.url));
         }
     }
@@ -209,8 +213,8 @@ export async function proxy(req: NextRequest) {
 
     // 4. GESTION DES REJETS
     if (!isAuthenticated) {
-        // Redirection UI pour le Dashboard
-        if (pathname.startsWith('/radar-admin') || pathname.startsWith('/templates')) {
+        // Redirection UI pour le Studio de templates
+        if (pathname.startsWith('/templates')) {
             const loginUrl = new URL('/radar-login', req.url);
             // On nettoie le cookie potentiellement invalide ou expiré
             const response = NextResponse.redirect(loginUrl);
@@ -229,25 +233,12 @@ export async function proxy(req: NextRequest) {
     const permissions = sessionPayload?.permissions || {};
 
     const requiredUiPermission = (() => {
-        if (pathname.startsWith('/radar-admin/users')) return 'users';
-        if (pathname.startsWith('/radar-admin/daemon')) return 'daemon';
-        if (pathname.startsWith('/radar-admin/settings')) {
-            const tab = req.nextUrl.searchParams.get('tab');
-            if (tab === 'network') return 'network';
-            if (tab === 'users') return 'users';
-            return 'settings';
-        }
-        if (pathname.startsWith('/radar-admin/studio') || pathname.startsWith('/templates')) return 'studio';
-        if (pathname.startsWith('/radar-admin/network')) return 'network';
-        if (pathname.startsWith('/radar-admin/lab')) return 'lab';
-        if (pathname.startsWith('/radar-admin')) return 'radar';
+        if (pathname.startsWith('/templates')) return 'studio';
         return null;
     })();
 
     if (requiredUiPermission && role !== 'admin' && !permissions?.[requiredUiPermission]) {
-        if (pathname.startsWith('/radar-admin')) {
-            return NextResponse.redirect(new URL('/radar-admin', req.url));
-        }
+        return NextResponse.redirect(new URL('/radar-login', req.url));
     }
 
     const requiredApiPermission = (() => {

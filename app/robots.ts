@@ -6,7 +6,7 @@ export default function robots(): MetadataRoute.Robots {
             {
                 userAgent: '*',
                 allow: '/',
-                disallow: ['/api/', '/radar-admin/', '/radar-login/'],
+                disallow: ['/api/', '/radar-login/'],
             },
         ],
         sitemap: [

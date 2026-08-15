@@ -1,7 +1,7 @@
 module.exports = {
     apps: [
         {
-            name: 'radar-api',
+            name: 'lassez-api',
             script: 'npm',
             args: 'run start',
             cwd: '/var/www/lassez-api',
@@ -10,7 +10,7 @@ module.exports = {
             env: { NODE_ENV: 'production', PORT: 3001 }
         },
         {
-            name: 'radar-front',
+            name: 'lassez-front',
             script: 'npm',
             args: 'run start',
             cwd: '/var/www/lassez-api',
@@ -19,7 +19,7 @@ module.exports = {
             env: { NODE_ENV: 'production', PORT: 3000 }
         },
         {
-            name: 'radar-studio',
+            name: 'lassez-studio',
             script: 'npm',
             args: 'run start',
             cwd: '/var/www/lassez-api',
@@ -28,7 +28,7 @@ module.exports = {
             env: { NODE_ENV: 'production', PORT: 3002 }
         },
         {
-            name: 'radar-daemon',
+            name: 'lassez-daemon',
             script: 'npx',
             args: 'tsx ./radar_lassez/daemon.ts',
             cwd: '/var/www/lassez-api',

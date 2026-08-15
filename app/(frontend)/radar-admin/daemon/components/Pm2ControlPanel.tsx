@@ -10,10 +10,10 @@ interface Pm2ControlPanelProps {
 
 export function Pm2ControlPanel({ pm2States, pm2Loading, onCommand }: Pm2ControlPanelProps) {
     const services = [
-        { id: 'radar-daemon', name: 'RSS daemon' },
-        { id: 'radar-api', name: 'Core API' },
-        { id: 'radar-front', name: 'Frontend' },
-        { id: 'radar-studio', name: 'Studio' },
+        { id: 'lassez-daemon', name: 'Daemon Radar' },
+        { id: 'lassez-api', name: 'API Payload' },
+        { id: 'lassez-front', name: 'Frontend' },
+        { id: 'lassez-studio', name: 'Studio' },
     ];
 
     return (

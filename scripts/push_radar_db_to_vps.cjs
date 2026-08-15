@@ -5,10 +5,14 @@ const path = require('path');
 const host = process.env.VPS_HOST || '178.104.197.3';
 const port = Number(process.env.VPS_PORT || 22);
 const username = process.env.VPS_USER || 'root';
-const password = process.env.VPS_PASSWORD || 'wung7vNXJePU';
+const password = process.env.VPS_PASSWORD;
+if (!password) {
+  console.error('[DB-PUSH] Missing required env var: VPS_PASSWORD');
+  process.exit(1);
+}
 
 const localDb = path.join(process.cwd(), 'radar_lassez', 'radar.db');
-const remoteDir = '/var/www/radar-studio/radar_lassez';
+const remoteDir = '/var/www/lassez-api/radar_lassez';
 const remoteDb = `${remoteDir}/radar.db`;
 const remoteTmp = `${remoteDir}/radar.db.upload`;
 
@@ -63,22 +67,22 @@ conn
       console.log('[DB-PUSH] Connected to VPS.');
 
       await runRemote(`set -e; mkdir -p ${remoteDir}/backups`);
-      await runRemote(`set -e; pm2 stop radar-daemon || true`);
+      await runRemote(`set -e; pm2 stop lassez-daemon || true`);
       await runRemote(`set -e; if [ -f ${remoteDb} ]; then cp ${remoteDb} ${remoteDir}/backups/radar.db.before-push.${ts}; fi`);
 
       console.log('[DB-PUSH] Uploading local radar.db...');
       await uploadFile(localDb, remoteTmp);
 
       await runRemote(`set -e; mv ${remoteTmp} ${remoteDb}; chmod 600 ${remoteDb} || true`);
-      await runRemote(`set -e; pm2 start radar-daemon || pm2 restart radar-daemon`);
-      await runRemote(`set -e; pm2 restart radar-admin || true`);
+      await runRemote(`set -e; pm2 start lassez-daemon || pm2 restart lassez-daemon`);
+      await runRemote(`set -e; pm2 restart lassez-studio || true`);
       await runRemote(`set -e; ls -lh ${remoteDb}; ls -lh ${remoteDir}/backups | tail -n 3`);
 
       console.log('[DB-PUSH] DB transfer completed successfully.');
       conn.end();
     } catch (e) {
       console.error('[DB-PUSH] Failed:', e.message);
-      try { await runRemote('pm2 start radar-daemon || true'); } catch (_) {}
+      try { await runRemote('pm2 start lassez-daemon || true'); } catch (_) {}
       conn.end();
       process.exit(1);
     }

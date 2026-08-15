@@ -15,7 +15,7 @@ async function downloadAndExtract() {
     console.log(`Downloaded ${response.data.byteLength} bytes. Extracting...`);
     const zip = new AdmZip(Buffer.from(response.data));
 
-    const outputDir = path.join(__dirname, 'public', 'fonts', 'playfair');
+    const outputDir = path.join(__dirname, '..', 'public', 'fonts', 'playfair');
     fs.mkdirSync(outputDir, { recursive: true });
 
     zip.extractAllTo(outputDir, true);

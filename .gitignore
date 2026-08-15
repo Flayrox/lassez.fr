@@ -7,11 +7,15 @@ build/
 # Fichiers Sensibles (À NE JAMAIS PARTAGER)
 .env
 .env.local
+.env.test
 .env.development.local
 .env.test.local
 .env.production.local
 *.db
 *.sqlite
+
+# Caches de build
+*.tsbuildinfo
 
 # Logs et Fichiers Temporaires
 *.log
@@ -20,6 +24,9 @@ yarn-debug.log*
 yarn-error.log*
 .DS_Store
 Thumbs.db
+
+# Espace de travail local (non versionné)
+scratch/
 
 # Fichiers OSINT (vidéos temporaires)
 radar_lassez/tmp-videos/

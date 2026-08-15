@@ -5,7 +5,7 @@ import http from 'http';
 import { logger } from '@/radar_lassez/lib/logger';
 
 const execAsync = promisify(exec);
-const TRACKED_PROCESSES = ['radar-daemon', 'radar-api', 'radar-front', 'radar-studio'] as const;
+const TRACKED_PROCESSES = ['lassez-daemon', 'lassez-api', 'lassez-front', 'lassez-studio'] as const;
 
 export const dynamic = 'force-dynamic';
 
@@ -129,7 +129,7 @@ export async function GET() {
 export async function POST(req: Request) {
     try {
         const body = await req.json().catch(() => ({}));
-        const target = body.target || 'radar-daemon';
+        const target = body.target || 'lassez-daemon';
         const action = body.action || 'restart';
 
         const allowedTargets = [...TRACKED_PROCESSES, 'all'];

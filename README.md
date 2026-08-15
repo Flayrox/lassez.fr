@@ -22,25 +22,26 @@
 │  (Postgres / Supabase)      │     │  publisher                   │
 └─────────────────────────────┘     └──────────────┬───────────────┘
                                                    ▼
-                              SQLite (prisma/radar.db) : settings,
-                              topics, publications, sources, logs
+                              Payload (Postgres) via l'API REST :
+                              radar-settings, signals, sources,
+                              publications, seen-urls, logs
 ```
 
 ### Les 4 blocs
 
 1. **Front public** (`app/(frontend)/` + `components/`) — le site éditorial : home, articles, révélations, enquêtes, podcasts, comprendre (leçons), élections live, recherche, soutenir. Pages RSC servies par Payload, ISR avec revalidation instantanée, SEO auto-généré (Gemini).
 
-2. **Studio / Radar-admin** (`app/(frontend)/radar-admin/` + `app/(studio)/`) — cockpit de contrôle : settings (sources RSS/Telegram/Google News, taxonomies, diffusion Discord/X/Bluesky/Mastodon, prompts IA), contrôle du daemon (PM2), éditeur de templates de visualisation (FFmpeg.wasm), graphe de pipeline, réseau, lab. Protégé par `proxy.ts` (middleware Next.js : session HMAC, rate limiting, RBAC par route).
+2. **Cockpit Radar** (`payload/`) — intégré à l'admin Payload (`/admin`, single login) : dashboard du pipeline, collections `signals`/`sources`/`publications`/`logs`/`taxonomy-templates`, global `radar-settings`. L'éditeur de templates de visualisation (FFmpeg.wasm) reste dans `app/(studio)/templates` (studio.lassez.fr).
 
 3. **Payload CMS** (`payload/`) — back-office éditorial : collections `posts`, `revelations`, `lessons` (+ `categories`, `tags`, `authors`, `media`), globals `settings`/`about`/`legal`, versions/drafts, live preview avec jetons signés, hooks SEO Gemini et revalidation de cache. Admin sur `api.lassez.fr/admin`.
 
-4. **Daemon Radar** (`radar_lassez/`) — pipeline d'automatisation : ingestion multi-sources (RSS, Google News, Telegram, X), dédoublonnage, scoring de pertinence (Gemini Flash), rédaction d'investigation (Gemini Pro), validation, enrichissement média, puis publication (Payload + Discord/X/Bluesky/Mastodon). Deux boucles autonomes : cycle principal + publisher toutes les 2 min.
+4. **Daemon Radar** (`radar_lassez/`) — pipeline d'automatisation : ingestion multi-sources (RSS, Google News, Telegram, X), dédoublonnage, scoring de pertinence (Gemini Flash), rédaction d'investigation (Gemini Pro), validation, enrichissement média, puis publication (Payload + Discord/X/Bluesky/Mastodon). Il lit/écrit dans Payload via l'API REST (`payload-client.ts`). Deux boucles autonomes : cycle principal + publisher toutes les 2 min.
 
 ## 🧱 Stack
 
 - **Front** : Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS
 - **CMS** : Payload 3.82 (Postgres / Supabase), Rich Text Lexical
-- **Daemon** : Prisma (SQLite), Gemini (Flash/Pro), better-sqlite3
+- **Daemon** : Payload REST client, Gemini (Flash/Pro)
 - **Ops** : PM2 (4 processus), GitHub Actions, VPS nginx, Matomo
 
 ## 🚀 Démarrage en local
@@ -53,16 +54,16 @@ npm run dev            # http://localhost:5173
 
 Routes utiles en dev :
 - Site public : `http://localhost:5173`
-- Admin Payload : `http://localhost:5173/admin` (ou via `PAYLOAD_SERVER_URL`)
-- Cockpit Studio : `http://localhost:5173/radar-admin`
-- Daemon : `npx tsx radar_lassez/daemon.ts` (optionnel, nécessite la config SQLite)
+- Admin Payload + Cockpit Radar : `http://localhost:5173/admin` (ou via `PAYLOAD_SERVER_URL`)
+- Studio de templates : `http://localhost:5173/templates`
+- Daemon : `npx tsx radar_lassez/daemon.ts` (optionnel, nécessite `PAYLOAD_API_URL` + identifiants bot)
 
 ## 🗄️ Bases de données
 
 | Base | Techno | Usage |
 | :--- | :--- | :--- |
 | Payload | Postgres (Supabase) via `DATABASE_URL` | Contenu éditorial, auteurs, médias, globals |
-| Radar | SQLite (`prisma/radar.db`) | Settings du daemon, topics, publications, logs, health des sources |
+| Radar | Payload (Postgres) via API REST | Collections `signals`, `sources`, `publications`, `seen-urls`, `taxonomy-templates`, `logs` + global `radar-settings` |
 
 Migrations Payload : `npm run payload:migrate` · Types générés : `npm run payload:generate:types`
 
@@ -76,16 +77,15 @@ Migrations Payload : `npm run payload:migrate` · Types générés : `npm run pa
 ## 📁 Structure
 
 ```
-app/(frontend)/        Site public + Radar-admin
-app/(studio)/          Studio de templates
+app/(frontend)/        Site public (home, articles, enquêtes, élections, …)
+app/(studio)/          Studio de templates (FFmpeg.wasm)
 app/api/               Routes API (radar, posts, og, preview, elections, cache-sync…)
 components/            Composants React partagés
-payload/               Config Payload : collections, globals, hooks, migrations
-radar_lassez/          Daemon d'automatisation (pipeline 7 nœuds)
+payload/               Config Payload : collections, globals, hooks, migrations, vues du cockpit
+radar_lassez/          Daemon d'automatisation (pipeline 7 nœuds, client Payload)
 lib/                   Utilitaires partagés (API, SEO, preview, radar-config…)
 hooks/                 Hooks React (usePosts, useCategories…)
-scripts/               Scripts dev/ops (deploy, checks VPS, seeds, utilitaires)
-prisma/                Schéma SQLite du daemon Radar
+scripts/               Scripts dev/ops (deploy, migration Radar → Payload, utilitaires)
 docs/                  Guides (déploiement, nginx, plans)
 ```
 

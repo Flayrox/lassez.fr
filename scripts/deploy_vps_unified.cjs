@@ -26,8 +26,7 @@ const remoteScript = [
   `git checkout ${branch}`,
   `git reset --hard origin/${branch}`,
   installCommand,
-  `npx prisma generate`,
-  `npx prisma db push --accept-data-loss`,
+  `npm run payload:migrate`,
   buildCommand,
   restartCommand,
   `echo DEPLOY_OK`

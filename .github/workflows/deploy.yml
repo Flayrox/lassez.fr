@@ -32,7 +32,6 @@ jobs:
             echo "--- 4. Build unique Next.js ---"
             cd /var/www/lassez-api
             npm ci
-            npx prisma generate
             npm run payload:migrate || echo "Aucune migration à appliquer"
             npm run build
 

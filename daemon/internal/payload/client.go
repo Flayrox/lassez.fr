@@ -9,9 +9,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -42,12 +44,24 @@ func (id *ID) UnmarshalJSON(data []byte) error {
 	return fmt.Errorf("unsupported id: %s", data)
 }
 
+// Number returns the id as a JSON-safe value: the raw number for numeric
+// Payload ids (serial), the string otherwise. Required because Payload
+// rejects string ids for numeric relationship columns.
+func (id ID) Number() any {
+	n, err := strconv.ParseInt(string(id), 10, 64)
+	if err != nil {
+		return string(id)
+	}
+	return n
+}
+
 // Signal mirrors a document of the Payload "signals" collection. RawData
 // keeps the raw JSON so nodes can extract fields like clusterTitle.
 type Signal struct {
 	ID         ID              `json:"id"`
 	RawData    json.RawMessage `json:"raw_data"`
 	FinalDraft json.RawMessage `json:"final_draft"`
+	Tags       json.RawMessage `json:"tags"`
 	Status     string          `json:"status"`
 	Taxonomy   string          `json:"taxonomy"`
 	Geo        string          `json:"geo"`
@@ -104,6 +118,10 @@ func New(baseURL string) *Client {
 }
 
 func (c *Client) BaseURL() string { return c.baseURL }
+
+// HTTP exposes the underlying http.Client (shared timeouts) for outbound
+// calls that are not Payload API calls, e.g. webhook pushes.
+func (c *Client) HTTP() *http.Client { return c.http }
 
 // login authenticates against the authors collection and caches the JWT.
 func (c *Client) login() (string, error) {
@@ -382,6 +400,290 @@ func extractTitle(v any) string {
 		}
 	}
 	return "Sujet sans titre"
+}
+
+// ============================================================
+// PUBLICATIONS (missions de diffusion)
+// ============================================================
+
+// Publication mirrors a document of the Payload "publications" collection.
+// Signal holds the raw JSON of the relationship: a plain id when fetched
+// with depth=0, or the full signal object with depth>=1.
+type Publication struct {
+	ID          ID              `json:"id"`
+	Signal      json.RawMessage `json:"signal"`
+	Platform    string          `json:"platform"`
+	Status      string          `json:"status"`
+	ScheduledAt time.Time       `json:"scheduled_at"`
+	PublishedAt *time.Time      `json:"published_at"`
+}
+
+// TopicID returns the related signal id whether the relationship was
+// serialized as a string or an object.
+func (p *Publication) TopicID() (ID, bool) {
+	if len(p.Signal) == 0 {
+		return "", false
+	}
+	var s string
+	if err := json.Unmarshal(p.Signal, &s); err == nil {
+		return ID(s), true
+	}
+	var obj struct {
+		ID ID `json:"id"`
+	}
+	if err := json.Unmarshal(p.Signal, &obj); err == nil && obj.ID != "" {
+		return obj.ID, true
+	}
+	return "", false
+}
+
+// Topic returns the embedded signal when the publication was fetched with
+// depth >= 1.
+func (p *Publication) Topic() (*Signal, bool) {
+	var sig Signal
+	if err := json.Unmarshal(p.Signal, &sig); err == nil && sig.ID != "" {
+		return &sig, true
+	}
+	return nil, false
+}
+
+// GetPendingSignalsWithoutPublications returns PENDING signals that have no
+// publication yet, mirroring the TS client: fetch pending signals, then
+// exclude those referenced by at least one publication.
+func (c *Client) GetPendingSignalsWithoutPublications() ([]Signal, error) {
+	pending, err := c.GetSignalsByStatus("PENDING")
+	if err != nil {
+		return nil, err
+	}
+	if len(pending) == 0 {
+		return nil, nil
+	}
+
+	ids := make([]string, 0, len(pending))
+	for _, s := range pending {
+		ids = append(ids, string(s.ID))
+	}
+	data, err := c.request(http.MethodGet, "/publications?where[signal][in]="+url.QueryEscape(strings.Join(ids, ","))+"&limit=500&depth=0", nil, true)
+	if err != nil {
+		return nil, err
+	}
+	var out struct {
+		Docs []struct {
+			Signal json.RawMessage `json:"signal"`
+		} `json:"docs"`
+	}
+	if err := json.Unmarshal(data, &out); err != nil {
+		return nil, fmt.Errorf("decode publications: %w", err)
+	}
+
+	withPubs := make(map[string]bool, len(out.Docs))
+	for _, d := range out.Docs {
+		if id, ok := relationshipID(d.Signal); ok {
+			withPubs[id] = true
+		}
+	}
+
+	result := pending[:0]
+	for _, s := range pending {
+		if !withPubs[string(s.ID)] {
+			result = append(result, s)
+		}
+	}
+	return result, nil
+}
+
+// GetSignal returns a single signal by id, or (nil, nil) when not found.
+func (c *Client) GetSignal(id ID) (*Signal, error) {
+	data, err := c.request(http.MethodGet, "/signals/"+url.PathEscape(string(id))+"?depth=0", nil, true)
+	if err != nil {
+		if strings.Contains(err.Error(), "404") {
+			return nil, nil
+		}
+		return nil, err
+	}
+	var out struct {
+		Doc Signal `json:"doc"`
+	}
+	if err := json.Unmarshal(data, &out); err != nil {
+		return nil, fmt.Errorf("decode signal: %w", err)
+	}
+	return &out.Doc, nil
+}
+
+// UpdateManySignals patches several signals with the same data.
+func (c *Client) UpdateManySignals(ids []ID, data map[string]any) error {
+	for _, id := range ids {
+		if err := c.UpdateSignal(id, data); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// GetLastScheduledPublication returns the most recent publication for a
+// platform, used to space out scheduled missions.
+func (c *Client) GetLastScheduledPublication(platform string) (*Publication, error) {
+	data, err := c.request(http.MethodGet, "/publications?where[platform][equals]="+url.QueryEscape(platform)+"&limit=1&sort=-scheduled_at&depth=0", nil, true)
+	if err != nil {
+		return nil, err
+	}
+	var out struct {
+		Docs []Publication `json:"docs"`
+	}
+	if err := json.Unmarshal(data, &out); err != nil {
+		return nil, fmt.Errorf("decode publications: %w", err)
+	}
+	if len(out.Docs) == 0 {
+		return nil, nil
+	}
+	return &out.Docs[0], nil
+}
+
+// PublicationInput is a mission to schedule (Phase A of the publisher).
+type PublicationInput struct {
+	TopicID     ID
+	Platform    string
+	Status      string
+	ScheduledAt time.Time
+}
+
+// CreatePublications creates the scheduled missions (one per signal x
+// platform) in the publications collection.
+func (c *Client) CreatePublications(rows []PublicationInput) error {
+	for _, row := range rows {
+		_, err := c.request(http.MethodPost, "/publications", map[string]any{
+			// Payload serial IDs must be sent as numbers, not strings.
+			"signal":       row.TopicID.Number(),
+			"platform":     row.Platform,
+			"status":       row.Status,
+			"scheduled_at": row.ScheduledAt.UTC().Format(time.RFC3339),
+		}, true)
+		if err != nil {
+			// Logged and skipped: one failed mission must not block the batch.
+			log.Printf("[payload] create publication %s/%s: %v", row.Platform, row.TopicID, err)
+		}
+	}
+	return nil
+}
+
+// GetDuePublications returns PENDING publications whose scheduled_at has
+// passed, with the embedded signal (depth=1), oldest first.
+func (c *Client) GetDuePublications(limit int) ([]Publication, error) {
+	now := url.QueryEscape(time.Now().UTC().Format(time.RFC3339))
+	data, err := c.request(http.MethodGet, fmt.Sprintf("/publications?where[status][equals]=PENDING&where[scheduled_at][less_than_equal]=%s&limit=%d&depth=1&sort=scheduled_at", now, limit), nil, true)
+	if err != nil {
+		return nil, err
+	}
+	var out struct {
+		Docs []Publication `json:"docs"`
+	}
+	if err := json.Unmarshal(data, &out); err != nil {
+		return nil, fmt.Errorf("decode publications: %w", err)
+	}
+	return out.Docs, nil
+}
+
+// UpdatePublication patches a publication, mapping the camelCase fields the
+// nodes use to the collection snake_case columns.
+func (c *Client) UpdatePublication(id ID, data map[string]any) error {
+	out := make(map[string]any, len(data))
+	for k, v := range data {
+		switch k {
+		case "scheduledAt":
+			if t, ok := v.(time.Time); ok {
+				out["scheduled_at"] = t.UTC().Format(time.RFC3339)
+			}
+		case "publishedAt":
+			if t, ok := v.(time.Time); ok {
+				out["published_at"] = t.UTC().Format(time.RFC3339)
+			}
+		default:
+			out[k] = v
+		}
+	}
+	_, err := c.request(http.MethodPatch, "/publications/"+url.PathEscape(string(id)), out, true)
+	return err
+}
+
+// CountPendingPublications counts the PENDING missions left for a signal.
+func (c *Client) CountPendingPublications(topicID ID) (int, error) {
+	data, err := c.request(http.MethodGet, "/publications?where[signal][equals]="+url.PathEscape(string(topicID))+"&where[status][equals]=PENDING&limit=1", nil, true)
+	if err != nil {
+		return 0, err
+	}
+	var out struct {
+		TotalDocs int `json:"totalDocs"`
+	}
+	if err := json.Unmarshal(data, &out); err != nil {
+		return 0, fmt.Errorf("decode publications count: %w", err)
+	}
+	return out.TotalDocs, nil
+}
+
+// ============================================================
+// TAGS & RÉVÉLATIONS (injection site public)
+// ============================================================
+
+// FindTag returns the id of the tag with the given name, or "" if absent.
+func (c *Client) FindTag(name string) (ID, error) {
+	data, err := c.request(http.MethodGet, "/tags?where[name][equals]="+url.QueryEscape(name)+"&limit=1&depth=0", nil, true)
+	if err != nil {
+		return "", err
+	}
+	var out struct {
+		Docs []struct {
+			ID ID `json:"id"`
+		} `json:"docs"`
+	}
+	if err := json.Unmarshal(data, &out); err != nil {
+		return "", fmt.Errorf("decode tags: %w", err)
+	}
+	if len(out.Docs) == 0 {
+		return "", nil
+	}
+	return out.Docs[0].ID, nil
+}
+
+// CreateTag creates a tag (name; the slug is generated by Payload's
+// ensureTagSlug hook) and returns its id.
+func (c *Client) CreateTag(name string) (ID, error) {
+	data, err := c.request(http.MethodPost, "/tags", map[string]string{"name": name}, true)
+	if err != nil {
+		return "", err
+	}
+	var out struct {
+		Doc struct {
+			ID ID `json:"id"`
+		} `json:"doc"`
+	}
+	if err := json.Unmarshal(data, &out); err != nil {
+		return "", fmt.Errorf("decode tag: %w", err)
+	}
+	return out.Doc.ID, nil
+}
+
+// CreateRevelation posts an investigation article to the revelations
+// collection, which feeds the public site.
+func (c *Client) CreateRevelation(data map[string]any) error {
+	_, err := c.request(http.MethodPost, "/revelations", data, true)
+	return err
+}
+
+func relationshipID(raw json.RawMessage) (string, bool) {
+	if len(raw) == 0 {
+		return "", false
+	}
+	var s string
+	if err := json.Unmarshal(raw, &s); err == nil {
+		return s, true
+	}
+	var obj struct {
+		ID ID `json:"id"`
+	}
+	if err := json.Unmarshal(raw, &obj); err == nil && obj.ID != "" {
+		return string(obj.ID), true
+	}
+	return "", false
 }
 
 func firstEnv(keys ...string) string {

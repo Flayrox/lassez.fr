@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { getPayloadClient } from '@/lib/payload';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,11 +15,11 @@ export async function GET() {
         daemon: { status: 'loading', message: 'Checking...' }
     };
 
-    // 1. DATABASE CHECK (Prisma)
+    // 1. DATABASE CHECK (Payload / Postgres)
     try {
-        await prisma.$queryRaw`SELECT 1`;
-        const topicCount = await prisma.newsTopic.count();
-        healthStatus.database = { status: 'ok', message: `Connecté (${topicCount} topics)` };
+        const payload = await getPayloadClient();
+        const result = await payload.find({ collection: 'signals', limit: 1, depth: 0 });
+        healthStatus.database = { status: 'ok', message: `Connecté (${result.totalDocs} signals)` };
     } catch (e: any) {
         healthStatus.database = { status: 'error', message: `Erreur DB: ${e.message}` };
     }
@@ -91,21 +91,22 @@ export async function GET() {
         healthStatus.twitter = { status: 'error', message: e.message };
     }
 
-    // 8. DAEMON PULSE
+    // 8. DAEMON PULSE (dernier log Payload)
     try {
-        const settings = await prisma.globalSettings.findFirst();
-        if (settings) {
-            const lastPulse = new Date(settings.updatedAt).getTime();
+        const payload = await getPayloadClient();
+        const latestLog = await payload.find({ collection: 'logs', limit: 1, depth: 0, sort: '-timestamp' });
+        const lastLog = latestLog.docs?.[0];
+        if (lastLog) {
+            const lastPulse = new Date(lastLog.timestamp).getTime();
             const now = Date.now();
             const diffMin = Math.round((now - lastPulse) / 60000);
-            
-            if (diffMin > (settings.scrapingInterval || 60) * 2) {
+            if (diffMin > 120) {
                 healthStatus.daemon = { status: 'error', message: `Inactif (${diffMin} min)` };
             } else {
                 healthStatus.daemon = { status: 'ok', message: 'Actif' };
             }
         } else {
-             healthStatus.daemon = { status: 'warning', message: 'Config manquante' };
+            healthStatus.daemon = { status: 'warning', message: 'Aucun log récent' };
         }
     } catch (e: any) {
         healthStatus.daemon = { status: 'error', message: e.message };

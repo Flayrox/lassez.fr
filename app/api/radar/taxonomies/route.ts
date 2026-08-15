@@ -1,13 +1,17 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { getPayloadClient } from '@/lib/payload';
 
 // GET: List all taxonomy templates
 export async function GET() {
     try {
-        const taxonomies = await prisma.taxonomyTemplate.findMany({
-            orderBy: { sortOrder: 'asc' },
+        const payload = await getPayloadClient();
+        const result = await payload.find({
+            collection: 'taxonomy-templates',
+            limit: 500,
+            depth: 0,
+            sort: 'sort_order',
         });
-        return NextResponse.json({ success: true, taxonomies });
+        return NextResponse.json({ success: true, taxonomies: result.docs });
     } catch (error: any) {
         return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     }
@@ -23,24 +27,26 @@ export async function POST(req: Request) {
             return NextResponse.json({ success: false, error: 'name and displayName are required' }, { status: 400 });
         }
 
-        const taxonomy = await prisma.taxonomyTemplate.create({
+        const payload = await getPayloadClient();
+        const taxonomy = await payload.create({
+            collection: 'taxonomy-templates',
             data: {
                 name: name.toUpperCase(),
-                displayName,
+                display_name: displayName,
                 description: description || '',
-                formatInstructions: formatInstructions || '',
-                examplesJson: examplesJson || '[]',
-                outputSchemaJson: outputSchemaJson || '{}',
-                accentColor: accentColor || '#000000',
-                isFactory: false,
+                format_instructions: formatInstructions || '',
+                examples_json: typeof examplesJson === 'string' ? JSON.parse(examplesJson || '[]') : (examplesJson || []),
+                output_schema_json: typeof outputSchemaJson === 'string' ? JSON.parse(outputSchemaJson || '{}') : (outputSchemaJson || {}),
+                accent_color: accentColor || '#000000',
+                is_factory: false,
                 active: true,
-                sortOrder: 99,
+                sort_order: 99,
             },
         });
 
         return NextResponse.json({ success: true, taxonomy });
     } catch (error: any) {
-        if (error.code === 'P2002') {
+        if (String(error?.message || '').includes('unique') || String(error?.message || '').includes('duplicate')) {
             return NextResponse.json({ success: false, error: `Taxonomy already exists.` }, { status: 409 });
         }
         return NextResponse.json({ success: false, error: error.message }, { status: 500 });
@@ -57,10 +63,27 @@ export async function PATCH(req: Request) {
             return NextResponse.json({ success: false, error: 'id is required' }, { status: 400 });
         }
 
-        const taxonomy = await prisma.taxonomyTemplate.update({
-            where: { id },
-            data: updates,
-        });
+        // Mapping snake_case Payload
+        const data: any = {};
+        const map: Record<string, string> = {
+            displayName: 'display_name',
+            description: 'description',
+            formatInstructions: 'format_instructions',
+            accentColor: 'accent_color',
+            active: 'active',
+            sortOrder: 'sort_order',
+        };
+        for (const [k, v] of Object.entries(updates)) {
+            const target = map[k] || k;
+            if (k === 'examplesJson' || k === 'outputSchemaJson') {
+                data[target] = typeof v === 'string' ? JSON.parse(v) : v;
+            } else {
+                data[target] = v;
+            }
+        }
+
+        const payload = await getPayloadClient();
+        const taxonomy = await payload.update({ collection: 'taxonomy-templates', id, data });
 
         return NextResponse.json({ success: true, taxonomy });
     } catch (error: any) {
@@ -78,15 +101,16 @@ export async function DELETE(req: Request) {
             return NextResponse.json({ success: false, error: 'id query param is required' }, { status: 400 });
         }
 
-        const taxonomy = await prisma.taxonomyTemplate.findUnique({ where: { id } });
+        const payload = await getPayloadClient();
+        const taxonomy = await payload.findByID({ collection: 'taxonomy-templates', id, depth: 0 }).catch(() => null);
         if (!taxonomy) {
             return NextResponse.json({ success: false, error: 'Taxonomy not found' }, { status: 404 });
         }
-        if (taxonomy.isFactory) {
+        if (taxonomy.is_factory) {
             return NextResponse.json({ success: false, error: 'Cannot delete factory taxonomies. Disable them instead.' }, { status: 403 });
         }
 
-        await prisma.taxonomyTemplate.delete({ where: { id } });
+        await payload.delete({ collection: 'taxonomy-templates', id });
         return NextResponse.json({ success: true });
     } catch (error: any) {
         return NextResponse.json({ success: false, error: error.message }, { status: 500 });

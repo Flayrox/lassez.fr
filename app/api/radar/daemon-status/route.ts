@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { getPayloadClient } from '@/lib/payload';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic';
 const getDelayToNextScan = (settings: any) => {
     const fallbackMs = (settings?.scrapingInterval ?? 60) * 60 * 1000;
     const mode = settings?.schedulingMode || 'hybrid';
-    
+
     if (mode === 'pulse') return fallbackMs;
 
     const hasNoSchedule = (!settings?.daemonSchedule || settings.daemonSchedule.trim() === '[]' || settings.daemonSchedule.trim() === '{}');
@@ -62,54 +62,51 @@ const getDelayToNextScan = (settings: any) => {
 
 /**
  * Route GET /api/radar/daemon-status
- * 
- * Interroge l'état de santé du démon d'automatisation Radar, compte les articles
- * par statut ('PENDING', 'PUBLISHED', 'QUEUED', etc.), et renvoie la date du prochain scan.
+ *
+ * Interroge l'état de santé du démon, compte les signals par statut et les
+ * publications, et renvoie la date du prochain scan. Source de vérité : Payload.
  */
 export async function GET() {
     try {
-        // 1. Récupération des paramètres globaux de configuration Radar
-        const settings = await prisma.globalSettings.findFirst();
+        const payload = await getPayloadClient();
+
+        // 1. Réglages globaux
+        const settings = await payload.findGlobal({ slug: 'radar-settings' }).catch(() => null);
         if (!settings) {
             return NextResponse.json({ success: false, error: 'Settings not found' }, { status: 404 });
         }
 
-        // 2. Décompte des articles (Topics) par statut dans la base
-        const topics = await prisma.newsTopic.findMany({
-            select: { status: true }
-        });
-        
+        // 2. Compteurs par statut
         const postCounts: Record<string, number> = {};
-        topics.forEach(t => {
-            const s = t.status || 'unknown';
-            postCounts[s] = (postCounts[s] || 0) + 1;
-        });
+        const statuses = ['INGESTED', 'RESEARCHED', 'DRAFTED', 'VALIDATED', 'PENDING', 'QUEUED', 'PUBLISHED', 'REJECTED', 'REJECTED_ERROR', 'FAILED'];
+        for (const status of statuses) {
+            const { totalDocs } = await payload.count({
+                collection: 'signals',
+                where: { status: { equals: status } },
+            });
+            postCounts[status] = totalDocs;
+        }
 
-        // 3. Décompte des tâches de publication (Publications)
-        const publications = await prisma.publication.findMany({
-            select: { status: true }
-        });
-        
+        // 3. Compteurs de publications
         const jobCounts: Record<string, number> = {};
-        publications.forEach(p => {
-            const s = p.status || 'unknown';
-            jobCounts[s] = (jobCounts[s] || 0) + 1;
-        });
+        for (const status of ['PENDING', 'PUBLISHED', 'FAILED']) {
+            const { totalDocs } = await payload.count({
+                collection: 'publications',
+                where: { status: { equals: status } },
+            });
+            jobCounts[status] = totalDocs;
+        }
 
-        // 4. Évaluation de l'état de santé du démon Radar
+        // 4. Santé du démon
         const intervalMs = (settings.scrapingInterval || 60) * 60 * 1000;
-        const lastUpdate = new Date(settings.updatedAt).getTime();
         const now = Date.now();
-        
         let daemonStatus = 'Stable';
         let healthColor = 'ok';
 
-        const recentLog = await prisma.log.findFirst({
-            where: { timestamp: { gte: new Date(now - intervalMs * 3) } },
-            orderBy: { timestamp: 'desc' }
-        });
+        const latestLog = await payload.find({ collection: 'logs', limit: 1, depth: 0, sort: '-timestamp' });
+        const recentLog = latestLog.docs?.[0] || null;
 
-        if (!recentLog && now > lastUpdate + (intervalMs * 3)) {
+        if (!recentLog && now > Date.parse(settings.updatedAt || 0) + intervalMs * 3) {
             daemonStatus = 'Inactif / Retard';
             healthColor = 'late';
         } else if (!settings.enableAutoPublish) {

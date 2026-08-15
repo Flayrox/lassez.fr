@@ -1,29 +1,25 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { getPayloadClient } from '@/lib/payload';
 import { logger } from '@/radar_lassez/lib/logger';
 
 export const dynamic = 'force-dynamic';
 
-/**
- * GET /api/radar/sources
- * Récupère la liste de toutes les sources d'intelligence.
- */
 export async function GET() {
     try {
-        const sources = await prisma.source.findMany({
-            orderBy: { createdAt: 'desc' }
+        const payload = await getPayloadClient();
+        const result = await payload.find({
+            collection: 'sources',
+            limit: 500,
+            depth: 0,
+            sort: '-createdAt',
         });
-        return NextResponse.json({ success: true, sources });
+        return NextResponse.json({ success: true, sources: result.docs });
     } catch (error: any) {
         console.error("Erreur API Radar Sources (GET):", error);
         return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     }
 }
 
-/**
- * POST /api/radar/sources
- * Crée une nouvelle source d'acquisition.
- */
 export async function POST(request: Request) {
     try {
         const body = await request.json();
@@ -33,16 +29,18 @@ export async function POST(request: Request) {
             return NextResponse.json({ success: false, error: 'Champs requis manquants' }, { status: 400 });
         }
 
-        const source = await prisma.source.create({
+        const payload = await getPayloadClient();
+        const source = await payload.create({
+            collection: 'sources',
             data: {
                 url,
                 type,
                 source_name,
                 source_bias: source_bias || 'Centre',
-                trust_score: parseInt(trust_score as any) || 5,
-                allowSourceImages: allowSourceImages !== undefined ? !!allowSourceImages : true,
-                active: true
-            }
+                trust_score: parseInt(trust_score) || 5,
+                allow_source_images: allowSourceImages !== undefined ? !!allowSourceImages : true,
+                active: true,
+            },
         });
 
         logger.success("Admin", `Nouvelle source ajoutée : ${source_name} (${type})`);
@@ -53,10 +51,6 @@ export async function POST(request: Request) {
     }
 }
 
-/**
- * PATCH /api/radar/sources
- * Met à jour une source existante (y compris le toggle active).
- */
 export async function PATCH(request: Request) {
     try {
         const body = await request.json();
@@ -64,23 +58,22 @@ export async function PATCH(request: Request) {
 
         if (!id) return NextResponse.json({ success: false, error: 'ID requis' }, { status: 400 });
 
-        // On prépare les données proprement
-        const dataToUpdate: any = { ...updates };
-        if (updates.trust_score !== undefined) dataToUpdate.trust_score = parseInt(updates.trust_score as any);
-        if (updates.allowSourceImages !== undefined) dataToUpdate.allowSourceImages = !!updates.allowSourceImages;
-        if (updates.active !== undefined) dataToUpdate.active = !!updates.active;
-        
-        const source = await (prisma.source as any).update({
-            where: { id },
-            data: dataToUpdate
-        });
-
-        if (updates.active !== undefined) {
-            logger.info("Admin", `Source ${source.source_name} ${updates.active ? 'activée' : 'désactivée'}`);
-        } else {
-            logger.success("Admin", `Source ${source.source_name} mise à jour.`);
+        const dataToUpdate: any = {};
+        // Mapping snake_case Payload
+        for (const [k, v] of Object.entries(updates)) {
+            if (k === 'trust_score') dataToUpdate.trust_score = parseInt(v as any);
+            else if (k === 'allowSourceImages') dataToUpdate.allow_source_images = !!v;
+            else if (k === 'active') dataToUpdate.active = !!v;
+            else if (k === 'source_name') dataToUpdate.source_name = v;
+            else if (k === 'source_bias') dataToUpdate.source_bias = v;
+            else if (k === 'type') dataToUpdate.type = v;
+            else dataToUpdate[k] = v;
         }
 
+        const payload = await getPayloadClient();
+        const source = await payload.update({ collection: 'sources', id, data: dataToUpdate });
+
+        logger.success("Admin", `Source mise à jour (${source.source_name || id}).`);
         return NextResponse.json({ success: true, source });
     } catch (error: any) {
         logger.error("Admin", `Erreur mise à jour source : ${error.message}`);
@@ -88,9 +81,6 @@ export async function PATCH(request: Request) {
     }
 }
 
-/**
- * DELETE /api/radar/sources
- */
 export async function DELETE(request: Request) {
     try {
         const { searchParams } = new URL(request.url);
@@ -98,7 +88,8 @@ export async function DELETE(request: Request) {
 
         if (!id) return NextResponse.json({ success: false, error: 'ID requis' }, { status: 400 });
 
-        await prisma.source.delete({ where: { id } });
+        const payload = await getPayloadClient();
+        await payload.delete({ collection: 'sources', id });
 
         return NextResponse.json({ success: true, message: 'Source supprimée' });
     } catch (error: any) {

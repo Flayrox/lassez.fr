@@ -1,15 +1,14 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { getPayloadClient } from '@/lib/payload';
 import { logger } from '@/radar_lassez/lib/logger';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
     try {
-        const settings = await prisma.globalSettings.findFirst();
+        const payload = await getPayloadClient();
+        const settings = await payload.findGlobal({ slug: 'radar-settings' }).catch(() => null);
         if (!settings) return NextResponse.json({ success: true, settings: {} });
-        
-        // On renvoie l'objet brut de Prisma, c'est le plus cohérent
         return NextResponse.json({ success: true, settings });
     } catch (error: any) {
         console.error("Erreur API Radar Settings (GET):", error);
@@ -20,12 +19,11 @@ export async function GET() {
 export async function PATCH(request: Request) {
     try {
         const body = await request.json();
-        
         const updateData: any = {};
-        
+
         // 1. Toggles (Booleans)
         const boolFields = [
-            'enableAutoPublish', 'enableX', 'enableMastodon', 
+            'enableAutoPublish', 'enableX', 'enableMastodon',
             'enableBluesky', 'enableDiscord', 'enablePayloadCMS',
             'allowSourceImages'
         ];
@@ -40,19 +38,17 @@ export async function PATCH(request: Request) {
         if (body.maxConcurrentTasks !== undefined) updateData.maxConcurrentTasks = parseInt(body.maxConcurrentTasks);
         if (body.dedupLookbackHours !== undefined) updateData.dedupLookbackHours = parseInt(body.dedupLookbackHours);
         if (body.similarityThreshold !== undefined) updateData.similarityThreshold = parseFloat(body.similarityThreshold);
-        
+
         // 3. Strings
         const stringFields = [
             'discordPublishMode', 'xPublishMode', 'blueskyPublishMode', 'mastodonPublishMode', 'payloadPublishMode',
-            'aiModelFlash', 'aiModelPro', 'customPromptModifier', 
+            'aiModelFlash', 'aiModelPro', 'customPromptModifier',
             'daemonSchedule', 'pipelineGraphJson', 'keywords', 'bannedKeywords',
             'rss_feeds', 'telegram_channels', 'google_news_queries', 'social_targets_by_type_json',
             'availableModelsJson',
-            // API Keys & Webhooks
             'discordWebhookUrl', 'xApiKey', 'xApiSecret', 'xAccessToken', 'xAccessSecret',
             'mastodonInstanceUrl', 'mastodonAccessToken', 'blueskyIdentifier', 'blueskyAppPassword',
             'payloadServerUrl', 'payloadBotEmail', 'payloadBotPassword',
-            // Prompt Engineering Blocks
             'baseIdentityPrompt', 'researchMissionPrompt', 'vocabularyRulesPrompt',
             'imageRulesPrompt', 'researcherSystemPrompt', 'researcherRejectCriteria',
             'schedulingMode'
@@ -63,15 +59,10 @@ export async function PATCH(request: Request) {
             }
         });
 
-        // Utilisation de upsert pour garantir l'existence de l'ID 1
-        await prisma.globalSettings.upsert({
-            where: { id: 1 },
-            update: updateData,
-            create: { id: 1, ...updateData }
-        });
+        const payload = await getPayloadClient();
+        await payload.updateGlobal({ slug: 'radar-settings', data: updateData });
 
-        logger.info('System', 'Settings updated via UI');
-
+        logger.info('System', 'Settings updated via UI (Payload)');
         return NextResponse.json({ success: true, message: 'Paramètres mis à jour' });
     } catch (error: any) {
         console.error("Erreur API Radar Settings (PATCH):", error);

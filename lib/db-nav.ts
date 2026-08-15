@@ -2,8 +2,6 @@ import { NavItem } from '@/types';
 import { getSettings } from './get-settings';
 import { Category } from '@/payload-types';
 import { getPayloadClient } from './payload';
-import Database from 'better-sqlite3';
-import path from 'path';
 
 /**
  * Fetch navigation items.

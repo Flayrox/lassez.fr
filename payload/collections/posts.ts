@@ -99,7 +99,13 @@ export const posts = {
             const previewId = String(doc?.id || '').trim();
             if (!slug) return 'https://lassez.fr';
 
-            return `https://lassez.fr/api/preview?path=/preview/article/${slug}&preview_id=${previewId}`;
+            // URL signée : le token permet au front de lire le brouillon (draft) même non publié.
+            return buildSignedPreviewUrl({
+                origin: 'https://lassez.fr',
+                path: `/preview/article/${slug}`,
+                previewId,
+                slug,
+            });
         },
         livePreview: {
             url: ({ data }: any) => {

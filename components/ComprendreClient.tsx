@@ -45,13 +45,20 @@ const ComprendreClient: React.FC = () => {
 
     const educationCategory = categories?.find(c => c.slug === 'comprendre' || c.name === 'Comprendre');
 
+    // Payload renvoie les catégories en objets (depth >= 1) ou en IDs bruts (depth 0).
+    // On normalise en IDs pour comparer correctement.
+    const toCategoryIds = (post: any): (string | number)[] =>
+        Array.isArray(post?.categories)
+            ? post.categories.map((c: any) => (typeof c === 'object' && c !== null ? c.id : c))
+            : [];
+
     const educationPosts = posts?.filter(post =>
-        educationCategory ? post.categories.includes(educationCategory.id) : true
+        educationCategory ? toCategoryIds(post).includes(educationCategory.id) : true
     ) || [];
 
     const activePosts = filter === 'all'
         ? educationPosts
-        : educationPosts.filter(p => p.categories.includes(parseInt(filter)));
+        : educationPosts.filter(p => toCategoryIds(p).includes(Number(filter)));
 
     const usedCategories = Array.from(new Set(educationPosts.flatMap(p => p.categories)))
         .map(id => categories?.find(c => c.id === id))

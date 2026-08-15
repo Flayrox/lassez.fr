@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { AlertTriangleIcon, LoaderIcon, ChevronUpIcon } from './icons';
 import { format, parseISO, isValid } from 'date-fns';
@@ -231,7 +231,6 @@ const RevelationsClient: React.FC = () => {
     const [error, setError]          = useState(false);
     const [expanded, setExpanded]    = useState<(string | number)[]>([]);
     const [allTags, setAllTags]      = useState<Tag[]>([]);
-    const prevKey                    = useRef('');
 
     // Tags depuis l'API
     useEffect(() => {
@@ -241,17 +240,20 @@ const RevelationsClient: React.FC = () => {
             .catch(() => setAllTags([]));
     }, []);
 
+    // Changement de filtre : on remet la page à 1 et on vide la liste.
+    // L'effet de données ci-dessous refait un fetch unique (pas de double requête).
+    useEffect(() => {
+        setRevs([]);
+        setPage(1);
+    }, [geoFilter, activeTag]);
+
     // Données révélations
     useEffect(() => {
-        const key = `${geoFilter}|${activeTag}|${page}`;
-        const filtersChanged = prevKey.current.split('|').slice(0, 2).join('|') !== [geoFilter, activeTag].join('|');
-        if (filtersChanged) { setRevs([]); setPage(1); prevKey.current = key; }
-
         let cancelled = false;
         setLoading(true);
         setError(false);
 
-        const params = new URLSearchParams({ per_page: '15', page: String(filtersChanged ? 1 : page) });
+        const params = new URLSearchParams({ per_page: '15', page: String(page) });
         if (geoFilter !== 'all') params.set('zone_geo', geoFilter);
         if (activeTag)           params.set('tag', activeTag);
 
@@ -259,8 +261,7 @@ const RevelationsClient: React.FC = () => {
             .then(r => r.json())
             .then((data: PayloadResult) => {
                 if (cancelled) return;
-                const p = filtersChanged ? 1 : page;
-                setRevs(prev => p === 1 ? data.docs : [...prev, ...data.docs]);
+                setRevs(prev => page === 1 ? data.docs : [...prev, ...data.docs]);
                 setTotalDocs(data.totalDocs);
                 setHasMore(data.hasNextPage);
                 setLoading(false);

@@ -6,8 +6,7 @@ import { MicIcon, Volume2Icon } from './icons';
 const podcasts = [
     { id: 'tape_01', title: 'INFILTRATION : LE RÉSEAU', date: '24.10.2023', duration: '42:10', src: 'https://open.spotify.com/embed/episode/7makk4oTQel546B0PZlDM5' },
     { id: 'tape_02', title: 'L\'ARGENT DE LA PEUR', date: '12.10.2023', duration: '35:05', src: 'https://open.spotify.com/embed/episode/6uLfA02tA14roisG5wLAZG' },
-    { id: 'tape_03', title: 'CONFESSIONS D\'UN LOBBYISTE', date: '05.09.2023', duration: '58:22', src: 'https://open.spotify.com/embed/episode/2Y8g35g5d5j3oZ0Y2Z2M3D' },
-    { id: 'tape_04', title: 'ARCHIVE PERDUE #99', date: 'UNKNOWN', duration: '12:00', src: 'https://open.spotify.com/embed/episode/4J4z4z4z4z4z4z4z4z4z4z' }
+    { id: 'tape_03', title: 'CONFESSIONS D\'UN LOBBYISTE', date: '05.09.2023', duration: '58:22', src: 'https://open.spotify.com/embed/episode/2Y8g35g5d5j3oZ0Y2Z2M3D' }
 ];
 
 const PodcastPlayer: React.FC<{ tape: typeof podcasts[0] }> = ({ tape }) => {

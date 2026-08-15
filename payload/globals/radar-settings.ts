@@ -66,6 +66,13 @@ export const radarSettings: GlobalConfig = {
                             ],
                         },
                         { name: 'payloadPublishMode', type: 'select', defaultValue: 'DIRECT', options: PUBLISH_MODES, label: 'Mode Payload CMS' },
+                        {
+                            type: 'row',
+                            fields: [
+                                { name: 'discordEmbedColor', type: 'text', defaultValue: '#DC2626', label: 'Couleur embed Discord (hex)', admin: { width: '50%' } },
+                                { name: 'discordFooterText', type: 'text', defaultValue: 'Radar L\'Assez • Investigation', label: 'Footer embed Discord', admin: { width: '50%' } },
+                            ],
+                        },
                     ],
                 },
                 {

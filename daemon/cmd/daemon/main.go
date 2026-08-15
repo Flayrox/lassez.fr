@@ -56,6 +56,10 @@ func main() {
 	if err := nodes.RunMedia(client, resolver); err != nil {
 		log.Printf("[Daemon] ❌ Erreur media : %v", err)
 	}
+
+	if err := nodes.RunPublisher(client, resolver); err != nil {
+		log.Printf("[Daemon] ❌ Erreur publisher : %v", err)
+	}
 }
 
 // loadEnv mirrors radar_lassez/lib/env.ts: the repo-root .env first, then

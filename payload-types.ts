@@ -1306,6 +1306,8 @@ export interface RadarSetting {
   blueskyPublishMode?: ('DIRECT' | 'SCHEDULED') | null;
   mastodonPublishMode?: ('DIRECT' | 'SCHEDULED') | null;
   payloadPublishMode?: ('DIRECT' | 'SCHEDULED') | null;
+  discordEmbedColor?: string | null;
+  discordFooterText?: string | null;
   schedulingMode?: ('pulse' | 'calendar' | 'hybrid') | null;
   scrapingInterval?: number | null;
   minPublishDelay?: number | null;
@@ -1480,6 +1482,8 @@ export interface RadarSettingsSelect<T extends boolean = true> {
   blueskyPublishMode?: T;
   mastodonPublishMode?: T;
   payloadPublishMode?: T;
+  discordEmbedColor?: T;
+  discordFooterText?: T;
   schedulingMode?: T;
   scrapingInterval?: T;
   minPublishDelay?: T;

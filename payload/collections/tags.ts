@@ -19,6 +19,7 @@ export const tags = {
         delete: isEditor,
     },
     admin: {
+        group: 'Contenu',
         useAsTitle: 'name',
         description: 'Étiquettes utilisées dans les dossiers et le flux éditorial.',
     },

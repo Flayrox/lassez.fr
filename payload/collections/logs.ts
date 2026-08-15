@@ -18,6 +18,7 @@ export const logs: CollectionConfig = {
         delete: isAdmin,
     },
     admin: {
+        group: 'Radar',
         useAsTitle: 'message',
         defaultColumns: ['level', 'node_id', 'message', 'timestamp'],
         description: 'Journal d’exécution du daemon Radar.',

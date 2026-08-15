@@ -15,6 +15,7 @@ export const lessons: CollectionConfig = {
         delete: isAdminOrEditorOrOwner,
     },
     admin: {
+        group: 'Contenu',
         useAsTitle: 'title',
         defaultColumns: ['title', 'chapitre', 'numero_lecon', 'niveau_difficulte', 'status'],
         description: 'Silo Comprendre : Collection 100% didactique.',

@@ -64,6 +64,7 @@ export const radarSettings: GlobalConfig = {
         update: isAdmin,
     },
     admin: {
+        group: 'Radar',
         description: 'Configuration globale du pipeline Radar (sources, IA, diffusion, planification).',
     },
     fields: [

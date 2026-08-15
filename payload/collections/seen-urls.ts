@@ -18,6 +18,7 @@ export const seenUrls: CollectionConfig = {
         delete: isAdmin,
     },
     admin: {
+        group: 'Radar',
         useAsTitle: 'url',
         defaultColumns: ['url', 'createdAt'],
         description: 'Mémoire des URL déjà ingérées (dédoublonnage absolu).',

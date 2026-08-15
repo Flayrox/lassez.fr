@@ -91,6 +91,7 @@ export const posts = {
         delete: isAdminOrEditorOrOwner,
     },
     admin: {
+        group: 'Contenu',
         useAsTitle: 'title',
         defaultColumns: ['title', 'slug', '_status', 'publishedAt'],
         description: 'Dossier éditorial avec preview, SEO et taxonomies.',

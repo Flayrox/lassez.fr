@@ -12,6 +12,9 @@ export const media = {
     upload: {
         staticDir: 'media',
     },
+    admin: {
+        group: 'Média & Comptes',
+    },
     fields: [
         { name: 'alt', type: 'text' },
         { name: 'caption', type: 'textarea' },

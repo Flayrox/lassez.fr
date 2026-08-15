@@ -1,33 +1,23 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { getPayloadClient } from '@/lib/payload';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-const ALLOWED_STATUSES = ['INGESTED', 'RESEARCHED', 'DRAFTED', 'PENDING', 'QUEUED', 'PUBLISHED', 'REJECTED', 'FAILED'];
-
-/** Parse JSON de façon sécurisée : une valeur corrompue ne doit jamais faire crasher la liste. */
-function safeJson<T>(raw: string | null | undefined, fallback: T): T {
-    if (!raw) return fallback;
-    try {
-        return JSON.parse(raw) as T;
-    } catch {
-        return fallback;
-    }
-}
+const ALLOWED_STATUSES = ['INGESTED', 'RESEARCHED', 'DRAFTED', 'VALIDATED', 'PENDING', 'QUEUED', 'PUBLISHED', 'REJECTED', 'REJECTED_ERROR', 'FAILED'];
 
 /**
- * Route GET /api/radar
- * 
- * Endpoint principal de récupération des articles du Studio Radar pour l'interface de contrôle.
- * Mappe les onglets UI ('LAB', 'REVIEW', 'QUEUE', 'DONE', 'TRASH') vers les statuts réels
- * de la table Prisma `newsTopic` et renvoie la liste filtrée avec les tags et dates.
+ * Route /api/radar
+ *
+ * Endpoint principal de récupération des signals du Studio Radar pour l'interface
+ * de contrôle. Mappe les onglets UI ('LAB', 'REVIEW', 'QUEUE', 'DONE', 'TRASH')
+ * vers les statuts réels de la collection Payload `signals`.
  */
 export async function GET(request: Request) {
     try {
         const { searchParams } = new URL(request.url);
         const statusParam = searchParams.get('status') || 'PENDING';
-        const geo = searchParams.get('geo'); 
+        const geo = searchParams.get('geo');
         const tag = searchParams.get('tag');
 
         // Correspondance entre les onglets de l'interface Studio et les statuts de la base
@@ -44,92 +34,72 @@ export async function GET(request: Request) {
             statuses = ['REJECTED', 'FAILED'];
         }
 
-        const where: any = { 
-            status: { in: statuses } 
+        const where: any = {
+            status: { in: statuses },
         };
 
         if (geo && geo !== 'all') {
-            where.geo = geo.toLowerCase();
-        }
-        if (tag) {
-            where.tags = {
-                contains: tag
-            };
+            where.geo = { equals: geo.toLowerCase() };
         }
 
-        const topics = await prisma.newsTopic.findMany({
+        const payload = await getPayloadClient();
+        const result = await payload.find({
+            collection: 'signals',
             where,
-            include: {
-                publications: {
-                    select: { scheduledAt: true },
-                    orderBy: { scheduledAt: 'asc' },
-                    take: 1
-                }
-            },
-            orderBy: { createdAt: 'desc' },
-            take: 100
+            limit: 100,
+            depth: 1,
+            sort: '-createdAt',
         });
 
-        // Conversion des objets Prisma vers le format attendu par le frontend Studio
-        const posts = topics.map(topic => {
-            // Parsing sécurisé : une raw_data/final_draft corrompue ne doit pas casser toute la liste
-            const draftData: any = safeJson(topic.final_draft, {});
-            const rawData: any = safeJson(topic.raw_data, {});
+        // Conversion des docs Payload vers le format attendu par le frontend Studio
+        const posts = result.docs.map((topic: any) => {
+            const rawData = topic.raw_data || {};
+            const draftData = topic.final_draft || {};
 
             let tagsArray: string[] = [];
             if (Array.isArray(topic.tags)) {
-                tagsArray = topic.tags;
-            } else {
-                try {
-                    const parsed = topic.tags ? JSON.parse(topic.tags) : [];
-                    tagsArray = Array.isArray(parsed) ? parsed : [];
-                } catch (e) {
-                    tagsArray = topic.tags ? topic.tags.split(',') : [];
-                }
+                tagsArray = topic.tags.map(String);
+            } else if (typeof topic.tags === 'string') {
+                try { tagsArray = JSON.parse(topic.tags); } catch { tagsArray = topic.tags.split(','); }
             }
 
-            const firstScheduled = topic.publications?.[0]?.scheduledAt;
+            const pubs = topic.publications || [];
+            const firstScheduled = pubs[0]?.scheduled_at || null;
 
             return {
                 id: topic.id,
                 source_url: rawData.source_url || '',
-                source_title: draftData.headline || rawData.clusterTitle || 'Untitled',
+                source_title: draftData.headline || rawData.clusterTitle || topic.source_title || 'Untitled',
                 flash_content: draftData.body || rawData.excerpt || '',
                 image_keyword: topic.image_url,
                 status: topic.status,
-                geo: topic.geo?.toLowerCase(),
+                geo: (topic.geo || '').toLowerCase(),
                 tags: tagsArray.join(', '),
                 type_ouverture: topic.taxonomy || 'INFO',
-                created_at: topic.createdAt.toISOString(),
-                scheduled_at: firstScheduled ? firstScheduled.toISOString() : null,
+                created_at: topic.createdAt,
+                scheduled_at: firstScheduled,
             };
         });
 
         // Calcul des tags tendances des 7 derniers jours
-        const recentTopics = await prisma.newsTopic.findMany({
+        const recent = await payload.find({
+            collection: 'signals',
             where: {
-                createdAt: {
-                    gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
-                }
+                createdAt: { greater_than: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString() },
             },
-            select: { tags: true },
-            take: 200
+            limit: 200,
+            depth: 0,
         });
 
         const tagCounts: Record<string, number> = {};
-        recentTopics.forEach(t => {
-            if (!t.tags) return;
-            let tags: string[] = [];
-            try {
-                tags = JSON.parse(t.tags);
-            } catch (e) {
-                tags = t.tags.split(',');
+        recent.docs.forEach((t: any) => {
+            let tags: string[] = Array.isArray(t.tags) ? t.tags.map(String) : [];
+            if (typeof t.tags === 'string') {
+                try { tags = JSON.parse(t.tags); } catch { tags = t.tags.split(','); }
             }
-            tags.forEach(rawTag => {
-                const clean = rawTag.trim().toLowerCase();
-                if (clean) {
-                    tagCounts[clean] = (tagCounts[clean] || 0) + 1;
-                }
+            tags.forEach((rawTag) => {
+                const clean = String(rawTag).trim().toLowerCase();
+                if (clean) tagCounts[clean] = (tagCounts[clean] || 0) + 1;
             });
         });
 
@@ -138,10 +108,7 @@ export async function GET(request: Request) {
             .slice(0, 10)
             .map(([name, count]) => ({ name, count }));
 
-        return NextResponse.json({
-            posts,
-            trendingTags
-        });
+        return NextResponse.json({ posts, trendingTags });
     } catch (error: any) {
         console.error('[Radar API Error]', error);
         return NextResponse.json(
@@ -153,17 +120,14 @@ export async function GET(request: Request) {
 
 /**
  * PATCH /api/radar
- * Met à jour le statut d'un ou plusieurs topics (actions du dashboard Studio).
- * Body accepté :
- *   - { ids: string[], status }       → action groupée (bulk)
- *   - { id, status, flash_content?, image_keyword?, source_title? } → édition ponctuelle
+ * Met à jour le statut d'un ou plusieurs signals (actions du dashboard Studio).
  */
 export async function PATCH(request: Request) {
     try {
         const body = await request.json();
         const { id, ids, status, flash_content, image_keyword, source_title } = body;
 
-        const targetIds: string[] = Array.isArray(ids)
+        const targetIds: any[] = Array.isArray(ids)
             ? ids.map(String).filter(Boolean)
             : (id ? [String(id)] : []);
 
@@ -174,33 +138,45 @@ export async function PATCH(request: Request) {
             return NextResponse.json({ success: false, error: `Statut invalide: ${status}` }, { status: 400 });
         }
 
-        const data: any = { status };
-        if (status === 'PUBLISHED') {
-            data.publishedAt = new Date();
-        }
+        const payload = await getPayloadClient();
 
-        // Édition ponctuelle : on enrichit final_draft / image_url du topic
+        // Édition ponctuelle : on enrichit final_draft / image_url / source_title
         if (targetIds.length === 1 && (flash_content !== undefined || image_keyword !== undefined || source_title !== undefined)) {
-            const topic = await prisma.newsTopic.findUnique({ where: { id: targetIds[0] } });
+            const topic = await payload.findByID({ collection: 'signals', id: targetIds[0], depth: 0 }).catch(() => null);
             if (topic) {
-                const draftData: any = safeJson(topic.final_draft, {});
-                if (source_title !== undefined) draftData.headline = String(source_title);
+                const draftData = topic.final_draft && typeof topic.final_draft === 'object' ? { ...topic.final_draft } : {};
+                const updateData: any = { status };
+                if (source_title !== undefined) updateData.source_title = String(source_title);
                 if (flash_content !== undefined) draftData.body = String(flash_content);
-                data.final_draft = JSON.stringify(draftData);
-                if (image_keyword !== undefined) data.image_url = image_keyword || null;
+                if (source_title !== undefined) draftData.headline = String(source_title);
+                updateData.final_draft = draftData;
+                if (image_keyword !== undefined) updateData.image_url = image_keyword || null;
+                if (status === 'PUBLISHED') updateData.published_at = new Date().toISOString();
+
+                await payload.update({ collection: 'signals', id: targetIds[0], data: updateData });
+                return NextResponse.json({ success: true, updated: 1 });
             }
         }
 
-        const result = await prisma.newsTopic.updateMany({
-            where: { id: { in: targetIds } },
-            data,
-        });
+        // Bulk : changement de statut simple
+        const data: any = { status };
+        if (status === 'PUBLISHED') data.published_at = new Date().toISOString();
 
-        if (result.count === 0) {
-            return NextResponse.json({ success: false, error: 'Aucun topic trouvé' }, { status: 404 });
+        let updated = 0;
+        for (const id of targetIds) {
+            try {
+                await payload.update({ collection: 'signals', id, data });
+                updated++;
+            } catch (e: any) {
+                console.error(`[Radar PATCH] échec signal ${id}:`, e.message);
+            }
         }
 
-        return NextResponse.json({ success: true, updated: result.count });
+        if (updated === 0) {
+            return NextResponse.json({ success: false, error: 'Aucun signal trouvé' }, { status: 404 });
+        }
+
+        return NextResponse.json({ success: true, updated });
     } catch (error: any) {
         console.error('[Radar API PATCH Error]', error);
         return NextResponse.json({ success: false, error: error.message }, { status: 500 });
@@ -209,8 +185,7 @@ export async function PATCH(request: Request) {
 
 /**
  * DELETE /api/radar
- * Supprime définitivement une liste de topics (et leurs publications liées).
- * Body : { ids: string[] }
+ * Supprime définitivement une liste de signals (et leurs publications liées).
  */
 export async function DELETE(request: Request) {
     try {
@@ -221,11 +196,30 @@ export async function DELETE(request: Request) {
             return NextResponse.json({ success: false, error: 'ids requis' }, { status: 400 });
         }
 
-        // Suppression des publications liées d'abord (contrainte de clé étrangère)
-        await prisma.publication.deleteMany({ where: { topicId: { in: ids } } });
-        const result = await prisma.newsTopic.deleteMany({ where: { id: { in: ids } } });
+        const payload = await getPayloadClient();
 
-        return NextResponse.json({ success: true, deleted: result.count });
+        // Supprimer les publications liées d'abord (relation signal → publications)
+        const pubs = await payload.find({
+            collection: 'publications',
+            where: { signal: { in: ids } },
+            limit: 500,
+            depth: 0,
+        });
+        for (const pub of pubs.docs) {
+            await payload.delete({ collection: 'publications', id: pub.id }).catch(() => {});
+        }
+
+        let deleted = 0;
+        for (const id of ids) {
+            try {
+                await payload.delete({ collection: 'signals', id });
+                deleted++;
+            } catch (e: any) {
+                console.error(`[Radar DELETE] échec signal ${id}:`, e.message);
+            }
+        }
+
+        return NextResponse.json({ success: true, deleted });
     } catch (error: any) {
         console.error('[Radar API DELETE Error]', error);
         return NextResponse.json({ success: false, error: error.message }, { status: 500 });

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import path from 'path';
 import fs from 'fs';
-import { prisma } from '@/lib/prisma';
+import { getPayloadClient } from '@/lib/payload';
 import { logger } from '@/radar_lassez/lib/logger';
 
 export const dynamic = 'force-dynamic';
@@ -14,21 +14,12 @@ function ensureDir(p: string) {
     try { fs.mkdirSync(p, { recursive: true }); } catch (e) { }
 }
 
-function safeJson<T>(raw: string | null | undefined, fallback: T): T {
-    if (!raw) return fallback;
-    try {
-        return JSON.parse(raw) as T;
-    } catch {
-        return fallback;
-    }
-}
-
 /**
  * Route POST /api/radar/studio-publish
  *
- * Le Studio publie un brouillon d'investigation : on met à jour le topic
- * (newsTopic — la source de vérité du Studio) avec le contenu édité et une
- * éventuelle image personnalisée (Base64 décodée), puis on bascule en PUBLISHED.
+ * Le Studio publie un brouillon d'investigation : on met à jour le signal
+ * (collection Payload — la source de vérité du Studio) avec le contenu édité
+ * et une éventuelle image personnalisée (Base64 décodée), puis bascule en PUBLISHED.
  */
 export async function POST(request: Request) {
     try {
@@ -37,8 +28,9 @@ export async function POST(request: Request) {
 
         if (!id) return NextResponse.json({ success: false, error: 'Identifiant d\'article requis' }, { status: 400 });
 
-        const topic = await prisma.newsTopic.findUnique({ where: { id: String(id) } });
-        if (!topic) return NextResponse.json({ success: false, error: 'Topic introuvable' }, { status: 404 });
+        const payload = await getPayloadClient();
+        const topic = await payload.findByID({ collection: 'signals', id: String(id), depth: 0 }).catch(() => null);
+        if (!topic) return NextResponse.json({ success: false, error: 'Signal introuvable' }, { status: 404 });
 
         let imagePath: string | null = null;
         if (imageBase64 && typeof imageBase64 === 'string') {
@@ -56,21 +48,23 @@ export async function POST(request: Request) {
         }
 
         // Préserve le draft existant et fusionne les modifications éditoriales
-        const draftData: any = safeJson(topic.final_draft, {});
+        const draftData = topic.final_draft && typeof topic.final_draft === 'object' ? { ...topic.final_draft } : {};
         if (titre) draftData.headline = String(titre);
         if (content) draftData.body = String(content);
 
-        await prisma.newsTopic.update({
-            where: { id: String(id) },
+        await payload.update({
+            collection: 'signals',
+            id: String(id),
             data: {
                 status: 'PUBLISHED',
-                publishedAt: new Date(),
-                final_draft: JSON.stringify(draftData),
+                published_at: new Date().toISOString(),
+                final_draft: draftData,
+                ...(titre ? { source_title: String(titre) } : {}),
                 ...(imagePath ? { image_url: imagePath } : {}),
             },
         });
 
-        logger.success('Studio', `Topic ${id} publié manuellement depuis le Studio.`);
+        logger.success('Studio', `Signal ${id} publié manuellement depuis le Studio.`);
 
         return NextResponse.json({ success: true, message: 'Article publié', id });
     } catch (err: any) {

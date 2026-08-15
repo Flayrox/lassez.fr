@@ -1,5 +1,5 @@
 import stringSimilarity from 'string-similarity';
-import { prisma } from '../lib/prisma';
+import { payloadClient } from '../lib/payload-client';
 import { IngestedArticle } from './ingestion';
 import { getEffectiveParam } from '../lib/config-resolver';
 
@@ -12,7 +12,7 @@ export interface MergedTopic {
 
 /**
  * Nœud 2 : Deduplicator (Tamisage & Dédoublonnage Algorithmique)
- * 
+ *
  * Regroupe les articles par similarité sémantique de titre (Dice's Coefficient).
  * Compare les clusters formés avec l'historique de la base de données (48h par défaut)
  * pour ne laisser passer que les nouveaux sujets d'investigation originaux.
@@ -67,12 +67,7 @@ export async function runDeduplicatorNode(articles: IngestedArticle[]) {
     const lookbackHours = await getEffectiveParam('dedup', 'dedupLookbackHours', 48);
     const historyCutoffDate = new Date(Date.now() - (lookbackHours * 60 * 60 * 1000));
 
-    const historicalTopics = await prisma.newsTopic.findMany({
-        where: {
-            createdAt: { gte: historyCutoffDate }
-        },
-        select: { raw_data: true }
-    });
+    const historicalTopics = await payloadClient.getSignalsSince(historyCutoffDate);
 
     const historicalTitles: string[] = [];
     for (const h of historicalTopics) {
@@ -87,7 +82,7 @@ export async function runDeduplicatorNode(articles: IngestedArticle[]) {
     let savedCount = 0;
     let ignoredCount = 0;
 
-    // 3. Persistance dans la base de données (NewsTopic)
+    // 3. Persistance dans la base de données (Signals)
     const topicsToCreate = [];
 
     for (const cluster of clusters) {
@@ -121,13 +116,11 @@ export async function runDeduplicatorNode(articles: IngestedArticle[]) {
 
     if (topicsToCreate.length > 0) {
         try {
-            await prisma.newsTopic.createMany({
-                data: topicsToCreate
-            });
+            await payloadClient.createSignals(topicsToCreate);
         } catch (error) {
-            console.error(`[Node 2] ❌ Erreur lors de l'insertion DB en masse :`, error);
+            console.error(`[Node 2] ❌ Erreur lors de l'insertion Payload en masse :`, error);
         }
     }
 
-    console.log(`[Node 2: Deduplicator] ✅ Fin du tamis. ${savedCount} nouveaux NewsTopics injectés. (${ignoredCount} doublons historiques rejetés).`);
+    console.log(`[Node 2: Deduplicator] ✅ Fin du tamis. ${savedCount} nouveaux Signals injectés. (${ignoredCount} doublons historiques rejetés).`);
 }

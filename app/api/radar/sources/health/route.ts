@@ -1,14 +1,22 @@
 import { NextResponse } from 'next/server';
 import Database from 'better-sqlite3';
 import path from 'path';
+import { syncDatabase } from '@/lib/radar-schema';
 
 export const dynamic = 'force-dynamic';
+
+/** Ouvre la base et garantit la présence du schéma (tables créées à la demande). */
+function openDb() {
+    const dbPath = path.join(process.cwd(), 'radar_lassez', 'radar.db');
+    const db = new Database(dbPath);
+    syncDatabase(db);
+    return db;
+}
 
 export async function GET() {
     let db;
     try {
-        const dbPath = path.join(process.cwd(), 'radar_lassez', 'radar.db');
-        db = new Database(dbPath);
+        db = openDb();
         
         const health = db.prepare('SELECT * FROM radar_source_health ORDER BY last_check_at DESC').all();
         
@@ -31,8 +39,7 @@ export async function POST(request: Request) {
         const { url } = await request.json();
         if (!url) return NextResponse.json({ success: false, error: 'URL requise' }, { status: 400 });
 
-        const dbPath = path.join(process.cwd(), 'radar_lassez', 'radar.db');
-        db = new Database(dbPath);
+        db = openDb();
         
         db.prepare(`
             UPDATE radar_source_health 

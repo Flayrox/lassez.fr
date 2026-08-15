@@ -30,8 +30,10 @@ export async function POST(request: Request) {
         const customPrompt = promptRow?.value || '';
 
         const genAI = new GoogleGenerativeAI(apiKey);
+        // gemini-1.5-pro est retiré : on utilise le modèle de rédaction configuré par défaut
+        const proModel = process.env.AI_MODEL_PRO || 'gemini-3.1-pro-preview';
         const model = genAI.getGenerativeModel({ 
-            model: "gemini-1.5-pro", 
+            model: proModel, 
             tools: [{ googleSearchRetrieval: {} } as any],
         });
 

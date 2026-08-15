@@ -10,9 +10,16 @@ import { media } from './payload/collections/media';
 import { posts } from './payload/collections/posts';
 import { lessons } from './payload/collections/lessons';
 import { revelations } from './payload/collections/revelations';
+import { signals } from './payload/collections/signals';
+import { sources } from './payload/collections/sources';
+import { publications } from './payload/collections/publications';
+import { seenUrls } from './payload/collections/seen-urls';
+import { taxonomyTemplates } from './payload/collections/taxonomy-templates';
+import { logs } from './payload/collections/logs';
 import { settings } from './payload/globals/settings';
 import { about } from './payload/globals/about';
 import { legal } from './payload/globals/legal';
+import { radarSettings } from './payload/globals/radar-settings';
 import { seoPlugin } from '@payloadcms/plugin-seo';
 import { getApiOrigin, getPublicSiteOrigin } from './lib/host-urls';
 import { generateGeminiSeo } from './payload/hooks/seo-gemini';
@@ -106,8 +113,8 @@ export default buildConfig({
         },
         migrationDir: path.resolve(process.cwd(), 'payload/migrations'),
     }),
-    globals: [settings, about, legal],
-    collections: [categories, tags, authors, media, posts, lessons, revelations],
+    globals: [settings, about, legal, radarSettings],
+    collections: [categories, tags, authors, media, posts, lessons, revelations, signals, sources, publications, seenUrls, taxonomyTemplates, logs],
     plugins: [
         seoPlugin({
             collections: ['posts', 'lessons', 'revelations'],

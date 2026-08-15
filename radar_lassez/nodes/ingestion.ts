@@ -1,6 +1,6 @@
 import Parser from 'rss-parser';
 import pLimit from 'p-limit';
-import { prisma } from '../lib/prisma';
+import { payloadClient } from '../lib/payload-client';
 import { getEffectiveParam } from '../lib/config-resolver';
 
 // Initialisation du parser RSS avec un délai d'expiration de 10 secondes
@@ -21,20 +21,20 @@ export interface IngestedArticle {
 
 /**
  * Nœud 1 : Ingestion Multi-Sources (RSS, Google News, Telegram)
- * 
- * Aspire les nouveaux articles issus des flux configurés dans la base de données (Source table)
- * et des requêtes dynamiques de GlobalSettings sur une fenêtre temporelle paramétrable.
+ *
+ * Aspire les nouveaux articles issus des flux configurés dans Payload (collection sources)
+ * et des requêtes dynamiques de radar-settings sur une fenêtre temporelle paramétrable.
  */
 export async function runIngestionNode(timeWindowHoursOverride?: number): Promise<IngestedArticle[]> {
     const timeWindowHours = timeWindowHoursOverride ?? await getEffectiveParam('ingestion', 'rss_lookback_hours', 12);
     
     console.log(`[Node 1: Ingestion] 🌐 Démarrage de l'aspiration (Fenêtre temporelle: ${timeWindowHours}h)`);
     
-    const settings = await prisma.globalSettings.findFirst();
+    const settings = await payloadClient.getSettings();
     const sourcesToProcess: any[] = [];
 
-    // 1. Ingestion depuis la table Source (Sources permanentes granulairement paramétrées)
-    const dbSources = await prisma.source.findMany({ where: { active: true } });
+    // 1. Ingestion depuis la collection Source (Sources permanentes granulairement paramétrées)
+    const dbSources = await payloadClient.getActiveSources();
     dbSources.forEach(s => sourcesToProcess.push({
         url: s.url,
         type: s.type,
@@ -44,7 +44,7 @@ export async function runIngestionNode(timeWindowHoursOverride?: number): Promis
         allowSourceImages: s.allowSourceImages
     }));
 
-    // 2. Ingestion des flux RSS depuis GlobalSettings
+    // 2. Ingestion des flux RSS depuis radar-settings
     if (settings?.rss_feeds) {
         try {
             const feeds = JSON.parse(settings.rss_feeds);
@@ -96,14 +96,10 @@ export async function runIngestionNode(timeWindowHoursOverride?: number): Promis
     // Purge de l'historique des URL observées de plus de 7 jours
     try {
         const purgeDate = new Date(Date.now() - (7 * 24 * 60 * 60 * 1000));
-        await prisma.seenUrl.deleteMany({
-            where: { createdAt: { lt: purgeDate } }
-        });
+        await payloadClient.purgeSeenUrls(purgeDate);
     } catch (e: any) { }
 
-    const seenUrls = new Set(
-        (await prisma.seenUrl.findMany({ select: { url: true } })).map(s => s.url)
-    );
+    const seenUrls = new Set(await payloadClient.getSeenUrls());
 
     const limit = pLimit(5);
     const newArticles: IngestedArticle[] = [];
@@ -143,9 +139,7 @@ export async function runIngestionNode(timeWindowHoursOverride?: number): Promis
 
     if (newSeenUrls.length > 0) {
         try {
-            await prisma.seenUrl.createMany({
-                data: newSeenUrls.map(url => ({ url })),
-            });
+            await payloadClient.addSeenUrls(newSeenUrls);
         } catch (e: any) { }
     }
 

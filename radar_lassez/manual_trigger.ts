@@ -1,5 +1,4 @@
 import { runPipeline } from './daemon';
-import { prisma } from './lib/prisma';
 import { logger } from './lib/logger';
 
 async function main() {
@@ -10,5 +9,4 @@ async function main() {
 }
 
 main()
-    .catch(console.error)
-    .finally(() => prisma.$disconnect());
+    .catch(console.error);

@@ -43,11 +43,11 @@ export async function GET() {
     try {
         const url = process.env.PAYLOAD_SERVER_URL;
         if (!url) throw new Error("PAYLOAD_SERVER_URL manquante");
-        // We use HEAD to check if the server responds
-        const res = await fetch(`${url}/api/globals/site-settings`, { method: 'HEAD' });
-        healthStatus.payload = { 
-            status: res.status < 500 ? 'ok' : 'error', 
-            message: res.ok ? 'Accessible' : `HTTP ${res.status}` 
+        // Le global 'settings' est servi sous la route API Payload (/api/payload)
+        const res = await fetch(`${url.replace(/\/$/, '')}/api/payload/globals/settings`, { method: 'HEAD' });
+        healthStatus.payload = {
+            status: res.status < 500 ? 'ok' : 'error',
+            message: res.ok ? 'Accessible' : `HTTP ${res.status}`
         };
     } catch (e: any) {
         healthStatus.payload = { status: 'error', message: e.message };

@@ -74,6 +74,12 @@ export interface Config {
     posts: Post;
     lessons: Lesson;
     revelations: Revelation;
+    signals: Signal;
+    sources: Source;
+    publications: Publication;
+    'seen-urls': SeenUrl;
+    'taxonomy-templates': TaxonomyTemplate;
+    logs: Log;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -88,6 +94,12 @@ export interface Config {
     posts: PostsSelect<false> | PostsSelect<true>;
     lessons: LessonsSelect<false> | LessonsSelect<true>;
     revelations: RevelationsSelect<false> | RevelationsSelect<true>;
+    signals: SignalsSelect<false> | SignalsSelect<true>;
+    sources: SourcesSelect<false> | SourcesSelect<true>;
+    publications: PublicationsSelect<false> | PublicationsSelect<true>;
+    'seen-urls': SeenUrlsSelect<false> | SeenUrlsSelect<true>;
+    'taxonomy-templates': TaxonomyTemplatesSelect<false> | TaxonomyTemplatesSelect<true>;
+    logs: LogsSelect<false> | LogsSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -101,11 +113,13 @@ export interface Config {
     settings: Setting;
     about: About;
     legal: Legal;
+    'radar-settings': RadarSetting;
   };
   globalsSelect: {
     settings: SettingsSelect<false> | SettingsSelect<true>;
     about: AboutSelect<false> | AboutSelect<true>;
     legal: LegalSelect<false> | LegalSelect<true>;
+    'radar-settings': RadarSettingsSelect<false> | RadarSettingsSelect<true>;
   };
   locale: null;
   widgets: {
@@ -381,19 +395,11 @@ export interface Lesson {
    * L'ordre de la leçon dans le chapitre.
    */
   numero_lecon: number;
+  niveau_difficulte?: ('debutant' | 'intermediaire' | 'avance') | null;
   /**
-   * La difficulté de la leçon.
-   */
-  niveau_difficulte?: ('debute' | 'intermediaire' | 'avance') | null;
-  /**
-   * Un fichier PDF optionnel attaché à la leçon.
+   * Fiche PDF récapitulative téléchargeable.
    */
   pdf_attachement?: (number | null) | Media;
-  status?: ('draft' | 'published') | null;
-  /**
-   * Auteur éditorial responsable de cette leçon.
-   */
-  author?: (number | null) | Author;
   meta?: {
     title?: string | null;
     description?: string | null;
@@ -467,6 +473,229 @@ export interface Revelation {
   _status?: ('draft' | 'published') | null;
 }
 /**
+ * Sujets traités par le pipeline Radar (ingestion → publication).
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "signals".
+ */
+export interface Signal {
+  id: number;
+  /**
+   * Titre du sujet (extrait du raw_data au premier accès).
+   */
+  source_title?: string | null;
+  /**
+   * Payload d’entrée du pipeline (cluster, articles agrégés, sources).
+   */
+  raw_data?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Payload de sortie éditorial (headline, body, image_keyword).
+   */
+  final_draft?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  status:
+    | 'INGESTED'
+    | 'RESEARCHED'
+    | 'DRAFTED'
+    | 'VALIDATED'
+    | 'PENDING'
+    | 'QUEUED'
+    | 'PUBLISHED'
+    | 'REJECTED'
+    | 'REJECTED_ERROR'
+    | 'FAILED';
+  /**
+   * Catégorie éditoriale (INFO, DÉCRYPTAGE, ALERTE, …).
+   */
+  taxonomy?: string | null;
+  /**
+   * Tableau JSON des mots-clés.
+   */
+  tags?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Zone géographique (FRANCE, INTERNATIONAL, …).
+   */
+  geo?: string | null;
+  image_url?: string | null;
+  /**
+   * Moment où la file de publication doit traiter ce signal.
+   */
+  scheduled_at?: string | null;
+  /**
+   * Date exacte de publication finale.
+   */
+  published_at?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Flux et canaux ingérés par le daemon Radar.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "sources".
+ */
+export interface Source {
+  id: number;
+  url: string;
+  type: 'RSS' | 'TELEGRAM' | 'GOOGLE_NEWS';
+  source_name: string;
+  /**
+   * Orientation éditoriale perçue (Droite, Gauche, Service Public, …).
+   */
+  source_bias?: string | null;
+  trust_score: number;
+  /**
+   * Autoriser l’usage des images de cette source dans les visuels.
+   */
+  allow_source_images?: boolean | null;
+  active?: boolean | null;
+  /**
+   * État de santé du dernier scan (ex radar_source_health).
+   */
+  health_status?: ('OK' | 'ERROR' | 'TIMEOUT') | null;
+  last_check_at?: string | null;
+  error_message?: string | null;
+  /**
+   * Temps de réponse du dernier scan, en millisecondes.
+   */
+  response_time?: number | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Missions de diffusion planifiées (réseaux sociaux + CMS).
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "publications".
+ */
+export interface Publication {
+  id: number;
+  /**
+   * Signal associé à cette mission de publication.
+   */
+  signal: number | Signal;
+  /**
+   * Plateforme de destination (DISCORD, X, BLUESKY, MASTODON, PAYLOAD).
+   */
+  platform: string;
+  status: 'PENDING' | 'PUBLISHED' | 'FAILED';
+  scheduled_at: string;
+  published_at?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Mémoire des URL déjà ingérées (dédoublonnage absolu).
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "seen-urls".
+ */
+export interface SeenUrl {
+  id: number;
+  url: string;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Formats éditoriaux (FLASH, CITATION, ALERTE…) pour les prompts IA.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "taxonomy-templates".
+ */
+export interface TaxonomyTemplate {
+  id: number;
+  /**
+   * Identifiant technique (FLASH, CITATION, ALERTE…).
+   */
+  name: string;
+  /**
+   * Nom affiché (🚨 FLASH, ⚡️ CITATION…).
+   */
+  display_name?: string | null;
+  description?: string | null;
+  /**
+   * Section de prompt spécifique à ce format.
+   */
+  format_instructions?: string | null;
+  /**
+   * Tableau JSON d’exemples de sortie.
+   */
+  examples_json?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Structure JSON attendue en sortie.
+   */
+  output_schema_json?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Couleur d’accentuation dans l’interface.
+   */
+  accent_color?: string | null;
+  /**
+   * Template d’usine : réinitialisable mais non supprimable.
+   */
+  is_factory?: boolean | null;
+  active?: boolean | null;
+  sort_order?: number | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Journal d’exécution du daemon Radar.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "logs".
+ */
+export interface Log {
+  id: number;
+  level: 'INFO' | 'WARN' | 'ERROR' | 'SUCCESS';
+  message: string;
+  /**
+   * Nœud émetteur (Node 1, Node 2, Daemon, SYSTEM…).
+   */
+  node_id?: string | null;
+  timestamp: string;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv".
  */
@@ -517,6 +746,30 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'revelations';
         value: number | Revelation;
+      } | null)
+    | ({
+        relationTo: 'signals';
+        value: number | Signal;
+      } | null)
+    | ({
+        relationTo: 'sources';
+        value: number | Source;
+      } | null)
+    | ({
+        relationTo: 'publications';
+        value: number | Publication;
+      } | null)
+    | ({
+        relationTo: 'seen-urls';
+        value: number | SeenUrl;
+      } | null)
+    | ({
+        relationTo: 'taxonomy-templates';
+        value: number | TaxonomyTemplate;
+      } | null)
+    | ({
+        relationTo: 'logs';
+        value: number | Log;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -682,8 +935,6 @@ export interface LessonsSelect<T extends boolean = true> {
   numero_lecon?: T;
   niveau_difficulte?: T;
   pdf_attachement?: T;
-  status?: T;
-  author?: T;
   meta?:
     | T
     | {
@@ -718,6 +969,95 @@ export interface RevelationsSelect<T extends boolean = true> {
   updatedAt?: T;
   createdAt?: T;
   _status?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "signals_select".
+ */
+export interface SignalsSelect<T extends boolean = true> {
+  source_title?: T;
+  raw_data?: T;
+  final_draft?: T;
+  status?: T;
+  taxonomy?: T;
+  tags?: T;
+  geo?: T;
+  image_url?: T;
+  scheduled_at?: T;
+  published_at?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "sources_select".
+ */
+export interface SourcesSelect<T extends boolean = true> {
+  url?: T;
+  type?: T;
+  source_name?: T;
+  source_bias?: T;
+  trust_score?: T;
+  allow_source_images?: T;
+  active?: T;
+  health_status?: T;
+  last_check_at?: T;
+  error_message?: T;
+  response_time?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "publications_select".
+ */
+export interface PublicationsSelect<T extends boolean = true> {
+  signal?: T;
+  platform?: T;
+  status?: T;
+  scheduled_at?: T;
+  published_at?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "seen-urls_select".
+ */
+export interface SeenUrlsSelect<T extends boolean = true> {
+  url?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "taxonomy-templates_select".
+ */
+export interface TaxonomyTemplatesSelect<T extends boolean = true> {
+  name?: T;
+  display_name?: T;
+  description?: T;
+  format_instructions?: T;
+  examples_json?: T;
+  output_schema_json?: T;
+  accent_color?: T;
+  is_factory?: T;
+  active?: T;
+  sort_order?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "logs_select".
+ */
+export interface LogsSelect<T extends boolean = true> {
+  level?: T;
+  message?: T;
+  node_id?: T;
+  timestamp?: T;
+  updatedAt?: T;
+  createdAt?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -948,6 +1288,66 @@ export interface Legal {
   createdAt?: string | null;
 }
 /**
+ * Configuration globale du pipeline Radar (sources, IA, diffusion, planification).
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "radar-settings".
+ */
+export interface RadarSetting {
+  id: number;
+  enableAutoPublish?: boolean | null;
+  enablePayloadCMS?: boolean | null;
+  enableDiscord?: boolean | null;
+  enableX?: boolean | null;
+  enableBluesky?: boolean | null;
+  enableMastodon?: boolean | null;
+  discordPublishMode?: ('DIRECT' | 'SCHEDULED') | null;
+  xPublishMode?: ('DIRECT' | 'SCHEDULED') | null;
+  blueskyPublishMode?: ('DIRECT' | 'SCHEDULED') | null;
+  mastodonPublishMode?: ('DIRECT' | 'SCHEDULED') | null;
+  payloadPublishMode?: ('DIRECT' | 'SCHEDULED') | null;
+  schedulingMode?: ('pulse' | 'calendar' | 'hybrid') | null;
+  scrapingInterval?: number | null;
+  minPublishDelay?: number | null;
+  maxPublishDelay?: number | null;
+  daemonSchedule?: string | null;
+  maxConcurrentTasks?: number | null;
+  similarityThreshold?: number | null;
+  dedupLookbackHours?: number | null;
+  aiModelFlash?: string | null;
+  aiModelPro?: string | null;
+  customPromptModifier?: string | null;
+  allowSourceImages?: boolean | null;
+  baseIdentityPrompt?: string | null;
+  researchMissionPrompt?: string | null;
+  vocabularyRulesPrompt?: string | null;
+  imageRulesPrompt?: string | null;
+  researcherSystemPrompt?: string | null;
+  researcherRejectCriteria?: string | null;
+  rss_feeds?: string | null;
+  telegram_channels?: string | null;
+  google_news_queries?: string | null;
+  keywords?: string | null;
+  bannedKeywords?: string | null;
+  pipelineGraphJson?: string | null;
+  discordWebhookUrl?: string | null;
+  xApiKey?: string | null;
+  xApiSecret?: string | null;
+  xAccessToken?: string | null;
+  xAccessSecret?: string | null;
+  mastodonInstanceUrl?: string | null;
+  mastodonAccessToken?: string | null;
+  blueskyIdentifier?: string | null;
+  blueskyAppPassword?: string | null;
+  payloadServerUrl?: string | null;
+  payloadBotEmail?: string | null;
+  payloadBotPassword?: string | null;
+  social_targets_by_type_json?: string | null;
+  availableModelsJson?: string | null;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "settings_select".
  */
@@ -1060,6 +1460,64 @@ export interface LegalSelect<T extends boolean = true> {
         highlightBox?: T;
         id?: T;
       };
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "radar-settings_select".
+ */
+export interface RadarSettingsSelect<T extends boolean = true> {
+  enableAutoPublish?: T;
+  enablePayloadCMS?: T;
+  enableDiscord?: T;
+  enableX?: T;
+  enableBluesky?: T;
+  enableMastodon?: T;
+  discordPublishMode?: T;
+  xPublishMode?: T;
+  blueskyPublishMode?: T;
+  mastodonPublishMode?: T;
+  payloadPublishMode?: T;
+  schedulingMode?: T;
+  scrapingInterval?: T;
+  minPublishDelay?: T;
+  maxPublishDelay?: T;
+  daemonSchedule?: T;
+  maxConcurrentTasks?: T;
+  similarityThreshold?: T;
+  dedupLookbackHours?: T;
+  aiModelFlash?: T;
+  aiModelPro?: T;
+  customPromptModifier?: T;
+  allowSourceImages?: T;
+  baseIdentityPrompt?: T;
+  researchMissionPrompt?: T;
+  vocabularyRulesPrompt?: T;
+  imageRulesPrompt?: T;
+  researcherSystemPrompt?: T;
+  researcherRejectCriteria?: T;
+  rss_feeds?: T;
+  telegram_channels?: T;
+  google_news_queries?: T;
+  keywords?: T;
+  bannedKeywords?: T;
+  pipelineGraphJson?: T;
+  discordWebhookUrl?: T;
+  xApiKey?: T;
+  xApiSecret?: T;
+  xAccessToken?: T;
+  xAccessSecret?: T;
+  mastodonInstanceUrl?: T;
+  mastodonAccessToken?: T;
+  blueskyIdentifier?: T;
+  blueskyAppPassword?: T;
+  payloadServerUrl?: T;
+  payloadBotEmail?: T;
+  payloadBotPassword?: T;
+  social_targets_by_type_json?: T;
+  availableModelsJson?: T;
   updatedAt?: T;
   createdAt?: T;
   globalType?: T;

@@ -24,11 +24,35 @@ type Client struct {
 	mu             sync.Mutex
 	token          string
 	tokenExpiresAt time.Time
+} // ID accepts both string and numeric Payload document ids.
+type ID string
+
+// UnmarshalJSON handles Payload ids that may be numbers or strings.
+func (id *ID) UnmarshalJSON(data []byte) error {
+	var s string
+	if err := json.Unmarshal(data, &s); err == nil {
+		*id = ID(s)
+		return nil
+	}
+	var n json.Number
+	if err := json.Unmarshal(data, &n); err == nil {
+		*id = ID(n.String())
+		return nil
+	}
+	return fmt.Errorf("unsupported id: %s", data)
+}
+
+// Signal mirrors a document of the Payload "signals" collection. RawData
+// keeps the raw JSON so nodes can extract fields like clusterTitle.
+type Signal struct {
+	ID      ID              `json:"id"`
+	RawData json.RawMessage `json:"raw_data"`
+	Status  string          `json:"status"`
 }
 
 // Source mirrors a document of the Payload "sources" collection.
 type Source struct {
-	ID                string `json:"id"`
+	ID                ID     `json:"id"`
 	URL               string `json:"url"`
 	Type              string `json:"type"`
 	SourceName        string `json:"source_name"`
@@ -224,6 +248,50 @@ func (c *Client) PurgeSeenURLs(before time.Time) error {
 	iso := url.QueryEscape(before.UTC().Format(time.RFC3339))
 	_, err := c.request(http.MethodDelete, "/seen-urls?where[createdAt][less_than]="+iso, nil, true)
 	return err
+}
+
+// GetSignalsSince returns signals created after the given instant.
+func (c *Client) GetSignalsSince(after time.Time) ([]Signal, error) {
+	iso := url.QueryEscape(after.UTC().Format(time.RFC3339))
+	data, err := c.request(http.MethodGet, "/signals?where[createdAt][greater_than]="+iso+"&limit=1000&depth=0", nil, true)
+	if err != nil {
+		return nil, err
+	}
+	return decodeSignalDocs(data)
+}
+
+// GetSignalsByStatus returns signals with the given status, oldest first.
+func (c *Client) GetSignalsByStatus(status string) ([]Signal, error) {
+	data, err := c.request(http.MethodGet, "/signals?where[status][equals]="+url.QueryEscape(status)+"&limit=500&depth=0&sort=createdAt", nil, true)
+	if err != nil {
+		return nil, err
+	}
+	return decodeSignalDocs(data)
+}
+
+// UpdateSignal patches a signal, coercing JSON string fields to objects.
+func (c *Client) UpdateSignal(id ID, data map[string]any) error {
+	out := make(map[string]any, len(data))
+	for k, v := range data {
+		switch k {
+		case "raw_data", "final_draft", "tags":
+			out[k] = coerceJSON(v)
+		default:
+			out[k] = v
+		}
+	}
+	_, err := c.request(http.MethodPatch, "/signals/"+url.PathEscape(string(id)), out, true)
+	return err
+}
+
+func decodeSignalDocs(data []byte) ([]Signal, error) {
+	var out struct {
+		Docs []Signal `json:"docs"`
+	}
+	if err := json.Unmarshal(data, &out); err != nil {
+		return nil, fmt.Errorf("decode signals: %w", err)
+	}
+	return out.Docs, nil
 }
 
 // CreateSignals creates signals in Payload. JSON fields are sent as objects.

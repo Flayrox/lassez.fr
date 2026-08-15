@@ -17,15 +17,16 @@ import (
 )
 
 // IngestedArticle is a freshly ingested article, ready for deduplication.
+// JSON tags mirror the TS IngestedArticle so raw_data stays compatible.
 type IngestedArticle struct {
-	Title             string
-	URL               string
-	Content           string
-	PubDate           time.Time
-	SourceName        string
-	SourceBias        string
-	TrustScore        int
-	AllowSourceImages bool
+	Title             string    `json:"title"`
+	URL               string    `json:"url"`
+	Content           string    `json:"content"`
+	PubDate           time.Time `json:"pubDate"`
+	SourceName        string    `json:"source_name"`
+	SourceBias        string    `json:"source_bias"`
+	TrustScore        int       `json:"trust_score"`
+	AllowSourceImages bool      `json:"allowSourceImages"`
 }
 
 type sourceToProcess struct {

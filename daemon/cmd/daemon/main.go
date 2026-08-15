@@ -34,6 +34,12 @@ func main() {
 		os.Exit(1)
 	}
 	log.Printf("[Daemon] ✅ %d articles aspirés.", len(articles))
+
+	if len(articles) > 0 {
+		if err := nodes.RunDeduplicator(client, resolver, articles); err != nil {
+			log.Printf("[Daemon] ❌ Erreur deduplicator : %v", err)
+		}
+	}
 }
 
 // loadEnv mirrors radar_lassez/lib/env.ts: the repo-root .env first, then

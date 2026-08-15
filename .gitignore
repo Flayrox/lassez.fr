@@ -17,6 +17,9 @@ build/
 # Caches de build
 *.tsbuildinfo
 
+# Binaire du daemon Go (compilé sur le VPS au déploiement)
+daemon/bin/
+
 # Logs et Fichiers Temporaires
 *.log
 npm-debug.log*

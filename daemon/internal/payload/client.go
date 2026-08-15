@@ -227,6 +227,40 @@ func (c *Client) GetSettings() (map[string]any, error) {
 	return settings, nil
 }
 
+// EnsureSettings creates the radar-settings global if it does not exist yet.
+func (c *Client) EnsureSettings() error {
+	current, err := c.GetSettings()
+	if err != nil {
+		return err
+	}
+	if current != nil {
+		return nil
+	}
+	_, err = c.request(http.MethodPost, "/globals/radar-settings", map[string]any{}, true)
+	return err
+}
+
+// UpdateSettings upserts the radar-settings global. Payload updates globals
+// with POST (upsert), not PATCH: a PATCH returns 404 "Route not found".
+func (c *Client) UpdateSettings(data map[string]any) error {
+	_, err := c.request(http.MethodPost, "/globals/radar-settings", data, true)
+	return err
+}
+
+// AppendLog writes one entry to the Payload logs collection. It never fails
+// the caller: logs are best-effort (the heartbeat of the admin dashboard).
+func (c *Client) AppendLog(level, nodeID, message string) {
+	_, err := c.request(http.MethodPost, "/logs", map[string]any{
+		"level":     level,
+		"node_id":   nodeID,
+		"message":   message,
+		"timestamp": time.Now().UTC().Format(time.RFC3339),
+	}, true)
+	if err != nil {
+		log.Printf("[payload] appendLog échoué: %v", err)
+	}
+}
+
 // GetActiveSources returns the active sources of the sources collection.
 func (c *Client) GetActiveSources() ([]Source, error) {
 	data, err := c.request(http.MethodGet, "/sources?where[active][equals]=true&limit=1000&depth=0", nil, true)

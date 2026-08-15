@@ -35,7 +35,12 @@ jobs:
             npm run payload:migrate || echo "Aucune migration à appliquer"
             npm run build
 
-            echo "--- 5. Redémarrage propre sous PM2 ---"
+            echo "--- 5. Compilation du daemon Go (linux/amd64) ---"
+            cd /var/www/lassez-api/daemon
+            go mod download
+            CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o bin/daemon ./cmd/daemon
+
+            echo "--- 6. Redémarrage propre sous PM2 ---"
             pm2 startOrReload ecosystem.config.cjs --update-env
             pm2 save
             echo "✓ Déploiement unique (GitHub Actions -> PM2) terminé avec succès !"

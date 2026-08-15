@@ -134,7 +134,8 @@ export class PayloadClient {
     }
 
     async updateSettings(data: any): Promise<any> {
-        return this.request('PATCH', '/globals/radar-settings', data);
+        // Payload upsert les globals via POST (un PATCH renvoie 404).
+        return this.request('POST', '/globals/radar-settings', data);
     }
 
     // ============================================================

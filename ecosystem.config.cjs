@@ -29,12 +29,13 @@ module.exports = {
         },
         {
             name: 'lassez-daemon',
-            script: 'npx',
-            args: 'tsx ./radar_lassez/daemon.ts',
+            script: './daemon/bin/daemon',
             cwd: '/var/www/lassez-api',
             instances: 1,
             exec_mode: 'fork',
-            env: { NODE_ENV: 'production', PORT: 3005 }
+            max_memory_restart: '512M',
+            autorestart: true,
+            env: { NODE_ENV: 'production' }
         }
     ]
 };

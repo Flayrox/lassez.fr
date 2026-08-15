@@ -43,8 +43,8 @@ func NewBluesky(cfg BlueskyConfig) Channel {
 func (c *blueskyChannel) Name() string { return "BLUESKY" }
 
 func (c *blueskyChannel) Publish(msg Message) error {
-	identifier := envOr("BLUESKY_IDENTIFIER", c.cfg.Identifier)
-	appPassword := envOr("BLUESKY_APP_PASSWORD", c.cfg.AppPassword)
+	identifier := credential(c.cfg.Identifier, "BLUESKY_IDENTIFIER")
+	appPassword := credential(c.cfg.AppPassword, "BLUESKY_APP_PASSWORD")
 	if identifier == "" || appPassword == "" {
 		return fmt.Errorf("[BLUESKY] identifier/mot de passe app manquants (BLUESKY_IDENTIFIER, BLUESKY_APP_PASSWORD)")
 	}

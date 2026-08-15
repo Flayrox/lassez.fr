@@ -115,6 +115,23 @@ func TestOAuth1HeaderShape(t *testing.T) {
 	}
 }
 
+func TestCredentialPrecedence(t *testing.T) {
+	t.Setenv("X_TEST_SECRET", "env-value")
+
+	// Settings value wins over the environment.
+	if got := credential("settings-value", "X_TEST_SECRET"); got != "settings-value" {
+		t.Errorf("settings must win, got %q", got)
+	}
+	// Empty settings fall back to the environment.
+	if got := credential("", "X_TEST_SECRET"); got != "env-value" {
+		t.Errorf("env fallback expected, got %q", got)
+	}
+	// Whitespace-only settings are treated as unset.
+	if got := credential("  ", "X_TEST_SECRET"); got != "env-value" {
+		t.Errorf("whitespace settings must fall back, got %q", got)
+	}
+}
+
 func TestRegistry(t *testing.T) {
 	r := NewRegistry()
 	d := NewDiscord(DiscordConfig{WebhookURL: "https://discord.com/api/webhooks/x"})

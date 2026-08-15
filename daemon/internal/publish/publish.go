@@ -8,6 +8,7 @@
 package publish
 
 import (
+	"os"
 	"strings"
 	"unicode/utf8"
 )
@@ -83,6 +84,17 @@ func BuildText(msg Message, maxLen int, includeURL bool) string {
 		return AppendURL(text, msg.URL, maxLen)
 	}
 	return Truncate(text, maxLen)
+}
+
+// credential resolves a secret for a channel: the value configured in
+// radar-settings wins, the environment variable is the fallback. This makes
+// the Payload admin interface the source of truth for platform credentials
+// while keeping env-only deploys working.
+func credential(settingsVal, envKey string) string {
+	if v := strings.TrimSpace(settingsVal); v != "" {
+		return v
+	}
+	return os.Getenv(envKey)
 }
 
 // AppendURL appends url at the end of text, reserving its full length and

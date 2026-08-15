@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -50,10 +49,10 @@ func NewX(cfg XConfig) Channel {
 func (c *xChannel) Name() string { return "X" }
 
 func (c *xChannel) Publish(msg Message) error {
-	apiKey := envOr("X_API_KEY", c.cfg.APIKey)
-	apiSecret := envOr("X_API_SECRET", c.cfg.APISecret)
-	accessToken := envOr("X_ACCESS_TOKEN", c.cfg.AccessToken)
-	accessSecret := envOr("X_ACCESS_SECRET", c.cfg.AccessSecret)
+	apiKey := credential(c.cfg.APIKey, "X_API_KEY")
+	apiSecret := credential(c.cfg.APISecret, "X_API_SECRET")
+	accessToken := credential(c.cfg.AccessToken, "X_ACCESS_TOKEN")
+	accessSecret := credential(c.cfg.AccessSecret, "X_ACCESS_SECRET")
 	if apiKey == "" || apiSecret == "" || accessToken == "" || accessSecret == "" {
 		return fmt.Errorf("[X] credentials manquantes (X_API_KEY, X_API_SECRET, X_ACCESS_TOKEN, X_ACCESS_SECRET)")
 	}
@@ -165,13 +164,6 @@ func randomNonce() string {
 	b := make([]byte, 16)
 	_, _ = rand.Read(b)
 	return hex.EncodeToString(b)
-}
-
-func envOr(key, def string) string {
-	if v := os.Getenv(key); v != "" {
-		return v
-	}
-	return def
 }
 
 // truncateStr caps a string at n bytes for error messages.

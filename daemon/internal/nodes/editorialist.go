@@ -46,9 +46,10 @@ func RunEditorialist(client *payload.Client, resolver *config.Resolver) error {
 	}
 	log.Printf("[Node 4] 📝 %d sujets prêts pour la rédaction.", len(topics))
 
-	apiKey := os.Getenv("GEMINI_API_KEY")
+	// Clé depuis radar-settings (interface admin sécurisée), fallback .env.
+	apiKey := strParam(resolver, "editor", "geminiApiKey", os.Getenv("GEMINI_API_KEY"))
 	if apiKey == "" {
-		log.Printf("[Node 4] ⚠️ GEMINI_API_KEY absente. Étape ignorée.")
+		log.Printf("[Node 4] ⚠️ Clé Gemini absente (geminiApiKey / GEMINI_API_KEY). Étape ignorée.")
 		return nil
 	}
 

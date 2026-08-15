@@ -20,6 +20,7 @@ import { settings } from './payload/globals/settings';
 import { about } from './payload/globals/about';
 import { legal } from './payload/globals/legal';
 import { radarSettings } from './payload/globals/radar-settings';
+import { radarTriggerEndpoint } from './payload/endpoints/radar-trigger';
 import { seoPlugin } from '@payloadcms/plugin-seo';
 import { getApiOrigin, getPublicSiteOrigin } from './lib/host-urls';
 import { generateGeminiSeo } from './payload/hooks/seo-gemini';
@@ -120,6 +121,13 @@ export default buildConfig({
         },
         migrationDir: path.resolve(process.cwd(), 'payload/migrations'),
     }),
+    endpoints: [
+        {
+            path: '/radar/trigger',
+            method: 'post',
+            handler: radarTriggerEndpoint,
+        },
+    ],
     globals: [settings, about, legal, radarSettings],
     collections: [categories, tags, authors, media, posts, lessons, revelations, signals, sources, publications, seenUrls, taxonomyTemplates, logs],
     plugins: [

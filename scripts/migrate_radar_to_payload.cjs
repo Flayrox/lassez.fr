@@ -14,14 +14,17 @@
  *   SeenUrl            → collection seen-urls
  *   Log                → collection logs           (100 derniers)
  *
- * Prérequis : PAYLOAD_ADMIN_EMAIL / PAYLOAD_ADMIN_PASSWORD + PAYLOAD_API_URL
+ * Prérequis : compte admin Payload (PAYLOAD_BOT_EMAIL / PAYLOAD_BOT_PASSWORD
+ * ou PAYLOAD_ADMIN_EMAIL / PAYLOAD_ADMIN_PASSWORD) + PAYLOAD_API_URL
  * (ou PAYLOAD_SERVER_URL) dans l'environnement. Le compte admin doit exister.
  *
  * Usage :
  *   PAYLOAD_API_URL=https://api.lassez.fr/api/payload \
- *   PAYLOAD_ADMIN_EMAIL=admin@lassez.fr PAYLOAD_ADMIN_PASSWORD=*** \
+ *   PAYLOAD_BOT_EMAIL=bot@lassez.fr PAYLOAD_BOT_PASSWORD=*** \
  *   node scripts/migrate_radar_to_payload.cjs [--dry-run] [--db=prisma/radar.db]
  */
+require('dotenv').config({ path: require('path').join(process.cwd(), '.env') });
+require('dotenv').config({ path: require('path').join(process.cwd(), 'radar_lassez', '.env'), override: true });
 const Database = require('better-sqlite3');
 const path = require('path');
 
@@ -32,8 +35,8 @@ const DB_PATH = dbArg ? dbArg.slice('--db='.length) : path.join(process.cwd(), '
 
 const API_BASE = (process.env.PAYLOAD_API_URL || process.env.PAYLOAD_SERVER_URL || 'http://localhost:5173').replace(/\/+$/, '')
     .replace(/\/api\/payload$/, '') + '/api/payload';
-const ADMIN_EMAIL = process.env.PAYLOAD_ADMIN_EMAIL || 'admin@lassez.fr';
-const ADMIN_PASSWORD = process.env.PAYLOAD_ADMIN_PASSWORD || '';
+const ADMIN_EMAIL = process.env.PAYLOAD_ADMIN_EMAIL || process.env.PAYLOAD_BOT_EMAIL || 'bot@lassez.fr';
+const ADMIN_PASSWORD = process.env.PAYLOAD_ADMIN_PASSWORD || process.env.PAYLOAD_BOT_PASSWORD || '';
 
 let token = null;
 

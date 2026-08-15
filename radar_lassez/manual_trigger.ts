@@ -1,3 +1,4 @@
+import './lib/env';
 import { runPipeline } from './daemon';
 import { logger } from './lib/logger';
 

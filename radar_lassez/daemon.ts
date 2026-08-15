@@ -1,3 +1,4 @@
+import './lib/env';
 import { payloadClient } from './lib/payload-client';
 import { logger } from './lib/logger';
 import { runIngestionNode } from './nodes/ingestion';

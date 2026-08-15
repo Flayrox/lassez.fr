@@ -40,6 +40,10 @@ func main() {
 			log.Printf("[Daemon] ❌ Erreur deduplicator : %v", err)
 		}
 	}
+
+	if err := nodes.RunResearcher(client, resolver); err != nil {
+		log.Printf("[Daemon] ❌ Erreur researcher : %v", err)
+	}
 }
 
 // loadEnv mirrors radar_lassez/lib/env.ts: the repo-root .env first, then

@@ -20,6 +20,7 @@ export const categories = {
         delete: isEditor,
     },
     admin: {
+        group: 'Contenu',
         useAsTitle: 'name',
         description: 'Taxonomie éditoriale principale du front.',
     },

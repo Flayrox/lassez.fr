@@ -13,6 +13,7 @@ export const authors = {
     slug: 'authors',
     auth: true,
     admin: {
+        group: 'Média & Comptes',
         useAsTitle: 'name',
         description: 'Auteurs et comptes éditoriaux du média.',
     },

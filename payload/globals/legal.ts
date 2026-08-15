@@ -9,6 +9,7 @@ export const legal: GlobalConfig = {
         update: isEditor,
     },
     admin: {
+        group: 'Site',
         description: 'Éditez les informations légales et la politique de confidentialité.',
     },
     fields: [

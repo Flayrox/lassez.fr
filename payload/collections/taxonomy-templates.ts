@@ -18,6 +18,7 @@ export const taxonomyTemplates: CollectionConfig = {
         delete: isAdmin,
     },
     admin: {
+        group: 'Radar',
         useAsTitle: 'name',
         defaultColumns: ['name', 'display_name', 'active', 'sort_order'],
         description: 'Formats éditoriaux (FLASH, CITATION, ALERTE…) pour les prompts IA.',

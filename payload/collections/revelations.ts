@@ -42,6 +42,7 @@ export const revelations: CollectionConfig = {
         delete: isAdminOrEditorOrOwner,
     },
     admin: {
+        group: 'Contenu',
         useAsTitle: 'titre',
         defaultColumns: ['titre', 'niveau_alerte', '_status', 'createdAt'],
         description: 'Silo Révélations : Live feed orienté action rapide.',

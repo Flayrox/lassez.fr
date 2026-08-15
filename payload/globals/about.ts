@@ -8,6 +8,7 @@ export const about: GlobalConfig = {
         update: isEditor,
     },
     admin: {
+        group: 'Site',
         description: 'Éditez le Manifeste et la présentation de l’équipe.',
     },
     fields: [

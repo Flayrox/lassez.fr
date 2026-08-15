@@ -17,6 +17,7 @@ export const settings: GlobalConfig = {
         update: isAdmin,
     },
     admin: {
+        group: 'Site',
         description: 'Réglages globaux du site (Textes, Liens, Maintenance)',
     },
     fields: [

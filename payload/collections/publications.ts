@@ -18,6 +18,7 @@ export const publications: CollectionConfig = {
         delete: isAdmin,
     },
     admin: {
+        group: 'Radar',
         useAsTitle: 'platform',
         defaultColumns: ['platform', 'status', 'scheduled_at', 'published_at'],
         description: 'Missions de diffusion planifiées (réseaux sociaux + CMS).',

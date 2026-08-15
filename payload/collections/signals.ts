@@ -33,6 +33,7 @@ export const signals: CollectionConfig = {
         delete: isAdmin,
     },
     admin: {
+        group: 'Radar',
         useAsTitle: 'source_title',
         defaultColumns: ['status', 'taxonomy', 'geo', 'updatedAt'],
         description: 'Sujets traités par le pipeline Radar (ingestion → publication).',

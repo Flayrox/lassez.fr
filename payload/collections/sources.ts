@@ -18,6 +18,7 @@ export const sources: CollectionConfig = {
         delete: isAdmin,
     },
     admin: {
+        group: 'Radar',
         useAsTitle: 'source_name',
         defaultColumns: ['source_name', 'type', 'source_bias', 'active', 'health_status'],
         description: 'Flux et canaux ingérés par le daemon Radar.',

@@ -8,7 +8,7 @@ Un push sur la branche `main` déclenche le workflow `.github/workflows/deploy.y
 
 1. **Synchronisation** : le dépôt est tiré sur le VPS (`/var/www/lassez-repo`).
 2. **Copie** : rsync vers l'environnement unique `/var/www/lassez-api` (le `.env` local du VPS est conservé).
-3. **Build** : `npm ci` → `npx prisma generate` → `npm run payload:migrate` → `npm run build`.
+3. **Build** : `npm ci` → `npm run payload:migrate` → `npm run build`.
 4. **Redémarrage** : `pm2 startOrReload ecosystem.config.cjs --update-env` + `pm2 save`.
 
 > L'IP du VPS et la clé SSH sont configurées dans les secrets GitHub (`VPS_SSH_KEY`).
@@ -62,5 +62,12 @@ node scripts/grant_admin.cjs email@exemple.com
 
 ## ⚠️ Notes Techniques
 - **Base de Données** : Payload utilise Supabase (Postgres). Les migrations sont appliquées automatiquement par le workflow de déploiement (`npm run payload:migrate`).
-- **Base Radar** : le daemon utilise une base SQLite (`prisma/radar.db`) partagée entre les instances. `scripts/push_radar_db_to_vps.cjs` permet de pousser une base locale vers le VPS (nécessite `VPS_HOST`, `VPS_USER`, `VPS_PASSWORD`).
+- **Base Radar** : le daemon écrit désormais dans Payload (Postgres) — plus de SQLite. Les collections dédiées (`signals`, `sources`, `publications`, `seen-urls`, `taxonomy-templates`, `logs`) et le global `radar-settings` remplacent l'ancienne base Prisma.
 - **Clé SSH** : le déploiement GitHub Actions utilise le secret `VPS_SSH_KEY` ; les scripts manuels utilisent `~/.ssh/id_ed25519`.
+
+## 🔄 Migration Radar (une seule fois, avant de basculer le daemon)
+
+1. Appliquer le schéma : `npm run payload:migrate` (déjà fait par le workflow).
+2. Créer le compte bot admin : `npx tsx payload/create-bot.ts` (lit `PAYLOAD_BOT_EMAIL` / `PAYLOAD_BOT_PASSWORD`).
+3. Importer les données SQLite → Payload : `node scripts/migrate_radar_to_payload.cjs`.
+4. Vérifier que `radar_lassez/.env` (ou le `.env` racine) contient `PAYLOAD_API_URL`, `PAYLOAD_BOT_EMAIL` et `PAYLOAD_BOT_PASSWORD` : le daemon les charge lui-même au démarrage.

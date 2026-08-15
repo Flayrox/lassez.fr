@@ -32,7 +32,7 @@ async function sneakyDownload() {
     console.log('Found Font URL:', fontUrl);
 
     const fontRes = await axios.get(fontUrl, { responseType: 'arraybuffer' });
-    const outputDir = path.join(__dirname, 'public', 'fonts');
+    const outputDir = path.join(__dirname, '..', 'public', 'fonts');
     fs.mkdirSync(outputDir, { recursive: true });
 
     const dest = path.join(outputDir, 'PlayfairDisplay-Black.ttf');

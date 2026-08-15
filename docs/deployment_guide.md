@@ -1,60 +1,66 @@
 # 🚀 Guide de Déploiement Lassez.fr
 
-Ce guide explique comment utiliser les outils de déploiement pour mettre à jour le site, l'API et les daemons sur le VPS.
+Le déploiement est **unifié sur un seul pipeline** : GitHub Actions → VPS → PM2. Plusieurs anciens systèmes (Docker Compose, `full_deploy.cjs` multi-environnements) ont été supprimés.
 
-## 📦 Outil de Déploiement Unifié
-Le script `full_deploy.cjs` permet de réaliser toutes les étapes en une seule commande :
-1. **Git** : `add`, `commit` et `push` vers GitHub.
-2. **Archive** : Compression du code local (en excluant les dossiers inutiles).
-3. **Upload** : Envoi de l'archive vers le VPS via SSH.
-4. **Build & Migrate** : Reconstruction des 3 instances (Front, API, Studio) et exécution des migrations.
-5. **Restart** : Redémarrage de tous les processus PM2.
+## 📦 Pipeline Canonique (Automatique)
 
-### Utilisation :
+Un push sur la branche `main` déclenche le workflow `.github/workflows/deploy.yml` :
+
+1. **Synchronisation** : le dépôt est tiré sur le VPS (`/var/www/lassez-repo`).
+2. **Copie** : rsync vers l'environnement unique `/var/www/lassez-api` (le `.env` local du VPS est conservé).
+3. **Build** : `npm ci` → `npx prisma generate` → `npm run payload:migrate` → `npm run build`.
+4. **Redémarrage** : `pm2 startOrReload ecosystem.config.cjs --update-env` + `pm2 save`.
+
+> L'IP du VPS et la clé SSH sont configurées dans les secrets GitHub (`VPS_SSH_KEY`).
+
+## 🛠️ Déploiement Manuel (Fallback)
+
+En cas de besoin, le script `scripts/deploy_vps_unified.cjs` reproduit le même flux :
+
 ```bash
-node full_deploy.cjs "Message de commit"
+VPS_HOST=178.104.197.3 VPS_USER=root VPS_SSH_KEY="$(cat ~/.ssh/id_ed25519)" npm run deploy:vps
 ```
-*Si aucun message n'est fourni, un message automatique avec horodatage sera utilisé.*
 
----
+Variables utilisées : `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY`, `VPS_REMOTE_DIR` (défaut `/var/www/lassez-prod`), `VPS_GIT_BRANCH` (défaut `main`).
 
-## 🛠️ Configuration des Services (PM2)
+## 📦 Configuration des Services (PM2)
 
-Le projet est divisé en 5 processus principaux sur le VPS :
+Un seul environnement `/var/www/lassez-api` fait tourner 4 processus (fichier `ecosystem.config.cjs`) :
 
 | Nom | Port | Description |
 | :--- | :--- | :--- |
-| `radar-front` | **3000** | Le site public (lassez.fr) |
-| `radar-api` | **3001** | L'API Payload et l'Admin (api.lassez.fr) |
-| `radar-studio` | **3002** | interface de curation, d'automatisation & de workflow (studio.lassez.fr) |
-| `radar-daemon` | **3005** | Daemon principal (Publisher, Élections, Heartbeat) |
-| `radar-daemon-rss` | **3006** | Daemon de scan RSS et Telegram |
+| `lassez-front` | **3000** | Le site public (lassez.fr) |
+| `lassez-api` | **3001** | L'API Payload et l'Admin (api.lassez.fr) |
+| `lassez-studio` | **3002** | Interface de curation, d'automatisation & de workflow (studio.lassez.fr) |
+| `lassez-daemon` | **3005** | Daemon principal Radar (ingestion, rédaction, publisher) |
+
+> ⚠️ **Migration PM2 (une seule fois)** : si d'anciens processus nommés `radar-api`, `radar-front`, `radar-studio` ou `radar-daemon` tournent encore sur le VPS, supprimez-les pour libérer les ports :
+> ```bash
+> pm2 delete radar-api radar-front radar-studio radar-daemon
+> pm2 save
+> ```
+> Le workflow GitHub Actions le fait automatiquement à chaque déploiement (`pm2 delete ... || true`).
 
 ### Commandes Utiles :
 - **Voir le statut** : `pm2 list`
 - **Voir les logs** : `pm2 logs [nom]`
 - **Redémarrer un service** : `pm2 restart [nom]`
 
----
-
 ## 🔐 Gestion des Rôles (RBAC)
 
-Les permissions sont gérées via le champ `roles` dans la collection **Auteurs**.
+Les permissions sont gérées via le champ `roles` dans la collection **Auteurs** (Payload).
 
 - **Admin** : Accès total.
 - **Éditeur** : Peut modifier tous les articles et révélations.
 - **Auteur** : Ne peut modifier que ses **propres** créations.
 
 ### Donner les droits Admin à un utilisateur :
-Si un utilisateur perd ses accès, vous pouvez utiliser le script local :
 ```bash
-# Modifier l'email dans le script grant_admin.cjs si besoin
-node grant_admin.cjs
+# Nécessite DATABASE_URL dans l'environnement (cf. .env)
+node scripts/grant_admin.cjs email@exemple.com
 ```
 
----
-
 ## ⚠️ Notes Techniques
-- **Base de Données** : Le projet utilise Supabase (Postgres). Les migrations doivent être effectuées via `npm run payload:migrate` (automatisé dans le script de déploiement).
-- **Daemons** : Ils possèdent chacun un port "dummy" (3005 et 3006) pour assurer leur maintien en vie sur certaines infrastructures d'hébergement.
-- **Clé SSH** : Le déploiement nécessite que votre clé privée soit située dans `~/.ssh/id_ed25519`.
+- **Base de Données** : Payload utilise Supabase (Postgres). Les migrations sont appliquées automatiquement par le workflow de déploiement (`npm run payload:migrate`).
+- **Base Radar** : le daemon utilise une base SQLite (`prisma/radar.db`) partagée entre les instances. `scripts/push_radar_db_to_vps.cjs` permet de pousser une base locale vers le VPS (nécessite `VPS_HOST`, `VPS_USER`, `VPS_PASSWORD`).
+- **Clé SSH** : le déploiement GitHub Actions utilise le secret `VPS_SSH_KEY` ; les scripts manuels utilisent `~/.ssh/id_ed25519`.

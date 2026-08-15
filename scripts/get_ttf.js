@@ -15,7 +15,7 @@ async function download() {
     const arrayBuffer = await res.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
-    const fontPath = path.join(__dirname, 'public', 'fonts', 'PlayfairDisplay-Bold.ttf');
+    const fontPath = path.join(__dirname, '..', 'public', 'fonts', 'PlayfairDisplay-Bold.ttf');
     fs.mkdirSync(path.dirname(fontPath), { recursive: true });
 
     fs.writeFileSync(fontPath, buffer);

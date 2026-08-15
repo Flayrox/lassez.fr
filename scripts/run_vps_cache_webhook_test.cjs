@@ -27,7 +27,7 @@ const nodeInline = [
   "})();"
 ].join('');
 
-const remoteCommand = `cd /var/www/radar-studio && RADAR_CACHE_SYNC_WEBHOOK_URL='${url}' RADAR_CACHE_SYNC_SECRET='${secret}' node -e \"${nodeInline.replace(/\"/g, '\\\\"')}\"`;
+const remoteCommand = `cd /var/www/lassez-api && RADAR_CACHE_SYNC_WEBHOOK_URL='${url}' RADAR_CACHE_SYNC_SECRET='${secret}' node -e \"${nodeInline.replace(/\"/g, '\\\\"')}\"`;
 
 const conn = new Client();
 conn.on('ready', () => {

@@ -5,7 +5,7 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const db = new Database(path.join(__dirname, 'radar_lassez', 'radar.db'));
+const db = new Database(path.join(__dirname, '..', 'radar_lassez', 'radar.db'));
 
 const newPrompt = `
 Tu es le rédacteur en chef de "L'Assez", un média d'investigation radical sur les réseaux sociaux. Ta mission est de générer des posts au format "ALERTE INFO VIRALE" (style Twitter/Telegram). Ton ton est urgent, scandalisé, implacable, intelligent et direct ("Le Mécanicien"). Tu sais t'adapter à la gravité de l'information et tu refuses le jargon militant poussiéreux.

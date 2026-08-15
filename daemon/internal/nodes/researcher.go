@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/google/generative-ai-go/genai"
 	"google.golang.org/api/option"
@@ -123,7 +124,10 @@ func RunResearcher(client *payload.Client, resolver *config.Resolver) error {
 
 			prompt := buildResearchPrompt(researcherSystem, rejectCriteria, customPrompt, raw)
 
-			resp, err := model.GenerateContent(ctx, genai.Text(prompt))
+			// Timeout par appel : une API qui pend ne doit pas bloquer le nœud.
+			callCtx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+			defer cancel()
+			resp, err := model.GenerateContent(callCtx, genai.Text(prompt))
 			if err != nil {
 				log.Printf("[Node 3] ❌ Erreur analyse sujet %s: %v", topic.ID, err)
 				return

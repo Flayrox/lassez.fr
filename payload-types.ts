@@ -1308,6 +1308,10 @@ export interface RadarSetting {
   payloadPublishMode?: ('DIRECT' | 'SCHEDULED') | null;
   discordEmbedColor?: string | null;
   discordFooterText?: string | null;
+  includeSourceUrl?: boolean | null;
+  xMaxLength?: number | null;
+  blueskyMaxLength?: number | null;
+  mastodonMaxLength?: number | null;
   schedulingMode?: ('pulse' | 'calendar' | 'hybrid') | null;
   scrapingInterval?: number | null;
   minPublishDelay?: number | null;
@@ -1484,6 +1488,10 @@ export interface RadarSettingsSelect<T extends boolean = true> {
   payloadPublishMode?: T;
   discordEmbedColor?: T;
   discordFooterText?: T;
+  includeSourceUrl?: T;
+  xMaxLength?: T;
+  blueskyMaxLength?: T;
+  mastodonMaxLength?: T;
   schedulingMode?: T;
   scrapingInterval?: T;
   minPublishDelay?: T;

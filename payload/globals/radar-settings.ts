@@ -73,6 +73,15 @@ export const radarSettings: GlobalConfig = {
                                 { name: 'discordFooterText', type: 'text', defaultValue: 'Radar L\'Assez • Investigation', label: 'Footer embed Discord', admin: { width: '50%' } },
                             ],
                         },
+                        {
+                            type: 'row',
+                            fields: [
+                                { name: 'includeSourceUrl', type: 'checkbox', defaultValue: true, label: 'Lien source dans les posts', admin: { width: '25%' } },
+                                { name: 'xMaxLength', type: 'number', defaultValue: 280, label: 'Limite X (car.)', admin: { width: '25%' } },
+                                { name: 'blueskyMaxLength', type: 'number', defaultValue: 300, label: 'Limite Bluesky (car.)', admin: { width: '25%' } },
+                                { name: 'mastodonMaxLength', type: 'number', defaultValue: 500, label: 'Limite Mastodon (car.)', admin: { width: '25%' } },
+                            ],
+                        },
                     ],
                 },
                 {

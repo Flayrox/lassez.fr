@@ -32,7 +32,25 @@ type Logger struct {
 	mu     sync.Mutex
 	file   *os.File
 	dir    string
+
+	// The Payload mirror is a single worker draining a bounded queue: one
+	// goroutine per log line would pile up unboundedly when the API slows
+	// down, so we cap the queue and drop entries when it overflows. The
+	// queue is closed only under mu with closed=true set first, so a log
+	// racing with Close() can never send on a closed channel.
+	queue  chan logEntry
+	closed bool
+	wg     sync.WaitGroup
 }
+
+type logEntry struct {
+	level   string
+	nodeID  string
+	message string
+}
+
+// queueCap bounds the in-flight Payload mirror entries.
+const queueCap = 256
 
 // New creates a Logger. client may be nil (log file only). dir is where
 // daemon.log lives; pass "" for ./logs.
@@ -51,12 +69,49 @@ func New(client *payload.Client, dir string) (*Logger, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Logger{client: client, file: f, dir: dir}, nil
+	l := &Logger{client: client, file: f, dir: dir, queue: make(chan logEntry, queueCap)}
+	if client != nil {
+		l.wg.Add(1)
+		go l.pump()
+	}
+	return l, nil
 }
 
-// Close flushes and closes the log file.
+// enqueue adds an entry to the Payload mirror queue, dropping it when the
+// queue is full or the logger is closed (never blocks, never panics).
+func (l *Logger) enqueue(e logEntry) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.closed {
+		return
+	}
+	select {
+	case l.queue <- e:
+	default:
+	}
+}
+
+// pump drains the queue into the Payload logs collection.
+func (l *Logger) pump() {
+	defer l.wg.Done()
+	for e := range l.queue {
+		l.client.AppendLog(e.level, e.nodeID, e.message)
+	}
+}
+
+// Close drains the queue, stops the Payload worker and closes the log file.
 func (l *Logger) Close() {
-	if l != nil && l.file != nil {
+	if l == nil {
+		return
+	}
+	l.mu.Lock()
+	if !l.closed && l.queue != nil {
+		l.closed = true
+		close(l.queue)
+	}
+	l.mu.Unlock()
+	l.wg.Wait()
+	if l.file != nil {
 		_ = l.file.Close()
 	}
 }
@@ -78,9 +133,8 @@ func (l *Logger) log(level, nodeID, message string) {
 	colors := map[string]string{"INFO": "\x1b[34m", "WARN": "\x1b[33m", "ERROR": "\x1b[31m", "SUCCESS": "\x1b[32m", "RESET": "\x1b[0m"}
 	fmt.Fprintf(os.Stdout, "%s[%s] [%s] %s%s\n", colors[level], ts, nodeID, message, colors["RESET"])
 
-	if l.client != nil {
-		go l.client.AppendLog(level, nodeID, message)
-	}
+	// Enqueue to the Payload mirror, dropping on overflow (never block).
+	l.enqueue(logEntry{level: level, nodeID: nodeID, message: message})
 }
 
 // Info logs an INFO entry.

@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/google/generative-ai-go/genai"
 	"google.golang.org/api/option"
@@ -101,7 +102,11 @@ func RunValidator(client *payload.Client, resolver *config.Resolver) error {
 			}
 
 			prompt := validatorSystemPrompt + "\n\nVoici le brouillon à évaluer :\n" + draft.Body
-			resp, err := model.GenerateContent(ctx, genai.Text(prompt))
+
+			// Timeout par appel : une API qui pend ne doit pas bloquer le nœud.
+			callCtx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+			defer cancel()
+			resp, err := model.GenerateContent(callCtx, genai.Text(prompt))
 			if err != nil {
 				log.Printf("[Node 5] ❌ Erreur validation %s: %v", topic.ID, err)
 				_ = client.UpdateSignal(topic.ID, map[string]any{"status": "REJECTED_ERROR"})

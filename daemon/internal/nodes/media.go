@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"time"
 	"strings"
 	"sync"
 
@@ -16,10 +17,16 @@ import (
 	"github.com/Flayrox/LASSEZ/daemon/internal/payload"
 )
 
-// bannedDomains mirrors the TS media node's blocked image sources.
+// bannedDomains mirrors the TS media node's blocked image sources. Matching
+// is done on the hostname (see isBannedImageURL), so substrings like "x.com"
+// can never ban unrelated domains (e.g. "example.com").
 var bannedDomains = []string{
 	"instagram.com", "facebook.com", "pinterest.com", "tiktok.com", "twitter.com", "x.com",
 }
+
+// mediaHTTPClient gives the Google scrape a hard timeout (http.DefaultClient
+// has none and could hang the media node forever).
+var mediaHTTPClient = &http.Client{Timeout: 20 * time.Second}
 
 type imageResult struct {
 	URL string
@@ -137,7 +144,7 @@ func googleImageSearch(ctx context.Context, query string) ([]imageResult, error)
 	req.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36")
 	req.Header.Set("Accept", "text/html,application/xhtml+xml")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := mediaHTTPClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -167,9 +174,14 @@ func googleImageSearch(ctx context.Context, query string) ([]imageResult, error)
 }
 
 func isBannedImageURL(u string) bool {
-	low := strings.ToLower(u)
+	parsed, err := url.Parse(u)
+	if err != nil {
+		return false
+	}
+	host := strings.ToLower(parsed.Hostname())
+	host = strings.TrimPrefix(host, "www.")
 	for _, b := range bannedDomains {
-		if strings.Contains(low, b) {
+		if host == b || strings.HasSuffix(host, "."+b) {
 			return true
 		}
 	}

@@ -5,6 +5,7 @@ package nodes
 import (
 	"encoding/json"
 	"log"
+	"net/http"
 	"net/url"
 	"strings"
 	"sync"
@@ -121,7 +122,10 @@ func RunIngestion(client *payload.Client, resolver *config.Resolver) ([]Ingested
 		}
 	}
 
+	// gofeed uses http.DefaultClient (no timeout) by default: a dead feed
+	// would hang the ingestion node. Give the parser its own timed client.
 	parser := gofeed.NewParser()
+	parser.Client = &http.Client{Timeout: 30 * time.Second}
 
 	var (
 		mu       sync.Mutex

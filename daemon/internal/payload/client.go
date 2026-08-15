@@ -7,6 +7,7 @@ package payload
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -165,9 +166,51 @@ func (c *Client) login() (string, error) {
 	return c.token, nil
 }
 
-// request performs an authenticated request. On a 401 it refreshes the
-// token once and retries, mirroring the TS client.
+// apiError marks a non-2xx HTTP response so the retry logic can tell server
+// errors (5xx) apart from client errors and network failures.
+type apiError struct {
+	status int
+	msg    string
+}
+
+func (e *apiError) Error() string { return e.msg }
+
+// request performs an authenticated request. On a 401 it refreshes the token
+// once and retries, mirroring the TS client. Idempotent methods (GET, PATCH,
+// DELETE) additionally retry transient failures (5xx, network errors) with
+// backoff; POSTs are never retried to avoid creating duplicate documents.
 func (c *Client) request(method, path string, body any, retry bool) ([]byte, error) {
+	const maxAttempts = 3
+	var lastErr error
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		data, err := c.requestOnce(method, path, body, retry)
+		if err == nil {
+			return data, nil
+		}
+		lastErr = err
+		if attempt == maxAttempts || !shouldRetry(method, err) {
+			break
+		}
+		time.Sleep(time.Duration(attempt) * time.Second)
+	}
+	return nil, lastErr
+}
+
+func shouldRetry(method string, err error) bool {
+	switch method {
+	case http.MethodGet, http.MethodPatch, http.MethodDelete:
+	default:
+		return false
+	}
+	var ae *apiError
+	if errors.As(err, &ae) {
+		return ae.status >= 500
+	}
+	// Network-level failure (timeout, refused, reset): safe to retry.
+	return true
+}
+
+func (c *Client) requestOnce(method, path string, body any, retry bool) ([]byte, error) {
 	token, err := c.login()
 	if err != nil {
 		return nil, err
@@ -201,11 +244,11 @@ func (c *Client) request(method, path string, body any, retry bool) ([]byte, err
 		c.token = ""
 		c.tokenExpiresAt = time.Time{}
 		c.mu.Unlock()
-		return c.request(method, path, body, false)
+		return c.requestOnce(method, path, body, false)
 	}
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("payload %s %s (HTTP %d): %s", method, path, resp.StatusCode, truncate(string(data), 300))
+		return nil, &apiError{status: resp.StatusCode, msg: fmt.Sprintf("payload %s %s (HTTP %d): %s", method, path, resp.StatusCode, truncate(string(data), 300))}
 	}
 	return data, nil
 }

@@ -14,6 +14,7 @@ import * as migration_20260503_000000_rbac_update from './20260503_000000_rbac_u
 import * as migration_20260815_113750 from './20260815_113750';
 import * as migration_20260815_114500_add_discord_embed_settings from './20260815_114500_add_discord_embed_settings';
 import * as migration_20260815_120000_fix_revelations_versions_author from './20260815_120000_fix_revelations_versions_author';
+import * as migration_20260815_130000_add_social_publish_settings from './20260815_130000_add_social_publish_settings';
 
 export const migrations = [
   {
@@ -95,5 +96,10 @@ export const migrations = [
     up: migration_20260815_120000_fix_revelations_versions_author.up,
     down: migration_20260815_120000_fix_revelations_versions_author.down,
     name: '20260815_120000_fix_revelations_versions_author'
+  },
+  {
+    up: migration_20260815_130000_add_social_publish_settings.up,
+    down: migration_20260815_130000_add_social_publish_settings.down,
+    name: '20260815_130000_add_social_publish_settings'
   },
 ];

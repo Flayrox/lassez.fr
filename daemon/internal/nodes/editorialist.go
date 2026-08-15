@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/google/generative-ai-go/genai"
 	"google.golang.org/api/option"
@@ -163,7 +164,10 @@ func RunEditorialist(client *payload.Client, resolver *config.Resolver) error {
 				orTitle(raw.ClusterTitle), excerpt, taxonomy, geo,
 			)
 
-			resp, err := model.GenerateContent(ctx, genai.Text(sb.String()+"\n\n"+userPrompt))
+			// Timeout par appel : une API qui pend ne doit pas bloquer le nœud.
+			callCtx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+			defer cancel()
+			resp, err := model.GenerateContent(callCtx, genai.Text(sb.String()+"\n\n"+userPrompt))
 			if err != nil {
 				log.Printf("[Node 4] ❌ Erreur rédaction %s: %v", topic.ID, err)
 				return

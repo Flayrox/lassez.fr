@@ -82,6 +82,9 @@ func main() {
 	go func() {
 		<-stop
 		loggerInstance.Info("Daemon", "🛑 Signal reçu, arrêt propre du démon...")
+		// os.Exit ne déroule pas les defers : on draine le logger
+		// (queue Payload + fichier) explicitement avant de sortir.
+		loggerInstance.Close()
 		os.Exit(0)
 	}()
 

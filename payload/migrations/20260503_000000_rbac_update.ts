@@ -26,18 +26,29 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
     ALTER TABLE "lessons" ADD COLUMN IF NOT EXISTS "author_id" integer;
   `)
   
-  // Add foreign keys if they don't exist
-  try {
-    await db.execute(sql`
-      ALTER TABLE "revelations" ADD CONSTRAINT "revelations_author_id_authors_id_fk" FOREIGN KEY ("author_id") REFERENCES "authors"("id") ON DELETE SET NULL;
-    `)
-  } catch (e) {}
+  // Add foreign keys if they don't exist. NOTE: a JS try/catch does NOT work
+  // here — a failed statement aborts the whole Postgres transaction, so the
+  // bookkeeping INSERT afterwards fails with "current transaction is aborted".
+  // Use guarded DO blocks instead (idempotent).
+  await db.execute(sql`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'revelations_author_id_authors_id_fk') THEN
+        ALTER TABLE "revelations" ADD CONSTRAINT "revelations_author_id_authors_id_fk" FOREIGN KEY ("author_id") REFERENCES "authors"("id") ON DELETE SET NULL;
+      END IF;
+    END
+    $$;
+  `)
 
-  try {
-    await db.execute(sql`
-      ALTER TABLE "lessons" ADD CONSTRAINT "lessons_author_id_authors_id_fk" FOREIGN KEY ("author_id") REFERENCES "authors"("id") ON DELETE SET NULL;
-    `)
-  } catch (e) {}
+  await db.execute(sql`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'lessons_author_id_authors_id_fk') THEN
+        ALTER TABLE "lessons" ADD CONSTRAINT "lessons_author_id_authors_id_fk" FOREIGN KEY ("author_id") REFERENCES "authors"("id") ON DELETE SET NULL;
+      END IF;
+    END
+    $$;
+  `)
 }
 
 export async function down({ db, payload, req }: MigrateDownArgs): Promise<void> {

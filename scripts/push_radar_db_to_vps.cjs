@@ -11,8 +11,8 @@ if (!password) {
   process.exit(1);
 }
 
-const localDb = path.join(process.cwd(), 'radar_lassez', 'radar.db');
-const remoteDir = '/var/www/lassez-api/radar_lassez';
+const localDb = path.join(process.cwd(), 'data', 'radar.db');
+const remoteDir = '/var/www/lassez-api/data';
 const remoteDb = `${remoteDir}/radar.db`;
 const remoteTmp = `${remoteDir}/radar.db.upload`;
 

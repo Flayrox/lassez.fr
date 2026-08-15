@@ -2,6 +2,7 @@ import { Metadata, ResolvingMetadata } from 'next';
 import { generateSeoMetadata, generateSemanticSummary, formatCommuneSlug } from '@/lib/seo-engine';
 import { getDepartmentName } from '@/lib/geo-data';
 import Database from 'better-sqlite3';
+import { getRadarDbPath } from '@/lib/radar-db';
 import path from 'path';
 import Layout from '@/components/Layout';
 import { notFound, redirect } from 'next/navigation';
@@ -15,8 +16,7 @@ export const dynamicParams = true;
 export const dynamic = 'force-dynamic';
 
 function getDb() {
-  const dbPath = path.join(process.cwd(), 'radar_lassez', 'radar.db');
-  return new Database(dbPath, { readonly: true });
+  return new Database(getRadarDbPath(), { readonly: true });
 }
 
 function getStudioBaseUrl() {

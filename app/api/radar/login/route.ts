@@ -1,15 +1,14 @@
 import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 import Database from 'better-sqlite3';
-import path from 'path';
+import { getRadarDbPath } from '@/lib/radar-db';
 
 const rateLimitMap = new Map<string, { count: number, resetTime: number }>();
 const MAX_ATTEMPTS = 5;
 const WINDOW_MS = 5 * 60 * 1000; // 5 minutes
 
 function getDb() {
-    const dbPath = path.join(process.cwd(), 'radar_lassez', 'radar.db');
-    return new Database(dbPath);
+    return new Database(getRadarDbPath());
 }
 
 function ensureUsersTable(db: Database.Database) {

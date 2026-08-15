@@ -109,10 +109,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
         let electionUrls: any[] = [];
         try {
-            const path = await import('path');
             const Database = (await import('better-sqlite3')).default;
-            const dbPath = path.join(process.cwd(), 'radar_lassez', 'radar.db');
-            const db = new Database(dbPath);
+            const { getRadarDbPath } = await import('@/lib/radar-db');
+            const db = new Database(getRadarDbPath());
 
             const hasRadarSettingsTable = db
                 .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'radar_settings'")

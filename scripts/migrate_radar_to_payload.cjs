@@ -24,7 +24,6 @@
  *   node scripts/migrate_radar_to_payload.cjs [--dry-run] [--db=prisma/radar.db]
  */
 require('dotenv').config({ path: require('path').join(process.cwd(), '.env') });
-require('dotenv').config({ path: require('path').join(process.cwd(), 'radar_lassez', '.env'), override: true });
 const Database = require('better-sqlite3');
 const path = require('path');
 

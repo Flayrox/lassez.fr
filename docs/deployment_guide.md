@@ -62,7 +62,8 @@ node scripts/grant_admin.cjs email@exemple.com
 
 ## ⚠️ Notes Techniques
 - **Base de Données** : Payload utilise Supabase (Postgres). Les migrations sont appliquées automatiquement par le workflow de déploiement (`npm run payload:migrate`).
-- **Base Radar** : le daemon écrit désormais dans Payload (Postgres) — plus de SQLite. Les collections dédiées (`signals`, `sources`, `publications`, `seen-urls`, `taxonomy-templates`, `logs`) et le global `radar-settings` remplacent l'ancienne base Prisma.
+- **Base Radar** : le daemon écrit dans Payload (Postgres). Les collections dédiées (`signals`, `sources`, `publications`, `seen-urls`, `taxonomy-templates`, `logs`) et le global `radar-settings` remplacent l'ancienne base Prisma. Le daemon est écrit en **Go** (`daemon/`), compilé en binaire `linux/amd64` par le workflow, et lancé par PM2 (`./daemon/bin/daemon`).
+- **Base legacy du front** : `data/radar.db` (SQLite, élections/config/nav) reste utilisé par le site public et est poussé au VPS via `node scripts/push_radar_db_to_vps.cjs`.
 - **Clé SSH** : le déploiement GitHub Actions utilise le secret `VPS_SSH_KEY` ; les scripts manuels utilisent `~/.ssh/id_ed25519`.
 
 ## 🔄 Migration Radar (une seule fois, avant de basculer le daemon)
@@ -70,4 +71,4 @@ node scripts/grant_admin.cjs email@exemple.com
 1. Appliquer le schéma : `npm run payload:migrate` (déjà fait par le workflow).
 2. Créer le compte bot admin : `npx tsx payload/create-bot.ts` (lit `PAYLOAD_BOT_EMAIL` / `PAYLOAD_BOT_PASSWORD`).
 3. Importer les données SQLite → Payload : `node scripts/migrate_radar_to_payload.cjs`.
-4. Vérifier que `radar_lassez/.env` (ou le `.env` racine) contient `PAYLOAD_API_URL`, `PAYLOAD_BOT_EMAIL` et `PAYLOAD_BOT_PASSWORD` : le daemon les charge lui-même au démarrage.
+4. Vérifier que le `.env` racine contient `PAYLOAD_API_URL`, `PAYLOAD_BOT_EMAIL` et `PAYLOAD_BOT_PASSWORD` : le daemon Go les charge lui-même au démarrage (il ne lit plus `radar_lassez/.env`, supprimé).

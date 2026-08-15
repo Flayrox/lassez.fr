@@ -3,6 +3,7 @@ import Layout from '@/components/Layout';
 import { departments as deptNames } from '@/lib/geo-data';
 import { formatCommuneSlug } from '@/lib/seo-engine';
 import Database from 'better-sqlite3';
+import { getRadarDbPath } from '@/lib/radar-db';
 import path from 'path';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
@@ -16,8 +17,7 @@ interface PageProps {
 
 async function getCommunes(codeDept: string) {
     try {
-        const dbPath = path.join(process.cwd(), 'radar_lassez', 'radar.db');
-        const db = new Database(dbPath);
+        const db = new Database(getRadarDbPath());
         const rows = db.prepare('SELECT DISTINCT code_insee, ville FROM elections_officiel_cache WHERE code_departement = ? AND election_slug = "municipales-2026" ORDER BY ville').all(codeDept) as { code_insee: string, ville: string }[];
         db.close();
         return rows;

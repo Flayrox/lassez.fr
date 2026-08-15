@@ -6,13 +6,12 @@ import type { Post } from '@/payload-types';
 import type { Where } from 'payload';
 import { getPayloadClient } from '@/lib/payload';
 import Database from 'better-sqlite3';
-import path from 'path';
+import { getRadarDbPath } from '@/lib/radar-db';
 import { formatElectionLabel } from '@/lib/elections';
 import { fetchWithTimeout } from '@/lib/fetch-timeout';
 
 function getDb() {
-    const dbPath = path.join(process.cwd(), 'radar_lassez', 'radar.db');
-    return new Database(dbPath);
+    return new Database(getRadarDbPath());
 }
 
 function getStudioBaseUrl() {

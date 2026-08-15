@@ -1,14 +1,13 @@
 import { NextResponse } from 'next/server';
 import Database from 'better-sqlite3';
-import path from 'path';
 import { formatElectionLabel, parseJsonArray } from '@/lib/elections';
 import { fetchWithTimeout } from '@/lib/fetch-timeout';
+import { getRadarDbPath } from '@/lib/radar-db';
 
 export const dynamic = 'force-dynamic';
 
 function getDb() {
-    const dbPath = path.join(process.cwd(), 'radar_lassez', 'radar.db');
-    return new Database(dbPath);
+    return new Database(getRadarDbPath());
 }
 
 function getStudioBaseUrl() {

@@ -1,3 +1,4 @@
+import './lib/env';
 import { runPublisherNode } from './nodes/publisher';
 
 async function main() {

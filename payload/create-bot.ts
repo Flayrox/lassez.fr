@@ -1,10 +1,11 @@
+import 'dotenv/config';
 import { getPayload } from 'payload';
 import config from '../payload.config';
 
 async function createBot() {
     const payload = await getPayload({ config });
-    const botEmail = 'bot@lassez.fr';
-    const botPassword = 'LassezBotPassword2026!';
+    const botEmail = process.env.PAYLOAD_BOT_EMAIL || 'bot@lassez.fr';
+    const botPassword = process.env.PAYLOAD_BOT_PASSWORD || 'LassezBotPassword2026!';
     
     try {
         const existing = await payload.find({

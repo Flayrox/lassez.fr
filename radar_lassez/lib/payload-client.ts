@@ -12,7 +12,7 @@
 
 // URL de base de l'API Payload (ex: https://api.lassez.fr/api/payload)
 function getApiBase(): string {
-    const envUrl = process.env.PAYLOAD_API_URL || process.env.PAYLOAD_SERVER_URL;
+    const envUrl = process.env.PAYLOAD_API_URL || process.env.PAYLOAD_URL || process.env.PAYLOAD_SERVER_URL;
     const base = envUrl || 'http://localhost:5173';
     const normalized = base.replace(/\/+$/, '');
     return normalized.includes('/api/payload') ? normalized : `${normalized}/api/payload`;
@@ -51,8 +51,8 @@ export class PayloadClient {
 
         if (!this.loginPromise) {
             this.loginPromise = (async () => {
-                const email = process.env.PAYLOAD_ADMIN_EMAIL || 'admin@lassez.fr';
-                const password = process.env.PAYLOAD_ADMIN_PASSWORD || '';
+                const email = process.env.PAYLOAD_ADMIN_EMAIL || process.env.PAYLOAD_BOT_EMAIL || 'bot@lassez.fr';
+                const password = process.env.PAYLOAD_ADMIN_PASSWORD || process.env.PAYLOAD_BOT_PASSWORD || '';
                 const res = await fetch(`${this.baseUrl}/authors/login`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },

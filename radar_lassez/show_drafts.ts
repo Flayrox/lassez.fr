@@ -1,3 +1,4 @@
+import './lib/env';
 import { payloadClient } from './lib/payload-client';
 
 // Utilitaire : affiche les brouillons (statut DRAFTED) depuis Payload.

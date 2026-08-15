@@ -52,6 +52,13 @@ export default buildConfig({
         meta: {
             titleSuffix: 'Payload',
         },
+        components: {
+            views: {
+                dashboard: {
+                    Component: '/payload/views/radar/DashboardView',
+                },
+            },
+        },
         livePreview: {
             collections: ['posts', 'lessons', 'revelations'],
             breakpoints: [

@@ -1,6 +1,7 @@
 import { Metadata } from 'next';
 import Layout from '@/components/Layout';
 import Database from 'better-sqlite3';
+import { getRadarDbPath } from '@/lib/radar-db';
 import path from 'path';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
@@ -18,8 +19,7 @@ interface PageProps {
 }
 
 function getDb() {
-    const dbPath = path.join(process.cwd(), 'radar_lassez', 'radar.db');
-    return new Database(dbPath, { readonly: true });
+    return new Database(getRadarDbPath(), { readonly: true });
 }
 
 function getStudioBaseUrl() {

@@ -4,7 +4,7 @@ import { departments as deptNames } from '@/lib/geo-data';
 import { formatCommuneSlug } from '@/lib/seo-engine';
 import { formatElectionLabel } from '@/lib/elections';
 import Database from 'better-sqlite3';
-import path from 'path';
+import { getRadarDbPath } from '@/lib/radar-db';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import CitySearchBar from '@/components/CitySearchBar';
@@ -18,8 +18,7 @@ interface PageProps {
 }
 
 function getDb() {
-    const dbPath = path.join(process.cwd(), 'radar_lassez', 'radar.db');
-    return new Database(dbPath);
+    return new Database(getRadarDbPath());
 }
 
 function getStudioBaseUrl() {

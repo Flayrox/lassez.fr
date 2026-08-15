@@ -1,10 +1,9 @@
 import { NextResponse } from 'next/server';
 import Database from 'better-sqlite3';
-import path from 'path';
+import { getRadarDbPath } from '@/lib/radar-db';
 
 function getDb() {
-    const dbPath = path.join(process.cwd(), 'radar_lassez', 'radar.db');
-    return new Database(dbPath);
+    return new Database(getRadarDbPath());
 }
 
 export const dynamic = 'force-dynamic';

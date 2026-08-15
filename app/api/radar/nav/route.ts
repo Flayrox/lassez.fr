@@ -1,14 +1,13 @@
 import { NextResponse } from 'next/server';
 import Database from 'better-sqlite3';
-import path from 'path';
 import { getNavItems } from '@/lib/db-nav';
 import { NavItem } from '@/types';
+import { getRadarDbPath } from '@/lib/radar-db';
 
 export const dynamic = 'force-dynamic';
 
 function getDb() {
-    const dbPath = path.join(process.cwd(), 'radar_lassez', 'radar.db');
-    return new Database(dbPath);
+    return new Database(getRadarDbPath());
 }
 
 // GET public — retourne les items de nav (tous, actifs et inactifs pour le Radar-Admin)

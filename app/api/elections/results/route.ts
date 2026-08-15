@@ -1,15 +1,14 @@
 import { NextResponse } from 'next/server';
 import Database from 'better-sqlite3';
-import path from 'path';
 import { logToDaemon, errorToDaemon } from '../../logger';
 import { fetchWithTimeout } from '@/lib/fetch-timeout';
+import { getRadarDbPath } from '@/lib/radar-db';
 
 export const dynamic = 'force-dynamic';
 const syncLocks = new Map<string, Promise<void>>();
 
 function getDb() {
-    const dbPath = path.join(process.cwd(), 'radar_lassez', 'radar.db');
-    return new Database(dbPath);
+    return new Database(getRadarDbPath());
 }
 
 function getStudioBaseUrl() {

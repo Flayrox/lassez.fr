@@ -2,7 +2,7 @@
 
 import { unstable_cache } from 'next/cache';
 import Database from 'better-sqlite3';
-import path from 'path';
+import { getRadarDbPath } from '@/lib/radar-db';
 
 export interface RadarConfig {
     maintenance_mode: boolean;
@@ -84,8 +84,7 @@ export async function getRadarConfig(): Promise<RadarConfig> {
 
             // 2. Local SQLite Logic (Hetzner Studio case / Fallback)
             try {
-                const dbPath = path.join(process.cwd(), 'radar_lassez', 'radar.db');
-                const db = new Database(dbPath);
+                const db = new Database(getRadarDbPath());
 
                 const rows = db.prepare(`
                     SELECT key, value FROM radar_settings 

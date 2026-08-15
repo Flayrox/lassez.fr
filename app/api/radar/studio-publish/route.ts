@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import path from 'path';
 import fs from 'fs';
 import { getPayloadClient } from '@/lib/payload';
-import { logger } from '@/radar_lassez/lib/logger';
+import { getDataTmpDir } from '@/lib/radar-db';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -39,7 +39,7 @@ export async function POST(request: Request) {
                 const ext = m[1].split('/')[1] || 'png';
                 const b64 = m[2];
                 const filename = `studio-${Date.now()}.${ext}`;
-                const tmpDir = path.join(process.cwd(), 'radar_lassez', 'tmp');
+                const tmpDir = getDataTmpDir();
                 ensureDir(tmpDir);
                 const outPath = path.join(tmpDir, filename);
                 fs.writeFileSync(outPath, Buffer.from(b64, 'base64'));
@@ -64,7 +64,7 @@ export async function POST(request: Request) {
             },
         });
 
-        logger.success('Studio', `Signal ${id} publié manuellement depuis le Studio.`);
+        console.log(`[Studio] Signal ${id} publié manuellement depuis le Studio.`);
 
         return NextResponse.json({ success: true, message: 'Article publié', id });
     } catch (err: any) {

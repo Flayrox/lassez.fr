@@ -8,6 +8,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"io"
 	"log"
@@ -29,6 +30,11 @@ import (
 )
 
 func main() {
+	// -once : exécute un seul cycle complet (pipeline + publisher) puis sort.
+	// Utilisé par l'endpoint POST /api/payload/radar/trigger (bouton "Nouveau scan").
+	once := flag.Bool("once", false, "exécuter un seul cycle et sortir")
+	flag.Parse()
+
 	loadEnv()
 
 	client := payload.New("")
@@ -58,6 +64,17 @@ func main() {
 		loggerInstance.Info("Daemon", "radar-settings chargées.")
 	}
 	resolver.Invalidate()
+
+	// Mode one-shot (trigger manuel) : un cycle pipeline + publisher puis exit.
+	if *once {
+		if err := pipeline.RunCycle(client, resolver, loggerInstance); err != nil {
+			loggerInstance.Error("Daemon", "❌ Erreur critique dans le pipeline : "+err.Error())
+		}
+		if err := nodes.RunPublisher(client, resolver); err != nil {
+			loggerInstance.Error("Daemon", "❌ Erreur dans la boucle Publisher : "+err.Error())
+		}
+		return
+	}
 
 	// Arrêt propre sur SIGTERM/SIGINT (PM2).
 	stop := make(chan os.Signal, 1)
@@ -120,15 +137,14 @@ func formatMinutes(d time.Duration) string {
 	return fmt.Sprintf("%d", int(d.Minutes()))
 }
 
-// loadEnv mirrors radar_lassez/lib/env.ts: the repo-root .env first, then
-// radar_lassez/.env which takes precedence.
+// loadEnv charges le .env à la racine du repo (le daemon TS a été supprimé,
+// ses secrets ont été fusionnés dans le .env racine).
 func loadEnv() {
 	wd, err := os.Getwd()
 	if err != nil {
 		return
 	}
 	_ = godotenv.Load(filepath.Join(wd, ".env"))
-	_ = godotenv.Overload(filepath.Join(wd, "radar_lassez", ".env"))
 }
 
 var _ io.Writer = (*logRedirect)(nil)

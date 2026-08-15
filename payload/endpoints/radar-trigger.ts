@@ -6,7 +6,8 @@ import type { PayloadHandler } from 'payload';
  * Endpoint custom Payload : déclenche un cycle du pipeline Radar.
  *
  * Authentifié par Payload (single-login) — seul un admin peut lancer un scan.
- * Monte un process `manual_trigger.ts` et streame sa sortie vers le client.
+ * Lance le binaire Go du daemon en mode one-shot (`-once`) et streame sa
+ * sortie vers le client.
  *
  * Exposé sur : POST /api/payload/radar/trigger
  */
@@ -17,9 +18,9 @@ export const radarTriggerEndpoint: PayloadHandler = (req) => {
         return Response.json({ success: false, error: 'Accès refusé.' }, { status: 401 });
     }
 
-    const radarDir = path.join(process.cwd(), 'radar_lassez');
-    const scriptPath = path.join(radarDir, 'manual_trigger.ts');
-    const execCommand = `npx tsx "${scriptPath}"`;
+    // Binaire Go compilé au déploiement (voir .github/workflows/deploy.yml).
+    const binaryPath = path.join(process.cwd(), 'daemon', 'bin', 'daemon');
+    const execCommand = `"${binaryPath}" -once`;
 
     const encoder = new TextEncoder();
 
@@ -33,6 +34,7 @@ export const radarTriggerEndpoint: PayloadHandler = (req) => {
             const child = exec(execCommand, {
                 cwd: process.cwd(),
                 env: cleanEnv,
+                timeout: 10 * 60 * 1000, // 10 min max
             });
 
             let isClosed = false;

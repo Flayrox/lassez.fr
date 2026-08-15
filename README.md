@@ -7,24 +7,26 @@
 ```
 ┌─────────────────────────────┐     ┌──────────────────────────────┐
 │  Front public (lassez.fr)   │     │  Studio (studio.lassez.fr)   │
-│  Next.js App Router + RSC   │     │  Radar-admin : dashboard,    │
-│  composants "papier"        │     │  settings, daemon, flow,     │
-│                             │     │  templates, network, lab     │
+│  Next.js App Router + RSC   │     │  Éditeur de templates        │
+│  composants "papier"        │     │  (FFmpeg.wasm)               │
 └──────────┬──────────────────┘     └──────────────┬───────────────┘
            │                                       │
            ▼                                       ▼
-┌─────────────────────────────┐     ┌──────────────────────────────┐
-│  Payload CMS (api.lassez.fr)│     │  Daemon Radar (radar_lassez/)│
-│  collections : posts,       │     │  Pipeline 7 nœuds :          │
-│  revelations, lessons,      │     │  ingestion → dedup →         │
-│  categories, tags, authors, │     │  research → editorial →      │
-│  media + globals            │     │  validator → media →         │
-│  (Postgres / Supabase)      │     │  publisher                   │
-└─────────────────────────────┘     └──────────────┬───────────────┘
-                                                   ▼
-                              Payload (Postgres) via l'API REST :
-                              radar-settings, signals, sources,
-                              publications, seen-urls, logs
+┌────────────────────────────────────────────────────────────────────┐
+│                    Payload CMS (api.lassez.fr)                     │
+│  admin + Cockpit Radar (single login) : collections signals,       │
+│  sources, publications, logs, taxonomy-templates, posts,           │
+│  revelations, categories, tags, authors + globals radar-settings   │
+│  (Postgres / Supabase)                                             │
+└──────────────────────────────────────┬─────────────────────────────┘
+                                       │ API REST + logs (heartbeat)
+                                       ▼
+┌────────────────────────────────────────────────────────────────────┐
+│                    Daemon Radar (daemon/, en Go)                    │
+│  Pipeline 7 nœuds : ingestion → dedup → research → editorial →      │
+│  validator → media → publisher. Deux boucles autonomes : cycle      │
+│  planifié (pulse/calendrier) + publisher toutes les 2 min.          │
+└────────────────────────────────────────────────────────────────────┘
 ```
 
 ### Les 4 blocs
@@ -35,13 +37,13 @@
 
 3. **Payload CMS** (`payload/`) — back-office éditorial : collections `posts`, `revelations`, `lessons` (+ `categories`, `tags`, `authors`, `media`), globals `settings`/`about`/`legal`, versions/drafts, live preview avec jetons signés, hooks SEO Gemini et revalidation de cache. Admin sur `api.lassez.fr/admin`.
 
-4. **Daemon Radar** (`radar_lassez/`) — pipeline d'automatisation : ingestion multi-sources (RSS, Google News, Telegram, X), dédoublonnage, scoring de pertinence (Gemini Flash), rédaction d'investigation (Gemini Pro), validation, enrichissement média, puis publication (Payload + Discord/X/Bluesky/Mastodon). Il lit/écrit dans Payload via l'API REST (`payload-client.ts`). Deux boucles autonomes : cycle principal + publisher toutes les 2 min.
+4. **Daemon Radar** (`daemon/`, en Go) — pipeline d'automatisation : ingestion multi-sources (RSS, Google News), dédoublonnage, scoring de pertinence (Gemini Flash), rédaction d'investigation (Gemini Pro), validation, enrichissement média, puis publication (Payload CMS + Discord). Il lit/écrit dans Payload via l'API REST et heartbeats l'admin (collection `logs`). Deux boucles autonomes : cycle planifié (pulse/calendrier via `radar-settings`) + publisher toutes les 2 min. Le graphe actif des nœuds est pilotable depuis l'admin (`pipelineGraphJson`).
 
 ## 🧱 Stack
 
 - **Front** : Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS
 - **CMS** : Payload 3.82 (Postgres / Supabase), Rich Text Lexical
-- **Daemon** : Payload REST client, Gemini (Flash/Pro)
+- **Daemon** : Go, client Payload REST, Gemini (Flash/Pro), gofeed (RSS)
 - **Ops** : PM2 (4 processus), GitHub Actions, VPS nginx, Matomo
 
 ## 🚀 Démarrage en local
@@ -56,7 +58,7 @@ Routes utiles en dev :
 - Site public : `http://localhost:5173`
 - Admin Payload + Cockpit Radar : `http://localhost:5173/admin` (ou via `PAYLOAD_SERVER_URL`)
 - Studio de templates : `http://localhost:5173/templates`
-- Daemon : `npx tsx radar_lassez/daemon.ts` (optionnel, nécessite `PAYLOAD_API_URL` + identifiants bot)
+- Daemon : `cd daemon && go build -o bin/daemon ./cmd/daemon && ./bin/daemon` (nécessite `PAYLOAD_API_URL` + identifiants bot dans `.env`)
 
 ## 🗄️ Bases de données
 
@@ -64,6 +66,7 @@ Routes utiles en dev :
 | :--- | :--- | :--- |
 | Payload | Postgres (Supabase) via `DATABASE_URL` | Contenu éditorial, auteurs, médias, globals |
 | Radar | Payload (Postgres) via API REST | Collections `signals`, `sources`, `publications`, `seen-urls`, `taxonomy-templates`, `logs` + global `radar-settings` |
+| Legacy front | SQLite (`data/radar.db`) | Élections, config/nav, archives (non versionné, poussé via `push_radar_db_to_vps.cjs`) |
 
 Migrations Payload : `npm run payload:migrate` · Types générés : `npm run payload:generate:types`
 
@@ -82,7 +85,8 @@ app/(studio)/          Studio de templates (FFmpeg.wasm)
 app/api/               Routes API (radar, posts, og, preview, elections, cache-sync…)
 components/            Composants React partagés
 payload/               Config Payload : collections, globals, hooks, migrations, vues du cockpit
-radar_lassez/          Daemon d'automatisation (pipeline 7 nœuds, client Payload)
+daemon/                Daemon d'automatisation en Go (pipeline 7 nœuds, client Payload)
+data/                  Base SQLite legacy du front (élections, config, nav)
 lib/                   Utilitaires partagés (API, SEO, preview, radar-config…)
 hooks/                 Hooks React (usePosts, useCategories…)
 scripts/               Scripts dev/ops (deploy, migration Radar → Payload, utilitaires)

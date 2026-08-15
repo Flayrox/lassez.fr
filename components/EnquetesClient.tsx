@@ -123,9 +123,10 @@ const EnquetesClient: React.FC = () => {
     });
 
     // Catégories qui ont au moins un article publié.
-    // On charge un max de 200 articles (depth:0 = IDs seules) pour extraire les cat IDs actifs.
+    // On charge le maximum autorisé par l'API (/api/posts cap = 100, maxLimit Payload)
+    // pour extraire les cat IDs actifs.
     const { data: allPostsData } = useSWR<{ docs: { categories: (Category | string | number)[] }[] }>(
-        '/api/posts?per_page=200&depth=1',
+        '/api/posts?per_page=100&depth=1',
         (url: string) => fetch(url).then(r => r.json()),
         { revalidateOnFocus: false, dedupingInterval: 120_000 }
     );

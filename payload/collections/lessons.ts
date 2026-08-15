@@ -23,7 +23,13 @@ export const lessons: CollectionConfig = {
             const previewId = String(doc?.id || '').trim();
             if (!slug) return 'https://lassez.fr';
 
-            return `https://lassez.fr/api/preview?path=/comprendre/${slug}&preview_id=${previewId}`;
+            // URL signée : le token permet au front de lire le brouillon (draft) même non publié.
+            const previewToken = createPostPreviewToken({ postId: previewId, slug });
+            const previewUrl = new URL('/api/preview', 'https://lassez.fr');
+            previewUrl.searchParams.set('path', `/comprendre/${slug}`);
+            previewUrl.searchParams.set('preview_id', previewId);
+            if (previewToken) previewUrl.searchParams.set('preview_token', previewToken);
+            return previewUrl.toString();
         },
         livePreview: {
             url: ({ data }: any) => {

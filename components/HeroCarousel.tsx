@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { WPPost } from '../types';
 import Link from 'next/link';
 import { ChevronLeftIcon } from './icons';
@@ -18,38 +18,41 @@ export default function HeroCarousel({ posts }: HeroCarouselProps) {
     const [isHovered, setIsHovered] = useState(false);
     const [progress, setProgress] = useState(0);
     const [isAnimating, setIsAnimating] = useState(false);
+    const animatingRef = useRef(false);
+
+    const goTo = useCallback((idx: number) => {
+        if (animatingRef.current) return;
+        animatingRef.current = true;
+        setIsAnimating(true);
+        setCurrentIndex(idx);
+        window.setTimeout(() => {
+            animatingRef.current = false;
+            setIsAnimating(false);
+        }, 600);
+    }, []);
 
     useEffect(() => {
         setProgress(0);
     }, [currentIndex]);
 
+    // Avance la barre de progression ; aucun side-effect dans l'updater.
     useEffect(() => {
-        if (totalSlides <= 1) return;
-        if (isHovered) {
-            setProgress(p => p > 80 ? 0 : p);
-            return;
-        }
+        if (totalSlides <= 1 || isHovered) return;
         const interval = setInterval(() => {
-            setProgress(prev => {
-                const next = prev + (50 / 6000) * 100;
-                if (next >= 100) {
-                    goTo((currentIndex + 1) % totalSlides);
-                    return 0;
-                }
-                return next;
-            });
+            setProgress(prev => Math.min(100, prev + (50 / 6000) * 100));
         }, 50);
         return () => clearInterval(interval);
-    }, [totalSlides, isHovered, currentIndex]);
+    }, [totalSlides, isHovered]);
+
+    // Quand la barre est pleine, on passe au slide suivant.
+    useEffect(() => {
+        if (progress >= 100) {
+            setProgress(0);
+            goTo((currentIndex + 1) % totalSlides);
+        }
+    }, [progress, currentIndex, totalSlides, goTo]);
 
     if (!posts || posts.length === 0) return null;
-
-    const goTo = (idx: number) => {
-        if (isAnimating) return;
-        setIsAnimating(true);
-        setCurrentIndex(idx);
-        setTimeout(() => setIsAnimating(false), 600);
-    };
 
     const handleNext = () => goTo((currentIndex + 1) % totalSlides);
     const handlePrev = () => goTo((currentIndex - 1 + totalSlides) % totalSlides);

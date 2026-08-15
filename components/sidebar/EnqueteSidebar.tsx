@@ -28,8 +28,9 @@ const EnqueteSidebar: React.FC<EnqueteSidebarProps> = ({ onClose }) => {
     );
 
     // Tous les articles (léger, depth:0) pour savoir quelles catégories ont des articles
+    // per_page=100 : maximum autorisé par /api/posts (maxLimit Payload).
     const { data: postsData } = useSWR<{ docs: any[] }>(
-        '/api/posts?per_page=200&depth=1',
+        '/api/posts?per_page=100&depth=1',
         fetcher,
         { revalidateOnFocus: false, dedupingInterval: 120_000 }
     );

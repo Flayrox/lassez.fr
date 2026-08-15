@@ -14,7 +14,8 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
 
     const page    = Math.max(1, Number(searchParams.get('page') || '1'));
-    const limit   = Math.min(50, Math.max(1, Number(searchParams.get('limit') || searchParams.get('per_page') || '10')));
+    // Cap à 100 (maxLimit par défaut de Payload) : au-delà, Payload tronque silencieusement.
+    const limit   = Math.min(100, Math.max(1, Number(searchParams.get('limit') || searchParams.get('per_page') || '10')));
     const slug    = searchParams.get('slug') || null;
     const search  = searchParams.get('search') || null;
     const catId   = searchParams.get('categories') || null;

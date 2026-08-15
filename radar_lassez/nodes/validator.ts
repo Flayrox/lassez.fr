@@ -1,20 +1,18 @@
 import { GoogleGenAI, Type } from '@google/genai';
 import pLimit from 'p-limit';
-import { prisma } from '../lib/prisma';
+import { payloadClient } from '../lib/payload-client';
 import { getEffectiveParam } from '../lib/config-resolver';
 
 /**
  * Nœud 5 : Validator (Secrétariat de Rédaction & Conformité)
- * 
+ *
  * Exécute une relecture de sécurité et de conformité factuelle sur chaque brouillon rédigé.
  * Bascule les articles validés vers le statut VALIDATED (prêt pour enrichissement média).
  */
 export async function runValidatorNode() {
     console.log(`\n[Node 5: Validator] ⚖️ Lancement de la validation éditoriale...`);
 
-    const topics = await prisma.newsTopic.findMany({
-        where: { status: 'DRAFTED' }
-    });
+    const topics = await payloadClient.getSignalsByStatus('DRAFTED');
 
     if (topics.length === 0) {
         console.log(`[Node 5] ℹ️ Aucun sujet (statut: DRAFTED) à valider.`);
@@ -67,26 +65,21 @@ CRITÈRES :
 
             if (evaluation.isValid) {
                 console.log(`[Node 5] ✅ Validé : ${topic.id}`);
-                await prisma.newsTopic.update({
-                    where: { id: topic.id },
-                    data: { 
-                        status: 'VALIDATED',
-                        final_draft: evaluation.corrections ? JSON.stringify({ ...draft, body: evaluation.corrections }) : topic.final_draft
-                    }
+                await payloadClient.updateSignal(topic.id, {
+                    status: 'VALIDATED',
+                    final_draft: evaluation.corrections ? JSON.stringify({ ...draft, body: evaluation.corrections }) : topic.final_draft
                 });
             } else {
                 console.log(`[Node 5] ❌ Rejeté (${evaluation.reason}) : ${topic.id}`);
-                await prisma.newsTopic.update({
-                    where: { id: topic.id },
-                    data: { status: 'REJECTED' }
+                await payloadClient.updateSignal(topic.id, {
+                    status: 'REJECTED'
                 });
             }
         } catch (e: any) {
             console.error(`[Node 5] ❌ Erreur validation sur le topic ${topic.id}:`, e.message);
             try {
-                await prisma.newsTopic.update({
-                    where: { id: topic.id },
-                    data: { status: 'REJECTED_ERROR' }
+                await payloadClient.updateSignal(topic.id, {
+                    status: 'REJECTED_ERROR'
                 });
             } catch (updateErr) { }
         }

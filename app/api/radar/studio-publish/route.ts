@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import path from 'path';
 import fs from 'fs';
-import Database from 'better-sqlite3';
+import { prisma } from '@/lib/prisma';
+import { logger } from '@/radar_lassez/lib/logger';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -13,19 +14,21 @@ function ensureDir(p: string) {
     try { fs.mkdirSync(p, { recursive: true }); } catch (e) { }
 }
 
-/**
- * Initialise la connexion à la base SQLite locale Radar
- */
-function getDb() {
-    const dbPath = path.join(process.cwd(), 'radar_lassez', 'radar.db');
-    return new Database(dbPath);
+function safeJson<T>(raw: string | null | undefined, fallback: T): T {
+    if (!raw) return fallback;
+    try {
+        return JSON.parse(raw) as T;
+    } catch {
+        return fallback;
+    }
 }
 
 /**
  * Route POST /api/radar/studio-publish
- * 
- * Permet au Studio de soumettre la publication directe d'un brouillon d'investigation
- * avec décodage de l'image Base64 si une illustration personnalisée a été déposée.
+ *
+ * Le Studio publie un brouillon d'investigation : on met à jour le topic
+ * (newsTopic — la source de vérité du Studio) avec le contenu édité et une
+ * éventuelle image personnalisée (Base64 décodée), puis on bascule en PUBLISHED.
  */
 export async function POST(request: Request) {
     try {
@@ -33,6 +36,9 @@ export async function POST(request: Request) {
         const { id, titre, content, imageBase64 } = body;
 
         if (!id) return NextResponse.json({ success: false, error: 'Identifiant d\'article requis' }, { status: 400 });
+
+        const topic = await prisma.newsTopic.findUnique({ where: { id: String(id) } });
+        if (!topic) return NextResponse.json({ success: false, error: 'Topic introuvable' }, { status: 404 });
 
         let imagePath: string | null = null;
         if (imageBase64 && typeof imageBase64 === 'string') {
@@ -49,27 +55,24 @@ export async function POST(request: Request) {
             }
         }
 
-        const db = getDb();
-        try {
-            const stmt = db.prepare('UPDATE radar_posts SET flash_content = ?, image_keyword = ?, source_title = ? WHERE id = ?');
-            stmt.run(content || null, imagePath || null, titre || null, id);
-        } finally {
-            try { db.close(); } catch (e) {}
-        }
+        // Préserve le draft existant et fusionne les modifications éditoriales
+        const draftData: any = safeJson(topic.final_draft, {});
+        if (titre) draftData.headline = String(titre);
+        if (content) draftData.body = String(content);
 
-        // Appel de l'API PATCH interne pour basculer le statut en PUBLISHED
-        try {
-            const origin = new URL(request.url).origin;
-            await fetch(`${origin}/api/radar`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ id, status: 'PUBLISHED', flash_content: content, image_keyword: imagePath, source_title: titre })
-            });
-        } catch (e) {
-            console.warn('Avertissement : Échec de l\'appel PATCH interne vers /api/radar :', e);
-        }
+        await prisma.newsTopic.update({
+            where: { id: String(id) },
+            data: {
+                status: 'PUBLISHED',
+                publishedAt: new Date(),
+                final_draft: JSON.stringify(draftData),
+                ...(imagePath ? { image_url: imagePath } : {}),
+            },
+        });
 
-        return NextResponse.json({ success: true, message: 'Demande de publication enregistrée', id });
+        logger.success('Studio', `Topic ${id} publié manuellement depuis le Studio.`);
+
+        return NextResponse.json({ success: true, message: 'Article publié', id });
     } catch (err: any) {
         console.error('Erreur Studio Publish:', err);
         return NextResponse.json({ success: false, error: err.message || String(err) }, { status: 500 });

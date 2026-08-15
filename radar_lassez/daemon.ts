@@ -1,4 +1,4 @@
-import { prisma } from './lib/prisma';
+import { payloadClient } from './lib/payload-client';
 import { logger } from './lib/logger';
 import { runIngestionNode } from './nodes/ingestion';
 import { runDeduplicatorNode } from './nodes/deduplicator';
@@ -7,22 +7,22 @@ import { runEditorialistNode } from './nodes/editorialist';
 import { runValidatorNode } from './nodes/validator';
 import { runMediaNode } from './nodes/media';
 import { runPublisherNode } from './nodes/publisher';
+import { getSettingsCached, invalidateSettingsCache } from './lib/config-resolver';
 
 /**
- * Initialise et s'assure de la présence de la configuration globale (GlobalSettings)
- * dans la base de données PostgreSQL de Radar.
+ * Initialise et s'assure de la présence de la configuration globale (radar-settings)
+ * dans Payload. Le singleton est créé s'il n'existe pas encore.
  */
 async function ensureGlobalSettings() {
-    const settingsCount = await prisma.globalSettings.count();
+    const settings = await payloadClient.getSettings();
     
-    if (settingsCount === 0) {
-        logger.warn("Daemon", "Aucune configuration GlobalSettings trouvée. Initialisation des paramètres par défaut...");
-        await prisma.globalSettings.create({
-            data: {} // Utilise les valeurs par défaut définies dans le schéma Prisma
-        });
-        logger.success("Daemon", "GlobalSettings initialisées avec succès.");
+    if (!settings || !settings.id) {
+        logger.warn("Daemon", "Aucune configuration radar-settings trouvée. Initialisation des paramètres par défaut...");
+        await payloadClient.ensureSettings();
+        invalidateSettingsCache();
+        logger.success("Daemon", "radar-settings initialisées avec succès.");
     } else {
-        logger.info("Daemon", "GlobalSettings chargées.");
+        logger.info("Daemon", "radar-settings chargées.");
     }
 }
 
@@ -40,7 +40,7 @@ async function ensureGlobalSettings() {
 export async function runPipeline() {
     logger.info("Daemon", "🚀 Démarrage d'un nouveau cycle du pipeline V3...");
     try {
-        const settings = await prisma.globalSettings.findFirst();
+        const settings = await getSettingsCached();
         if (!settings) throw new Error("Les paramètres globaux sont introuvables.");
 
         // Charger et vérifier les nœuds actifs dans le graphe de traitement
@@ -205,7 +205,7 @@ async function main() {
             logger.error("Daemon", `Crash dans le cycle principal : ${err}`);
         }
 
-        const settings = await prisma.globalSettings.findFirst();
+        const settings = await getSettingsCached();
         const nextScan = getDelayToNextScan(settings);
 
         logger.info("Daemon", `⏳ Prochain scan programmé : ${nextScan.label} (${Math.round(nextScan.ms / 60000)} min).`);
@@ -218,14 +218,10 @@ async function main() {
             await runPublisherNode();
 
             // Heartbeat : Mise à jour du battement de cœur pour l'interface de contrôle Studio Radar
-            const settings = await prisma.globalSettings.findFirst();
+            const settings = await getSettingsCached();
             if (settings) {
-                await prisma.globalSettings.update({
-                    where: { id: settings.id },
-                    data: {
-                        updatedAt: new Date()
-                    }
-                });
+                await payloadClient.updateSettings({ updatedAt: new Date().toISOString() });
+                invalidateSettingsCache();
             }
         } catch (err) {
             logger.error("Daemon", `Erreur dans la boucle Publisher : ${err}`);
@@ -242,13 +238,11 @@ async function main() {
 
 // Gestion des signaux système PM2 pour un arrêt sans perte de données
 process.on('SIGTERM', async () => {
-    console.log("[Daemon] 🛑 Signal SIGTERM reçu, déconnexion propre de la base de données...");
-    await prisma.$disconnect();
+    console.log("[Daemon] 🛑 Signal SIGTERM reçu, arrêt propre du démon...");
     process.exit(0);
 });
 
-main().catch(async (e) => {
+main().catch((e) => {
     console.error("[Daemon] 💥 Crash fatal du démon :", e);
-    await prisma.$disconnect();
     process.exit(1);
 });

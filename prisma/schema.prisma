@@ -94,17 +94,6 @@ model TaxonomyTemplate {
   updatedAt          DateTime @updatedAt
 }
 
-model SourceHealth {
-  id            String   @id @default(uuid())
-  source_url    String   @unique
-  status        String   @default("OK") // OK, ERROR, TIMEOUT
-  last_check_at DateTime @default(now())
-  error_message String?
-  response_time Int?     // en ms
-
-  @@map("radar_source_health")
-}
-
 model Source {
   id           String   @id @default(uuid())
   url          String   @unique

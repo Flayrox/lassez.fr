@@ -92,7 +92,7 @@ export async function POST(req: Request) {
             rateLimitMap.set(ip, { count: 1, resetTime: now + WINDOW_MS });
         }
 
-        const body = await req.json();
+        const body = await req.json().catch(() => ({}));
         const { username, password } = body;
 
         const validUser = process.env.RADAR_ADMIN_USER || 'admin';
@@ -152,8 +152,14 @@ export async function POST(req: Request) {
 
         // 2) Fallback env (compat)
         if (!isAuthenticated) {
-            const isUserValid = username.length === validUser.length && crypto.timingSafeEqual(Buffer.from(username), Buffer.from(validUser));
-            const isPwdValid = password.length === validPwd.length && crypto.timingSafeEqual(Buffer.from(password), Buffer.from(validPwd));
+            const isUserValid = typeof username === 'string'
+                && typeof validUser === 'string'
+                && username.length === validUser.length
+                && crypto.timingSafeEqual(Buffer.from(username), Buffer.from(validUser));
+            const isPwdValid = typeof password === 'string'
+                && typeof validPwd === 'string'
+                && password.length === validPwd.length
+                && crypto.timingSafeEqual(Buffer.from(password), Buffer.from(validPwd));
             if (isUserValid && isPwdValid) {
                 isAuthenticated = true;
                 authUsername = validUser;

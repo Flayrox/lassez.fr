@@ -1,20 +1,18 @@
-import { prisma } from '../lib/prisma';
+import { payloadClient } from '../lib/payload-client';
 import pLimit from 'p-limit';
 import * as google from 'googlethis';
 import { getEffectiveParam } from '../lib/config-resolver';
 
 /**
  * Nœud 6 : Media Enrichment (Enrichissement Visuel OSINT / Image Search)
- * 
+ *
  * Recherche et assigne une illustration libre de droits et pertinente pour chaque article validé.
  * Élimine les répertoriations de réseaux sociaux ou domaines bannis avant de faire passer l'article en PENDING.
  */
 export async function runMediaNode() {
     console.log(`\n📸 [Node 6: Media] Démarrage de la recherche d'images (OSINT / Google Images)`);
 
-    const validatedTopics = await prisma.newsTopic.findMany({
-        where: { status: 'VALIDATED' },
-    });
+    const validatedTopics = await payloadClient.getSignalsByStatus('VALIDATED');
 
     if (validatedTopics.length === 0) {
         console.log(`📸 [Node 6: Media] ℹ️ Aucun topic en statut VALIDATED à traiter.`);
@@ -35,9 +33,8 @@ export async function runMediaNode() {
 
             if (!allowGlobalImages) {
                 console.log(`📸 [Node 6: Media] ⚠️ allowSourceImages désactivé. Passage direct en PENDING.`);
-                await prisma.newsTopic.update({
-                    where: { id: topic.id },
-                    data: { status: 'PENDING' }
+                await payloadClient.updateSignal(topic.id, {
+                    status: 'PENDING'
                 });
                 return;
             }
@@ -48,9 +45,8 @@ export async function runMediaNode() {
             
             if (primaryArticle && primaryArticle.allowSourceImages === false) {
                 console.log(`📸 [Node 6: Media] 🚫 Source "${primaryArticle.source_name}" interdit les images. Passage en PENDING.`);
-                await prisma.newsTopic.update({
-                    where: { id: topic.id },
-                    data: { status: 'PENDING' }
+                await payloadClient.updateSignal(topic.id, {
+                    status: 'PENDING'
                 });
                 return;
             }
@@ -97,18 +93,14 @@ export async function runMediaNode() {
 
             if (selectedImageUrl) {
                 console.log(`📸 [Node 6: Media] ✅ Image assignée (Requête: "${usedQuery}") pour [${topic.id}]`);
-                await prisma.newsTopic.update({
-                    where: { id: topic.id },
-                    data: {
-                        image_url: selectedImageUrl,
-                        status: 'PENDING'
-                    }
+                await payloadClient.updateSignal(topic.id, {
+                    image_url: selectedImageUrl,
+                    status: 'PENDING'
                 });
             } else {
                 console.log(`📸 [Node 6: Media] ℹ️ Aucune image trouvée. Passage en PENDING avec visuel par défaut.`);
-                await prisma.newsTopic.update({
-                    where: { id: topic.id },
-                    data: { status: 'PENDING' }
+                await payloadClient.updateSignal(topic.id, {
+                    status: 'PENDING'
                 });
             }
 

@@ -1,11 +1,7 @@
-import { prisma } from '../lib/prisma';
+import { payloadClient } from '../lib/payload-client';
 import { getEffectiveParam } from '../lib/config-resolver';
 import { TwitterApi } from 'twitter-api-v2';
 import { BskyAgent } from '@atproto/api';
-
-// Cache mémoire pour le jeton JWT Payload CMS
-let cachedPayloadToken: string | null = null;
-let payloadTokenExpiresAt: number = 0;
 
 /**
  * Convertit une couleur au format Hexadécimal (#DC2626) en valeur entière pour Discord
@@ -24,7 +20,7 @@ function getRandomInt(min: number, max: number): number {
 
 /**
  * Nœud 6 : Tour de Contrôle (Publisher / Diffusion & Réseaux Sociaux)
- * 
+ *
  * Orchestre en 2 phases distinctes :
  * Phase A (L'Enfileur) : Récupère les articles qualifiés (PENDING) et programme des missions
  *                         pour chaque réseau social (Discord, X/Twitter, Bluesky, Mastodon, Payload CMS).
@@ -49,26 +45,16 @@ export async function runPublisherNode() {
     // ========================================================
     console.log(`🚀 [Node 6: Phase A] Recherche de nouveaux articles à planifier...`);
 
-    const pendingTopics = await prisma.$transaction(async (tx) => {
-        const topics = await tx.newsTopic.findMany({
-            where: { 
-                status: 'PENDING',
-                publications: { none: {} }
-            }
-        });
-
-        if (topics.length > 0) {
-            await tx.newsTopic.updateMany({
-                where: { id: { in: topics.map(t => t.id) } },
-                data: { status: 'QUEUED' }
-            });
-        }
-
-        return topics;
-    });
+    const pendingTopics = await payloadClient.getPendingSignalsWithoutPublications();
 
     if (pendingTopics.length > 0) {
         console.log(`🚀 [Node 6: Phase A] 📤 ${pendingTopics.length} nouveaux articles à programmer.`);
+
+        // Bascule atomique PENDING → QUEUED (les topics récupérés n'ont pas de publication)
+        await payloadClient.updateManySignals(
+            pendingTopics.map(t => t.id),
+            { status: 'QUEUED' }
+        );
 
         const platforms = [];
         if (enableDiscord) platforms.push({ name: 'DISCORD', mode: await getEffectiveParam('publisher', 'discordPublishMode', 'DIRECT') });
@@ -80,10 +66,7 @@ export async function runPublisherNode() {
         const lastScheduledDates: Record<string, Date> = {};
         for (const p of platforms) {
             if (p.mode === 'SCHEDULED') {
-                const lastPub = await prisma.publication.findFirst({
-                    where: { platform: p.name },
-                    orderBy: { scheduledAt: 'desc' }
-                });
+                const lastPub = await payloadClient.getLastScheduledPublication(p.name);
                 lastScheduledDates[p.name] = lastPub?.scheduledAt && lastPub.scheduledAt > new Date() ? lastPub.scheduledAt : new Date();
             } else {
                 lastScheduledDates[p.name] = new Date();
@@ -113,10 +96,8 @@ export async function runPublisherNode() {
         }
 
         if (publicationsToCreate.length > 0) {
-            await prisma.publication.createMany({
-                data: publicationsToCreate
-            });
-            console.log(`🚀 [Node 6: Phase A] ✅ ${publicationsToCreate.length} missions créées en base.`);
+            await payloadClient.createPublications(publicationsToCreate);
+            console.log(`🚀 [Node 6: Phase A] ✅ ${publicationsToCreate.length} missions créées dans Payload.`);
         }
     }
 
@@ -130,14 +111,7 @@ export async function runPublisherNode() {
         return;
     }
 
-    const duePublications = await prisma.publication.findMany({
-        where: {
-            status: 'PENDING',
-            scheduledAt: { lte: new Date() }
-        },
-        include: { topic: true },
-        take: 10
-    });
+    const duePublications = await payloadClient.getDuePublications(10);
 
     if (duePublications.length === 0) {
         console.log(`🚀 [Node 6: Phase B] 📭 Aucune publication en attente pour l'instant.`);
@@ -148,16 +122,19 @@ export async function runPublisherNode() {
 
     for (const pub of duePublications) {
         try {
-            const topic = pub.topic;
+            const topic = pub.topic || await payloadClient.getSignal(pub.topicId);
+            if (!topic) {
+                console.error(`🚀 [Node 6: Phase B] ❌ Topic introuvable pour la publication ${pub.id}`);
+                await payloadClient.updatePublication(pub.id, { status: 'FAILED' });
+                continue;
+            }
+
             let draftData: any = {};
             try {
                 draftData = JSON.parse(topic.final_draft || '{}');
             } catch (e) {
                 console.error(`🚀 [Node 6: Phase B] ❌ Erreur parsing final_draft pour topic ${topic.id}`);
-                await prisma.publication.update({
-                    where: { id: pub.id },
-                    data: { status: 'FAILED' }
-                });
+                await payloadClient.updatePublication(pub.id, { status: 'FAILED' });
                 continue;
             }
 
@@ -199,26 +176,8 @@ export async function runPublisherNode() {
             // --- DIFFUSION PAYLOAD CMS ---
             else if (pub.platform === 'PAYLOAD') {
                 try {
-                    const origin = 'https://api.lassez.fr';
-                    
-                    // Récupération ou rafraîchissement du jeton JWT Payload
-                    if (!cachedPayloadToken || Date.now() > payloadTokenExpiresAt) {
-                        const loginRes = await fetch(`${origin}/api/users/login`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                email: process.env.PAYLOAD_ADMIN_EMAIL || 'admin@lassez.fr',
-                                password: process.env.PAYLOAD_ADMIN_PASSWORD || 'lassez2026'
-                            })
-                        });
-                        const loginData = await loginRes.json();
-                        if (loginData.token) {
-                            cachedPayloadToken = loginData.token;
-                            payloadTokenExpiresAt = Date.now() + (2 * 60 * 60 * 1000);
-                        }
-                    }
-
-                    const token = cachedPayloadToken;
+                    const origin = payloadClient.apiBase.replace(/\/api\/payload$/, '');
+                    const token = await payloadClient.getToken();
                     const contentPayload = draftData.body || '';
                     const topicGeo = topic.geo || 'FRANCE';
                     const topicTaxonomy = topic.taxonomy || 'INFO';
@@ -233,12 +192,12 @@ export async function runPublisherNode() {
                                 for (const tagName of parsedTags) {
                                     const cleanName = String(tagName).trim();
                                     if (cleanName) {
-                                        const searchRes = await fetch(`${origin}/api/tags?where[name][equals]=${encodeURIComponent(cleanName)}`);
+                                        const searchRes = await fetch(`${origin}/api/payload/tags?where[name][equals]=${encodeURIComponent(cleanName)}`);
                                         const searchData = await searchRes.json();
                                         if (searchData.docs && searchData.docs.length > 0) {
                                             tagIds.push(searchData.docs[0].id);
                                         } else {
-                                            const createRes = await fetch(`${origin}/api/tags`, {
+                                            const createRes = await fetch(`${origin}/api/payload/tags`, {
                                                 method: 'POST',
                                                 headers: { 'Content-Type': 'application/json', 'Authorization': `JWT ${token}` },
                                                 body: JSON.stringify({ name: cleanName, slug: cleanName.toLowerCase().replace(/[^a-z0-9]+/g, '-') })
@@ -252,7 +211,7 @@ export async function runPublisherNode() {
                         } catch (e) { }
                     }
 
-                    const revelationRes = await fetch(`${origin}/api/revelations`, {
+                    const revelationRes = await fetch(`${origin}/api/payload/revelations`, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
@@ -283,34 +242,31 @@ export async function runPublisherNode() {
 
             // Mise à jour du statut de publication
             if (isSuccess) {
-                await prisma.publication.update({
-                    where: { id: pub.id },
-                    data: { status: 'PUBLISHED', publishedAt: new Date() }
+                await payloadClient.updatePublication(pub.id, {
+                    status: 'PUBLISHED',
+                    publishedAt: new Date()
                 });
 
-                const remaining = await prisma.publication.count({
-                    where: { topicId: topic.id, status: 'PENDING' }
-                });
+                const remaining = await payloadClient.countPendingPublications(topic.id);
                 if (remaining === 0) {
-                    await prisma.newsTopic.update({
-                        where: { id: topic.id },
-                        data: { status: 'PUBLISHED', publishedAt: new Date() }
+                    await payloadClient.updateSignal(topic.id, {
+                        status: 'PUBLISHED',
+                        publishedAt: new Date()
                     });
                 }
             } else {
-                await prisma.publication.update({
-                    where: { id: pub.id },
-                    data: { status: 'FAILED' }
+                await payloadClient.updatePublication(pub.id, {
+                    status: 'FAILED'
                 });
             }
 
             // Pause anti-rate-limit entre les envois (2 secondes)
             await new Promise(resolve => setTimeout(resolve, 2000));
-
-        } catch (error) {
-            console.error(`🚀 [Node 6: Phase B] ❌ Erreur sur la publication ${pub.id}:`, error);
+        } catch (e: any) {
+            console.error(`🚀 [Node 6: Phase B] ❌ Erreur lors de la diffusion de la publication ${pub.id}:`, e.message);
+            try {
+                await payloadClient.updatePublication(pub.id, { status: 'FAILED' });
+            } catch (err) { }
         }
     }
-
-    console.log(`🚀 [Node 6: Publisher] Cycle de diffusion achevé.`);
 }

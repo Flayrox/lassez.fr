@@ -1,5 +1,4 @@
 import { runPublisherNode } from './nodes/publisher';
-import { prisma } from './lib/prisma';
 
 async function main() {
     console.log("--- MANUAL PUBLISHER TRIGGER START ---");
@@ -9,5 +8,4 @@ async function main() {
 }
 
 main()
-    .catch(console.error)
-    .finally(() => prisma.$disconnect());
+    .catch(console.error);

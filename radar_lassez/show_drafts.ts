@@ -1,14 +1,13 @@
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+import { payloadClient } from './lib/payload-client';
 
+// Utilitaire : affiche les brouillons (statut DRAFTED) depuis Payload.
+// Usage : npx tsx radar_lassez/show_drafts.ts
 async function showDrafts() {
-    const topics = await prisma.newsTopic.findMany({
-        where: { status: 'DRAFTED' }
-    });
+    const topics = await payloadClient.getSignalsByStatus('DRAFTED');
 
-    console.log(`Trouvé ${topics.length} articles rédigés (statut: DRAFTED) en base de données :\n`);
+    console.log(`Trouvé ${topics.length} articles rédigés (statut: DRAFTED) dans Payload :\n`);
 
-    topics.forEach((t, i) => {
+    topics.forEach((t: any, i: number) => {
         try {
             const draft = JSON.parse(t.final_draft);
             console.log(`\n=================================`);
@@ -28,5 +27,4 @@ async function showDrafts() {
 }
 
 showDrafts()
-    .catch(console.error)
-    .finally(() => prisma.$disconnect());
+    .catch(console.error);

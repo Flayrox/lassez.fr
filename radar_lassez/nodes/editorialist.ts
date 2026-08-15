@@ -1,7 +1,7 @@
 import { GoogleGenAI, Type } from '@google/genai';
 import pLimit from 'p-limit';
-import { prisma } from '../lib/prisma';
-import { getEffectiveParam } from '../lib/config-resolver';
+import { payloadClient } from '../lib/payload-client';
+import { getEffectiveParam, getSettingsCached } from '../lib/config-resolver';
 
 const FALLBACK_BASE_IDENTITY = `Tu es le rédacteur en chef du média d'investigation L'Assez. Ton style est percutant, analytique et sans langue de bois.`;
 const FALLBACK_RESEARCH_MISSION = `Transformer les informations brutes en un compte-rendu d'investigation captivant et étayé.`;
@@ -10,16 +10,14 @@ const FALLBACK_IMAGE_RULES = `Suggérer des mots-clés d'illustrations sobres et
 
 /**
  * Nœud 4 : Editorialist (Rédaction d'Investigation IA Pro)
- * 
+ *
  * Génère le corps de l'article d'investigation en assemblant dynamiquement la charte éditoriale
  * de L'Assez et les consignes propres à chaque catégorie via Gemini Pro.
  */
 export async function runEditorialistNode() {
     console.log(`\n[Node 4: Editorialist] ✍️ Lancement de la rédaction IA (Modèle Pro)...`);
 
-    const topics = await prisma.newsTopic.findMany({
-        where: { status: 'RESEARCHED' }
-    });
+    const topics = await payloadClient.getSignalsByStatus('RESEARCHED');
 
     if (topics.length === 0) {
         console.log(`[Node 4] ℹ️ Aucun sujet (statut: RESEARCHED) à rédiger.`);
@@ -36,19 +34,17 @@ export async function runEditorialistNode() {
 
     const ai = new GoogleGenAI({ apiKey });
     
-    // Résolution dynamique du modèle AI Pro depuis Prisma
+    // Résolution dynamique du modèle AI Pro depuis Payload
     const requestedModel = await getEffectiveParam('editor', 'aiModelPro', 'gemini-3.1-pro-preview');
     const concurrencyLimit = await getEffectiveParam('editor', 'maxConcurrentTasks', 3);
 
-    const settings: any = await prisma.globalSettings.findFirst();
+    const settings: any = await getSettingsCached();
     const baseIdentity = settings?.baseIdentityPrompt || FALLBACK_BASE_IDENTITY;
     const researchMission = settings?.researchMissionPrompt || FALLBACK_RESEARCH_MISSION;
     const vocabularyRules = settings?.vocabularyRulesPrompt || FALLBACK_VOCABULARY_RULES;
     const imageRules = settings?.imageRulesPrompt || FALLBACK_IMAGE_RULES;
 
-    const taxonomyTemplates: any[] = await (prisma as any).taxonomyTemplate.findMany({
-        where: { active: true },
-    });
+    const taxonomyTemplates: any[] = await payloadClient.getTaxonomyTemplates(true);
 
     const limit = pLimit(Number(concurrencyLimit));
 
@@ -58,7 +54,7 @@ export async function runEditorialistNode() {
             try { rawData = JSON.parse(topic.raw_data || '{}'); } catch (e) { }
 
             const topicTaxonomy = topic.taxonomy || 'INFO';
-            const matchedTemplate = taxonomyTemplates.find(t => t.slug === topicTaxonomy || t.name === topicTaxonomy);
+            const matchedTemplate = taxonomyTemplates.find(t => (t.name || '').toLowerCase() === topicTaxonomy.toLowerCase());
 
             const systemPrompt = `
 ${baseIdentity}
@@ -100,17 +96,14 @@ Zone Geo : ${topic.geo || 'Global'}
 
             const draftResult = JSON.parse(resultText);
 
-            await prisma.newsTopic.update({
-                where: { id: topic.id },
-                data: {
-                    status: 'DRAFTED',
-                    final_draft: JSON.stringify({
-                        headline: draftResult.headline,
-                        body: draftResult.body,
-                    }),
-                    tags: JSON.stringify(draftResult.tags || []),
-                    image_url: draftResult.imageKeyword || topic.image_url || 'investigation'
-                }
+            await payloadClient.updateSignal(topic.id, {
+                status: 'DRAFTED',
+                final_draft: JSON.stringify({
+                    headline: draftResult.headline,
+                    body: draftResult.body,
+                }),
+                tags: JSON.stringify(draftResult.tags || []),
+                image_url: draftResult.imageKeyword || topic.image_url || 'investigation'
             });
 
             console.log(`[Node 4] ✅ Article rédigé avec succès : ${draftResult.headline}`);

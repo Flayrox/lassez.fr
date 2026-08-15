@@ -46,7 +46,7 @@ export function RadarDashboardClient(props: {
         setScanning(true);
         setScanOutput(['🚀 Démarrage du cycle d’investigation…']);
         try {
-            const res = await fetch('/api/radar/trigger', { method: 'POST' });
+            const res = await fetch('/api/payload/radar/trigger', { method: 'POST', credentials: 'include' });
             if (!res.ok || !res.body) {
                 throw new Error(`HTTP ${res.status}`);
             }

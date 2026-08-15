@@ -19,9 +19,42 @@ const DEFAULT_AVAILABLE_MODELS = JSON.stringify([
     { value: 'gemini-2.0-pro-exp', label: 'Gemini 2.0 Pro Exp' },
 ]);
 
+const SECRET_HINT = 'Secret — laisser vide pour conserver la valeur actuelle.';
+
+/**
+ * Hook d'écriture seule : sur une mise à jour, une valeur vide (ou absente)
+ * conserve le secret déjà stocké au lieu de l'écraser. Empêche la sauvegarde
+ * du formulaire d'admin d'effacer accidentellement une clé.
+ */
+const keepExistingSecret = (fieldName: string) => ({
+    beforeChange: [
+        ({ value, originalDoc, operation }: any) => {
+            if (operation === 'update' && (value === undefined || value === null || value === '')) {
+                return originalDoc?.[fieldName];
+            }
+            return value;
+        },
+    ],
+});
+
+/** Champ secret : texte simple + hook d'écriture seule. */
+const secretField = (name: string, label: string, width?: string) => ({
+    name,
+    type: 'text' as const,
+    label,
+    admin: {
+        ...(width ? { width } : {}),
+        autoComplete: 'off',
+        description: SECRET_HINT,
+    },
+    hooks: keepExistingSecret(name),
+});
+
 /**
  * Radar Settings — configuration globale du daemon (ex table Prisma GlobalSettings).
  * Singleton Payload : une seule instance, éditée depuis l'interface admin unifiée.
+ * Chaque plateforme de diffusion est un bloc collapsible autonome (activation,
+ * mode, limites, credentials) — ajouter un canal = un bloc, rien d'autre.
  */
 export const radarSettings: GlobalConfig = {
     slug: 'radar-settings',
@@ -48,38 +81,115 @@ export const radarSettings: GlobalConfig = {
                             ],
                         },
                         {
-                            type: 'row',
+                            name: 'includeSourceUrl',
+                            type: 'checkbox',
+                            defaultValue: true,
+                            label: 'Ajouter le lien source dans les posts sociaux',
+                        },
+                        {
+                            type: 'collapsible',
+                            label: 'Discord',
+                            admin: { initCollapsed: true },
                             fields: [
-                                { name: 'enableDiscord', type: 'checkbox', defaultValue: true, label: 'Discord', admin: { width: '25%' } },
-                                { name: 'enableX', type: 'checkbox', defaultValue: false, label: 'X / Twitter', admin: { width: '25%' } },
-                                { name: 'enableBluesky', type: 'checkbox', defaultValue: false, label: 'Bluesky', admin: { width: '25%' } },
-                                { name: 'enableMastodon', type: 'checkbox', defaultValue: false, label: 'Mastodon', admin: { width: '25%' } },
+                                { name: 'enableDiscord', type: 'checkbox', defaultValue: true, label: 'Activer Discord' },
+                                {
+                                    type: 'row',
+                                    fields: [
+                                        { name: 'discordPublishMode', type: 'select', defaultValue: 'DIRECT', options: PUBLISH_MODES, label: 'Mode', admin: { width: '50%' } },
+                                        { name: 'discordEmbedColor', type: 'text', defaultValue: '#DC2626', label: 'Couleur embed (hex)', admin: { width: '50%' } },
+                                    ],
+                                },
+                                { name: 'discordFooterText', type: 'text', defaultValue: "Radar L'Assez • Investigation", label: 'Footer embed' },
+                                secretField('discordWebhookUrl', 'Webhook Discord'),
                             ],
                         },
                         {
-                            type: 'row',
+                            type: 'collapsible',
+                            label: 'X / Twitter',
+                            admin: { initCollapsed: true },
                             fields: [
-                                { name: 'discordPublishMode', type: 'select', defaultValue: 'DIRECT', options: PUBLISH_MODES, label: 'Mode Discord', admin: { width: '25%' } },
-                                { name: 'xPublishMode', type: 'select', defaultValue: 'SCHEDULED', options: PUBLISH_MODES, label: 'Mode X', admin: { width: '25%' } },
-                                { name: 'blueskyPublishMode', type: 'select', defaultValue: 'SCHEDULED', options: PUBLISH_MODES, label: 'Mode Bluesky', admin: { width: '25%' } },
-                                { name: 'mastodonPublishMode', type: 'select', defaultValue: 'SCHEDULED', options: PUBLISH_MODES, label: 'Mode Mastodon', admin: { width: '25%' } },
+                                { name: 'enableX', type: 'checkbox', defaultValue: false, label: 'Activer X / Twitter' },
+                                {
+                                    type: 'row',
+                                    fields: [
+                                        { name: 'xPublishMode', type: 'select', defaultValue: 'SCHEDULED', options: PUBLISH_MODES, label: 'Mode', admin: { width: '50%' } },
+                                        { name: 'xMaxLength', type: 'number', defaultValue: 280, label: 'Limite (car.)', admin: { width: '50%' } },
+                                    ],
+                                },
+                                {
+                                    type: 'row',
+                                    fields: [
+                                        secretField('xApiKey', 'API Key', '50%'),
+                                        secretField('xApiSecret', 'API Secret', '50%'),
+                                    ],
+                                },
+                                {
+                                    type: 'row',
+                                    fields: [
+                                        secretField('xAccessToken', 'Access Token', '50%'),
+                                        secretField('xAccessSecret', 'Access Secret', '50%'),
+                                    ],
+                                },
                             ],
                         },
-                        { name: 'payloadPublishMode', type: 'select', defaultValue: 'DIRECT', options: PUBLISH_MODES, label: 'Mode Payload CMS' },
                         {
-                            type: 'row',
+                            type: 'collapsible',
+                            label: 'Bluesky',
+                            admin: { initCollapsed: true },
                             fields: [
-                                { name: 'discordEmbedColor', type: 'text', defaultValue: '#DC2626', label: 'Couleur embed Discord (hex)', admin: { width: '50%' } },
-                                { name: 'discordFooterText', type: 'text', defaultValue: 'Radar L\'Assez • Investigation', label: 'Footer embed Discord', admin: { width: '50%' } },
+                                { name: 'enableBluesky', type: 'checkbox', defaultValue: false, label: 'Activer Bluesky' },
+                                {
+                                    type: 'row',
+                                    fields: [
+                                        { name: 'blueskyPublishMode', type: 'select', defaultValue: 'SCHEDULED', options: PUBLISH_MODES, label: 'Mode', admin: { width: '50%' } },
+                                        { name: 'blueskyMaxLength', type: 'number', defaultValue: 300, label: 'Limite (car.)', admin: { width: '50%' } },
+                                    ],
+                                },
+                                {
+                                    type: 'row',
+                                    fields: [
+                                        secretField('blueskyIdentifier', 'Identifiant (handle)', '50%'),
+                                        secretField('blueskyAppPassword', 'Mot de passe app', '50%'),
+                                    ],
+                                },
                             ],
                         },
                         {
-                            type: 'row',
+                            type: 'collapsible',
+                            label: 'Mastodon',
+                            admin: { initCollapsed: true },
                             fields: [
-                                { name: 'includeSourceUrl', type: 'checkbox', defaultValue: true, label: 'Lien source dans les posts', admin: { width: '25%' } },
-                                { name: 'xMaxLength', type: 'number', defaultValue: 280, label: 'Limite X (car.)', admin: { width: '25%' } },
-                                { name: 'blueskyMaxLength', type: 'number', defaultValue: 300, label: 'Limite Bluesky (car.)', admin: { width: '25%' } },
-                                { name: 'mastodonMaxLength', type: 'number', defaultValue: 500, label: 'Limite Mastodon (car.)', admin: { width: '25%' } },
+                                { name: 'enableMastodon', type: 'checkbox', defaultValue: false, label: 'Activer Mastodon' },
+                                {
+                                    type: 'row',
+                                    fields: [
+                                        { name: 'mastodonPublishMode', type: 'select', defaultValue: 'SCHEDULED', options: PUBLISH_MODES, label: 'Mode', admin: { width: '50%' } },
+                                        { name: 'mastodonMaxLength', type: 'number', defaultValue: 500, label: 'Limite (car.)', admin: { width: '50%' } },
+                                    ],
+                                },
+                                {
+                                    type: 'row',
+                                    fields: [
+                                        secretField('mastodonInstanceUrl', 'Instance (URL)', '50%'),
+                                        secretField('mastodonAccessToken', "Token d'accès", '50%'),
+                                    ],
+                                },
+                            ],
+                        },
+                        {
+                            type: 'collapsible',
+                            label: 'Payload CMS',
+                            admin: { initCollapsed: true },
+                            fields: [
+                                { name: 'payloadPublishMode', type: 'select', defaultValue: 'DIRECT', options: PUBLISH_MODES, label: 'Mode' },
+                                {
+                                    type: 'row',
+                                    fields: [
+                                        secretField('payloadServerUrl', 'URL serveur Payload', '33%'),
+                                        secretField('payloadBotEmail', 'Email bot Payload', '33%'),
+                                        secretField('payloadBotPassword', 'Mot de passe bot Payload', '33%'),
+                                    ],
+                                },
                             ],
                         },
                     ],
@@ -107,6 +217,7 @@ export const radarSettings: GlobalConfig = {
                 {
                     label: 'IA & Concurrence',
                     fields: [
+                        secretField('geminiApiKey', 'Clé API Gemini'),
                         {
                             type: 'row',
                             fields: [
@@ -146,48 +257,6 @@ export const radarSettings: GlobalConfig = {
                         { name: 'keywords', type: 'textarea', defaultValue: '[]', label: 'Mots-clés (JSON)' },
                         { name: 'bannedKeywords', type: 'textarea', defaultValue: '[]', label: 'Mots-clés bannis (JSON)' },
                         { name: 'pipelineGraphJson', type: 'textarea', label: 'Graphe du pipeline (JSON)' },
-                    ],
-                },
-                {
-                    label: 'API & Webhooks',
-                    fields: [
-                        { name: 'discordWebhookUrl', type: 'text', label: 'Webhook Discord' },
-                        {
-                            type: 'row',
-                            fields: [
-                                { name: 'xApiKey', type: 'text', label: 'X API Key', admin: { width: '50%' } },
-                                { name: 'xApiSecret', type: 'text', label: 'X API Secret', admin: { width: '50%' } },
-                            ],
-                        },
-                        {
-                            type: 'row',
-                            fields: [
-                                { name: 'xAccessToken', type: 'text', label: 'X Access Token', admin: { width: '50%' } },
-                                { name: 'xAccessSecret', type: 'text', label: 'X Access Secret', admin: { width: '50%' } },
-                            ],
-                        },
-                        {
-                            type: 'row',
-                            fields: [
-                                { name: 'mastodonInstanceUrl', type: 'text', label: 'Instance Mastodon', admin: { width: '50%' } },
-                                { name: 'mastodonAccessToken', type: 'text', label: 'Token Mastodon', admin: { width: '50%' } },
-                            ],
-                        },
-                        {
-                            type: 'row',
-                            fields: [
-                                { name: 'blueskyIdentifier', type: 'text', label: 'Identifiant Bluesky', admin: { width: '50%' } },
-                                { name: 'blueskyAppPassword', type: 'text', label: 'Mot de passe app Bluesky', admin: { width: '50%' } },
-                            ],
-                        },
-                        {
-                            type: 'row',
-                            fields: [
-                                { name: 'payloadServerUrl', type: 'text', label: 'URL serveur Payload', admin: { width: '33%' } },
-                                { name: 'payloadBotEmail', type: 'text', label: 'Email bot Payload', admin: { width: '33%' } },
-                                { name: 'payloadBotPassword', type: 'text', label: 'Mot de passe bot Payload', admin: { width: '33%' } },
-                            ],
-                        },
                     ],
                 },
                 {

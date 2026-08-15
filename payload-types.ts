@@ -1297,26 +1297,78 @@ export interface RadarSetting {
   id: number;
   enableAutoPublish?: boolean | null;
   enablePayloadCMS?: boolean | null;
+  includeSourceUrl?: boolean | null;
   enableDiscord?: boolean | null;
-  enableX?: boolean | null;
-  enableBluesky?: boolean | null;
-  enableMastodon?: boolean | null;
   discordPublishMode?: ('DIRECT' | 'SCHEDULED') | null;
-  xPublishMode?: ('DIRECT' | 'SCHEDULED') | null;
-  blueskyPublishMode?: ('DIRECT' | 'SCHEDULED') | null;
-  mastodonPublishMode?: ('DIRECT' | 'SCHEDULED') | null;
-  payloadPublishMode?: ('DIRECT' | 'SCHEDULED') | null;
   discordEmbedColor?: string | null;
   discordFooterText?: string | null;
-  includeSourceUrl?: boolean | null;
+  /**
+   * Secret — laisser vide pour conserver la valeur actuelle.
+   */
+  discordWebhookUrl?: string | null;
+  enableX?: boolean | null;
+  xPublishMode?: ('DIRECT' | 'SCHEDULED') | null;
   xMaxLength?: number | null;
+  /**
+   * Secret — laisser vide pour conserver la valeur actuelle.
+   */
+  xApiKey?: string | null;
+  /**
+   * Secret — laisser vide pour conserver la valeur actuelle.
+   */
+  xApiSecret?: string | null;
+  /**
+   * Secret — laisser vide pour conserver la valeur actuelle.
+   */
+  xAccessToken?: string | null;
+  /**
+   * Secret — laisser vide pour conserver la valeur actuelle.
+   */
+  xAccessSecret?: string | null;
+  enableBluesky?: boolean | null;
+  blueskyPublishMode?: ('DIRECT' | 'SCHEDULED') | null;
   blueskyMaxLength?: number | null;
+  /**
+   * Secret — laisser vide pour conserver la valeur actuelle.
+   */
+  blueskyIdentifier?: string | null;
+  /**
+   * Secret — laisser vide pour conserver la valeur actuelle.
+   */
+  blueskyAppPassword?: string | null;
+  enableMastodon?: boolean | null;
+  mastodonPublishMode?: ('DIRECT' | 'SCHEDULED') | null;
   mastodonMaxLength?: number | null;
+  /**
+   * Secret — laisser vide pour conserver la valeur actuelle.
+   */
+  mastodonInstanceUrl?: string | null;
+  /**
+   * Secret — laisser vide pour conserver la valeur actuelle.
+   */
+  mastodonAccessToken?: string | null;
+  payloadPublishMode?: ('DIRECT' | 'SCHEDULED') | null;
+  /**
+   * Secret — laisser vide pour conserver la valeur actuelle.
+   */
+  payloadServerUrl?: string | null;
+  /**
+   * Secret — laisser vide pour conserver la valeur actuelle.
+   */
+  payloadBotEmail?: string | null;
+  /**
+   * Secret — laisser vide pour conserver la valeur actuelle.
+   */
+  payloadBotPassword?: string | null;
   schedulingMode?: ('pulse' | 'calendar' | 'hybrid') | null;
   scrapingInterval?: number | null;
   minPublishDelay?: number | null;
   maxPublishDelay?: number | null;
   daemonSchedule?: string | null;
+  /**
+   * Secret — laisser vide pour conserver la valeur actuelle.
+   */
+  geminiApiKey?: string | null;
   maxConcurrentTasks?: number | null;
   similarityThreshold?: number | null;
   dedupLookbackHours?: number | null;
@@ -1336,18 +1388,6 @@ export interface RadarSetting {
   keywords?: string | null;
   bannedKeywords?: string | null;
   pipelineGraphJson?: string | null;
-  discordWebhookUrl?: string | null;
-  xApiKey?: string | null;
-  xApiSecret?: string | null;
-  xAccessToken?: string | null;
-  xAccessSecret?: string | null;
-  mastodonInstanceUrl?: string | null;
-  mastodonAccessToken?: string | null;
-  blueskyIdentifier?: string | null;
-  blueskyAppPassword?: string | null;
-  payloadServerUrl?: string | null;
-  payloadBotEmail?: string | null;
-  payloadBotPassword?: string | null;
   social_targets_by_type_json?: string | null;
   availableModelsJson?: string | null;
   updatedAt?: string | null;
@@ -1477,26 +1517,39 @@ export interface LegalSelect<T extends boolean = true> {
 export interface RadarSettingsSelect<T extends boolean = true> {
   enableAutoPublish?: T;
   enablePayloadCMS?: T;
+  includeSourceUrl?: T;
   enableDiscord?: T;
-  enableX?: T;
-  enableBluesky?: T;
-  enableMastodon?: T;
   discordPublishMode?: T;
-  xPublishMode?: T;
-  blueskyPublishMode?: T;
-  mastodonPublishMode?: T;
-  payloadPublishMode?: T;
   discordEmbedColor?: T;
   discordFooterText?: T;
-  includeSourceUrl?: T;
+  discordWebhookUrl?: T;
+  enableX?: T;
+  xPublishMode?: T;
   xMaxLength?: T;
+  xApiKey?: T;
+  xApiSecret?: T;
+  xAccessToken?: T;
+  xAccessSecret?: T;
+  enableBluesky?: T;
+  blueskyPublishMode?: T;
   blueskyMaxLength?: T;
+  blueskyIdentifier?: T;
+  blueskyAppPassword?: T;
+  enableMastodon?: T;
+  mastodonPublishMode?: T;
   mastodonMaxLength?: T;
+  mastodonInstanceUrl?: T;
+  mastodonAccessToken?: T;
+  payloadPublishMode?: T;
+  payloadServerUrl?: T;
+  payloadBotEmail?: T;
+  payloadBotPassword?: T;
   schedulingMode?: T;
   scrapingInterval?: T;
   minPublishDelay?: T;
   maxPublishDelay?: T;
   daemonSchedule?: T;
+  geminiApiKey?: T;
   maxConcurrentTasks?: T;
   similarityThreshold?: T;
   dedupLookbackHours?: T;
@@ -1516,18 +1569,6 @@ export interface RadarSettingsSelect<T extends boolean = true> {
   keywords?: T;
   bannedKeywords?: T;
   pipelineGraphJson?: T;
-  discordWebhookUrl?: T;
-  xApiKey?: T;
-  xApiSecret?: T;
-  xAccessToken?: T;
-  xAccessSecret?: T;
-  mastodonInstanceUrl?: T;
-  mastodonAccessToken?: T;
-  blueskyIdentifier?: T;
-  blueskyAppPassword?: T;
-  payloadServerUrl?: T;
-  payloadBotEmail?: T;
-  payloadBotPassword?: T;
   social_targets_by_type_json?: T;
   availableModelsJson?: T;
   updatedAt?: T;

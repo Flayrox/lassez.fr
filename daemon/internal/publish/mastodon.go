@@ -36,8 +36,8 @@ func NewMastodon(cfg MastodonConfig) Channel {
 func (c *mastodonChannel) Name() string { return "MASTODON" }
 
 func (c *mastodonChannel) Publish(msg Message) error {
-	instanceURL := envOr("MASTODON_INSTANCE_URL", c.cfg.InstanceURL)
-	accessToken := envOr("MASTODON_ACCESS_TOKEN", c.cfg.AccessToken)
+	instanceURL := credential(c.cfg.InstanceURL, "MASTODON_INSTANCE_URL")
+	accessToken := credential(c.cfg.AccessToken, "MASTODON_ACCESS_TOKEN")
 	if instanceURL == "" || accessToken == "" {
 		return fmt.Errorf("[MASTODON] instance/token manquants (MASTODON_INSTANCE_URL, MASTODON_ACCESS_TOKEN)")
 	}

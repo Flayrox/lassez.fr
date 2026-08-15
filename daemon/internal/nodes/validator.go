@@ -43,9 +43,10 @@ func RunValidator(client *payload.Client, resolver *config.Resolver) error {
 		return nil
 	}
 
-	apiKey := os.Getenv("GEMINI_API_KEY")
+	// Clé depuis radar-settings (interface admin sécurisée), fallback .env.
+	apiKey := strParam(resolver, "validator", "geminiApiKey", os.Getenv("GEMINI_API_KEY"))
 	if apiKey == "" {
-		log.Printf("[Node 5] ⚠️ GEMINI_API_KEY absente. Étape ignorée.")
+		log.Printf("[Node 5] ⚠️ Clé Gemini absente (geminiApiKey / GEMINI_API_KEY). Étape ignorée.")
 		return nil
 	}
 

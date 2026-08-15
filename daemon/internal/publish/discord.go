@@ -37,10 +37,7 @@ func NewDiscord(cfg DiscordConfig) Channel {
 func (c *discordChannel) Name() string { return "DISCORD" }
 
 func (c *discordChannel) Publish(msg Message) error {
-	webhookURL := c.cfg.WebhookURL
-	if webhookURL == "" {
-		webhookURL = envOr("DISCORD_WEBHOOK_URL", "")
-	}
+	webhookURL := credential(c.cfg.WebhookURL, "DISCORD_WEBHOOK_URL")
 	if webhookURL == "" {
 		return fmt.Errorf("[DISCORD] DISCORD_WEBHOOK_URL absente du fichier .env")
 	}

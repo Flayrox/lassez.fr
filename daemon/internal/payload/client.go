@@ -45,12 +45,13 @@ func (id *ID) UnmarshalJSON(data []byte) error {
 // Signal mirrors a document of the Payload "signals" collection. RawData
 // keeps the raw JSON so nodes can extract fields like clusterTitle.
 type Signal struct {
-	ID       ID              `json:"id"`
-	RawData  json.RawMessage `json:"raw_data"`
-	Status   string          `json:"status"`
-	Taxonomy string          `json:"taxonomy"`
-	Geo      string          `json:"geo"`
-	ImageURL string          `json:"image_url"`
+	ID         ID              `json:"id"`
+	RawData    json.RawMessage `json:"raw_data"`
+	FinalDraft json.RawMessage `json:"final_draft"`
+	Status     string          `json:"status"`
+	Taxonomy   string          `json:"taxonomy"`
+	Geo        string          `json:"geo"`
+	ImageURL   string          `json:"image_url"`
 }
 
 // TaxonomyTemplate mirrors a document of the "taxonomy-templates"

@@ -5,29 +5,23 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { usePathname } from 'next/navigation';
 import { useSettings } from './SettingsProvider';
 
-interface CommunicationLayerProps {
-    config: {
-        maintenance_mode: boolean;
-        maintenance_message: string;
-        popup_enabled: boolean;
-        popup_title: string;
-        popup_text: string;
-        popup_link_url: string;
-        popup_link_label: string;
-    };
-}
-
-export default function CommunicationLayer({ config }: CommunicationLayerProps) {
+export default function CommunicationLayer() {
     const pathname = usePathname();
     const settings = useSettings();
     const [showPopup, setShowPopup] = useState(false);
 
-    const isMaintenanceActive = config.maintenance_mode || settings.maintenanceMode;
-    const maintenanceMessage = settings.maintenanceMode ? "Le système Payload est en maintenance." : config.maintenance_message;
+    const communication = settings.communication;
+    const isMaintenanceActive = communication?.maintenanceMode === true;
+    const maintenanceMessage = communication?.maintenanceMessage || "L'Assez revient très bientôt.";
+    const popupEnabled = communication?.popupEnabled === true;
+    const popupTitle = communication?.popupTitle || '';
+    const popupText = communication?.popupText || '';
+    const popupLinkUrl = communication?.popupLinkUrl || '';
+    const popupLinkLabel = communication?.popupLinkLabel || '';
 
     useEffect(() => {
         // Logique de la Pop-up
-        if (config.popup_enabled) {
+        if (popupEnabled) {
             const hasSeenPopup = sessionStorage.getItem('lassez_popup_seen');
             if (!hasSeenPopup) {
                 // On attend 2 secondes avant d'afficher la pop-up pour laisser le site charger
@@ -35,7 +29,7 @@ export default function CommunicationLayer({ config }: CommunicationLayerProps) 
                 return () => clearTimeout(timer);
             }
         }
-    }, [config.popup_enabled]);
+    }, [popupEnabled]);
 
     const closePopup = () => {
         setShowPopup(false);
@@ -43,7 +37,7 @@ export default function CommunicationLayer({ config }: CommunicationLayerProps) 
     };
 
     // Ne pas afficher la maintenance sur les pages admin (pour pouvoir désactiver le mode !)
-    const isAdminPage = pathname?.startsWith('/radar-login') || pathname?.startsWith('/templates') || pathname?.startsWith('/admin');
+    const isAdminPage = pathname?.startsWith('/radar') || pathname?.startsWith('/templates') || pathname?.startsWith('/admin');
 
     return (
         <>
@@ -64,7 +58,7 @@ export default function CommunicationLayer({ config }: CommunicationLayerProps) 
                                 Maintenance en cours
                             </h1>
                             <p className="text-stone-500 font-medium leading-relaxed">
-                                {maintenanceMessage || "L'Assez revient très bientôt."}
+                                {maintenanceMessage}
                             </p>
                             <div className="pt-8 flex flex-col items-center gap-4">
                                 <div className="flex gap-2">
@@ -91,32 +85,32 @@ export default function CommunicationLayer({ config }: CommunicationLayerProps) 
                             exit={{ opacity: 0, scale: 0.9, y: 20 }}
                             className="bg-white border-4 border-stone-900 rounded-3xl p-8 max-w-sm w-full shadow-[12px_12px_0px_0px_rgba(28,25,23,1)] relative"
                         >
-                            <button 
+                            <button
                                 onClick={closePopup}
                                 className="absolute top-4 right-4 text-stone-400 hover:text-stone-900 transition-colors font-bold text-xl"
                             >
                                 ✕
                             </button>
-                            
+
                             <div className="space-y-5">
                                 <span className="inline-block px-3 py-1 bg-sky-100 text-sky-600 font-black uppercase tracking-widest text-[10px] rounded-full">
                                     Message Important
                                 </span>
                                 <h2 className="text-2xl font-black uppercase tracking-tighter italic text-stone-900 leading-tight">
-                                    {config.popup_title}
+                                    {popupTitle}
                                 </h2>
                                 <p className="text-stone-600 text-sm leading-relaxed font-medium">
-                                    {config.popup_text}
+                                    {popupText}
                                 </p>
                                 <div className="pt-4 flex flex-col gap-3">
-                                    <a 
-                                        href={config.popup_link_url}
+                                    <a
+                                        href={popupLinkUrl}
                                         onClick={closePopup}
                                         className="w-full py-4 bg-rose-600 hover:bg-rose-700 text-white font-black uppercase tracking-widest rounded-xl text-center border-2 border-stone-900 shadow-[4px_4px_0px_0px_rgba(28,25,23,1)] transition-all active:translate-y-1 active:shadow-none"
                                     >
-                                        {config.popup_link_label}
-                                    </a >
-                                    <button 
+                                        {popupLinkLabel}
+                                    </a>
+                                    <button
                                         onClick={closePopup}
                                         className="w-full py-2 text-stone-400 hover:text-stone-600 transition-colors text-[10px] font-black uppercase tracking-widest"
                                     >

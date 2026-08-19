@@ -22,6 +22,9 @@ type Message struct {
 	Geo      string
 	Taxonomy string
 	ImageURL string
+	// SignalID links the published content back to its source signal so the
+	// Payload channel can store the signal → revelation relation.
+	SignalID string
 }
 
 // Channel publishes a Message to one platform.

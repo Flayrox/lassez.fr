@@ -359,6 +359,14 @@ func (c *Client) PurgeSeenURLs(before time.Time) error {
 	return err
 }
 
+// PruneLogs deletes Payload logs entries older than the given instant. Used
+// to enforce the radar-settings logRetentionDays retention.
+func (c *Client) PruneLogs(before time.Time) error {
+	iso := url.QueryEscape(before.UTC().Format(time.RFC3339))
+	_, err := c.request(http.MethodDelete, "/logs?where[timestamp][less_than]="+iso, nil, true)
+	return err
+}
+
 // GetSignalsSince returns signals created after the given instant.
 func (c *Client) GetSignalsSince(after time.Time) ([]Signal, error) {
 	iso := url.QueryEscape(after.UTC().Format(time.RFC3339))
@@ -741,9 +749,21 @@ func (c *Client) CreateTag(name string) (ID, error) {
 
 // CreateRevelation posts an investigation article to the revelations
 // collection, which feeds the public site.
-func (c *Client) CreateRevelation(data map[string]any) error {
-	_, err := c.request(http.MethodPost, "/revelations", data, true)
-	return err
+// CreateRevelation creates a revelation and returns its ID (empty string if
+// the response did not carry one). The daemon links it back to the source
+// signal so the admin sees the signal → revelation relation in Payload.
+func (c *Client) CreateRevelation(data map[string]any) (string, error) {
+	raw, err := c.request(http.MethodPost, "/revelations", data, true)
+	if err != nil {
+		return "", err
+	}
+	var doc struct {
+		ID ID `json:"id"`
+	}
+	if len(raw) > 0 {
+		_ = json.Unmarshal(raw, &doc)
+	}
+	return string(doc.ID), nil
 }
 
 func relationshipID(raw json.RawMessage) (string, bool) {

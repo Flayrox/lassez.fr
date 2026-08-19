@@ -13,10 +13,12 @@ const SCHEDULING_MODES = [
 ];
 
 const DEFAULT_AVAILABLE_MODELS = JSON.stringify([
-    { value: 'gemini-3.1-pro-preview', label: 'Gemini 3.1 Pro (Preview)' },
-    { value: 'gemini-3-flash-preview', label: 'Gemini 3 Flash (Preview)' },
-    { value: 'gemini-3.1-flash-lite-preview', label: 'Gemini 3.1 Flash-Lite' },
-    { value: 'gemini-2.0-pro-exp', label: 'Gemini 2.0 Pro Exp' },
+    { value: 'gemini-3.5-flash-lite', label: 'Gemini 3.5 Flash-Lite (par défaut)' },
+    { value: 'gemini-3.5-flash', label: 'Gemini 3.5 Flash' },
+    { value: 'gemini-3.7-flash', label: 'Gemini 3.7 Flash' },
+    { value: 'gemini-3.1-flash-lite', label: 'Gemini 3.1 Flash-Lite (stable)' },
+    { value: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro' },
+    { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
 ]);
 
 const SECRET_HINT = 'Secret — laisser vide pour conserver la valeur actuelle.';
@@ -58,14 +60,14 @@ const secretField = (name: string, label: string, width?: string) => ({
  */
 export const radarSettings: GlobalConfig = {
     slug: 'radar-settings',
-    label: 'Radar Settings',
+    label: 'Réglages de la veille',
     access: {
         read: isAdmin,
         update: isAdmin,
     },
     admin: {
-        group: 'Radar',
-        description: 'Configuration globale du pipeline Radar (sources, IA, diffusion, planification).',
+        group: 'Investigation',
+        description: 'Configuration globale de la veille (sources, IA, diffusion, planification).',
     },
     fields: [
         {
@@ -230,8 +232,8 @@ export const radarSettings: GlobalConfig = {
                         {
                             type: 'row',
                             fields: [
-                                { name: 'aiModelFlash', type: 'text', defaultValue: 'gemini-3.1-flash-lite-preview', label: 'Modèle Flash (Analyse)', admin: { width: '50%' } },
-                                { name: 'aiModelPro', type: 'text', defaultValue: 'gemini-3-flash-preview', label: 'Modèle Pro (Rédaction)', admin: { width: '50%' } },
+                                { name: 'aiModelFlash', type: 'text', defaultValue: 'gemini-3.5-flash-lite', label: 'Modèle Flash (Analyse)', admin: { width: '50%' } },
+                                { name: 'aiModelPro', type: 'text', defaultValue: 'gemini-3.5-flash-lite', label: 'Modèle Pro (Rédaction)', admin: { width: '50%' } },
                             ],
                         },
                         { name: 'customPromptModifier', type: 'textarea', label: 'Modificateur de prompt' },
@@ -250,6 +252,60 @@ export const radarSettings: GlobalConfig = {
                     ],
                 },
                 {
+                    label: 'Journal',
+                    fields: [
+                        {
+                            name: 'logLevel',
+                            type: 'select',
+                            defaultValue: 'INFO',
+                            label: 'Niveau de journalisation',
+                            options: [
+                                { label: 'DEBUG — tout', value: 'DEBUG' },
+                                { label: 'INFO — par défaut', value: 'INFO' },
+                                { label: 'WARN — avertissements + erreurs', value: 'WARN' },
+                                { label: 'ERROR — erreurs uniquement', value: 'ERROR' },
+                            ],
+                            admin: {
+                                description: 'Seuil minimal des entrées écrites dans le fichier local et la collection Payload logs. La sortie terminal du daemon affiche toujours tout.',
+                            },
+                        },
+                        {
+                            type: 'row',
+                            fields: [
+                                {
+                                    name: 'logRetentionDays',
+                                    type: 'number',
+                                    defaultValue: 14,
+                                    label: 'Rétention (jours)',
+                                    admin: {
+                                        width: '50%',
+                                        description: 'Âge maximal des entrées conservées dans la collection Payload logs (0 = conserver indéfiniment). Le daemon purge automatiquement au-delà.',
+                                    },
+                                },
+                                {
+                                    name: 'logMirrorPayload',
+                                    type: 'checkbox',
+                                    defaultValue: true,
+                                    label: 'Miroir vers Payload',
+                                    admin: {
+                                        width: '50%',
+                                        description: 'Envoie les entrées dans la collection Payload logs (nécessaire pour le heartbeat du cockpit et les filtres par nœud).',
+                                    },
+                                },
+                            ],
+                        },
+                        {
+                            name: 'logMirrorNodes',
+                            type: 'text',
+                            label: 'Nœuds suivis (JSON)',
+                            defaultValue: '[]',
+                            admin: {
+                                description: 'Liste optionnelle de nœuds à mettre en avant dans le cockpit (ex. ["Node 1", "Daemon"]). Vide = tous.',
+                            },
+                        },
+                    ],
+                },
+                {
                     label: 'Ingestion',
                     fields: [
                         { name: 'rss_feeds', type: 'textarea', defaultValue: '[]', label: 'Flux RSS (JSON)' },
@@ -257,14 +313,35 @@ export const radarSettings: GlobalConfig = {
                         { name: 'google_news_queries', type: 'textarea', defaultValue: '[]', label: 'Requêtes Google News (JSON)' },
                         { name: 'keywords', type: 'textarea', defaultValue: '[]', label: 'Mots-clés (JSON)' },
                         { name: 'bannedKeywords', type: 'textarea', defaultValue: '[]', label: 'Mots-clés bannis (JSON)' },
-                        { name: 'pipelineGraphJson', type: 'textarea', label: 'Graphe du pipeline (JSON)' },
+                        {
+                            name: 'pipelineGraphJson',
+                            type: 'textarea',
+                            label: 'Graphe du pipeline',
+                            admin: {
+                                description: 'Activez / désactivez les étapes du pipeline et réglez-les visuellement — le JSON est géré automatiquement.',
+                                components: {
+                                    beforeInput: ['/payload/components/PipelineGraphField'],
+                                },
+                            },
+                        },
                     ],
                 },
                 {
                     label: 'Avancé',
                     fields: [
                         { name: 'social_targets_by_type_json', type: 'textarea', defaultValue: '{}', label: 'Cibles sociales par type (JSON)' },
-                        { name: 'availableModelsJson', type: 'textarea', defaultValue: DEFAULT_AVAILABLE_MODELS, label: 'Modèles disponibles (JSON)' },
+                        {
+                            name: 'availableModelsJson',
+                            type: 'textarea',
+                            defaultValue: DEFAULT_AVAILABLE_MODELS,
+                            label: 'Modèles disponibles',
+                            admin: {
+                                description: 'Liste des modèles proposés dans le cockpit. Ajoutez/supprimez des entrées ici, la valeur est sauvegardée automatiquement.',
+                                components: {
+                                    beforeInput: ['/payload/components/ModelListField'],
+                                },
+                            },
+                        },
                     ],
                 },
             ],

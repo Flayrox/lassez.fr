@@ -4,7 +4,6 @@ import Script from 'next/script';
 import './globals.css';
 import { Inter, Playfair_Display, JetBrains_Mono, Newsreader, Space_Grotesk } from 'next/font/google';
 import { getNavItems } from '@/lib/db-nav';
-import { getRadarConfig } from '@/lib/radar-config';
 import ThemeInitializer from '@/components/ThemeInitializer';
 import { getSettings } from '@/lib/get-settings';
 import Footer from '@/components/Footer';
@@ -27,16 +26,6 @@ const spaceGrotesk = Space_Grotesk({
     variable: '--font-space-grotesk',
     display: 'swap'
 });
-
-const DEFAULT_RADAR_CONFIG = {
-    maintenance_mode: false,
-    maintenance_message: '',
-    popup_enabled: false,
-    popup_title: '',
-    popup_text: '',
-    popup_link_url: '',
-    popup_link_label: '',
-};
 
 const matomoBootstrapScript = (url: string, id: string) => `
   var _paq = window._paq = window._paq || [];
@@ -135,7 +124,6 @@ export default async function RootLayout({
     children: React.ReactNode;
 }) {
     const navItems = await getNavItems();
-    const config = await getRadarConfig();
     const settings = await getSettings();
 
     const socialSameAs = [
@@ -188,7 +176,7 @@ export default async function RootLayout({
 
                 <>
                     <SettingsProvider settings={settings}>
-                        <CommunicationLayer config={config} />
+                        <CommunicationLayer />
                         <NavProvider initialNavItems={navItems as any}>
                             <UIProvider>
                                 <div id="root" className="min-h-screen flex flex-col">

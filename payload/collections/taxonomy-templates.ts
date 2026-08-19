@@ -8,8 +8,8 @@ import { isAdmin } from '../access';
 export const taxonomyTemplates: CollectionConfig = {
     slug: 'taxonomy-templates',
     labels: {
-        singular: 'Template de taxonomie',
-        plural: 'Templates de taxonomie',
+        singular: 'Format éditorial',
+        plural: 'Formats éditoriaux',
     },
     access: {
         read: isAdmin,
@@ -18,10 +18,11 @@ export const taxonomyTemplates: CollectionConfig = {
         delete: isAdmin,
     },
     admin: {
-        group: 'Radar',
+        group: 'Investigation',
         useAsTitle: 'name',
         defaultColumns: ['name', 'display_name', 'active', 'sort_order'],
-        description: 'Formats éditoriaux (FLASH, CITATION, ALERTE…) pour les prompts IA.',
+        listSearchableFields: ['name', 'display_name', 'description'],
+        description: 'Formats éditoriaux (FLASH, CITATION, ALERTE…) pour la rédaction IA.',
     },
     fields: [
         {
@@ -47,22 +48,42 @@ export const taxonomyTemplates: CollectionConfig = {
         {
             name: 'format_instructions',
             type: 'textarea',
+            label: 'Consignes de rédaction',
             admin: {
-                description: 'Section de prompt spécifique à ce format.',
+                description: 'Le prompt complet de ce format (tout le texte, avec les retours à la ligne).',
+                rows: 12,
             },
         },
         {
-            name: 'examples_json',
-            type: 'json',
-            admin: {
-                description: 'Tableau JSON d’exemples de sortie.',
+            name: 'examples',
+            type: 'array',
+            label: 'Exemples de sortie',
+            labels: {
+                singular: 'Exemple',
+                plural: 'Exemples',
             },
+            admin: {
+                description: 'Un exemple par ligne — chaque exemple est éditable et supprimable individuellement.',
+            },
+            fields: [
+                {
+                    name: 'example',
+                    type: 'textarea',
+                    label: 'Contenu de l’exemple',
+                    required: true,
+                    admin: {
+                        rows: 5,
+                    },
+                },
+            ],
         },
         {
             name: 'output_schema_json',
-            type: 'json',
+            type: 'code',
+            label: 'Schéma de sortie (JSON)',
             admin: {
-                description: 'Structure JSON attendue en sortie.',
+                language: 'json',
+                description: 'Structure JSON que la rédaction IA doit produire pour ce format.',
             },
         },
         {
@@ -86,6 +107,7 @@ export const taxonomyTemplates: CollectionConfig = {
             type: 'checkbox',
             defaultValue: true,
             index: true,
+            label: 'Format actif',
         },
         {
             name: 'sort_order',

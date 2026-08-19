@@ -1,8 +1,7 @@
 // lib/radar-config.ts
 
 import { unstable_cache } from 'next/cache';
-import Database from 'better-sqlite3';
-import { getRadarDbPath } from '@/lib/radar-db';
+import { getPayloadClient } from '@/lib/payload';
 
 export interface RadarConfig {
     maintenance_mode: boolean;
@@ -52,7 +51,7 @@ const DEFAULT_CONFIG: RadarConfig = {
 export async function getRadarConfig(): Promise<RadarConfig> {
     const remoteUrl = process.env.RADAR_API_URL;
     let configUrl = '';
-    
+
     if (remoteUrl) {
         // On déduit l'URL de config de l'URL de nav
         configUrl = remoteUrl.replace('/nav', '/config');
@@ -75,43 +74,31 @@ export async function getRadarConfig(): Promise<RadarConfig> {
                             return data.config as RadarConfig;
                         }
                     } else {
-                        logRadarConfig(`Fetch remote config failed with status: ${res.status}, falling back to local DB...`);
+                        logRadarConfig(`Fetch remote config failed with status: ${res.status}, falling back to local Payload...`);
                     }
                 } catch (error) {
-                    logRadarConfig(`Fetch remote config error: ${error}, falling back to local DB...`);
+                    logRadarConfig(`Fetch remote config error: ${error}, falling back to local Payload...`);
                 }
             }
 
-            // 2. Local SQLite Logic (Hetzner Studio case / Fallback)
+            // 2. Source de vérité : global Payload `settings` (groupe communication),
+            //    ex-table SQLite legacy `radar_settings`.
             try {
-                const db = new Database(getRadarDbPath());
-
-                const rows = db.prepare(`
-                    SELECT key, value FROM radar_settings 
-                    WHERE key IN (
-                        'maintenance_mode', 'maintenance_message',
-                        'popup_enabled', 'popup_title', 'popup_text', 'popup_link_url', 'popup_link_label'
-                    )
-                `).all();
-
-                const localConfig: Record<string, string> = {};
-                for (const row of rows as { key: string; value: string }[]) {
-                    localConfig[row.key] = row.value;
-                }
-                
-                db.close();
+                const payload = await getPayloadClient();
+                const settings = await payload.findGlobal({ slug: 'settings' });
+                const communication = (settings as any)?.communication || {};
 
                 return {
-                    maintenance_mode: localConfig.maintenance_mode === 'true',
-                    maintenance_message: localConfig.maintenance_message || '',
-                    popup_enabled: localConfig.popup_enabled === 'true',
-                    popup_title: localConfig.popup_title || '',
-                    popup_text: localConfig.popup_text || '',
-                    popup_link_url: localConfig.popup_link_url || '',
-                    popup_link_label: localConfig.popup_link_label || ''
+                    maintenance_mode: communication.maintenanceMode === true,
+                    maintenance_message: communication.maintenanceMessage || '',
+                    popup_enabled: communication.popupEnabled === true,
+                    popup_title: communication.popupTitle || '',
+                    popup_text: communication.popupText || '',
+                    popup_link_url: communication.popupLinkUrl || '',
+                    popup_link_label: communication.popupLinkLabel || ''
                 } as RadarConfig;
             } catch (error) {
-                logRadarConfigError('Local DB query error:', error);
+                logRadarConfigError('Payload settings read error:', error);
             }
 
             return DEFAULT_CONFIG;

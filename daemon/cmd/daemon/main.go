@@ -15,6 +15,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -40,9 +41,24 @@ func main() {
 	client := payload.New("")
 	resolver := config.NewResolver(client)
 
+	// Assure l'existence du global radar-settings AVANT de configurer le
+	// logger : le niveau de journalisation et le miroir Payload y sont lus.
+	if err := client.EnsureSettings(); err != nil {
+		log.Printf("[Daemon] ⚠️ radar-settings introuvables, initialisation : %v", err)
+	} else {
+		log.Printf("[Daemon] radar-settings chargées.")
+	}
+	resolver.Invalidate()
+
+	settings, _ := resolver.Settings()
+	logOpts := logger.Options{
+		Level:         settingString(settings, "logLevel", "INFO"),
+		MirrorPayload: settingBool(settings, "logMirrorPayload", true),
+	}
+
 	// Le logger écrit dans logs/daemon.log (rotation 10 Mo) ET envoie les
 	// entrées dans la collection Payload logs (heartbeat du dashboard).
-	loggerInstance, err := logger.New(client, "")
+	loggerInstance, err := logger.New(client, "", logOpts)
 	if err != nil {
 		log.Printf("[Daemon] ⚠️ Logger fichier indisponible: %v", err)
 	}
@@ -56,14 +72,10 @@ func main() {
 	loggerInstance.Info("Daemon", "   L'ASSEZ - DEMON RADAR (Go)            ")
 	loggerInstance.Info("Daemon", "==========================================")
 	loggerInstance.Info("Daemon", "[Daemon] API Payload : "+client.BaseURL())
+	loggerInstance.Info("Daemon", "[Daemon] Journalisation : niveau="+logOpts.Level+", miroir Payload="+fmt.Sprintf("%t", logOpts.MirrorPayload))
 
-	// Assure l'existence du global radar-settings.
-	if err := client.EnsureSettings(); err != nil {
-		loggerInstance.Warn("Daemon", "⚠️ radar-settings introuvables, initialisation : "+err.Error())
-	} else {
-		loggerInstance.Info("Daemon", "radar-settings chargées.")
-	}
-	resolver.Invalidate()
+	// Purge périodique des vieux logs Payload (rétention radar-settings).
+	go pruneLogsLoop(client, resolver, loggerInstance)
 
 	// Mode one-shot (trigger manuel) : un cycle pipeline + publisher puis exit.
 	if *once {
@@ -138,6 +150,76 @@ func (r *logRedirect) Write(p []byte) (int, error) {
 // formatMinutes affiche un délai en minutes (arrondi à la minute).
 func formatMinutes(d time.Duration) string {
 	return fmt.Sprintf("%d", int(d.Minutes()))
+}
+
+// pruneLogsLoop supprime périodiquement les entrées Payload logs plus vieilles
+// que logRetentionDays (0 = jamais). Lit les réglages à chaque passage pour
+// prendre en compte un changement sans redémarrage.
+func pruneLogsLoop(client *payload.Client, resolver *config.Resolver, loggerInstance *logger.Logger) {
+	prune := func() {
+		settings, err := resolver.Settings()
+		if err != nil || settings == nil {
+			return
+		}
+		days := int(toFloat(settings["logRetentionDays"]))
+		if days <= 0 {
+			return
+		}
+		cutoff := time.Now().Add(-time.Duration(days) * 24 * time.Hour)
+		if err := client.PruneLogs(cutoff); err != nil {
+			loggerInstance.Warn("Daemon", "⚠️ Purge des logs échouée : "+err.Error())
+		} else {
+			loggerInstance.Info("Daemon", fmt.Sprintf("🧹 Logs Payload purgés (rétention %d jours).", days))
+		}
+		resolver.Invalidate()
+	}
+
+	// Première purge au démarrage, puis toutes les 6 heures.
+	prune()
+	for range time.Tick(6 * time.Hour) {
+		prune()
+	}
+}
+
+// settingString lit une valeur texte d'un map de réglages (avec défaut).
+func settingString(settings map[string]any, key, def string) string {
+	if settings == nil {
+		return def
+	}
+	if v, ok := settings[key].(string); ok && v != "" {
+		return v
+	}
+	return def
+}
+
+// settingBool lit une valeur booléenne d'un map de réglages (avec défaut).
+func settingBool(settings map[string]any, key string, def bool) bool {
+	if settings == nil {
+		return def
+	}
+	if v, ok := settings[key].(bool); ok {
+		return v
+	}
+	return def
+}
+
+// toFloat convertit une valeur numérique (int, float64, string) en float64.
+func toFloat(v any) float64 {
+	switch n := v.(type) {
+	case float64:
+		return n
+	case float32:
+		return float64(n)
+	case int:
+		return float64(n)
+	case int64:
+		return float64(n)
+	case string:
+		f, _ := strconv.ParseFloat(n, 64)
+		return f
+	default:
+		return 0
+	}
 }
 
 // loadEnv charges le .env à la racine du repo (le daemon TS a été supprimé,

@@ -45,7 +45,8 @@ func ActiveNodes(resolver *config.Resolver) map[string]bool {
 
 	var graph struct {
 		Nodes []struct {
-			Type string `json:"type"`
+			Type    string `json:"type"`
+			Enabled *bool  `json:"enabled"`
 		} `json:"nodes"`
 	}
 	if err := json.Unmarshal([]byte(graphStr), &graph); err != nil {
@@ -55,12 +56,18 @@ func ActiveNodes(resolver *config.Resolver) map[string]bool {
 		return active
 	}
 
-	// Replace the default set with the graph's node list.
+	// Replace the default set with the graph's node list. Un nœud est actif
+	// sauf si son champ "enabled" est explicitement à false (l'éditeur visuel
+	// du graphe permet de désactiver un nœud sans perdre ses réglages).
 	active = map[string]bool{}
 	for _, n := range graph.Nodes {
-		if n.Type != "" {
-			active[n.Type] = true
+		if n.Type == "" {
+			continue
 		}
+		if n.Enabled != nil && !*n.Enabled {
+			continue
+		}
+		active[n.Type] = true
 	}
 	return active
 }
@@ -75,8 +82,8 @@ func RunCycle(client *payload.Client, resolver *config.Resolver, log *logger.Log
 		return fmt.Errorf("les paramètres globaux sont introuvables")
 	}
 
-	modelFlash := strVal(settings["aiModelFlash"], "gemini-3.1-flash-lite-preview")
-	modelPro := strVal(settings["aiModelPro"], "gemini-3-flash-preview")
+	modelFlash := strVal(settings["aiModelFlash"], "gemini-3.5-flash-lite")
+	modelPro := strVal(settings["aiModelPro"], "gemini-3.5-flash-lite")
 	log.Info("Daemon", fmt.Sprintf("🧠 Modèles IA : %s (Analyse Rapide) / %s (Rédaction)", modelFlash, modelPro))
 
 	var articles []nodes.IngestedArticle

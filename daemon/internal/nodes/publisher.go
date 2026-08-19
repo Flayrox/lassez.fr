@@ -255,6 +255,7 @@ func dispatchPublication(client *payload.Client, registry *publish.Registry, pub
 		Geo:      topic.Geo,
 		Taxonomy: topic.Taxonomy,
 		ImageURL: topic.ImageURL,
+		SignalID: string(topic.ID),
 	}
 	if len(topic.Tags) > 0 {
 		_ = json.Unmarshal(topic.Tags, &msg.Tags)

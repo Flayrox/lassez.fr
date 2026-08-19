@@ -1,15 +1,16 @@
 'use client';
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { SignalActions } from '../../components/SignalActions';
 
 // Étapes du pipeline, dans l'ordre d'exécution (chaque carte pointe vers la
 // collection signals filtrée sur ce statut).
 const PIPELINE: { status: string; label: string; hint: string }[] = [
-    { status: 'INGESTED', label: 'Ingéré', hint: 'Node 1-2' },
-    { status: 'RESEARCHED', label: 'Analysé', hint: 'Node 3' },
-    { status: 'DRAFTED', label: 'Rédigé', hint: 'Node 4' },
-    { status: 'VALIDATED', label: 'Validé', hint: 'Node 5' },
-    { status: 'PENDING', label: 'En attente', hint: 'Node 6' },
+    { status: 'INGESTED', label: 'Détecté', hint: 'Étape 1-2' },
+    { status: 'RESEARCHED', label: 'Analysé', hint: 'Étape 3' },
+    { status: 'DRAFTED', label: 'Rédigé', hint: 'Étape 4' },
+    { status: 'VALIDATED', label: 'Validé', hint: 'Étape 5' },
+    { status: 'PENDING', label: 'En attente', hint: 'Étape 6' },
     { status: 'PUBLISHED', label: 'Publié', hint: 'Diffusé' },
 ];
 
@@ -18,6 +19,19 @@ const TERMINAL: { status: string; label: string }[] = [
     { status: 'REJECTED_ERROR', label: 'Erreurs' },
     { status: 'FAILED', label: 'Échecs' },
 ];
+
+const STATUS_FR: Record<string, string> = {
+    INGESTED: 'Détecté',
+    RESEARCHED: 'Analysé',
+    DRAFTED: 'Rédigé',
+    VALIDATED: 'Validé',
+    PENDING: 'En attente',
+    QUEUED: 'En file',
+    PUBLISHED: 'Publié',
+    REJECTED: 'Rejeté',
+    REJECTED_ERROR: 'Erreur de rejet',
+    FAILED: 'Échec',
+};
 
 const HEALTH_META: Record<string, { label: string; color: string }> = {
     ok: { label: 'Daemon stable', color: '#15803d' },
@@ -33,11 +47,12 @@ export function RadarDashboardClient(props: {
     daemonHealth: 'ok' | 'late' | 'paused';
     autoPublish: boolean;
     aiModel: string;
-    recentSignals: { id: string; title: string; status: string; updatedAt: string | null }[];
+    toReview: { id: string; title: string; status: string; taxonomy: string | null; updatedAt: string | null; hasDraft: boolean; revelation: string | null }[];
+    publishedSignals: { id: string; title: string; publishedAt: string | null; revelation: string | null; revelationTitle: string | null }[];
     duePubs: number;
     errors: number;
 }) {
-    const { counts, total, lastLogAt, lastLogMessage, daemonHealth, autoPublish, aiModel, recentSignals, duePubs, errors } = props;
+    const { counts, total, lastLogAt, lastLogMessage, daemonHealth, autoPublish, aiModel, toReview, publishedSignals, duePubs, errors } = props;
 
     const [scanOutput, setScanOutput] = useState<string[]>([]);
     const [scanning, setScanning] = useState(false);
@@ -79,9 +94,9 @@ export function RadarDashboardClient(props: {
 
     return (
         <div style={{ padding: '28px 32px 64px', maxWidth: 1160, margin: '0 auto' }}>
-            <h1 style={{ fontSize: 22, fontWeight: 700, margin: '0 0 4px' }}>Radar — Cockpit</h1>
+            <h1 style={{ fontSize: 22, fontWeight: 700, margin: '0 0 4px' }}>Cockpit d’investigation</h1>
             <p style={{ fontSize: 13, color: 'var(--theme-elevation-500)', margin: '0 0 24px' }}>
-                Pipeline d’investigation automatisé. Toutes les données vivent dans les collections Payload.
+                Suivez et pilotez la veille : tout se traite ici, sans ouvrir chaque fiche.
             </p>
 
             {/* Bandeau d'état */}
@@ -134,7 +149,7 @@ export function RadarDashboardClient(props: {
             {/* Pipeline visuel */}
             <SectionTitle>Pipeline</SectionTitle>
             <div style={{ display: 'flex', alignItems: 'stretch', gap: 0, marginBottom: 28, overflowX: 'auto', paddingBottom: 4 }}>
-                <PipelineStep label="Total" value={total} hint="signals" href="/admin/collections/signals" total />
+                <PipelineStep label="Total" value={total} hint="sujets" href="/admin/collections/signals" total />
                 {PIPELINE.map((step, i) => (
                     <React.Fragment key={step.status}>
                         {i > 0 && <Arrow />}
@@ -215,8 +230,10 @@ export function RadarDashboardClient(props: {
                 )}
             </div>
 
-            {/* Derniers signals */}
-            <SectionTitle>Derniers signals</SectionTitle>
+            {/* Sujets à traiter */}
+            <SectionTitle>
+                À traiter {toReview.length > 0 && <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0, color: 'var(--theme-elevation-400)' }}>— approuve, rejette ou lance la diffusion sans ouvrir la fiche</span>}
+            </SectionTitle>
             <div
                 style={{
                     borderRadius: 8,
@@ -226,34 +243,46 @@ export function RadarDashboardClient(props: {
                     marginBottom: 24,
                 }}
             >
-                {recentSignals.length === 0 ? (
+                {toReview.length === 0 ? (
                     <p style={{ padding: '14px 16px', margin: 0, fontSize: 13, color: 'var(--theme-elevation-500)' }}>
-                        Aucun signal pour l’instant — lance un scan pour démarrer.
+                        Rien à traiter pour l’instant — tout est publié ou rejeté. Lance un scan pour démarrer.
                     </p>
                 ) : (
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                         <thead>
                             <tr style={{ textAlign: 'left', color: 'var(--theme-elevation-500)', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                                <th style={{ padding: '10px 16px', borderBottom: '1px solid var(--theme-elevation-200)' }}>Signal</th>
+                                <th style={{ padding: '10px 16px', borderBottom: '1px solid var(--theme-elevation-200)' }}>Sujet</th>
                                 <th style={{ padding: '10px 16px', borderBottom: '1px solid var(--theme-elevation-200)' }}>Statut</th>
                                 <th style={{ padding: '10px 16px', borderBottom: '1px solid var(--theme-elevation-200)' }}>Mise à jour</th>
-                                <th style={{ padding: '10px 16px', borderBottom: '1px solid var(--theme-elevation-200)' }} />
+                                <th style={{ padding: '10px 16px', borderBottom: '1px solid var(--theme-elevation-200)' }}>Actions</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {recentSignals.map((s) => (
+                            {toReview.map((s) => (
                                 <tr key={s.id} style={{ borderBottom: '1px solid var(--theme-elevation-100)' }}>
-                                    <td style={{ padding: '10px 16px', fontWeight: 500 }}>{s.title}</td>
+                                    <td style={{ padding: '10px 16px', fontWeight: 500, maxWidth: 420 }}>
+                                        <a href={`/admin/collections/signals/${s.id}`} style={{ color: 'inherit', textDecoration: 'none' }}>
+                                            {s.title}
+                                        </a>
+                                        {s.taxonomy && (
+                                            <span style={{ display: 'block', fontSize: 11, color: 'var(--theme-elevation-500)', marginTop: 2 }}>{s.taxonomy}</span>
+                                        )}
+                                    </td>
                                     <td style={{ padding: '10px 16px' }}>
                                         <StatusChip status={s.status} />
                                     </td>
-                                    <td style={{ padding: '10px 16px', color: 'var(--theme-elevation-500)' }}>
+                                    <td style={{ padding: '10px 16px', color: 'var(--theme-elevation-500)', whiteSpace: 'nowrap' }}>
                                         {s.updatedAt ? new Date(s.updatedAt).toLocaleString('fr-FR') : '—'}
                                     </td>
-                                    <td style={{ padding: '10px 16px', textAlign: 'right' }}>
-                                        <a href={`/admin/collections/signals/${s.id}`} style={{ color: 'var(--admin-link, inherit)', textDecoration: 'none' }}>
-                                            Ouvrir →
-                                        </a>
+                                    <td style={{ padding: '10px 16px' }}>
+                                        <SignalActions
+                                            signal={{
+                                                id: s.id,
+                                                status: s.status,
+                                                revelation: s.revelation,
+                                                hasDraft: s.hasDraft,
+                                            }}
+                                        />
                                     </td>
                                 </tr>
                             ))}
@@ -261,6 +290,58 @@ export function RadarDashboardClient(props: {
                     </table>
                 )}
             </div>
+
+            {/* Récemment publiés */}
+            {publishedSignals.length > 0 && (
+                <>
+                    <SectionTitle>Récemment publiés</SectionTitle>
+                    <div
+                        style={{
+                            borderRadius: 8,
+                            border: '1px solid var(--theme-elevation-200)',
+                            background: 'var(--theme-elevation-0)',
+                            overflow: 'hidden',
+                            marginBottom: 24,
+                        }}
+                    >
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                            <thead>
+                                <tr style={{ textAlign: 'left', color: 'var(--theme-elevation-500)', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                                    <th style={{ padding: '10px 16px', borderBottom: '1px solid var(--theme-elevation-200)' }}>Sujet</th>
+                                    <th style={{ padding: '10px 16px', borderBottom: '1px solid var(--theme-elevation-200)' }}>Publié le</th>
+                                    <th style={{ padding: '10px 16px', borderBottom: '1px solid var(--theme-elevation-200)' }}>Révélation</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {publishedSignals.map((s) => (
+                                    <tr key={s.id} style={{ borderBottom: '1px solid var(--theme-elevation-100)' }}>
+                                        <td style={{ padding: '10px 16px', fontWeight: 500, maxWidth: 420 }}>
+                                            <a href={`/admin/collections/signals/${s.id}`} style={{ color: 'inherit', textDecoration: 'none' }}>
+                                                {s.title}
+                                            </a>
+                                        </td>
+                                        <td style={{ padding: '10px 16px', color: 'var(--theme-elevation-500)', whiteSpace: 'nowrap' }}>
+                                            {s.publishedAt ? new Date(s.publishedAt).toLocaleString('fr-FR') : '—'}
+                                        </td>
+                                        <td style={{ padding: '10px 16px' }}>
+                                            {s.revelation ? (
+                                                <a
+                                                    href={`/admin/collections/revelations/${s.revelation}`}
+                                                    style={{ color: '#15803d', textDecoration: 'none', fontWeight: 600 }}
+                                                >
+                                                    {s.revelationTitle || 'Voir la révélation'} →
+                                                </a>
+                                            ) : (
+                                                <span style={{ color: 'var(--theme-elevation-400)' }}>—</span>
+                                            )}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </>
+            )}
 
             {/* Sortie du scan */}
             {scanOutput.length > 0 && (
@@ -375,6 +456,7 @@ const STATUS_COLORS: Record<string, string> = {
 
 function StatusChip({ status }: { status: string }) {
     const color = STATUS_COLORS[status] || '#6b7280';
+    const label = STATUS_FR[status] || status;
     return (
         <span
             style={{
@@ -388,7 +470,7 @@ function StatusChip({ status }: { status: string }) {
                 background: 'var(--theme-elevation-0)',
             }}
         >
-            {status}
+            {label}
         </span>
     );
 }

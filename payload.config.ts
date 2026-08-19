@@ -16,11 +16,15 @@ import { publications } from './payload/collections/publications';
 import { seenUrls } from './payload/collections/seen-urls';
 import { taxonomyTemplates } from './payload/collections/taxonomy-templates';
 import { logs } from './payload/collections/logs';
+import { elections } from './payload/collections/elections';
 import { settings } from './payload/globals/settings';
 import { about } from './payload/globals/about';
 import { legal } from './payload/globals/legal';
 import { radarSettings } from './payload/globals/radar-settings';
 import { radarTriggerEndpoint } from './payload/endpoints/radar-trigger';
+import { radarGenerateImageEndpoint } from './payload/endpoints/radar-generate-image';
+import { radarPublishSignalEndpoint } from './payload/endpoints/radar-publish-signal';
+import { fr } from '@payloadcms/translations/languages/fr';
 import { seoPlugin } from '@payloadcms/plugin-seo';
 import { getApiOrigin, getPublicSiteOrigin } from './lib/host-urls';
 import { generateGeminiSeo } from './payload/hooks/seo-gemini';
@@ -54,9 +58,21 @@ export default buildConfig({
             titleSuffix: 'Payload',
         },
         components: {
+            // Nav personnalisée : reproduit la sidebar native et place le
+            // lien « Cockpit Radar » dans le groupe Radar (au lieu d'un lien
+            // isolé en bas de la sidebar).
+            Nav: '/payload/components/AdminNav',
             views: {
-                dashboard: {
+                // Vue custom /admin/radar : enveloppée dans le DefaultTemplate
+                // pour conserver la sidebar (les vues custom natives sont nues).
+                radar: {
                     Component: '/payload/views/radar/DashboardView',
+                    path: '/radar',
+                    exact: true,
+                    meta: {
+                        title: 'Cockpit Radar',
+                        description: 'Vue d’ensemble du pipeline Radar',
+                    },
                 },
             },
         },
@@ -106,6 +122,13 @@ export default buildConfig({
         'https://*.lassez.fr',
     ],
     telemetry: false,
+    // Interface d'admin en français (traductions natives Payload).
+    i18n: {
+        fallbackLanguage: 'fr',
+        supportedLanguages: {
+            fr,
+        },
+    },
     editor: lexicalEditor({
         features: ({ defaultFeatures }) => [...defaultFeatures, HTMLConverterFeature({  })],
     }),
@@ -127,9 +150,19 @@ export default buildConfig({
             method: 'post',
             handler: radarTriggerEndpoint,
         },
+        {
+            path: '/radar/generate-image',
+            method: 'post',
+            handler: radarGenerateImageEndpoint,
+        },
+        {
+            path: '/radar/publish-signal',
+            method: 'post',
+            handler: radarPublishSignalEndpoint,
+        },
     ],
     globals: [settings, about, legal, radarSettings],
-    collections: [categories, tags, authors, media, posts, lessons, revelations, signals, sources, publications, seenUrls, taxonomyTemplates, logs],
+    collections: [categories, tags, authors, media, posts, lessons, revelations, signals, sources, publications, seenUrls, taxonomyTemplates, logs, elections],
     plugins: [
         seoPlugin({
             collections: ['posts', 'lessons', 'revelations'],

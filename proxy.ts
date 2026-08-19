@@ -61,6 +61,7 @@ export async function proxy(req: NextRequest) {
     const isStudioRoute =
         pathname.startsWith('/api/radar') ||
         pathname.startsWith('/radar-login') ||
+        pathname.startsWith('/radar') ||
         pathname.startsWith('/api/elections') ||
         pathname.startsWith('/templates');
 
@@ -100,7 +101,7 @@ export async function proxy(req: NextRequest) {
     // ─── 0. SÉPARATION DES DOMAINES ───
     if (!isStudioDomain) {
         // Le domaine public (lassez.fr) ne DOIT PAS accéder au back-end
-        if (pathname.startsWith('/radar-login') || pathname.startsWith('/templates')) {
+        if (pathname.startsWith('/radar') || pathname.startsWith('/templates')) {
             return NextResponse.redirect(new URL('/', req.url));
         }
         if (pathname.startsWith('/api/radar')) {
@@ -213,8 +214,9 @@ export async function proxy(req: NextRequest) {
 
     // 4. GESTION DES REJETS
     if (!isAuthenticated) {
-        // Redirection UI pour le Studio de templates
-        if (pathname.startsWith('/templates')) {
+        // Redirection UI pour le Studio de templates et le Cockpit Radar
+        // (/radar-login est exclu : il ne doit jamais se rediriger lui-même).
+        if (pathname.startsWith('/templates') || (pathname.startsWith('/radar') && !pathname.startsWith('/radar-login'))) {
             const loginUrl = new URL('/radar-login', req.url);
             // On nettoie le cookie potentiellement invalide ou expiré
             const response = NextResponse.redirect(loginUrl);
@@ -234,6 +236,7 @@ export async function proxy(req: NextRequest) {
 
     const requiredUiPermission = (() => {
         if (pathname.startsWith('/templates')) return 'studio';
+        if (pathname.startsWith('/radar') && !pathname.startsWith('/radar-login')) return 'radar';
         return null;
     })();
 

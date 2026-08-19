@@ -23,8 +23,8 @@ export const SIGNAL_STATUSES = [
 export const signals: CollectionConfig = {
     slug: 'signals',
     labels: {
-        singular: 'Signal',
-        plural: 'Signals',
+        singular: 'Sujet',
+        plural: 'Sujets',
     },
     access: {
         read: isAdmin,
@@ -33,31 +33,33 @@ export const signals: CollectionConfig = {
         delete: isAdmin,
     },
     admin: {
-        group: 'Radar',
+        group: 'Investigation',
         useAsTitle: 'source_title',
-        defaultColumns: ['status', 'taxonomy', 'geo', 'updatedAt'],
-        description: 'Sujets traités par le pipeline Radar (ingestion → publication).',
+        defaultColumns: ['status', 'source_title', 'taxonomy', 'geo', 'actions', 'updatedAt'],
+        listSearchableFields: ['source_title', 'taxonomy', 'geo'],
+        description: 'Sujets détectés et suivis par la veille (ingestion → publication en révélation).',
     },
     fields: [
         {
             name: 'source_title',
             type: 'text',
+            label: 'Titre du sujet',
             admin: {
-                description: 'Titre du sujet (extrait du raw_data au premier accès).',
+                description: 'Titre du sujet (extrait des articles sources au premier accès).',
             },
         },
         {
             name: 'raw_data',
             type: 'json',
             admin: {
-                description: 'Payload d’entrée du pipeline (cluster, articles agrégés, sources).',
+                description: 'Données brutes d’entrée (articles agrégés, sources, cluster).',
             },
         },
         {
             name: 'final_draft',
             type: 'json',
             admin: {
-                description: 'Payload de sortie éditorial (headline, body, image_keyword).',
+                description: 'Sortie éditoriale (titre, corps, mots-clés d’image).',
             },
         },
         {
@@ -65,12 +67,29 @@ export const signals: CollectionConfig = {
             type: 'select',
             required: true,
             defaultValue: 'INGESTED',
-            options: SIGNAL_STATUSES.map((s) => ({ label: s, value: s })),
+            options: [
+                { label: 'Détecté', value: 'INGESTED' },
+                { label: 'Analysé', value: 'RESEARCHED' },
+                { label: 'Rédigé', value: 'DRAFTED' },
+                { label: 'Validé', value: 'VALIDATED' },
+                { label: 'En attente de diffusion', value: 'PENDING' },
+                { label: 'En file', value: 'QUEUED' },
+                { label: 'Publié', value: 'PUBLISHED' },
+                { label: 'Rejeté', value: 'REJECTED' },
+                { label: 'Erreur de rejet', value: 'REJECTED_ERROR' },
+                { label: 'Échec', value: 'FAILED' },
+            ],
             index: true,
+            admin: {
+                components: {
+                    Cell: '/payload/components/StatusCell',
+                },
+            },
         },
         {
             name: 'taxonomy',
             type: 'text',
+            label: 'Catégorie',
             admin: {
                 description: 'Catégorie éditoriale (INFO, DÉCRYPTAGE, ALERTE, …).',
             },
@@ -78,13 +97,15 @@ export const signals: CollectionConfig = {
         {
             name: 'tags',
             type: 'json',
+            label: 'Mots-clés',
             admin: {
-                description: 'Tableau JSON des mots-clés.',
+                description: 'Liste des mots-clés associés au sujet.',
             },
         },
         {
             name: 'geo',
             type: 'text',
+            label: 'Zone géographique',
             admin: {
                 description: 'Zone géographique (FRANCE, INTERNATIONAL, …).',
             },
@@ -92,19 +113,44 @@ export const signals: CollectionConfig = {
         {
             name: 'image_url',
             type: 'text',
+            label: 'Visuel (URL)',
+            admin: {
+                description: 'Visuel du sujet (généré par le bouton 🖼 Visuel ou choisi manuellement).',
+            },
         },
         {
             name: 'scheduled_at',
             type: 'date',
+            label: 'Diffusion planifiée le',
             admin: {
-                description: 'Moment où la file de publication doit traiter ce signal.',
+                description: 'Moment où la file de publication doit traiter ce sujet.',
             },
         },
         {
             name: 'published_at',
             type: 'date',
+            label: 'Publié le',
             admin: {
                 description: 'Date exacte de publication finale.',
+            },
+        },
+        {
+            name: 'actions',
+            type: 'ui',
+            label: 'Actions',
+            admin: {
+                components: {
+                    Cell: '/payload/components/SignalActionsCell',
+                },
+            },
+        },
+        {
+            name: 'revelation',
+            type: 'relationship',
+            relationTo: 'revelations',
+            admin: {
+                position: 'sidebar',
+                description: 'Révélation publiée sur le site, générée depuis ce signal (rempli automatiquement par le daemon).',
             },
         },
     ],

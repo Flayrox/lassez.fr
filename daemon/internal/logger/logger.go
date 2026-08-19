@@ -25,6 +25,21 @@ var (
 	ansiRe   = regexp.MustCompile(`\x1B\[\d+m`)
 )
 
+// Options tunes how entries are persisted. All values have defaults when
+// zero-valued, so New(client, dir, Options{}) behaves like the previous
+// version (INFO, mirror enabled, no pruning).
+type Options struct {
+	// Level is the minimum severity persisted to the local file and the
+	// Payload mirror. Empty means INFO. SUCCESS entries are always kept.
+	Level string
+	// MirrorPayload controls whether entries are sent to the Payload logs
+	// collection (the admin dashboard heartbeat). Default: true.
+	MirrorPayload bool
+}
+
+// Level ranks, DEBUG < INFO < WARN < ERROR < SUCCESS. SUCCESS always wins.
+var levelRank = map[string]int{"DEBUG": 0, "INFO": 1, "WARN": 2, "ERROR": 3, "SUCCESS": 4}
+
 // Logger writes daemon entries to stdout, a rotating local file and (async)
 // to the Payload logs collection.
 type Logger struct {
@@ -32,6 +47,9 @@ type Logger struct {
 	mu     sync.Mutex
 	file   *os.File
 	dir    string
+
+	minLevel     int
+	mirror       bool
 
 	// The Payload mirror is a single worker draining a bounded queue: one
 	// goroutine per log line would pile up unboundedly when the API slows
@@ -53,8 +71,9 @@ type logEntry struct {
 const queueCap = 256
 
 // New creates a Logger. client may be nil (log file only). dir is where
-// daemon.log lives; pass "" for ./logs.
-func New(client *payload.Client, dir string) (*Logger, error) {
+// daemon.log lives; pass "" for ./logs. opts tunes level filtering and the
+// Payload mirror; zero-valued fields keep their defaults.
+func New(client *payload.Client, dir string, opts Options) (*Logger, error) {
 	if dir == "" {
 		dir = filepath.Join(".", "logs")
 	}
@@ -69,8 +88,22 @@ func New(client *payload.Client, dir string) (*Logger, error) {
 	if err != nil {
 		return nil, err
 	}
-	l := &Logger{client: client, file: f, dir: dir, queue: make(chan logEntry, queueCap)}
-	if client != nil {
+
+	level := strings.ToUpper(strings.TrimSpace(opts.Level))
+	if _, ok := levelRank[level]; !ok {
+		level = "INFO"
+	}
+	mirror := client != nil && opts.MirrorPayload
+
+	l := &Logger{
+		client:   client,
+		file:     f,
+		dir:      dir,
+		minLevel: levelRank[level],
+		mirror:   mirror,
+		queue:    make(chan logEntry, queueCap),
+	}
+	if mirror {
 		l.wg.Add(1)
 		go l.pump()
 	}
@@ -124,17 +157,23 @@ func (l *Logger) log(level, nodeID, message string) {
 	}
 	ts := time.Now().UTC().Format(time.RFC3339)
 
-	l.mu.Lock()
-	if l.file != nil {
+	// Level filtering applies to the persisted sinks (file + Payload mirror);
+	// the terminal always shows everything so an operator never loses a line.
+	persist := levelRank[level] >= l.minLevel || level == "SUCCESS"
+
+	if persist && l.file != nil {
+		l.mu.Lock()
 		_, _ = fmt.Fprintf(l.file, "[%s] [%s] [%s] %s\n", ts, level, nodeID, ansiRe.ReplaceAllString(message, ""))
+		l.mu.Unlock()
 	}
-	l.mu.Unlock()
 
 	colors := map[string]string{"INFO": "\x1b[34m", "WARN": "\x1b[33m", "ERROR": "\x1b[31m", "SUCCESS": "\x1b[32m", "RESET": "\x1b[0m"}
 	fmt.Fprintf(os.Stdout, "%s[%s] [%s] %s%s\n", colors[level], ts, nodeID, message, colors["RESET"])
 
 	// Enqueue to the Payload mirror, dropping on overflow (never block).
-	l.enqueue(logEntry{level: level, nodeID: nodeID, message: message})
+	if persist {
+		l.enqueue(logEntry{level: level, nodeID: nodeID, message: message})
+	}
 }
 
 // Info logs an INFO entry.

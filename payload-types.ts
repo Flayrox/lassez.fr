@@ -80,6 +80,7 @@ export interface Config {
     'seen-urls': SeenUrl;
     'taxonomy-templates': TaxonomyTemplate;
     logs: Log;
+    elections: Election;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -100,6 +101,7 @@ export interface Config {
     'seen-urls': SeenUrlsSelect<false> | SeenUrlsSelect<true>;
     'taxonomy-templates': TaxonomyTemplatesSelect<false> | TaxonomyTemplatesSelect<true>;
     logs: LogsSelect<false> | LogsSelect<true>;
+    elections: ElectionsSelect<false> | ElectionsSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -413,7 +415,7 @@ export interface Lesson {
   _status?: ('draft' | 'published') | null;
 }
 /**
- * Silo Révélations : Live feed orienté action rapide.
+ * Révélations publiées sur le site (brouillons et publiées).
  *
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "revelations".
@@ -460,6 +462,10 @@ export interface Revelation {
    * Auteur éditorial responsable de cette révélation.
    */
   author?: (number | null) | Author;
+  /**
+   * Signal Radar dont cette révélation est issue (rempli automatiquement par le daemon).
+   */
+  source_signal?: (number | null) | Signal;
   meta?: {
     title?: string | null;
     description?: string | null;
@@ -473,7 +479,7 @@ export interface Revelation {
   _status?: ('draft' | 'published') | null;
 }
 /**
- * Sujets traités par le pipeline Radar (ingestion → publication).
+ * Sujets détectés et suivis par la veille (ingestion → publication en révélation).
  *
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "signals".
@@ -481,11 +487,11 @@ export interface Revelation {
 export interface Signal {
   id: number;
   /**
-   * Titre du sujet (extrait du raw_data au premier accès).
+   * Titre du sujet (extrait des articles sources au premier accès).
    */
   source_title?: string | null;
   /**
-   * Payload d’entrée du pipeline (cluster, articles agrégés, sources).
+   * Données brutes d’entrée (articles agrégés, sources, cluster).
    */
   raw_data?:
     | {
@@ -497,7 +503,7 @@ export interface Signal {
     | boolean
     | null;
   /**
-   * Payload de sortie éditorial (headline, body, image_keyword).
+   * Sortie éditoriale (titre, corps, mots-clés d’image).
    */
   final_draft?:
     | {
@@ -524,7 +530,7 @@ export interface Signal {
    */
   taxonomy?: string | null;
   /**
-   * Tableau JSON des mots-clés.
+   * Liste des mots-clés associés au sujet.
    */
   tags?:
     | {
@@ -539,20 +545,27 @@ export interface Signal {
    * Zone géographique (FRANCE, INTERNATIONAL, …).
    */
   geo?: string | null;
+  /**
+   * Visuel du sujet (généré par le bouton 🖼 Visuel ou choisi manuellement).
+   */
   image_url?: string | null;
   /**
-   * Moment où la file de publication doit traiter ce signal.
+   * Moment où la file de publication doit traiter ce sujet.
    */
   scheduled_at?: string | null;
   /**
    * Date exacte de publication finale.
    */
   published_at?: string | null;
+  /**
+   * Révélation publiée sur le site, générée depuis ce signal (rempli automatiquement par le daemon).
+   */
+  revelation?: (number | null) | Revelation;
   updatedAt: string;
   createdAt: string;
 }
 /**
- * Flux et canaux ingérés par le daemon Radar.
+ * Flux et canaux surveillés par la veille (RSS, Telegram, Google News).
  *
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "sources".
@@ -586,7 +599,7 @@ export interface Source {
   createdAt: string;
 }
 /**
- * Missions de diffusion planifiées (réseaux sociaux + CMS).
+ * Diffusions planifiées d’un sujet (réseaux sociaux + CMS).
  *
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "publications".
@@ -594,13 +607,10 @@ export interface Source {
 export interface Publication {
   id: number;
   /**
-   * Signal associé à cette mission de publication.
+   * Sujet diffusé par cette mission.
    */
   signal: number | Signal;
-  /**
-   * Plateforme de destination (DISCORD, X, BLUESKY, MASTODON, PAYLOAD).
-   */
-  platform: string;
+  platform: 'DISCORD' | 'X' | 'BLUESKY' | 'MASTODON' | 'PAYLOAD';
   status: 'PENDING' | 'PUBLISHED' | 'FAILED';
   scheduled_at: string;
   published_at?: string | null;
@@ -608,7 +618,7 @@ export interface Publication {
   createdAt: string;
 }
 /**
- * Mémoire des URL déjà ingérées (dédoublonnage absolu).
+ * Mémoire des articles déjà vus (évite les doublons).
  *
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "seen-urls".
@@ -620,7 +630,7 @@ export interface SeenUrl {
   createdAt: string;
 }
 /**
- * Formats éditoriaux (FLASH, CITATION, ALERTE…) pour les prompts IA.
+ * Formats éditoriaux (FLASH, CITATION, ALERTE…) pour la rédaction IA.
  *
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "taxonomy-templates".
@@ -637,33 +647,22 @@ export interface TaxonomyTemplate {
   display_name?: string | null;
   description?: string | null;
   /**
-   * Section de prompt spécifique à ce format.
+   * Le prompt complet de ce format (tout le texte, avec les retours à la ligne).
    */
   format_instructions?: string | null;
   /**
-   * Tableau JSON d’exemples de sortie.
+   * Un exemple par ligne — chaque exemple est éditable et supprimable individuellement.
    */
-  examples_json?:
+  examples?:
     | {
-        [k: string]: unknown;
-      }
-    | unknown[]
-    | string
-    | number
-    | boolean
+        example: string;
+        id?: string | null;
+      }[]
     | null;
   /**
-   * Structure JSON attendue en sortie.
+   * Structure JSON que la rédaction IA doit produire pour ce format.
    */
-  output_schema_json?:
-    | {
-        [k: string]: unknown;
-      }
-    | unknown[]
-    | string
-    | number
-    | boolean
-    | null;
+  output_schema_json?: string | null;
   /**
    * Couleur d’accentuation dans l’interface.
    */
@@ -678,7 +677,7 @@ export interface TaxonomyTemplate {
   createdAt: string;
 }
 /**
- * Journal d’exécution du daemon Radar.
+ * Journal d’activité de la veille (nœuds, erreurs, succès).
  *
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "logs".
@@ -688,10 +687,84 @@ export interface Log {
   level: 'INFO' | 'WARN' | 'ERROR' | 'SUCCESS';
   message: string;
   /**
-   * Nœud émetteur (Node 1, Node 2, Daemon, SYSTEM…).
+   * Étape du pipeline émettrice (Node 1, Node 2, Daemon, SYSTEM…).
    */
   node_id?: string | null;
   timestamp: string;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Scrutins suivis par la veille : sources data.gouv, daemon et affichage sur le site.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "elections".
+ */
+export interface Election {
+  id: number;
+  /**
+   * Ex. « Municipales 2026 ».
+   */
+  label: string;
+  /**
+   * Identifiant URL unique, ex. « municipales-2026 ».
+   */
+  slug: string;
+  category:
+    | 'municipales'
+    | 'presidentielles'
+    | 'legislatives'
+    | 'europeennes'
+    | 'regionales'
+    | 'departementales'
+    | 'referendum'
+    | 'autre';
+  /**
+   * « Actif » = couverture en cours.
+   */
+  status: 'draft' | 'active' | 'done';
+  source_type?: ('dataset-api' | 'manual') | null;
+  /**
+   * Ex. « municipales-communes-v1 ».
+   */
+  parser_strategy?: string | null;
+  /**
+   * Slugs des datasets data.gouv à importer (résultats et candidatures, par tour).
+   */
+  datasets?:
+    | {
+        role: 'results_first_tour' | 'results_second_tour' | 'candidates_first_tour' | 'candidates_second_tour';
+        /**
+         * Ex. « elections-municipales-2026-resultats-du-premier-tour ».
+         */
+        dataset_slug: string;
+        /**
+         * URL complète du dernier fichier importé (remplie automatiquement).
+         */
+        last_url?: string | null;
+        last_success?: boolean | null;
+        last_error?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  daemon_enabled?: boolean | null;
+  live_mode_enabled?: boolean | null;
+  sync_locked?: boolean | null;
+  interval_enabled?: boolean | null;
+  interval_hours?: number | null;
+  poll_interval_minutes?: number | null;
+  schedule_enabled?: boolean | null;
+  /**
+   * Ex. « 08:00, 18:00 ».
+   */
+  schedule_times?: string | null;
+  is_visible?: boolean | null;
+  is_featured?: boolean | null;
+  display_order?: number | null;
+  /**
+   * Optionnel : l’élection disparaît du front après cette date.
+   */
+  hide_after_date?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -770,6 +843,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'logs';
         value: number | Log;
+      } | null)
+    | ({
+        relationTo: 'elections';
+        value: number | Election;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -959,6 +1036,7 @@ export interface RevelationsSelect<T extends boolean = true> {
   zone_geo?: T;
   tags?: T;
   author?: T;
+  source_signal?: T;
   meta?:
     | T
     | {
@@ -985,6 +1063,7 @@ export interface SignalsSelect<T extends boolean = true> {
   image_url?: T;
   scheduled_at?: T;
   published_at?: T;
+  revelation?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -1038,7 +1117,12 @@ export interface TaxonomyTemplatesSelect<T extends boolean = true> {
   display_name?: T;
   description?: T;
   format_instructions?: T;
-  examples_json?: T;
+  examples?:
+    | T
+    | {
+        example?: T;
+        id?: T;
+      };
   output_schema_json?: T;
   accent_color?: T;
   is_factory?: T;
@@ -1056,6 +1140,42 @@ export interface LogsSelect<T extends boolean = true> {
   message?: T;
   node_id?: T;
   timestamp?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "elections_select".
+ */
+export interface ElectionsSelect<T extends boolean = true> {
+  label?: T;
+  slug?: T;
+  category?: T;
+  status?: T;
+  source_type?: T;
+  parser_strategy?: T;
+  datasets?:
+    | T
+    | {
+        role?: T;
+        dataset_slug?: T;
+        last_url?: T;
+        last_success?: T;
+        last_error?: T;
+        id?: T;
+      };
+  daemon_enabled?: T;
+  live_mode_enabled?: T;
+  sync_locked?: T;
+  interval_enabled?: T;
+  interval_hours?: T;
+  poll_interval_minutes?: T;
+  schedule_enabled?: T;
+  schedule_times?: T;
+  is_visible?: T;
+  is_featured?: T;
+  display_order?: T;
+  hide_after_date?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -1140,9 +1260,29 @@ export interface Setting {
       }[]
     | null;
   /**
-   * Activer le mode maintenance au public.
+   * Mode maintenance et popup d’information affichés au public (ex. table SQLite radar_settings).
    */
-  maintenanceMode?: boolean | null;
+  communication?: {
+    /**
+     * Remplace le site public par un écran « Maintenance en cours ». L’administration reste accessible pour le désactiver.
+     */
+    maintenanceMode?: boolean | null;
+    /**
+     * Texte affiché sous le titre. Laissé vide = message par défaut.
+     */
+    maintenanceMessage?: string | null;
+    /**
+     * Affiche une popup promotionnelle / informative après le chargement du site (une seule fois par session).
+     */
+    popupEnabled?: boolean | null;
+    popupTitle?: string | null;
+    popupLinkLabel?: string | null;
+    popupText?: string | null;
+    /**
+     * Chemin interne (ex. /soutenir) ou URL externe complète.
+     */
+    popupLinkUrl?: string | null;
+  };
   socialLinks?: {
     twitter?: string | null;
     telegram?: string | null;
@@ -1288,7 +1428,7 @@ export interface Legal {
   createdAt?: string | null;
 }
 /**
- * Configuration globale du pipeline Radar (sources, IA, diffusion, planification).
+ * Configuration globale de la veille (sources, IA, diffusion, planification).
  *
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "radar-settings".
@@ -1382,13 +1522,35 @@ export interface RadarSetting {
   imageRulesPrompt?: string | null;
   researcherSystemPrompt?: string | null;
   researcherRejectCriteria?: string | null;
+  /**
+   * Seuil minimal des entrées écrites dans le fichier local et la collection Payload logs. La sortie terminal du daemon affiche toujours tout.
+   */
+  logLevel?: ('DEBUG' | 'INFO' | 'WARN' | 'ERROR') | null;
+  /**
+   * Âge maximal des entrées conservées dans la collection Payload logs (0 = conserver indéfiniment). Le daemon purge automatiquement au-delà.
+   */
+  logRetentionDays?: number | null;
+  /**
+   * Envoie les entrées dans la collection Payload logs (nécessaire pour le heartbeat du cockpit et les filtres par nœud).
+   */
+  logMirrorPayload?: boolean | null;
+  /**
+   * Liste optionnelle de nœuds à mettre en avant dans le cockpit (ex. ["Node 1", "Daemon"]). Vide = tous.
+   */
+  logMirrorNodes?: string | null;
   rss_feeds?: string | null;
   telegram_channels?: string | null;
   google_news_queries?: string | null;
   keywords?: string | null;
   bannedKeywords?: string | null;
+  /**
+   * Activez / désactivez les étapes du pipeline et réglez-les visuellement — le JSON est géré automatiquement.
+   */
   pipelineGraphJson?: string | null;
   social_targets_by_type_json?: string | null;
+  /**
+   * Liste des modèles proposés dans le cockpit. Ajoutez/supprimez des entrées ici, la valeur est sauvegardée automatiquement.
+   */
   availableModelsJson?: string | null;
   updatedAt?: string | null;
   createdAt?: string | null;
@@ -1414,7 +1576,17 @@ export interface SettingsSelect<T extends boolean = true> {
         active?: T;
         id?: T;
       };
-  maintenanceMode?: T;
+  communication?:
+    | T
+    | {
+        maintenanceMode?: T;
+        maintenanceMessage?: T;
+        popupEnabled?: T;
+        popupTitle?: T;
+        popupLinkLabel?: T;
+        popupText?: T;
+        popupLinkUrl?: T;
+      };
   socialLinks?:
     | T
     | {
@@ -1563,6 +1735,10 @@ export interface RadarSettingsSelect<T extends boolean = true> {
   imageRulesPrompt?: T;
   researcherSystemPrompt?: T;
   researcherRejectCriteria?: T;
+  logLevel?: T;
+  logRetentionDays?: T;
+  logMirrorPayload?: T;
+  logMirrorNodes?: T;
   rss_feeds?: T;
   telegram_channels?: T;
   google_news_queries?: T;

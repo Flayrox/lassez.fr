@@ -1,42 +1,27 @@
 import { NextResponse } from 'next/server';
-import Database from 'better-sqlite3';
-import { getRadarDbPath } from '@/lib/radar-db';
-
-function getDb() {
-    return new Database(getRadarDbPath());
-}
+import { getPayloadClient } from '@/lib/payload';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
     try {
-        const db = getDb();
-        const rows = db.prepare(`
-            SELECT key, value FROM radar_settings 
-            WHERE key IN (
-                'maintenance_mode', 'maintenance_message',
-                'popup_enabled', 'popup_title', 'popup_text', 'popup_link_url', 'popup_link_label'
-            )
-        `).all();
+        const payload = await getPayloadClient();
+        const settings = await payload.findGlobal({ slug: 'settings' });
+        const communication = (settings as any)?.communication || {};
 
-        const config: Record<string, string> = {};
-        for (const row of rows) {
-            config[row.key] = row.value;
-        }
+        const config = {
+            maintenance_mode: communication.maintenanceMode === true,
+            maintenance_message: communication.maintenanceMessage || '',
+            popup_enabled: communication.popupEnabled === true,
+            popup_title: communication.popupTitle || '',
+            popup_text: communication.popupText || '',
+            popup_link_url: communication.popupLinkUrl || '',
+            popup_link_label: communication.popupLinkLabel || ''
+        };
 
-        db.close();
-
-        return NextResponse.json({ 
-            success: true, 
-            config: {
-                maintenance_mode: config.maintenance_mode === 'true',
-                maintenance_message: config.maintenance_message || '',
-                popup_enabled: config.popup_enabled === 'true',
-                popup_title: config.popup_title || '',
-                popup_text: config.popup_text || '',
-                popup_link_url: config.popup_link_url || '',
-                popup_link_label: config.popup_link_label || ''
-            }
+        return NextResponse.json({
+            success: true,
+            config
         }, {
             headers: {
                 'Cache-Control': 's-maxage=30, stale-while-revalidate=10', // Cache court pour réactivité

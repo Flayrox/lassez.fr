@@ -18,10 +18,11 @@ export const seenUrls: CollectionConfig = {
         delete: isAdmin,
     },
     admin: {
-        group: 'Radar',
+        group: 'Investigation',
         useAsTitle: 'url',
         defaultColumns: ['url', 'createdAt'],
-        description: 'Mémoire des URL déjà ingérées (dédoublonnage absolu).',
+        listSearchableFields: ['url'],
+        description: 'Mémoire des articles déjà vus (évite les doublons).',
     },
     fields: [
         {
@@ -30,6 +31,7 @@ export const seenUrls: CollectionConfig = {
             required: true,
             unique: true,
             index: true,
+            label: 'Adresse de l’article',
         },
     ],
 };

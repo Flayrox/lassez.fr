@@ -8,8 +8,8 @@ import { isAdmin } from '../access';
 export const logs: CollectionConfig = {
     slug: 'logs',
     labels: {
-        singular: 'Log',
-        plural: 'Logs',
+        singular: 'Entrée de journal',
+        plural: 'Journal d’activité',
     },
     access: {
         read: isAdmin,
@@ -18,10 +18,11 @@ export const logs: CollectionConfig = {
         delete: isAdmin,
     },
     admin: {
-        group: 'Radar',
+        group: 'Investigation',
         useAsTitle: 'message',
         defaultColumns: ['level', 'node_id', 'message', 'timestamp'],
-        description: 'Journal d’exécution du daemon Radar.',
+        listSearchableFields: ['message', 'node_id', 'level'],
+        description: 'Journal d’activité de la veille (nœuds, erreurs, succès).',
     },
     fields: [
         {
@@ -29,13 +30,19 @@ export const logs: CollectionConfig = {
             type: 'select',
             required: true,
             defaultValue: 'INFO',
+            label: 'Niveau',
             options: [
-                { label: 'INFO', value: 'INFO' },
-                { label: 'WARN', value: 'WARN' },
-                { label: 'ERROR', value: 'ERROR' },
-                { label: 'SUCCESS', value: 'SUCCESS' },
+                { label: 'Info', value: 'INFO' },
+                { label: 'Attention', value: 'WARN' },
+                { label: 'Erreur', value: 'ERROR' },
+                { label: 'Succès', value: 'SUCCESS' },
             ],
             index: true,
+            admin: {
+                components: {
+                    Cell: '/payload/components/StatusCell',
+                },
+            },
         },
         {
             name: 'message',
@@ -45,8 +52,9 @@ export const logs: CollectionConfig = {
         {
             name: 'node_id',
             type: 'text',
+            label: 'Nœud émetteur',
             admin: {
-                description: 'Nœud émetteur (Node 1, Node 2, Daemon, SYSTEM…).',
+                description: 'Étape du pipeline émettrice (Node 1, Node 2, Daemon, SYSTEM…).',
             },
         },
         {

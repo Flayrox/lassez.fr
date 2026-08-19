@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"os"
 	"sync"
 	"time"
 
@@ -38,15 +37,21 @@ func RunValidator(client *payload.Client, resolver *config.Resolver) error {
 	if err != nil {
 		return err
 	}
+	// Traite au plus maxItemsPerCycle sujets par cycle (quota Gemini).
+	// Les autres restent DRAFTED et seront repris au cycle suivant.
+	if limit := maxItemsPerCycle(resolver, "validator", 10); len(topics) > limit {
+		topics = topics[:limit]
+	}
 	if len(topics) == 0 {
 		log.Printf("[Node 5] ℹ️ Aucun sujet (statut: DRAFTED) à valider.")
 		return nil
 	}
+	log.Printf("[Node 5] ⚖️ %d sujet(s) à valider (limite de cycle).", len(topics))
 
 	// Clé depuis radar-settings (interface admin sécurisée), fallback .env.
-	apiKey := strParam(resolver, "validator", "geminiApiKey", os.Getenv("GEMINI_API_KEY"))
+	apiKey := geminiAPIKey(resolver, "validator")
 	if apiKey == "" {
-		log.Printf("[Node 5] ⚠️ Clé Gemini absente (geminiApiKey / GEMINI_API_KEY). Étape ignorée.")
+		log.Printf("[Node 5] ⚠️ Clé Gemini absente (geminiApiKey / GEMINI_DAEMON_API_KEY). Étape ignorée.")
 		return nil
 	}
 
@@ -57,7 +62,7 @@ func RunValidator(client *payload.Client, resolver *config.Resolver) error {
 	}
 	defer ai.Close()
 
-	modelName := "gemini-3-flash-preview"
+	modelName := "gemini-3.5-flash-lite"
 	if v := resolver.GetEffectiveParam("validator", "aiModelValidator", modelName); v != nil {
 		if s, ok := v.(string); ok && s != "" {
 			modelName = s
@@ -86,6 +91,7 @@ func RunValidator(client *payload.Client, resolver *config.Resolver) error {
 	var (
 		wg  sync.WaitGroup
 		sem = make(chan struct{}, concurrency)
+		rl  = newGeminiRateLimiter(12)
 	)
 
 	for _, topic := range topics {
@@ -107,8 +113,15 @@ func RunValidator(client *payload.Client, resolver *config.Resolver) error {
 			// Timeout par appel : une API qui pend ne doit pas bloquer le nœud.
 			callCtx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 			defer cancel()
+			rl.Wait()
 			resp, err := model.GenerateContent(callCtx, genai.Text(prompt))
 			if err != nil {
+				// Quota dépassé : on ne marque PAS le sujet en erreur, il sera
+				// simplement repris au prochain cycle.
+				if isQuotaError(err) {
+					log.Printf("[Node 5] ⏸️ Quota Gemini atteint (%s) : sujet laissé en attente.", topic.ID)
+					return
+				}
 				log.Printf("[Node 5] ❌ Erreur validation %s: %v", topic.ID, err)
 				_ = client.UpdateSignal(topic.ID, map[string]any{"status": "REJECTED_ERROR"})
 				return

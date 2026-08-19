@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -40,16 +39,20 @@ func RunResearcher(client *payload.Client, resolver *config.Resolver) error {
 	if err != nil {
 		return err
 	}
+	// Traite au plus maxItemsPerCycle sujets par cycle (quota Gemini).
+	if limit := maxItemsPerCycle(resolver, "research", 10); len(topics) > limit {
+		topics = topics[:limit]
+	}
 	if len(topics) == 0 {
 		log.Printf("[Node 3] ℹ️ Aucun sujet (statut: INGESTED) à analyser.")
 		return nil
 	}
-	log.Printf("[Node 3] 🔍 %d sujets en attente d'analyse IA.", len(topics))
+	log.Printf("[Node 3] 🔍 %d sujets à analyser (limite de cycle).", len(topics))
 
 	// Clé depuis radar-settings (interface admin sécurisée), fallback .env.
-	apiKey := strParam(resolver, "research", "geminiApiKey", os.Getenv("GEMINI_API_KEY"))
+	apiKey := geminiAPIKey(resolver, "research")
 	if apiKey == "" {
-		log.Printf("[Node 3] ⚠️ Clé Gemini absente (geminiApiKey / GEMINI_API_KEY). Étape ignorée.")
+		log.Printf("[Node 3] ⚠️ Clé Gemini absente (geminiApiKey / GEMINI_DAEMON_API_KEY). Étape ignorée.")
 		return nil
 	}
 
@@ -60,7 +63,7 @@ func RunResearcher(client *payload.Client, resolver *config.Resolver) error {
 	}
 	defer ai.Close()
 
-	modelName := "gemini-3-flash-preview"
+	modelName := "gemini-3.5-flash-lite"
 	if v := resolver.GetEffectiveParam("research", "aiModelFlash", modelName); v != nil {
 		if s, ok := v.(string); ok && s != "" {
 			modelName = s
@@ -106,6 +109,7 @@ func RunResearcher(client *payload.Client, resolver *config.Resolver) error {
 	var (
 		wg  sync.WaitGroup
 		sem = make(chan struct{}, concurrency)
+		rl  = newGeminiRateLimiter(12)
 	)
 
 	for _, topic := range topics {
@@ -128,8 +132,13 @@ func RunResearcher(client *payload.Client, resolver *config.Resolver) error {
 			// Timeout par appel : une API qui pend ne doit pas bloquer le nœud.
 			callCtx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 			defer cancel()
+			rl.Wait()
 			resp, err := model.GenerateContent(callCtx, genai.Text(prompt))
 			if err != nil {
+				if isQuotaError(err) {
+					log.Printf("[Node 3] ⏸️ Quota Gemini atteint (%s) : sujet laissé en attente.", topic.ID)
+					return
+				}
 				log.Printf("[Node 3] ❌ Erreur analyse sujet %s: %v", topic.ID, err)
 				return
 			}

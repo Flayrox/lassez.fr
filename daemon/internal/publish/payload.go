@@ -88,9 +88,23 @@ func (c *payloadChannel) Publish(msg Message) error {
 	if len(tagIDs) > 0 {
 		revelation["tags"] = tagIDs
 	}
+	// Lien retour vers le signal source : la révélation est une publication
+	// dérivée du pipeline, on garde la trace dans Payload.
+	if msg.SignalID != "" {
+		revelation["source_signal"] = msg.SignalID
+	}
 
-	if err := c.client.CreateRevelation(revelation); err != nil {
+	revelationID, err := c.client.CreateRevelation(revelation)
+	if err != nil {
 		return fmt.Errorf("[PAYLOAD] échec d'injection HTTP : %w", err)
+	}
+
+	// Relation inverse sur le signal (signal → revelation) pour que le cockpit
+	// affiche la révélation produite depuis chaque signal publié.
+	if msg.SignalID != "" && revelationID != "" {
+		if err := c.client.UpdateSignal(payload.ID(msg.SignalID), map[string]any{"revelation": revelationID}); err != nil {
+			log.Printf("[PAYLOAD] ⚠️ lien signal→revelation %s : %v", msg.SignalID, err)
+		}
 	}
 	return nil
 }

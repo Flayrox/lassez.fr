@@ -8,8 +8,8 @@ import { isAdmin } from '../access';
 export const publications: CollectionConfig = {
     slug: 'publications',
     labels: {
-        singular: 'Publication',
-        plural: 'Publications',
+        singular: 'Diffusion',
+        plural: 'Diffusions',
     },
     access: {
         read: isAdmin,
@@ -18,10 +18,11 @@ export const publications: CollectionConfig = {
         delete: isAdmin,
     },
     admin: {
-        group: 'Radar',
+        group: 'Investigation',
         useAsTitle: 'platform',
-        defaultColumns: ['platform', 'status', 'scheduled_at', 'published_at'],
-        description: 'Missions de diffusion planifiées (réseaux sociaux + CMS).',
+        defaultColumns: ['platform', 'status', 'scheduled_at', 'updatedAt'],
+        listSearchableFields: ['platform', 'status'],
+        description: 'Diffusions planifiées d’un sujet (réseaux sociaux + CMS).',
     },
     fields: [
         {
@@ -30,17 +31,24 @@ export const publications: CollectionConfig = {
             relationTo: 'signals',
             required: true,
             index: true,
+            label: 'Sujet associé',
             admin: {
-                description: 'Signal associé à cette mission de publication.',
+                description: 'Sujet diffusé par cette mission.',
             },
         },
         {
             name: 'platform',
-            type: 'text',
+            type: 'select',
             required: true,
-            admin: {
-                description: 'Plateforme de destination (DISCORD, X, BLUESKY, MASTODON, PAYLOAD).',
-            },
+            label: 'Plateforme',
+            options: [
+                { label: 'Discord', value: 'DISCORD' },
+                { label: 'X / Twitter', value: 'X' },
+                { label: 'Bluesky', value: 'BLUESKY' },
+                { label: 'Mastodon', value: 'MASTODON' },
+                { label: 'Payload CMS (révélation)', value: 'PAYLOAD' },
+            ],
+            index: true,
         },
         {
             name: 'status',
@@ -53,15 +61,22 @@ export const publications: CollectionConfig = {
                 { label: 'Échec', value: 'FAILED' },
             ],
             index: true,
+            admin: {
+                components: {
+                    Cell: '/payload/components/StatusCell',
+                },
+            },
         },
         {
             name: 'scheduled_at',
             type: 'date',
             required: true,
+            label: 'Diffusion prévue le',
         },
         {
             name: 'published_at',
             type: 'date',
+            label: 'Diffusé le',
         },
     ],
 };

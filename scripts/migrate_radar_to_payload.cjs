@@ -24,8 +24,22 @@
  *   node scripts/migrate_radar_to_payload.cjs [--dry-run] [--db=prisma/radar.db]
  */
 require('dotenv').config({ path: require('path').join(process.cwd(), '.env') });
-const Database = require('better-sqlite3');
 const path = require('path');
+
+/**
+ * Ouvre la base SQLite en lecture seule. Privilégie le module natif
+ * `node:sqlite` (disponible depuis Node 22.5, aucune compilation de binding
+ * requise) et retombe sur better-sqlite3 si nécessaire.
+ */
+function openDb(dbPath) {
+    try {
+        const { DatabaseSync } = require('node:sqlite');
+        return new DatabaseSync(dbPath, { readonly: true });
+    } catch {
+        const Database = require('better-sqlite3');
+        return new Database(dbPath, { readonly: true });
+    }
+}
 
 const args = process.argv.slice(2);
 const DRY_RUN = args.includes('--dry-run');
@@ -88,7 +102,7 @@ async function migrate() {
         console.error(`❌ Base introuvable : ${DB_PATH}`);
         process.exit(1);
     }
-    const db = new Database(DB_PATH, { readonly: true });
+    const db = openDb(DB_PATH);
     const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map(t => t.name);
 
     const hasLegacy = tables.includes('radar_posts');

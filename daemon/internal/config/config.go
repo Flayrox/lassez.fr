@@ -50,6 +50,44 @@ func (r *Resolver) Invalidate() {
 	r.cacheExpiresAt = time.Time{}
 }
 
+// GraphOverride returns a parameter value defined on a node in the pipeline
+// graph (pipelineGraphJson) only — without falling back to the global
+// setting. Used when a value must be resolvable per-node without letting the
+// global override it.
+func (r *Resolver) GraphOverride(nodeType, key string) (any, bool) {
+	settings, err := r.Settings()
+	if err != nil || settings == nil {
+		return nil, false
+	}
+	graphStr, ok := settings["pipelineGraphJson"].(string)
+	if !ok || graphStr == "" || graphStr == "{}" || graphStr == "[]" {
+		return nil, false
+	}
+	var graph struct {
+		Nodes []struct {
+			Type     string `json:"type"`
+			Settings []struct {
+				Key   string `json:"key"`
+				Value any    `json:"value"`
+			} `json:"settings"`
+		} `json:"nodes"`
+	}
+	if err := json.Unmarshal([]byte(graphStr), &graph); err != nil {
+		return nil, false
+	}
+	for _, n := range graph.Nodes {
+		if n.Type != nodeType {
+			continue
+		}
+		for _, s := range n.Settings {
+			if s.Key == key && !isEmptyValue(s.Value) {
+				return s.Value, true
+			}
+		}
+	}
+	return nil, false
+}
+
 // GetEffectiveParam resolves a single parameter for a node type.
 func (r *Resolver) GetEffectiveParam(nodeType, key string, def any) any {
 	settings, err := r.Settings()

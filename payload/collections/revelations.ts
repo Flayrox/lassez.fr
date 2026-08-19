@@ -45,7 +45,11 @@ export const revelations: CollectionConfig = {
         group: 'Contenu',
         useAsTitle: 'titre',
         defaultColumns: ['titre', 'niveau_alerte', '_status', 'createdAt'],
-        description: 'Silo Révélations : Live feed orienté action rapide.',
+        description: 'Révélations publiées sur le site (brouillons et publiées).',
+        components: {
+            // Filtres rapides Toutes / Brouillons / Publiées.
+            beforeListTable: ['/payload/components/RevelationStatusFilter'],
+        },
         preview: ({ doc }: any) => {
             const slug = String(doc?.slug || doc?.id || '').trim();
             const previewId = String(doc?.id || '').trim();
@@ -153,6 +157,15 @@ export const revelations: CollectionConfig = {
             relationTo: 'authors',
             admin: {
                 description: 'Auteur éditorial responsable de cette révélation.',
+            },
+        },
+        {
+            name: 'source_signal',
+            type: 'relationship',
+            relationTo: 'signals',
+            admin: {
+                position: 'sidebar',
+                description: 'Signal Radar dont cette révélation est issue (rempli automatiquement par le daemon).',
             },
         },
     ],

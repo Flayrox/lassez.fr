@@ -31,6 +31,12 @@ Thumbs.db
 # Espace de travail local (non versionné)
 scratch/
 
+# Exports locaux de la base (données réelles — à ne jamais versionner)
+data/db-export*/
+
+# État interne de l'app Freebuff
+.freebuff/
+
 # Fichiers OSINT (vidéos temporaires)
 radar_lassez/tmp-videos/
 public/radar-images/

@@ -66,7 +66,8 @@ Routes utiles en dev :
 | :--- | :--- | :--- |
 | Payload | Postgres (Supabase) via `DATABASE_URL` | Contenu éditorial, auteurs, médias, globals |
 | Radar | Payload (Postgres) via API REST | Collections `signals`, `sources`, `publications`, `seen-urls`, `taxonomy-templates`, `logs` + global `radar-settings` |
-| Legacy front | SQLite (`data/radar.db`) | Élections, config/nav, archives (non versionné, poussé via `push_radar_db_to_vps.cjs`) |
+| Site (ex `radar_settings`) | Payload global `settings` | Maintenance + popup (groupe `communication`, ex-table SQLite — migré via `scripts/migrate_radar_settings_to_payload.cjs`) |
+| Legacy front | SQLite (`data/radar.db`) | Élections, nav, archives (non versionné, poussé via `push_radar_db_to_vps.cjs`) |
 
 Migrations Payload : `npm run payload:migrate` · Types générés : `npm run payload:generate:types`
 

@@ -38,7 +38,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         <Sidebar
           isOpen={isSidebarOpen}
           setIsOpen={setIsSidebarOpen}
-          hideOnDesktop={pathname === '/'}
+          hideOnDesktop={pathname === '/' || pathname.startsWith('/revelations')}
         />
       </React.Suspense>
       <main className="flex-1 min-w-0 pb-12">

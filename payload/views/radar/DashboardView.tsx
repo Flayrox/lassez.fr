@@ -5,7 +5,11 @@ import { RadarDashboardClient } from './DashboardClient';
 const SIGNAL_STATUSES = ['INGESTED', 'RESEARCHED', 'DRAFTED', 'VALIDATED', 'PENDING', 'QUEUED', 'PUBLISHED', 'REJECTED', 'REJECTED_ERROR', 'FAILED'] as const;
 
 /**
- * Dashboard Radar — vue racine qui remplace le dashboard Payload par défaut.
+ * Cockpit Radar — vue custom `/admin/radar`, accessible depuis la section
+ * « Radar » de la sidebar (lien injecté par payload/components/AdminNav).
+ *
+ * Contrairement à une vue custom « nue », cette vue est enveloppée dans le
+ * `DefaultTemplate` de Payload : la sidebar et le header restent accessibles.
  *
  * Lecture seule : tous les compteurs et listes proviennent des collections
  * Payload (signals, logs, publications) et chaque carte pointe vers la
@@ -25,8 +29,11 @@ export default function RadarDashboard({ initPageResult, params, searchParams }:
             params={params}
             payload={req.payload}
             permissions={initPageResult.permissions}
+            req={req}
             searchParams={searchParams}
             user={req.user}
+            viewType="radar"
+            viewActions={[]}
             visibleEntities={initPageResult.visibleEntities}
         >
             <RadarDashboardServer req={req} />
@@ -60,15 +67,28 @@ async function RadarDashboardServer({ req }: { req: any }) {
     });
     const lastLog = latestLogs.docs?.[0] || null;
 
-    // 3. Les 5 derniers signals, quel que soit leur statut
-    const recentSignals = await payload.find({
+    // 3. Les sujets à traiter (à valider ou à diffuser), avec la relation
+    //    révélation pour les liens directs.
+    const toReview = await payload.find({
         collection: 'signals',
-        limit: 5,
-        depth: 0,
-        sort: '-createdAt',
+        limit: 12,
+        depth: 1,
+        sort: '-updatedAt',
+        where: {
+            status: { in: ['RESEARCHED', 'DRAFTED', 'VALIDATED', 'PENDING', 'QUEUED'] },
+        },
     });
 
-    // 4. Publications dues (PENDING et échues) pour l'action rapide
+    // 4. Les derniers sujets publiés (avec leur révélation associée)
+    const publishedSignals = await payload.find({
+        collection: 'signals',
+        limit: 6,
+        depth: 1,
+        sort: '-published_at',
+        where: { status: { equals: 'PUBLISHED' } },
+    });
+
+    // 5. Publications dues (PENDING et échues) pour l'action rapide
     const duePubs = await payload.count({
         collection: 'publications',
         where: {
@@ -79,7 +99,7 @@ async function RadarDashboardServer({ req }: { req: any }) {
         },
     });
 
-    // 5. Réglages globaux
+    // 6. Réglages globaux
     let settings: any = null;
     try {
         settings = await payload.findGlobal({ slug: 'radar-settings' });
@@ -89,7 +109,7 @@ async function RadarDashboardServer({ req }: { req: any }) {
 
     const total = Object.values(counts).reduce((a, b) => a + b, 0);
 
-    // 6. Santé du daemon : dernier log vs intervalle de scan
+    // 7. Santé du daemon : dernier log vs intervalle de scan
     let daemonHealth: 'ok' | 'late' | 'paused' = 'ok';
     if (settings && settings.enableAutoPublish === false) {
         daemonHealth = 'paused';
@@ -110,11 +130,21 @@ async function RadarDashboardServer({ req }: { req: any }) {
             daemonHealth={daemonHealth}
             autoPublish={settings?.enableAutoPublish ?? true}
             aiModel={settings?.aiModelFlash || settings?.aiModelPro || '—'}
-            recentSignals={(recentSignals.docs || []).map((s: any) => ({
+            toReview={(toReview.docs || []).map((s: any) => ({
                 id: String(s.id),
                 title: s.source_title || s.id,
                 status: s.status || '—',
+                taxonomy: s.taxonomy || null,
                 updatedAt: s.updatedAt || null,
+                hasDraft: Boolean(s.final_draft),
+                revelation: s.revelation ? String(s.revelation.id || s.revelation) : null,
+            }))}
+            publishedSignals={(publishedSignals.docs || []).map((s: any) => ({
+                id: String(s.id),
+                title: s.source_title || s.id,
+                publishedAt: s.published_at || null,
+                revelation: s.revelation ? String(s.revelation.id || s.revelation) : null,
+                revelationTitle: s.revelation?.titre || null,
             }))}
             duePubs={duePubs.totalDocs || 0}
             errors={(counts['REJECTED_ERROR'] || 0) + (counts['FAILED'] || 0)}

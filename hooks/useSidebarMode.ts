@@ -55,6 +55,7 @@ export function useSidebarMode(): SidebarMode {
       'comprendre', 
       'investigation', 
       'radar-login',
+      'radar',
       'api'
     ];
 

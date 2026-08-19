@@ -95,12 +95,99 @@ export const settings: GlobalConfig = {
             ],
         },
         {
-            name: 'maintenanceMode',
-            type: 'checkbox',
-            defaultValue: false,
+            name: 'communication',
+            type: 'group',
+            label: 'Communication & État',
             admin: {
-                description: 'Activer le mode maintenance au public.',
+                description: 'Mode maintenance et popup d’information affichés au public (ex. table SQLite radar_settings).',
             },
+            fields: [
+                {
+                    type: 'collapsible',
+                    label: '🛠️ Mode maintenance',
+                    admin: {
+                        initCollapsed: false,
+                    },
+                    fields: [
+                        {
+                            name: 'maintenanceMode',
+                            type: 'checkbox',
+                            defaultValue: false,
+                            label: 'Activer le mode maintenance',
+                            admin: {
+                                description: 'Remplace le site public par un écran « Maintenance en cours ». L’administration reste accessible pour le désactiver.',
+                            },
+                        },
+                        {
+                            name: 'maintenanceMessage',
+                            type: 'textarea',
+                            label: 'Message affiché',
+                            admin: {
+                                condition: (_data, siblingData) => siblingData?.maintenanceMode === true,
+                                description: 'Texte affiché sous le titre. Laissé vide = message par défaut.',
+                            },
+                        },
+                    ],
+                },
+                {
+                    type: 'collapsible',
+                    label: '✨ Popup d’information',
+                    admin: {
+                        initCollapsed: true,
+                    },
+                    fields: [
+                        {
+                            name: 'popupEnabled',
+                            type: 'checkbox',
+                            defaultValue: false,
+                            label: 'Activer la popup',
+                            admin: {
+                                description: 'Affiche une popup promotionnelle / informative après le chargement du site (une seule fois par session).',
+                            },
+                        },
+                        {
+                            type: 'row',
+                            fields: [
+                                {
+                                    name: 'popupTitle',
+                                    type: 'text',
+                                    label: 'Titre',
+                                    admin: {
+                                        width: '50%',
+                                        condition: (_data, siblingData) => siblingData?.popupEnabled === true,
+                                    },
+                                },
+                                {
+                                    name: 'popupLinkLabel',
+                                    type: 'text',
+                                    label: 'Libellé du bouton',
+                                    admin: {
+                                        width: '50%',
+                                        condition: (_data, siblingData) => siblingData?.popupEnabled === true,
+                                    },
+                                },
+                            ],
+                        },
+                        {
+                            name: 'popupText',
+                            type: 'textarea',
+                            label: 'Texte',
+                            admin: {
+                                condition: (_data, siblingData) => siblingData?.popupEnabled === true,
+                            },
+                        },
+                        {
+                            name: 'popupLinkUrl',
+                            type: 'text',
+                            label: 'URL du bouton',
+                            admin: {
+                                condition: (_data, siblingData) => siblingData?.popupEnabled === true,
+                                description: 'Chemin interne (ex. /soutenir) ou URL externe complète.',
+                            },
+                        },
+                    ],
+                },
+            ],
         },
         {
             name: 'socialLinks',

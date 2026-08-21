@@ -6,11 +6,53 @@ import { ref } from 'vue'
 
 export interface WeeklySlot { day: string; time: string } // ex { day:'LUN', time:'20:08' }
 export interface FormatItem { id: string; nom: string; actif: boolean; couleur: string; consigne: string }
+export interface SourceItem {
+  id: string
+  url: string
+  trust: 'high' | 'medium' | 'low'
+  active: boolean
+}
 
 const DAYS = ['DIM', 'LUN', 'MAR', 'MER', 'JEU', 'VEN', 'SAM']
 
+// ── Trust map réelle du VPS (source_trust_map) ──
+const TRUST_KEYWORDS = {
+  high: ['mediapart', 'humanite', 'humanité', 'blast', 'reporterre', 'basta', 'politis', 'arretsurimages', 'arrêt sur images', '972mag', 'amnesty', 'hrw', 'btselem', 'fidh', 'phr', 'palestinechronicle', 'wafa', 'palinfo', 'maannews', 'franceinsoumise', 'jlmelenchon', 'mathildepanot', 'rimahas', 'manuel_bompard', 'impactmediafr'],
+  medium: ['france24', 'rfi', 'francetvinfo', 'lemonde', 'leparisien', 'lacroix', 'la-croix', 'rtl', 'nouvelobs', 'globalvoices', 'thenewhumanitarian', 'theconversation', 'chathamhouse', 'haaretz', 'un.org', 'brevesdepresse', 'alertesinfos', 'mediavenir'],
+  low: ['lefigaro', 'figaro', 'cnews', 'cnews_fr', 'bfmtv', 'bfm', 'freedomhouse'],
+} as const
+
+export function detectTrust(url: string): SourceItem['trust'] {
+  const h = url.toLowerCase()
+  for (const level of ['high', 'medium', 'low'] as const)
+    if (TRUST_KEYWORDS[level].some(k => h.includes(k))) return level
+  return 'medium'
+}
+export function hostOf(url: string): string {
+  try { return new URL(url).hostname.replace(/^www\./, '') } catch { return url }
+}
+function uid() { return Math.random().toString(36).slice(2, 9) }
+
+const DEFAULT_RSS = [
+  'https://www.france24.com/en/rss',
+  'https://www.rfi.fr/en/rss',
+  'https://www.lemonde.fr/rss/une.xml',
+  'https://www.mediapart.fr/articles/feed',
+  'https://www.francetvinfo.fr/titres.rss',
+  'https://www.humanite.fr/rss',
+  'https://www.la-croix.com/RSS',
+  'http://tempsreel.nouvelobs.com/rss.xml',
+  'https://www.blast-info.fr/rss.xml',
+  'https://basta.media/spip.php?page=backend',
+  'https://reporterre.net/spip.php?page=backend',
+]
+
+function defaultSources(): SourceItem[] {
+  return DEFAULT_RSS.map(url => ({ id: uid(), url, trust: detectTrust(url), active: true }))
+}
+
 export const useConfigStore = defineStore('config', () => {
-  // ── Atelier (chaîne de fabrication) ──
+  // ── Atelier ──
   const atelier = ref([
     { type: 'ingestion', label: 'Collecte', enabled: true, desc: 'On récupère les nouveaux articles', order: 1 },
     { type: 'dedup', label: 'Anti-doublons', enabled: true, desc: 'Similarité 65%, fenêtre 10 h', order: 2 },
@@ -20,39 +62,31 @@ export const useConfigStore = defineStore('config', () => {
     { type: 'media', label: 'Image', enabled: true, desc: 'Overlay 50%, box 78%', order: 6 },
   ])
 
-  // ── Sources (les 11 flux RSS réellement actifs + comptes X via bridge) ──
+  // Positions sauvegardées du graphe (type → x/y) — sinon reposition auto
+  const positions = ref<Record<string, { x: number; y: number }>>({})
+
+  // ── Sources structurées (trust par source, comme l'ancien admin mais mieux) ──
   const sources = ref({
-    rss: [
-      'https://www.france24.com/en/rss',
-      'https://www.rfi.fr/en/rss',
-      'https://www.lemonde.fr/rss/une.xml',
-      'https://www.mediapart.fr/articles/feed',
-      'https://www.francetvinfo.fr/titres.rss',
-      'https://www.humanite.fr/rss',
-      'https://www.la-croix.com/RSS',
-      'http://tempsreel.nouvelobs.com/rss.xml',
-      'https://www.blast-info.fr/rss.xml',
-      'https://basta.media/spip.php?page=backend',
-      'https://reporterre.net/spip.php?page=backend',
-    ].join('\n'),
+    list: defaultSources(),
     telegram: '',
     xAccounts: ['JLMelenchon', 'MathildePanot', 'RimaHas', 'Manuel_Bompard', 'FranceInsoumise', 'ImpactMediaFR'].join('\n'),
     googleNews: '',
     lookbackHours: 10,
     maxArticlesPerScan: 20,
     concurrency: 5,
+    bridgeUrl: 'http://localhost:3300', // RSS-Bridge pour les comptes X
   })
 
-  // ── Filtres (valeurs réelles) ──
+  // ── Filtres ──
   const filtres = ref({
     motsCles: '',
     motsInterdits: '',
-    seuilRessemblance: 65,       // dedup_similarity_threshold
-    fenetreDoublonsHeures: 10,   // dedup_recent_hours
+    seuilRessemblance: 65,
+    fenetreDoublonsHeures: 10,
     imagesAutorisees: true,
   })
 
-  // ── Écriture (prompts vides dans la DB → fallback code ; modèles réels) ──
+  // ── Écriture ──
   const ecriture = ref({
     modeleRapide: 'gemini-3-flash-preview',
     modeleRedaction: 'gemini-2.5-pro',
@@ -60,24 +94,24 @@ export const useConfigStore = defineStore('config', () => {
     tachesEnMemeTempsRapide: 5,
     tachesEnMemeTempsRedaction: 3,
     scoreMini: 50,
-    webSearchEnabled: true,      // google_search_*_enabled x3
+    webSearchEnabled: true,
     consigneTri: '',
     criteresRejet: '',
     identite: '',
     mission: '',
     vocabulaire: '',
     consignesImages: '',
-    consigneGlobale: '',         // customPromptModifier
+    consigneGlobale: '',
   })
 
-  // ── Formats (types d’ouverture réellement utilisés) ──
+  // ── Formats ──
   const formats = ref<FormatItem[]>([
     { id: 'ALERTE_INFO', nom: '🔴 ALERTE INFO !', actif: true, couleur: '#DC2626', consigne: '' },
     { id: 'FAIT_DU_JOUR', nom: '📌 LE FAIT DU JOUR', actif: false, couleur: '#111111', consigne: '' },
     { id: 'DECRYPTAGE', nom: '🔎 DÉCRYPTAGE', actif: false, couleur: '#7c3aed', consigne: '' },
   ])
 
-  // ── Partage (réel : Discord seul + test mode, pilote auto OFF) ──
+  // ── Partage ──
   const partage = ref({
     discord: true,
     qoe: true,
@@ -86,27 +120,49 @@ export const useConfigStore = defineStore('config', () => {
     mastodon: false,
     discordMode: 'DIRECT' as 'DIRECT' | 'SCHEDULED',
     qoeMode: 'DIRECT' as 'DIRECT' | 'SCHEDULED',
-    delaiMini: 1,   // min_delay_min
-    delaiMaxi: 2,   // max_delay_min
-    auto: false,    // auto_pilot_enabled = false
+    delaiMini: 1,
+    delaiMaxi: 2,
+    auto: false,               // auto_pilot_enabled = false sur le VPS
     discordTestMode: true,
   })
 
-  // ── Planning (calendrier réel : tous les jours à 20:08, Europe/Paris) ──
+  // ── Planning (réel : tous les jours à 20:08, Europe/Paris) ──
   const planning = ref({
     mode: 'calendar' as 'pulse' | 'calendar' | 'hybrid',
-    intervalleMinutes: 6,        // scan_interval_hours = 0.1 h
+    intervalleMinutes: 6,
     timezone: 'Europe/Paris',
     weeklySlots: DAYS.map(d => ({ day: d, time: '20:08' })) as WeeklySlot[],
   })
 
-  // ── Système ──
+  // ── Image / média (image_overlay_*, image_box_scale_*) ──
+  const media = ref({
+    overlayEnabled: true,      // pourcentages entiers pour les sliders
+    overlayOpacity: 50,        // image_overlay_opacity = 0.5
+    boxScale169: 78,           // image_box_scale_169 = 0.78
+    boxScale11: 78,            // image_box_scale_11
+  })
+
+  // ── Vidéo Telegram (video_*) ──
+  const video = ref({
+    ingestEnabled: false,
+    prefilterModel: 'gemini-2.0-flash',
+    transcribeModel: 'gemini-2.0-flash',
+    prefilterPrompt: 'Ce message Telegram parle-t-il de politique, de mouvements sociaux, de justice ou d un evenement d interet public ? Reponds uniquement par OUI ou NON.',
+    maxAudioMb: 20,
+  })
+
+  // ── Système + communication (maintenance + popup don) ──
   const systeme = ref({
     niveauLogs: 'INFO',
     garderLogsJours: 7,
     miroirLogs: true,
     maintenanceMode: false,
     maintenanceMessage: 'L’Assez fait peau neuve. Nous revenons dans quelques instants.',
+    popupEnabled: false,       // popup_enabled
+    popupTitle: 'Soutenez L’Assez !',
+    popupText: 'Votre média indépendant a besoin de vous pour continuer ses enquêtes sans concession. Soutenez-nous par un don.',
+    popupLinkLabel: 'Faire un don',
+    popupLinkUrl: '/soutenir',
   })
 
   const dirty = ref(false)
@@ -115,30 +171,51 @@ export const useConfigStore = defineStore('config', () => {
   function save() {
     dirty.value = false
     localStorage.setItem('labo-config-v2', JSON.stringify({
-      atelier: atelier.value, sources: sources.value, filtres: filtres.value,
+      atelier: atelier.value, positions: positions.value,
+      sources: sources.value, filtres: filtres.value,
       ecriture: ecriture.value, formats: formats.value, partage: partage.value,
-      planning: planning.value, systeme: systeme.value,
+      planning: planning.value, media: media.value, video: video.value,
+      systeme: systeme.value,
     }))
   }
+
   function load() {
     const raw = localStorage.getItem('labo-config-v2')
-    if (raw) {
-      try {
-        const o = JSON.parse(raw)
-        atelier.value = o.atelier ?? atelier.value
-        sources.value = o.sources ?? sources.value
-        filtres.value = o.filtres ?? filtres.value
-        ecriture.value = o.ecriture ?? ecriture.value
-        formats.value = o.formats ?? formats.value
-        partage.value = o.partage ?? partage.value
-        planning.value = o.planning ?? planning.value
-        systeme.value = o.systeme ?? systeme.value
-      } catch {}
+    if (!raw) return
+    try {
+      const o = JSON.parse(raw)
+      atelier.value = o.atelier ?? atelier.value
+      positions.value = o.positions ?? {}
+      sources.value = o.sources ?? sources.value
+      filtres.value = o.filtres ?? filtres.value
+      ecriture.value = o.ecriture ?? ecriture.value
+      formats.value = o.formats ?? formats.value
+      partage.value = o.partage ?? partage.value
+      planning.value = o.planning ?? planning.value
+      media.value = o.media ?? media.value
+      video.value = o.video ?? video.value
+      systeme.value = o.systeme ?? systeme.value
+      migrate()
+    } catch {}
+  }
+
+  // Migration v1 → v2 : l'ancienne clé `rss` (textarea) devient la liste structurée
+  function migrate() {
+    const s = sources.value as any
+    if (typeof s.rss === 'string' && s.rss.trim() && (!s.list || s.list.length === 0)) {
+      s.list = s.rss.split('\n').map((u: string) => u.trim()).filter(Boolean)
+        .map((url: string) => ({ id: uid(), url, trust: detectTrust(url), active: true }))
     }
+    delete s.rss
+    if (!s.bridgeUrl) s.bridgeUrl = 'http://localhost:3300'
   }
   load()
 
-  return { atelier, sources, filtres, ecriture, formats, partage, planning, systeme, dirty, markDirty, save }
+  return {
+    atelier, positions, sources, filtres, ecriture, formats,
+    partage, planning, media, video, systeme,
+    dirty, markDirty, save,
+  }
 })
 
 export { DAYS }

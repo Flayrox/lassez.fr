@@ -86,7 +86,7 @@ const store = useConfigStore()
 const signals = useSignalsStore()
 
 const activeCount = computed(() => store.atelier.filter(p => p.enabled).length)
-const rssCount = computed(() => store.sources.rss.split('\n').filter(s => s.trim()).length)
+const rssCount = computed(() => store.sources.list.filter(s => s.active).length)
 const tgCount = computed(() => store.sources.telegram.split('\n').filter(s => s.trim()).length)
 
 const failedSources = [

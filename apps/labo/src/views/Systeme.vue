@@ -43,6 +43,30 @@
       </div>
     </LCard>
 
+    <LCard title="Popup de soutien" description="S'affiche une fois par session sur le site public (bandeau don)">
+      <div class="space-y-3">
+        <div class="flex items-center justify-between gap-2">
+          <p class="text-xs font-medium">Activer la popup</p>
+          <LToggle :model-value="store.systeme.popupEnabled" @update:model-value="(v: boolean) => { store.systeme.popupEnabled = v; store.markDirty() }" />
+        </div>
+        <template v-if="store.systeme.popupEnabled">
+          <LInput label="Titre" v-model="popupTitleProxy" />
+          <LTextarea label="Texte" :rows="2" v-model="popupTextProxy" />
+          <div class="grid grid-cols-2 gap-3">
+            <LInput label="Libellé du bouton" v-model="popupLinkLabelProxy" />
+            <LInput label="Lien" help="Chemin interne ou URL complète" v-model="popupLinkUrlProxy" />
+          </div>
+          <!-- Aperçu -->
+          <div class="border border-border rounded-card p-4 bg-bg max-w-xs">
+            <p class="text-[9px] uppercase tracking-widest text-text-3 mb-1.5">Aperçu</p>
+            <p class="text-sm font-semibold">{{ store.systeme.popupTitle }}</p>
+            <p class="text-xs text-text-2 mt-1">{{ store.systeme.popupText }}</p>
+            <span class="inline-block mt-3 px-3 py-1.5 bg-accent text-accent-fg text-xs font-semibold rounded">{{ store.systeme.popupLinkLabel }}</span>
+          </div>
+        </template>
+      </div>
+    </LCard>
+
     <LCard title="Où tout est gardé">
       <ul class="text-xs text-text-2 space-y-1.5 font-mono">
         <li><span class="text-text-3">Config</span> daemon/config/config.yaml</li>
@@ -54,10 +78,24 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import { useConfigStore } from '../stores/config'
 import LCard from '../components/ui/LCard.vue'
 import LToggle from '../components/ui/LToggle.vue'
 import LButton from '../components/ui/LButton.vue'
+import LInput from '../components/ui/LInput.vue'
+import LTextarea from '../components/ui/LTextarea.vue'
 
 const store = useConfigStore()
+
+function proxy(key: string) {
+  return computed({
+    get: () => (store.systeme as any)[key],
+    set: (v: string) => { (store.systeme as any)[key] = v; store.markDirty() },
+  })
+}
+const popupTitleProxy = proxy('popupTitle')
+const popupTextProxy = proxy('popupText')
+const popupLinkLabelProxy = proxy('popupLinkLabel')
+const popupLinkUrlProxy = proxy('popupLinkUrl')
 </script>

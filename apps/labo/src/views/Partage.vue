@@ -31,6 +31,34 @@
       </table>
     </LCard>
 
+    <!-- Clés et connexions (jamais dans git — daemon/config/.secrets.yaml) -->
+    <LCard title="Clés et connexions" description="Les secrets de chaque plateforme — stockés dans daemon/config/.secrets.yaml (jamais dans git, jamais dans le localStorage)">
+      <div class="space-y-4">
+        <div v-if="store.partage.discord" class="space-y-1.5">
+          <p class="text-xs font-medium">Discord — URL du webhook</p>
+          <LInput v-model="sec.discordWebhookUrl" placeholder="https://discord.com/api/webhooks/…" type="password" />
+        </div>
+        <div v-if="store.partage.x" class="grid md:grid-cols-2 gap-3">
+          <div class="md:col-span-2"><p class="text-xs font-medium mb-1">X / Twitter — clés API</p></div>
+          <LInput label="API Key" v-model="sec.xApiKey" type="password" />
+          <LInput label="API Secret" v-model="sec.xApiSecret" type="password" />
+          <LInput label="Access Token" v-model="sec.xAccessToken" type="password" />
+          <LInput label="Access Secret" v-model="sec.xAccessSecret" type="password" />
+        </div>
+        <div v-if="store.partage.bluesky" class="grid md:grid-cols-2 gap-3">
+          <div class="md:col-span-2"><p class="text-xs font-medium mb-1">Bluesky — identifiants</p></div>
+          <LInput label="Identifiant" v-model="sec.blueskyIdentifier" placeholder="exemple.bsky.social" />
+          <LInput label="App Password" v-model="sec.blueskyAppPassword" type="password" />
+        </div>
+        <div v-if="store.partage.mastodon" class="grid md:grid-cols-2 gap-3">
+          <div class="md:col-span-2"><p class="text-xs font-medium mb-1">Mastodon — instance & token</p></div>
+          <LInput label="Instance" v-model="sec.mastodonInstanceUrl" placeholder="https://mastodon.social" />
+          <LInput label="Access Token" v-model="sec.mastodonAccessToken" type="password" />
+        </div>
+        <p v-if="!store.partage.discord && !store.partage.x && !store.partage.bluesky && !store.partage.mastodon" class="text-xs text-text-3">Active une plateforme ci-dessus pour configurer sa clé.</p>
+      </div>
+    </LCard>
+
     <div class="grid md:grid-cols-3 gap-4">
       <LCard title="Attendre au moins (minutes)" description="Délai mini entre 2 publications">
         <input type="number" v-model.number="store.partage.delaiMini" class="w-full h-8 bg-bg border border-border rounded px-2.5 text-sm focus:outline-none focus:border-accent/60" />
@@ -42,7 +70,13 @@
         <div class="space-y-3">
           <div class="flex items-center justify-between gap-2">
             <p class="text-xs font-medium">Publication auto</p>
+            <p class="text-[10px] text-text-3">Publie sans validation (pilote auto)</p>
             <LToggle :model-value="store.partage.auto" @update:model-value="(v: boolean) => { store.partage.auto = v; store.markDirty() }" />
+          </div>
+          <div class="flex items-center justify-between gap-2">
+            <p class="text-xs font-medium">Mode Fantôme</p>
+            <p class="text-[10px] text-text-3">L’IA approuve sans modération</p>
+            <LToggle :model-value="store.partage.autoApprove" @update:model-value="(v: boolean) => { store.partage.autoApprove = v; store.markDirty() }" />
           </div>
           <div class="flex items-center justify-between gap-2">
             <p class="text-xs font-medium">Mode test Discord</p>
@@ -63,7 +97,7 @@
           <tr v-for="f in store.formats" :key="f.id" class="border-b border-border/50">
             <td class="py-2 pr-3 font-medium text-text-1">{{ f.nom }}</td>
             <td v-for="p in matrixPlatforms" :key="p" class="py-2 px-2 text-center">
-              <input type="checkbox" :checked="matrix[f.id]?.[p]" @change="toggleMatrix(f.id, p)" class="accent-accent" />
+              <input type="checkbox" :checked="store.matrix[f.id]?.[p]" @change="toggleMatrix(f.id, p)" class="accent-accent" />
             </td>
           </tr>
         </tbody>
@@ -73,12 +107,25 @@
 </template>
 
 <script setup lang="ts">
-import { reactive } from 'vue'
+import { computed } from 'vue'
 import { useConfigStore } from '../stores/config'
 import LCard from '../components/ui/LCard.vue'
 import LToggle from '../components/ui/LToggle.vue'
+import LInput from '../components/ui/LInput.vue'
 
 const store = useConfigStore()
+
+// Champs secrets → store.secrets + sauvegarde (PATCH /api/secrets).
+// v-model exige une expression membre : on pré-construit un computed par clé.
+const SEC_KEYS = ['discordWebhookUrl', 'xApiKey', 'xApiSecret', 'xAccessToken', 'xAccessSecret',
+  'blueskyIdentifier', 'blueskyAppPassword', 'mastodonInstanceUrl', 'mastodonAccessToken'] as const
+const sec: Record<string, ReturnType<typeof computed>> = {}
+for (const k of SEC_KEYS) {
+  sec[k] = computed({
+    get: () => (store.secrets as any)[k] ?? '',
+    set: (v: string) => { (store.secrets as any)[k] = v; store.markDirty() },
+  })
+}
 
 const platforms = [
   { key: 'qoe', label: 'qoe.fi', modeKey: 'qoeMode', desc: 'Là où partent les enquêtes' },
@@ -90,18 +137,14 @@ const platforms = [
 
 const matrixPlatforms = ['qoe', 'discord', 'x', 'bluesky', 'mastodon'] as const
 
-// matrice format → plateforme (reprend social_targets_by_type_json de l'ancienne DB)
-const matrix = reactive<Record<string, Record<string, boolean>>>(
-  Object.fromEntries(store.formats.map(f => [f.id, { qoe: true, discord: f.nom.includes('Alerte'), x: false, bluesky: false, mastodon: false }]))
-)
-
 function setMode(key: string, mode: 'DIRECT' | 'SCHEDULED') {
   store.partage[key] = mode
   store.markDirty()
 }
 function toggleMatrix(formatId: string, platform: string) {
-  if (!matrix[formatId]) matrix[formatId] = {}
-  matrix[formatId][platform] = !matrix[formatId]?.[platform]
+  // matrice format → plateforme (social_targets_by_type_json) — persistée dans le YAML
+  if (!store.matrix[formatId]) store.matrix[formatId] = {}
+  store.matrix[formatId][platform] = !store.matrix[formatId]?.[platform]
   store.markDirty()
 }
 </script>

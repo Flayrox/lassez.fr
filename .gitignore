@@ -57,3 +57,8 @@ data/*.bak
 
 # Builds labo
 apps/labo/dist/
+
+# Secrets locaux du daemon (clés API plateformes — écrits par le labo via /api/secrets)
+daemon/config/.secrets.yaml
+daemon/config/.secrets.yaml.bak
+

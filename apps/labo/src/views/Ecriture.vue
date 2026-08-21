@@ -8,17 +8,17 @@
     <div class="grid md:grid-cols-3 gap-4">
       <LCard title="Modèle pour trier" description="Le plus rapide — note de 0 à 100">
         <select v-model="store.ecriture.modeleRapide" class="w-full h-8 bg-bg border border-border rounded px-2 text-xs focus:outline-none focus:border-accent/60">
-          <option>gemini-3-flash-preview</option><option>gemini-2.5-flash</option>
+          <option v-for="m in store.modelRegistry" :key="m.value" :value="m.value">{{ m.label }}</option>
         </select>
       </LCard>
       <LCard title="Modèle pour écrire" description="Le plus fort pour rédiger l'article">
         <select v-model="store.ecriture.modeleRedaction" class="w-full h-8 bg-bg border border-border rounded px-2 text-xs focus:outline-none focus:border-accent/60">
-          <option>gemini-3.1-pro-preview</option><option>gemini-2.5-pro</option>
+          <option v-for="m in store.modelRegistry" :key="m.value" :value="m.value">{{ m.label }}</option>
         </select>
       </LCard>
       <LCard title="Modèle pour vérifier" description="Contrôle les faits avant publication">
         <select v-model="store.ecriture.modeleVerification" class="w-full h-8 bg-bg border border-border rounded px-2 text-xs focus:outline-none focus:border-accent/60">
-          <option>gemini-3-flash-preview</option><option>gemini-2.0-flash</option>
+          <option v-for="m in store.modelRegistry" :key="m.value" :value="m.value">{{ m.label }}</option>
         </select>
       </LCard>
     </div>
@@ -27,13 +27,62 @@
       <input type="range" min="20" max="80" v-model.number="store.ecriture.scoreMini" class="w-full accent-accent" />
     </LCard>
 
-    <LCard>
-      <div class="flex items-center justify-between">
+    <!-- Modèle par type d'article (ai_model_main/breaking/standard/decrypt) -->
+    <LCard title="Modèle par type d'article" description="Chaque rubrique peut avoir son IA — une Alerte a besoin du plus fort, un standard du plus rapide">
+      <div class="grid md:grid-cols-3 gap-4">
         <div>
-          <p class="text-sm font-medium">Recherche web pour l'IA</p>
-          <p class="text-[11px] text-text-3 mt-0.5">Gemini peut chercher sur le web pour vérifier les sujets (activé pour tri, décryptage et standard)</p>
+          <p class="text-xs font-medium mb-1">🔴 Alertes</p>
+          <p class="text-[10px] text-text-3 mb-1.5">Breaking news — le plus fort pour décider vite</p>
+          <select v-model="store.ecriture.modeleAlerte" class="w-full h-8 bg-bg border border-border rounded px-2 text-xs focus:outline-none focus:border-accent/60">
+            <option v-for="m in store.modelRegistry" :key="m.value" :value="m.value">{{ m.label }}</option>
+          </select>
         </div>
-        <LToggle :model-value="store.ecriture.webSearchEnabled" @update:model-value="(v: boolean) => { store.ecriture.webSearchEnabled = v; store.markDirty() }" />
+        <div>
+          <p class="text-xs font-medium mb-1">📌 Standard</p>
+          <p class="text-[10px] text-text-3 mb-1.5">Le fait du jour — équilibre vitesse/qualité</p>
+          <select v-model="store.ecriture.modeleStandard" class="w-full h-8 bg-bg border border-border rounded px-2 text-xs focus:outline-none focus:border-accent/60">
+            <option v-for="m in store.modelRegistry" :key="m.value" :value="m.value">{{ m.label }}</option>
+          </select>
+        </div>
+        <div>
+          <p class="text-xs font-medium mb-1">🔎 Décryptage</p>
+          <p class="text-[10px] text-text-3 mb-1.5">Analyse de fond — le plus nuancé</p>
+          <select v-model="store.ecriture.modeleDecryptage" class="w-full h-8 bg-bg border border-border rounded px-2 text-xs focus:outline-none focus:border-accent/60">
+            <option v-for="m in store.modelRegistry" :key="m.value" :value="m.value">{{ m.label }}</option>
+          </select>
+        </div>
+      </div>
+    </LCard>
+
+    <!-- Recherche web par type (google_search_*_enabled) -->
+    <LCard title="Recherche web par type" description="Gemini peut chercher sur le web pour vérifier les sujets — activable indépendamment par rubrique">
+      <div class="space-y-2">
+        <div v-for="row in webRows" :key="row.key" class="flex items-center justify-between gap-2 border border-border/50 rounded px-3 py-2">
+          <span class="text-xs text-text-1">{{ row.label }}</span>
+          <LToggle :model-value="row.get()" @update:model-value="row.set" />
+        </div>
+      </div>
+    </LCard>
+
+    <!-- Le grand prompt éditorial (ai_prompt) -->
+    <LCard title="Ligne éditoriale complète" description="Le texte d'origine qui définit qui est L'Assez, ce qu'on ignore, les tactiques, les tags obligatoires — laisse vide pour utiliser le texte par défaut du code">
+      <LTextarea v-model="promptEditorialProxy" :rows="10" help="C'est le prompt le plus puissant : il est ajouté à chaque rédaction. Vide = comportement par défaut du daemon." />
+      <p class="text-[11px] text-text-3 mt-2">{{ store.ecriture.promptEditorial.length }} caractères</p>
+    </LCard>
+
+    <!-- Registry des modèles IA -->
+    <LCard title="Modèles IA disponibles" description="La liste qui alimente tous les sélecteurs de modèles — ajoute un modèle, il apparaît partout">
+      <div class="space-y-1.5">
+        <div v-for="(m, i) in store.modelRegistry" :key="m.value" class="flex items-center gap-2 border border-border/50 rounded px-3 py-1.5">
+          <span class="text-xs text-text-1 flex-1 truncate">{{ m.label }}</span>
+          <code class="text-[10px] font-mono text-text-3">{{ m.value }}</code>
+          <button @click="removeRegistry(i)" class="text-text-3 hover:text-danger transition-colors px-1" title="Retirer">✕</button>
+        </div>
+        <div class="flex items-center gap-2 pt-2">
+          <input v-model="newRegLabel" placeholder="Nom affiché…" class="flex-1 h-8 bg-bg border border-border rounded px-2.5 text-xs focus:outline-none focus:border-accent/60" />
+          <input v-model="newRegValue" placeholder="ID API (ex: gemini-2.5-pro)…" class="flex-1 h-8 bg-bg border border-border rounded px-2.5 text-xs font-mono focus:outline-none focus:border-accent/60" />
+          <LButton :disabled="!newRegLabel.trim() || !newRegValue.trim()" @click="addRegistry">+ Ajouter</LButton>
+        </div>
       </div>
     </LCard>
 
@@ -61,14 +110,44 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useConfigStore } from '../stores/config'
 import LCard from '../components/ui/LCard.vue'
 import LBadge from '../components/ui/LBadge.vue'
 import LTextarea from '../components/ui/LTextarea.vue'
+import LButton from '../components/ui/LButton.vue'
 
 const store = useConfigStore()
 const expanded = ref<string | null>(null)
+
+const promptEditorialProxy = computed({
+  get: () => store.ecriture.promptEditorial,
+  set: (v: string) => { store.ecriture.promptEditorial = v; store.markDirty() },
+})
+
+const webRows = [
+  { key: 'breaking', label: '🔴 Alertes', get: () => store.ecriture.webSearchBreaking, set: (v: boolean) => { store.ecriture.webSearchBreaking = v; store.markDirty() } },
+  { key: 'standard', label: '📌 Standard', get: () => store.ecriture.webSearchStandard, set: (v: boolean) => { store.ecriture.webSearchStandard = v; store.markDirty() } },
+  { key: 'decrypt', label: '🔎 Décryptage', get: () => store.ecriture.webSearchDecrypt, set: (v: boolean) => { store.ecriture.webSearchDecrypt = v; store.markDirty() } },
+]
+
+// Registry des modèles IA (CRUD) — alimente tous les selects
+const newRegLabel = ref('')
+const newRegValue = ref('')
+function addRegistry() {
+  const label = newRegLabel.value.trim()
+  const value = newRegValue.value.trim()
+  if (!label || !value) return
+  if (store.modelRegistry.some(m => m.value === value)) return
+  store.modelRegistry.push({ label, value })
+  store.markDirty()
+  newRegLabel.value = ''
+  newRegValue.value = ''
+}
+function removeRegistry(i: number) {
+  store.modelRegistry.splice(i, 1)
+  store.markDirty()
+}
 
 const blocks = [
   {

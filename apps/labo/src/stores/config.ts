@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 
 // Store labo — valeurs par défaut = la VRAIE config qui tournait sur le VPS
 // (radar.db 04/08/2026, voir docs/labo-bases-saines.md + daemon/config/config.yaml)
@@ -10,8 +10,13 @@ export interface SourceItem {
   id: string
   url: string
   trust: 'high' | 'medium' | 'low'
+  bias: string
+  allowImages: boolean
   active: boolean
 }
+
+// Les 9 biais de l'ancienne table sources (source_bias)
+export const BIAS_VALUES = ['Extrême-Gauche', 'Gauche', 'Centre-Gauche', 'Centre', 'Centre-Droit', 'Droite', 'Extrême-Droite', 'Service Public', 'Indépendant']
 
 const DAYS = ['DIM', 'LUN', 'MAR', 'MER', 'JEU', 'VEN', 'SAM']
 
@@ -48,7 +53,7 @@ const DEFAULT_RSS = [
 ]
 
 function defaultSources(): SourceItem[] {
-  return DEFAULT_RSS.map(url => ({ id: uid(), url, trust: detectTrust(url), active: true }))
+  return DEFAULT_RSS.map(url => ({ id: uid(), url, trust: detectTrust(url), bias: 'Indépendant', allowImages: true, active: true }))
 }
 
 export const useConfigStore = defineStore('config', () => {
@@ -94,7 +99,16 @@ export const useConfigStore = defineStore('config', () => {
     tachesEnMemeTempsRapide: 5,
     tachesEnMemeTempsRedaction: 3,
     scoreMini: 50,
-    webSearchEnabled: true,
+    // Recherche web PAR TYPE d'article (google_search_*_enabled de l'ancienne DB)
+    webSearchBreaking: true,
+    webSearchStandard: true,
+    webSearchDecrypt: true,
+    // Modèle par type d'article (ai_model_main/breaking/standard/decrypt)
+    modeleAlerte: 'gemini-3.1-pro-preview',
+    modeleStandard: 'gemini-2.5-flash',
+    modeleDecryptage: 'gemini-2.5-pro',
+    // Le grand prompt éditorial (ai_prompt) — la ligne éditoriale complète
+    promptEditorial: '',
     consigneTri: '',
     criteresRejet: '',
     identite: '',
@@ -104,11 +118,27 @@ export const useConfigStore = defineStore('config', () => {
     consigneGlobale: '',
   })
 
-  // ── Formats ──
+  // ── Registry des modèles IA (label UI + value API) — alimente tous les selects ──
+  const modelRegistry = ref<{ label: string; value: string }[]>([
+    { label: 'Gemini 3.1 Pro (le plus fort)', value: 'gemini-3.1-pro-preview' },
+    { label: 'Gemini 2.5 Pro', value: 'gemini-2.5-pro' },
+    { label: 'Gemini 2.5 Flash', value: 'gemini-2.5-flash' },
+    { label: 'Gemini 3 Flash (rapide)', value: 'gemini-3-flash-preview' },
+    { label: 'Gemini 2.0 Flash (léger)', value: 'gemini-2.0-flash' },
+  ])
+  function normalizeRegistry(saved: unknown) {
+    if (!Array.isArray(saved)) return modelRegistry.value
+    const out = saved.filter((m: any) => m && typeof m.label === 'string' && typeof m.value === 'string')
+      .map((m: any) => ({ label: m.label, value: m.value }))
+    return out.length ? out : modelRegistry.value
+  }
+
+  // ── Formats (4 tags obligatoires du prompt éditorial) ──
   const formats = ref<FormatItem[]>([
     { id: 'ALERTE_INFO', nom: '🔴 ALERTE INFO !', actif: true, couleur: '#DC2626', consigne: '' },
     { id: 'FAIT_DU_JOUR', nom: '📌 LE FAIT DU JOUR', actif: false, couleur: '#111111', consigne: '' },
     { id: 'DECRYPTAGE', nom: '🔎 DÉCRYPTAGE', actif: false, couleur: '#7c3aed', consigne: '' },
+    { id: 'A_VENIR', nom: '🗓️ À VENIR', actif: false, couleur: '#2563eb', consigne: '' },
   ])
 
   // ── Partage ──
@@ -126,7 +156,17 @@ export const useConfigStore = defineStore('config', () => {
     delaiMini: 1,
     delaiMaxi: 2,
     auto: false,               // auto_pilot_enabled = false sur le VPS
+    autoApprove: false,        // auto_approve_enabled — Mode Fantôme (l'IA approuve sans modération)
     discordTestMode: true,
+  })
+
+  // ── Secrets plateformes — JAMAIS dans localStorage, ni dans config.yaml versionné.
+  // Écrits dans daemon/config/.secrets.yaml (gitignoré) via /api/secrets.
+  const secrets = ref({
+    discordWebhookUrl: '',
+    xApiKey: '', xApiSecret: '', xAccessToken: '', xAccessSecret: '',
+    blueskyIdentifier: '', blueskyAppPassword: '',
+    mastodonInstanceUrl: '', mastodonAccessToken: '',
   })
 
   // ── Planning (réel : tous les jours à 20:08, Europe/Paris) ──
@@ -151,6 +191,7 @@ export const useConfigStore = defineStore('config', () => {
     prefilterModel: 'gemini-2.0-flash',
     transcribeModel: 'gemini-2.0-flash',
     prefilterPrompt: 'Ce message Telegram parle-t-il de politique, de mouvements sociaux, de justice ou d un evenement d interet public ? Reponds uniquement par OUI ou NON.',
+    prefilterMinChars: 20,     // video_prefilter_min_chars
     maxAudioMb: 20,
   })
 
@@ -171,15 +212,369 @@ export const useConfigStore = defineStore('config', () => {
   const dirty = ref(false)
   function markDirty() { dirty.value = true }
 
-  function save() {
-    dirty.value = false
-    localStorage.setItem('labo-config-v2', JSON.stringify({
-      atelier: atelier.value, positions: positions.value,
-      sources: sources.value, filtres: filtres.value,
-      ecriture: ecriture.value, formats: formats.value, partage: partage.value,
-      planning: planning.value, media: media.value, video: video.value,
-      systeme: systeme.value,
-    }))
+  // ── API du daemon (config.yaml) — source de vérité quand le robot tourne ──
+  const apiOk = ref(false)
+  const apiError = ref<string | null>(null)
+
+  // Santé réelle des sources — remplie par GET /api/sources-health (le daemon
+  // l'enregistre à chaque scan dans daemon_source_health).
+  const sourceHealth = ref<Record<string, {
+    url: string; type: string; source_name: string
+    consecutive_failures: number; last_status: string; last_error: string
+    status: 'HEALTHY' | 'DEGRADED' | 'DISABLED'; last_ok_at: string; last_check_at: string
+  }>>({})
+
+  async function loadSourceHealth() {
+    try {
+      const res = await fetch('/api/sources-health')
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const y = await res.json()
+      const out: typeof sourceHealth.value = {}
+      if (Array.isArray(y?.data)) {
+        for (const h of y.data) if (h && typeof h.url === 'string') out[h.url] = h
+      }
+      sourceHealth.value = out
+    } catch { /* daemon down → santé inconnue, la vue reste en repli */ }
+  }
+
+  // Matrice format → plateformes (persistée dans publisher.targetsByType du YAML)
+  const matrix = ref<Record<string, Record<string, boolean>>>(defaultMatrix())
+  function defaultMatrix() {
+    return Object.fromEntries(formats.value.map(f => [f.id, { qoe: true, discord: f.nom.includes('Alerte'), x: false, bluesky: false, mastodon: false }]))
+  }
+  function normalizeMatrix(saved: unknown) {
+    const base = defaultMatrix()
+    if (!isObj(saved)) return base
+    for (const f of formats.value) {
+      const m = saved[f.id]
+      if (isObj(m)) base[f.id] = { ...base[f.id], ...pick(base[f.id], m) }
+    }
+    return base
+  }
+
+  // Helpers de mapping store ↔ YAML
+  const lines = (s: string) => s.split('\n').map(x => x.trim()).filter(Boolean)
+  const round2 = (n: number) => Math.round(n * 100) / 100
+  const sOr = (v: any, def: string) => (typeof v === 'string' && v ? v : def)
+  const boolOr = (v: any, def: boolean) => (typeof v === 'boolean' ? v : def)
+  const numOr = (v: any, def: number) => (typeof v === 'number' ? v : def)
+  const pctOf = (v: any, def: number) => (typeof v === 'number' ? Math.round(v * 100) : def)
+  // editorial.modelByType est soit un objet {alerte, standard, decrypt}, soit la valeur directe
+  const modelByType = (editorial: any, slot: string) => {
+    if (!editorial) return ''
+    if (typeof editorial === 'string') return editorial
+    if (isObj(editorial.modelByType)) return editorial.modelByType[slot]
+    return ''
+  }
+
+  // Le store → structure imbriquée de config.yaml (sections gérées par le labo)
+  function toYamlConfig(): Record<string, any> {
+    const targetsByType: Record<string, Record<string, boolean>> = {}
+    for (const f of formats.value) {
+      const m = matrix.value[f.id] ?? {}
+      targetsByType[f.nom] = {
+        qoe: m.qoe !== false,
+        discord: m.discord !== false,
+        x: m.x === true,
+        bluesky: m.bluesky === true,
+        mastodon: m.mastodon === true,
+      }
+    }
+    return {
+      ingestion: {
+        timeWindowHours: sources.value.lookbackHours,
+        maxArticlesPerScan: sources.value.maxArticlesPerScan,
+        concurrency: sources.value.concurrency,
+        sources: {
+          rss: sources.value.list.filter(s => s.active).map(s => s.url),
+          telegram: lines(sources.value.telegram),
+          xAccounts: lines(sources.value.xAccounts),
+          googleNews: lines(sources.value.googleNews),
+        },
+      },
+      // Métadonnées par source (biais, fiabilité, images, actif) — le daemon lit
+      // ingestion.sources.rss (URLs actives) ; cette section est pour le labo.
+      sourcesMeta: sources.value.list.map(s => ({ url: s.url, trust: s.trust, bias: s.bias, allowImages: s.allowImages, active: s.active })),
+      dedup: {
+        similarityThreshold: round2(filtres.value.seuilRessemblance / 100),
+        lookbackHours: filtres.value.fenetreDoublonsHeures,
+      },
+      filters: {
+        keywords: lines(filtres.value.motsCles),
+        bannedKeywords: lines(filtres.value.motsInterdits),
+        allowSourceImages: filtres.value.imagesAutorisees,
+      },
+      research: {
+        aiModelFlash: ecriture.value.modeleRapide,
+        aiModelDecrypt: ecriture.value.modeleRedaction,
+        maxConcurrentTasks: ecriture.value.tachesEnMemeTempsRapide,
+        scoreThreshold: ecriture.value.scoreMini,
+        googleSearchBreaking: ecriture.value.webSearchBreaking,
+        googleSearchStandard: ecriture.value.webSearchStandard,
+        googleSearchDecrypt: ecriture.value.webSearchDecrypt,
+        webSearchEnabled: ecriture.value.webSearchBreaking || ecriture.value.webSearchStandard || ecriture.value.webSearchDecrypt,
+        systemPrompt: ecriture.value.consigneTri,
+        rejectCriteria: ecriture.value.criteresRejet,
+        customPromptModifier: ecriture.value.consigneGlobale,
+      },
+      editorial: {
+        aiModelPro: ecriture.value.modeleRedaction,
+        aiModelVerification: ecriture.value.modeleVerification,
+        maxConcurrentTasks: ecriture.value.tachesEnMemeTempsRedaction,
+        aiPrompt: ecriture.value.promptEditorial,
+        modelByType: {
+          alerte: ecriture.value.modeleAlerte,
+          standard: ecriture.value.modeleStandard,
+          decrypt: ecriture.value.modeleDecryptage,
+        },
+        baseIdentity: ecriture.value.identite,
+        researchMission: ecriture.value.mission,
+        vocabularyRules: ecriture.value.vocabulaire,
+        imageRules: ecriture.value.consignesImages,
+        customModifier: ecriture.value.consigneGlobale,
+      },
+      modelRegistry: modelRegistry.value,
+      formats: formats.value.map(f => ({ id: f.id, nom: f.nom, actif: f.actif, couleur: f.couleur, consigne: f.consigne })),
+      publisher: {
+        enableDiscord: partage.value.discord,
+        discordTestMode: partage.value.discordTestMode,
+        enableQoe: partage.value.qoe,
+        enableX: partage.value.x,
+        enableBluesky: partage.value.bluesky,
+        enableMastodon: partage.value.mastodon,
+        discordPublishMode: partage.value.discordMode,
+        qoePublishMode: partage.value.qoeMode,
+        xPublishMode: partage.value.xMode,
+        blueskyPublishMode: partage.value.blueskyMode,
+        mastodonPublishMode: partage.value.mastodonMode,
+        minDelayMinutes: partage.value.delaiMini,
+        maxDelayMinutes: partage.value.delaiMaxi,
+        enableAutoPublish: partage.value.auto,
+        enableAutoApprove: partage.value.autoApprove, // Mode Fantôme
+        targetsByType,
+      },
+      scheduling: {
+        mode: planning.value.mode,
+        scrapingIntervalMinutes: planning.value.intervalleMinutes,
+        weeklySlots: planning.value.weeklySlots,
+        timezone: planning.value.timezone,
+      },
+      media: {
+        overlayEnabled: media.value.overlayEnabled,
+        overlayOpacity: round2(media.value.overlayOpacity / 100),
+        boxScale169: round2(media.value.boxScale169 / 100),
+        boxScale11: round2(media.value.boxScale11 / 100),
+      },
+      video: {
+        ingestEnabled: video.value.ingestEnabled,
+        prefilterModel: video.value.prefilterModel,
+        transcribeModel: video.value.transcribeModel,
+        prefilterPrompt: video.value.prefilterPrompt,
+        prefilterMinChars: video.value.prefilterMinChars,
+        maxAudioMb: video.value.maxAudioMb,
+      },
+      system: {
+        logLevel: systeme.value.niveauLogs,
+        logRetentionDays: systeme.value.garderLogsJours,
+        logMirrorEnabled: systeme.value.miroirLogs,
+        maintenanceMode: systeme.value.maintenanceMode,
+        maintenanceMessage: systeme.value.maintenanceMessage,
+        popupEnabled: systeme.value.popupEnabled,
+        popupTitle: systeme.value.popupTitle,
+        popupText: systeme.value.popupText,
+        popupLinkLabel: systeme.value.popupLinkLabel,
+        popupLinkUrl: systeme.value.popupLinkUrl,
+      },
+      pipeline: {
+        // Le daemon lit pipeline.graphJson (string) pour savoir quels nœuds tourner
+        graphJson: JSON.stringify({ nodes: atelier.value.map(n => ({ type: n.type, enabled: n.enabled })) }),
+      },
+    }
+  }
+
+  // config.yaml (JSON) → store
+  function applyFromYaml(y: any) {
+    if (!isObj(y)) return
+    const ing = isObj(y.ingestion) ? y.ingestion : {}
+    const src = isObj(ing.sources) ? ing.sources : {}
+
+    // Sources — on préfère sourcesMeta (biais/confiance/images) quand elle existe,
+    // sinon on reconstruit depuis la liste d'URLs ingestion.sources.rss.
+    const metaByUrl = new Map<string, any>()
+    if (Array.isArray(y.sourcesMeta)) {
+      for (const m of y.sourcesMeta) if (m && typeof m.url === 'string') metaByUrl.set(m.url, m)
+    }
+    const list: SourceItem[] = []
+    if (Array.isArray(src.rss)) {
+      for (const u of src.rss) {
+        if (typeof u !== 'string' || !u.trim()) continue
+        const prev = sources.value.list.find(s => s.url === u)
+        const meta = metaByUrl.get(u) ?? {}
+        list.push(prev ?? {
+          id: uid(), url: u,
+          trust: meta.trust === 'high' || meta.trust === 'medium' || meta.trust === 'low' ? meta.trust : detectTrust(u),
+          bias: typeof meta.bias === 'string' && BIAS_VALUES.includes(meta.bias) ? meta.bias : 'Indépendant',
+          allowImages: meta.allowImages !== false,
+          active: meta.active !== false,
+        })
+      }
+    }
+    if (list.length > 0) sources.value.list = list
+    sources.value.telegram = Array.isArray(src.telegram) ? src.telegram.join('\n') : sources.value.telegram
+    sources.value.xAccounts = Array.isArray(src.xAccounts) ? src.xAccounts.join('\n') : sources.value.xAccounts
+    sources.value.googleNews = Array.isArray(src.googleNews) ? src.googleNews.join('\n') : sources.value.googleNews
+    sources.value.lookbackHours = numOr(ing.timeWindowHours, sources.value.lookbackHours)
+    sources.value.maxArticlesPerScan = numOr(ing.maxArticlesPerScan, sources.value.maxArticlesPerScan)
+    sources.value.concurrency = numOr(ing.concurrency, sources.value.concurrency)
+
+    // Filtres
+    const dedup = isObj(y.dedup) ? y.dedup : {}
+    filtres.value = {
+      ...filtres.value,
+      seuilRessemblance: pctOf(dedup.similarityThreshold, filtres.value.seuilRessemblance),
+      fenetreDoublonsHeures: numOr(dedup.lookbackHours, filtres.value.fenetreDoublonsHeures),
+      ...(isObj(y.filters) ? {
+        motsCles: (Array.isArray(y.filters.keywords) ? y.filters.keywords : []).join(', '),
+        motsInterdits: (Array.isArray(y.filters.bannedKeywords) ? y.filters.bannedKeywords : []).join(', '),
+        imagesAutorisees: boolOr(y.filters.allowSourceImages, filtres.value.imagesAutorisees),
+      } : {}),
+    }
+
+    // Écriture
+    const research = isObj(y.research) ? y.research : {}
+    const editorial = isObj(y.editorial) ? y.editorial : {}
+    ecriture.value = {
+      ...ecriture.value,
+      modeleRapide: sOr(research.aiModelFlash, ecriture.value.modeleRapide),
+      modeleRedaction: sOr(editorial.aiModelPro, sOr(research.aiModelDecrypt, ecriture.value.modeleRedaction)),
+      modeleVerification: sOr(editorial.aiModelVerification, ecriture.value.modeleVerification),
+      tachesEnMemeTempsRapide: numOr(research.maxConcurrentTasks, ecriture.value.tachesEnMemeTempsRapide),
+      tachesEnMemeTempsRedaction: numOr(editorial.maxConcurrentTasks, ecriture.value.tachesEnMemeTempsRedaction),
+      scoreMini: numOr(research.scoreThreshold, ecriture.value.scoreMini),
+      webSearchEnabled: boolOr(research.webSearchEnabled, ecriture.value.webSearchEnabled),
+      consigneTri: sOr(research.systemPrompt, ecriture.value.consigneTri),
+      criteresRejet: sOr(research.rejectCriteria, ecriture.value.criteresRejet),
+      identite: sOr(editorial.baseIdentity, ecriture.value.identite),
+      mission: sOr(editorial.researchMission, ecriture.value.mission),
+      vocabulaire: sOr(editorial.vocabularyRules, ecriture.value.vocabulaire),
+      consignesImages: sOr(editorial.imageRules, ecriture.value.consignesImages),
+      consigneGlobale: sOr(editorial.customModifier, sOr(research.customPromptModifier, ecriture.value.consigneGlobale)),
+      // Recherche web par type + modèles par type + grand prompt éditorial
+      webSearchBreaking: boolOr(research.googleSearchBreaking, boolOr(research.webSearchEnabled, ecriture.value.webSearchBreaking)),
+      webSearchStandard: boolOr(research.googleSearchStandard, boolOr(research.webSearchEnabled, ecriture.value.webSearchStandard)),
+      webSearchDecrypt: boolOr(research.googleSearchDecrypt, boolOr(research.webSearchEnabled, ecriture.value.webSearchDecrypt)),
+      modeleAlerte: sOr(modelByType(editorial, 'alerte'), sOr(research.aiModelDecrypt, ecriture.value.modeleAlerte)),
+      modeleStandard: sOr(modelByType(editorial, 'standard'), sOr(research.aiModelFlash, ecriture.value.modeleStandard)),
+      modeleDecryptage: sOr(modelByType(editorial, 'decrypt'), sOr(research.aiModelDecrypt, ecriture.value.modeleDecryptage)),
+      promptEditorial: sOr(editorial.aiPrompt, ecriture.value.promptEditorial),
+    }
+    if (Array.isArray(y.modelRegistry) && y.modelRegistry.length > 0) {
+      modelRegistry.value = normalizeRegistry(y.modelRegistry)
+    }
+
+    // Formats
+    if (Array.isArray(y.formats) && y.formats.length > 0) {
+      formats.value = y.formats
+        .filter((f: any) => f && typeof f.id === 'string')
+        .map((f: any) => ({
+          id: f.id,
+          nom: typeof f.nom === 'string' ? f.nom : 'Format',
+          actif: f.actif !== false,
+          couleur: typeof f.couleur === 'string' ? f.couleur : '#3ecf8e',
+          consigne: typeof f.consigne === 'string' ? f.consigne : '',
+        }))
+    }
+
+    // Partage + matrice
+    const pub = isObj(y.publisher) ? y.publisher : {}
+    partage.value = {
+      ...partage.value,
+      discord: boolOr(pub.enableDiscord, partage.value.discord),
+      qoe: boolOr(pub.enableQoe, partage.value.qoe),
+      x: boolOr(pub.enableX, partage.value.x),
+      bluesky: boolOr(pub.enableBluesky, partage.value.bluesky),
+      mastodon: boolOr(pub.enableMastodon, partage.value.mastodon),
+      discordTestMode: boolOr(pub.discordTestMode, partage.value.discordTestMode),
+      discordMode: sOr(pub.discordPublishMode, partage.value.discordMode) as 'DIRECT' | 'SCHEDULED',
+      qoeMode: sOr(pub.qoePublishMode, partage.value.qoeMode) as 'DIRECT' | 'SCHEDULED',
+      xMode: sOr(pub.xPublishMode, partage.value.xMode) as 'DIRECT' | 'SCHEDULED',
+      blueskyMode: sOr(pub.blueskyPublishMode, partage.value.blueskyMode) as 'DIRECT' | 'SCHEDULED',
+      mastodonMode: sOr(pub.mastodonPublishMode, partage.value.mastodonMode) as 'DIRECT' | 'SCHEDULED',
+      delaiMini: numOr(pub.minDelayMinutes, partage.value.delaiMini),
+      delaiMaxi: numOr(pub.maxDelayMinutes, partage.value.delaiMaxi),
+      auto: boolOr(pub.enableAutoPublish, partage.value.auto),
+      autoApprove: boolOr(pub.enableAutoApprove, partage.value.autoApprove),
+    }
+    if (isObj(pub.targetsByType)) {
+      matrix.value = defaultMatrix()
+      for (const f of formats.value) {
+        const t = pub.targetsByType[f.nom]
+        if (isObj(t)) {
+          matrix.value[f.id] = {
+            qoe: t.qoe !== false,
+            discord: t.discord !== false,
+            x: t.x === true,
+            bluesky: t.bluesky === true,
+            mastodon: t.mastodon === true,
+          }
+        }
+      }
+    }
+
+    // Planning
+    const sched = isObj(y.scheduling) ? y.scheduling : {}
+    planning.value = normalizePlanning({
+      mode: sched.mode,
+      intervalleMinutes: sched.scrapingIntervalMinutes,
+      timezone: sched.timezone,
+      weeklySlots: Array.isArray(sched.weeklySlots) ? sched.weeklySlots : undefined,
+    })
+
+    // Media / vidéo / système
+    const med = isObj(y.media) ? y.media : {}
+    media.value = {
+      ...media.value,
+      overlayEnabled: boolOr(med.overlayEnabled, media.value.overlayEnabled),
+      overlayOpacity: pctOf(med.overlayOpacity, media.value.overlayOpacity),
+      boxScale169: pctOf(med.boxScale169, media.value.boxScale169),
+      boxScale11: pctOf(med.boxScale11, media.value.boxScale11),
+    }
+    const vid = isObj(y.video) ? y.video : {}
+    video.value = {
+      ...video.value,
+      ingestEnabled: boolOr(vid.ingestEnabled, video.value.ingestEnabled),
+      prefilterModel: sOr(vid.prefilterModel, video.value.prefilterModel),
+      transcribeModel: sOr(vid.transcribeModel, video.value.transcribeModel),
+      prefilterPrompt: sOr(vid.prefilterPrompt, video.value.prefilterPrompt),
+      prefilterMinChars: numOr(vid.prefilterMinChars, video.value.prefilterMinChars),
+      maxAudioMb: numOr(vid.maxAudioMb, video.value.maxAudioMb),
+    }
+    const sys = isObj(y.system) ? y.system : {}
+    systeme.value = {
+      ...systeme.value,
+      niveauLogs: sOr(sys.logLevel, systeme.value.niveauLogs),
+      garderLogsJours: numOr(sys.logRetentionDays, systeme.value.garderLogsJours),
+      miroirLogs: boolOr(sys.logMirrorEnabled, systeme.value.miroirLogs),
+      maintenanceMode: boolOr(sys.maintenanceMode, systeme.value.maintenanceMode),
+      maintenanceMessage: sOr(sys.maintenanceMessage, systeme.value.maintenanceMessage),
+      popupEnabled: boolOr(sys.popupEnabled, systeme.value.popupEnabled),
+      popupTitle: sOr(sys.popupTitle, systeme.value.popupTitle),
+      popupText: sOr(sys.popupText, systeme.value.popupText),
+      popupLinkLabel: sOr(sys.popupLinkLabel, systeme.value.popupLinkLabel),
+      popupLinkUrl: sOr(sys.popupLinkUrl, systeme.value.popupLinkUrl),
+    }
+
+    // Atelier (nœuds actifs depuis pipeline.graphJson)
+    if (isObj(y.pipeline) && typeof y.pipeline.graphJson === 'string' && y.pipeline.graphJson.trim()) {
+      try {
+        const g = JSON.parse(y.pipeline.graphJson)
+        if (Array.isArray(g.nodes)) {
+          const enabledByType: Record<string, boolean> = {}
+          for (const n of g.nodes) if (n && typeof n.type === 'string') enabledByType[n.type] = n.enabled !== false
+          atelier.value = atelier.value.map(n => ({ ...n, enabled: enabledByType[n.type] ?? n.enabled }))
+        }
+      } catch { /* graphe corrompu → on garde l'existant */ }
+    }
   }
 
   // ── Chargement robuste : on ne fait JAMAIS confiance au localStorage. ──
@@ -236,12 +631,14 @@ export const useConfigStore = defineStore('config', () => {
             id: typeof s.id === 'string' ? s.id : uid(),
             url: s.url,
             trust: s.trust === 'high' || s.trust === 'medium' || s.trust === 'low' ? s.trust : detectTrust(s.url),
+            bias: typeof s.bias === 'string' && BIAS_VALUES.includes(s.bias) ? s.bias : 'Indépendant',
+            allowImages: s.allowImages !== false,
             active: s.active !== false,
           }))
       } else if (typeof saved.rss === 'string' && saved.rss.trim()) {
         // Migration v1 → v2 : l'ancienne clé `rss` (textarea) devient la liste structurée
         out.list = saved.rss.split('\n').map((u: string) => u.trim()).filter(Boolean)
-          .map((url: string) => ({ id: uid(), url, trust: detectTrust(url), active: true }))
+          .map((url: string) => ({ id: uid(), url, trust: detectTrust(url), bias: 'Indépendant', allowImages: true, active: true }))
       }
     }
     return out
@@ -285,15 +682,110 @@ export const useConfigStore = defineStore('config', () => {
       media.value = pick(media.value, o.media)
       video.value = pick(video.value, o.video)
       systeme.value = pick(systeme.value, o.systeme)
-      save() // réécrit la config normalisée → le localStorage est guéri pour la suite
+      matrix.value = normalizeMatrix(o.matrix)
+      modelRegistry.value = normalizeRegistry(o.modelRegistry)
+      persistLocal() // réécrit la config normalisée → le localStorage est guéri pour la suite
     } catch { /* config illisible → on garde les défauts, pas de page blanche */ }
   }
   load()
 
+  function persistLocal() {
+    // Note : les secrets ne sont jamais écrits ici — uniquement .secrets.yaml via le daemon.
+    localStorage.setItem('labo-config-v2', JSON.stringify({
+      atelier: atelier.value, positions: positions.value,
+      sources: sources.value, filtres: filtres.value,
+      ecriture: ecriture.value, formats: formats.value, partage: partage.value,
+      planning: planning.value, media: media.value, video: video.value,
+      systeme: systeme.value, matrix: matrix.value, modelRegistry: modelRegistry.value,
+    }))
+  }
+
+  // Sauvegarde complète : localStorage (backup local) + config.yaml + secrets via le daemon.
+  async function save() {
+    dirty.value = false
+    persistLocal()
+    await pushToDaemon()
+    await pushSecretsToDaemon()
+  }
+
+  // Pousse la config vers le daemon → écrit daemon/config/config.yaml.
+  async function pushToDaemon() {
+    try {
+      const res = await fetch('/api/config', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(toYamlConfig()),
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      await res.json()
+      apiOk.value = true
+      apiError.value = null
+    } catch (e: any) {
+      apiOk.value = false
+      apiError.value = e?.message || String(e)
+      console.warn('[labo] config non envoyée au daemon :', apiError.value)
+    }
+  }
+
+  // ── Secrets plateformes → daemon/config/.secrets.yaml (jamais dans git) ──
+  async function loadSecretsFromDaemon() {
+    try {
+      const res = await fetch('/api/secrets')
+      if (!res.ok) return
+      const y = await res.json()
+      if (isObj(y) && isObj(y.publisher)) {
+        const s = y.publisher
+        for (const k of Object.keys(secrets.value)) if (typeof s[k] === 'string') (secrets.value as any)[k] = s[k]
+      }
+    } catch { /* daemon down → champs secrets vides */ }
+  }
+  async function pushSecretsToDaemon() {
+    try {
+      const res = await fetch('/api/secrets', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ publisher: secrets.value }),
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      await res.json()
+    } catch (e: any) {
+      console.warn('[labo] secrets non envoyés au daemon :', e?.message || e)
+    }
+  }
+
+  // Au démarrage : si le daemon répond, sa config.yaml fait foi sur le localStorage.
+  async function loadFromDaemon() {
+    try {
+      const res = await fetch('/api/config')
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const y = await res.json()
+      applyFromYaml(y)
+      apiOk.value = true
+      apiError.value = null
+      persistLocal()
+    } catch (e: any) {
+      apiOk.value = false
+      apiError.value = e?.message || String(e)
+    }
+    await loadSecretsFromDaemon()
+    await loadSourceHealth()
+  }
+  loadFromDaemon()
+
+  // Autosave debouncé : toute modification d'une vue déclenche la sauvegarde
+  // (localStorage + config.yaml via le daemon) sans bouton à cliquer.
+  let saveTimer: ReturnType<typeof setTimeout> | null = null
+  watch(dirty, (d) => {
+    if (!d) return
+    if (saveTimer) clearTimeout(saveTimer)
+    saveTimer = setTimeout(() => { save() }, 600)
+  })
+
   return {
     atelier, positions, sources, filtres, ecriture, formats,
-    partage, planning, media, video, systeme,
-    dirty, markDirty, save,
+    partage, planning, media, video, systeme, matrix, modelRegistry, secrets,
+    sourceHealth, dirty, markDirty, save, apiOk, apiError, loadFromDaemon,
+    pushSecretsToDaemon, loadSourceHealth,
   }
 })
 

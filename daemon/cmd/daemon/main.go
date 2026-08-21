@@ -67,7 +67,7 @@ func main() {
 					addr = ":2506"
 				}
 				log.Printf("[Daemon] API labo sur %s (signaux : %s)", addr, dbPath)
-				if err := http.ListenAndServe(addr, api.CORS(api.New(st).Mux)); err != nil {
+				if err := http.ListenAndServe(addr, api.CORS(api.New(st, client, *configPath, resolver).Mux)); err != nil {
 					log.Printf("[Daemon] ⚠️ API labo arrêtée : %v", err)
 				}
 			}()

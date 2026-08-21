@@ -100,7 +100,7 @@ const recentSignals = signals.all.slice(0, 4)
 const cards = computed(() => [
   { label: 'Robot', value: '● En marche', sub: 'Binaire Go', class: 'text-accent' },
   { label: 'Atelier', value: `${activeCount.value}/6`, sub: 'étapes actives', class: 'text-text-1' },
-  { label: 'En attente', value: String(signals.counts.pending), sub: 'signaux à traiter', class: 'text-warning' },
+  { label: 'En attente', value: String(signals.counts.pending ?? 0), sub: 'signaux à traiter', class: 'text-warning' },
   { label: 'Publication', value: 'Test', sub: 'qoe.fi non branché', class: 'text-text-2' },
 ])
 

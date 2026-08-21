@@ -120,6 +120,9 @@ export const useConfigStore = defineStore('config', () => {
     mastodon: false,
     discordMode: 'DIRECT' as 'DIRECT' | 'SCHEDULED',
     qoeMode: 'DIRECT' as 'DIRECT' | 'SCHEDULED',
+    xMode: 'DIRECT' as 'DIRECT' | 'SCHEDULED',
+    blueskyMode: 'DIRECT' as 'DIRECT' | 'SCHEDULED',
+    mastodonMode: 'DIRECT' as 'DIRECT' | 'SCHEDULED',
     delaiMini: 1,
     delaiMaxi: 2,
     auto: false,               // auto_pilot_enabled = false sur le VPS
@@ -179,35 +182,111 @@ export const useConfigStore = defineStore('config', () => {
     }))
   }
 
+  // ── Chargement robuste : on ne fait JAMAIS confiance au localStorage. ──
+  // Une config d'une ancienne version (forme différente) doit retomber sur les
+  // défauts au lieu de faire planter les vues (pages blanches).
+  function isObj(v: unknown): v is Record<string, any> {
+    return typeof v === 'object' && v !== null && !Array.isArray(v)
+  }
+  // Merge d'un objet plat : chaque clé manquante côté saved retombe sur le défaut.
+  function pick<T extends Record<string, any>>(def: T, saved: unknown): T {
+    const out: Record<string, any> = { ...def }
+    if (isObj(saved)) for (const k of Object.keys(def)) if (saved[k] !== undefined) out[k] = saved[k]
+    return out as T
+  }
+  function normalizeAtelier(saved: unknown) {
+    const def = atelier.value
+    if (!Array.isArray(saved) || saved.length === 0) return def
+    const byType = new Map(def.map(n => [n.type, n]))
+    return saved
+      .filter((n: any) => n && typeof n.type === 'string')
+      .map((n: any) => {
+        const d = byType.get(n.type)
+        return {
+          type: n.type,
+          label: typeof n.label === 'string' ? n.label : (d?.label ?? n.type),
+          enabled: n.enabled !== false,
+          desc: typeof n.desc === 'string' ? n.desc : (d?.desc ?? ''),
+          order: typeof n.order === 'number' ? n.order : (d?.order ?? 0),
+        }
+      })
+  }
+  function normalizeFormats(saved: unknown) {
+    if (!Array.isArray(saved)) return formats.value
+    return saved
+      .filter((f: any) => f && typeof f.id === 'string')
+      .map((f: any) => ({
+        id: f.id,
+        nom: typeof f.nom === 'string' ? f.nom : 'Format',
+        actif: f.actif !== false,
+        couleur: typeof f.couleur === 'string' ? f.couleur : '#3ecf8e',
+        consigne: typeof f.consigne === 'string' ? f.consigne : '',
+      }))
+  }
+  function normalizeSources(saved: unknown) {
+    const def = sources.value
+    const out: any = { ...def }
+    if (isObj(saved)) {
+      for (const k of ['telegram', 'xAccounts', 'googleNews', 'lookbackHours', 'maxArticlesPerScan', 'concurrency', 'bridgeUrl'])
+        if (saved[k] !== undefined) out[k] = saved[k]
+      if (Array.isArray(saved.list) && saved.list.length > 0) {
+        out.list = saved.list
+          .filter((s: any) => s && typeof s.url === 'string')
+          .map((s: any) => ({
+            id: typeof s.id === 'string' ? s.id : uid(),
+            url: s.url,
+            trust: s.trust === 'high' || s.trust === 'medium' || s.trust === 'low' ? s.trust : detectTrust(s.url),
+            active: s.active !== false,
+          }))
+      } else if (typeof saved.rss === 'string' && saved.rss.trim()) {
+        // Migration v1 → v2 : l'ancienne clé `rss` (textarea) devient la liste structurée
+        out.list = saved.rss.split('\n').map((u: string) => u.trim()).filter(Boolean)
+          .map((url: string) => ({ id: uid(), url, trust: detectTrust(url), active: true }))
+      }
+    }
+    return out
+  }
+  function normalizePlanning(saved: unknown) {
+    const def = planning.value
+    let weeklySlots = def.weeklySlots
+    let mode = def.mode
+    let intervalleMinutes = def.intervalleMinutes
+    let timezone = def.timezone
+    if (isObj(saved)) {
+      if (saved.mode === 'pulse' || saved.mode === 'calendar' || saved.mode === 'hybrid') mode = saved.mode
+      if (typeof saved.intervalleMinutes === 'number') intervalleMinutes = saved.intervalleMinutes
+      if (typeof saved.timezone === 'string') timezone = saved.timezone
+      if (Array.isArray(saved.weeklySlots)) {
+        weeklySlots = saved.weeklySlots
+          .filter((s: any) => s && typeof s === 'object' && DAYS.includes(s.day) && typeof s.time === 'string')
+          .map((s: any) => ({ day: s.day, time: s.time }))
+      } else if (Array.isArray(saved.times)) {
+        // Ancienne forme : `times: ['20:08']` = tous les jours à ces heures
+        const times = saved.times.filter((t: any) => typeof t === 'string' && t.trim())
+        weeklySlots = times.flatMap((t: string) => DAYS.map(d => ({ day: d, time: t })))
+      }
+    }
+    return { mode, intervalleMinutes, timezone, weeklySlots }
+  }
   function load() {
     const raw = localStorage.getItem('labo-config-v2')
     if (!raw) return
     try {
       const o = JSON.parse(raw)
-      atelier.value = o.atelier ?? atelier.value
-      positions.value = o.positions ?? {}
-      sources.value = o.sources ?? sources.value
-      filtres.value = o.filtres ?? filtres.value
-      ecriture.value = o.ecriture ?? ecriture.value
-      formats.value = o.formats ?? formats.value
-      partage.value = o.partage ?? partage.value
-      planning.value = o.planning ?? planning.value
-      media.value = o.media ?? media.value
-      video.value = o.video ?? video.value
-      systeme.value = o.systeme ?? systeme.value
-      migrate()
-    } catch {}
-  }
-
-  // Migration v1 → v2 : l'ancienne clé `rss` (textarea) devient la liste structurée
-  function migrate() {
-    const s = sources.value as any
-    if (typeof s.rss === 'string' && s.rss.trim() && (!s.list || s.list.length === 0)) {
-      s.list = s.rss.split('\n').map((u: string) => u.trim()).filter(Boolean)
-        .map((url: string) => ({ id: uid(), url, trust: detectTrust(url), active: true }))
-    }
-    delete s.rss
-    if (!s.bridgeUrl) s.bridgeUrl = 'http://localhost:3300'
+      if (!o || typeof o !== 'object') return
+      atelier.value = normalizeAtelier(o.atelier)
+      positions.value = isObj(o.positions) ? o.positions : {}
+      sources.value = normalizeSources(o.sources)
+      filtres.value = pick(filtres.value, o.filtres)
+      ecriture.value = pick(ecriture.value, o.ecriture)
+      formats.value = normalizeFormats(o.formats)
+      partage.value = pick(partage.value, o.partage)
+      planning.value = normalizePlanning(o.planning)
+      media.value = pick(media.value, o.media)
+      video.value = pick(video.value, o.video)
+      systeme.value = pick(systeme.value, o.systeme)
+      save() // réécrit la config normalisée → le localStorage est guéri pour la suite
+    } catch { /* config illisible → on garde les défauts, pas de page blanche */ }
   }
   load()
 

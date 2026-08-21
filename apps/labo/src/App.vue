@@ -1,11 +1,14 @@
 <template>
   <AppShell :groups="navGroups" @action="onAction">
-    <router-view />
+    <ErrorBoundary>
+      <router-view />
+    </ErrorBoundary>
   </AppShell>
 </template>
 
 <script setup>
 import AppShell from './AppShell.vue'
+import ErrorBoundary from './components/ErrorBoundary.vue'
 
 const navGroups = [
   {

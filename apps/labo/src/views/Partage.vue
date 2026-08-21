@@ -38,8 +38,17 @@
       <LCard title="Attendre au plus (minutes)" description="Délai maxi (choisi au hasard entre les deux)">
         <input type="number" v-model.number="store.partage.delaiMaxi" class="w-full h-8 bg-bg border border-border rounded px-2.5 text-sm focus:outline-none focus:border-accent/60" />
       </LCard>
-      <LCard title="Publication automatique" description="Si off : l'IA prépare mais ne publie pas">
-        <LToggle :model-value="store.partage.auto" @update:model-value="(v: boolean) => { store.partage.auto = v; store.markDirty() }" />
+      <LCard>
+        <div class="space-y-3">
+          <div class="flex items-center justify-between gap-2">
+            <p class="text-xs font-medium">Publication auto</p>
+            <LToggle :model-value="store.partage.auto" @update:model-value="(v: boolean) => { store.partage.auto = v; store.markDirty() }" />
+          </div>
+          <div class="flex items-center justify-between gap-2">
+            <p class="text-xs font-medium">Mode test Discord</p>
+            <LToggle :model-value="store.partage.discordTestMode" @update:model-value="(v: boolean) => { store.partage.discordTestMode = v; store.markDirty() }" />
+          </div>
+        </div>
       </LCard>
     </div>
 

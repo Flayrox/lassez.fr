@@ -1,63 +1,132 @@
-# Labo L'Assez — config pro (Go + Vue)
-# Articles → qoe.fi (mock tant que PUB_ID pas créé), comprendre/mini-news → local SQLite
+# Labo — config réelle migrée depuis la DB VPS (radar.db 04/08/2026)
+# Chaque valeur = ce qui tournait vraiment. Rien d'inventé.
 
 ingestion:
-  timeWindowHours: 12
-  rssLookbackHours: 10
+  timeWindowHours: 10        # rss_lookback_hours = 10
+  maxArticlesPerScan: 20     # daemon_rss_max_articles = 20
+  concurrency: 5             # pLimit historique du code TS
   sources:
     rss:
+      - https://www.france24.com/en/rss
+      - https://www.rfi.fr/en/rss
       - https://www.lemonde.fr/rss/une.xml
       - https://www.mediapart.fr/articles/feed
       - https://www.francetvinfo.fr/titres.rss
       - https://www.humanite.fr/rss
-    telegram: []
+      - https://www.la-croix.com/RSS
+      - http://tempsreel.nouvelobs.com/rss.xml
+      - https://www.blast-info.fr/rss.xml
+      - https://basta.media/spip.php?page=backend
+      - https://reporterre.net/spip.php?page=backend
+    telegram: []             # via RSS-Bridge local (localhost:3300) — comptes X suivis :
+    xAccounts:               # x_accounts (passaient par TwitterBridge en Atom)
+      - JLMelenchon
+      - MathildePanot
+      - RimaHas
+      - Manuel_Bompard
+      - FranceInsoumise
+      - ImpactMediaFR
     googleNews: []
-  concurrency: 5
 
 dedup:
-  similarityThreshold: 0.45
-  lookbackHours: 48
+  similarityThreshold: 0.65  # dedup_similarity_threshold = 0.65
+  lookbackHours: 10          # dedup_recent_hours = 10
   purgeSeenUrlsDays: 7
 
 research:
-  aiModelFlash: gemini-3-flash-preview
+  aiModelFlash: gemini-3-flash-preview   # ai_model_main / ai_model_breaking
+  aiModelDecrypt: gemini-2.5-pro         # ai_model_decrypt
   maxConcurrentTasks: 5
   scoreThreshold: 50
-  systemPrompt: "Tu es rédacteur en chef d'investigation. Trie la valeur journalistique."
-  rejectCriteria: "Rejeter faits divers mineurs, pub déguisée, annonces corporate triviales."
+  webSearchEnabled: true     # google_search_*_enabled = true (x3)
+  systemPrompt: ""           # ai_prompt_relevance vide → fallback code
+  rejectCriteria: ""         # idem
 
 editorial:
-  aiModelPro: gemini-3.1-pro-preview
+  aiModelPro: gemini-2.5-pro          # ai_model_standard ; le graphe utilisait gemini-3.1-pro-preview pour researcher
   maxConcurrentTasks: 3
-  baseIdentity: "Tu es rédacteur en chef de L'Assez. Style percutant, analytique, sans langue de bois."
-  researchMission: "Transformer le brut en investigation étayée."
-  vocabularyRules: "Vocabulaire précis, incisif, factuel. Pas de sensationnalisme gratuit."
-  imageRules: "Mots-clés d'illustration sobres et évocateurs."
+  baseIdentity: ""
+  researchMission: ""
+  vocabularyRules: ""
+  imageRules: ""
+  customModifier: ""         # ai_prompt global vide
+
+formats:                     # types_ouverture observés + daemon_rss_types
+  - id: ALERTE_INFO
+    nom: "🔴 ALERTE INFO !"
+    actif: true              # seul type actif dans social_targets
+    couleur: "#DC2626"
+    consigne: ""             # ai_prompt_breaking vide → fallback
+  - id: FAIT_DU_JOUR
+    nom: "📌 LE FAIT DU JOUR"
+    actif: false
+    couleur: "#111111"
+    consigne: ""
+  - id: DECRYPTAGE
+    nom: "🔎 DÉCRYPTAGE"
+    actif: false
+    couleur: "#7c3aed"
+    consigne: ""
 
 publisher:
-  enableDiscord: true
-  enableQoe: true  # qoe.fi (mock si QOE_MOCK=true)
-  enableX: false
-  enableBluesky: false
-  enableMastodon: false
+  enableDiscord: true        # social_discord_enabled = true (+ test mode)
+  discordTestMode: true      # discord_test_mode = true
+  enableQoe: true            # remplace enablePayloadCMS
+  enableX: false             # social_twitter_enabled = false
+  enableBluesky: false       # social_bluesky_enabled = false
+  enableMastodon: false      # social_mastodon_enabled = false
   discordPublishMode: DIRECT
   qoePublishMode: DIRECT
-  minDelayMinutes: 60
-  maxDelayMinutes: 120
-  enableAutoPublish: true
+  minDelayMinutes: 1         # min_delay_min = 1
+  maxDelayMinutes: 2         # max_delay_min = 2
+  enableAutoPublish: false   # auto_pilot_enabled = false !
+  targetsByType:             # social_targets_by_type_json réel
+    "🔴 ALERTE INFO !":
+      discord: true
+      qoe: true
+      x: false
+      bluesky: false
+      mastodon: false
 
 scheduling:
-  mode: hybrid # pulse | calendar | hybrid
-  scrapingIntervalMinutes: 60
-  daemonSchedule: "LUN,MAR,MER,JEU,VEN 08:00"
+  mode: calendar             # interval désactivé, schedule actif
+  scrapingIntervalMinutes: 6 # scan_interval_hours = 0.1 h
+  # daemon_rss_schedule_times = 20:08 quotidien → représenté dans weeklySlots
+  weeklySlots:
+    - { day: LUN, time: "20:08" }
+    - { day: MAR, time: "20:08" }
+    - { day: MER, time: "20:08" }
+    - { day: JEU, time: "20:08" }
+    - { day: VEN, time: "20:08" }
+    - { day: SAM, time: "20:08" }
+    - { day: DIM, time: "20:08" }
+  timezone: Europe/Paris
 
-pipeline:
-  # Graphe Vue Flow (activeNodes = types présents)
-  graphJson: '{"nodes":[{"type":"ingestion"},{"type":"dedup"},{"type":"research"},{"type":"editor"},{"type":"validator"},{"type":"media"},{"type":"publisher"}]}'
+media:
+  overlayEnabled: true       # image_overlay_enabled
+  overlayOpacity: 0.5        # image_overlay_opacity
+  boxScale169: 0.78          # image_box_scale_169
+  boxScale11: 0.78           # image_box_scale_1x1
 
-qoe:
-  mock: true # passer à false quand QOE_API_KEY + QOE_PUBLICATION_ID en .env
-  baseUrl: https://api.qoe.fi/v1
+video:
+  ingestEnabled: false       # video_ingest_enabled
+  prefilterModel: gemini-2.0-flash
+  transcribeModel: gemini-2.0-flash
+  prefilterPrompt: "Ce message Telegram parle-t-il de politique, de mouvements sociaux, de justice ou d un evenement d interet public ? Reponds uniquement par OUI ou NON."
+  maxAudioMb: 20
 
-storage:
-  sqlitePath: ./data/radar.db # seenUrls + publications queue + lessons/mini-news
+trustMap:                    # source_trust_map — 🟢 haute / 🟡 moyenne / 🔴 faible
+  high: [mediapart, humanite, humanité, blast, reporterre, basta, politis, arretsurimages, "arrêt sur images", 972mag, amnesty, hrw, btselem, fidh, phr, palestinechronicle, wafa, palinfo, maannews, franceinsoumise, jlmelenchon, mathildepanot, rimahas, manuel_bompard, impactmediafr]
+  medium: [france24, rfi, francetvinfo, lemonde, leparisien, lacroix, la-croix, rtl, nouvelobs, globalvoices, thenewhumanitarian, theconversation, chathamhouse, haaretz, un.org, brevesdepresse, alertesinfos, mediavenir]
+  low: [lefigaro, figaro, cnews, cnews_fr, bfmtv, bfm, bfmtv_fr, freedomhouse]
+
+system:
+  logLevel: INFO
+  logRetentionDays: 7
+  maintenanceMode: false
+  maintenanceMessage: "L'Assez fait peau neuve. Nous revenons dans quelques instants pour encore plus d'investigations radicalement indépendantes."
+
+elections:                   # conservé tel quel — traitement spécial prévu plus tard
+  targetSlug: municipales-2026
+  frontDisplaySlugs: [municipales-2026]
+  intervalHours: 0.5

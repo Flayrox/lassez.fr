@@ -77,7 +77,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useConfigStore } from '../stores/config'
+import { useConfigStore, DAYS } from '../stores/config'
 import { useSignalsStore } from '../stores/signals'
 import LCard from '../components/ui/LCard.vue'
 import LBadge from '../components/ui/LBadge.vue'
@@ -104,11 +104,18 @@ const cards = computed(() => [
   { label: 'Publication', value: 'Test', sub: 'qoe.fi non branché', class: 'text-text-2' },
 ])
 
-const planningLabel = computed(() =>
-  store.planning.mode === 'pulse'
-    ? `Toutes les ${store.planning.intervalleMinutes} min`
-    : store.planning.mode === 'calendar'
-      ? `À ${store.planning.heures}`
-      : `Toutes les ${store.planning.intervalleMinutes} min + à ${store.planning.heures}`
-)
+const planningLabel = computed(() => {
+  const slots = store.planning.weeklySlots
+  if (store.planning.mode === 'pulse') return `Toutes les ${store.planning.intervalleMinutes} min`
+  if (slots.length === 0) return 'Aucun créneau configuré'
+  // Groupe par heure pour un résumé court : "tous les jours à 20:08" / "LUN, MAR à 08:00"
+  const times = [...new Set(slots.map(s => s.time))]
+  const daysByTime = times.map(t => ({ t, days: slots.filter(s => s.time === t).map(s => s.day) }))
+  const allDays = DAYS.length === daysByTime[0]?.days.length && times.length === 1
+    ? true
+    : false
+  if (allDays) return `Tous les jours à ${times[0]}`
+  return prefix + daysByTime.map(({ t, days }) => `${days.join(', ')} à ${t}`).join(' · ')
+})
+const prefix = computed(() => (store.planning.mode === 'hybrid' ? `+ intervalle ${store.planning.intervalleMinutes} min : ` : ''))
 </script>

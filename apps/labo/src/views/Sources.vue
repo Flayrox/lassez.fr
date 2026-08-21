@@ -3,65 +3,146 @@
     <div class="flex items-center justify-between">
       <div>
         <h1 class="text-lg font-semibold">Sources</h1>
-        <p class="text-xs text-text-3 mt-0.5">D'où viennent les infos — ajoute ou retire des journaux d'un clic</p>
+        <p class="text-xs text-text-3 mt-0.5">D'où viennent les infos — clique le point de fiabilité pour la changer</p>
       </div>
-      <LButton variant="secondary" @click="importOpen = true">⤓ Importer CSV</LButton>
-    </div>
-
-    <div class="grid lg:grid-cols-2 gap-4">
-      <LCard title="Journaux et sites" description="Adresses RSS, 1 par ligne">
-        <textarea v-model="store.sources.rss" rows="12" class="w-full bg-bg border border-border rounded px-3 py-2 text-xs font-mono text-text-1 focus:outline-none focus:border-accent/60 focus:ring-2 focus:ring-accent/20" />
-        <p class="text-[11px] text-text-3 mt-2">{{ rssCount }} sources actives</p>
-      </LCard>
-
-      <div class="space-y-4">
-        <LCard title="Chaînes Telegram" description="Sans @, 1 par ligne">
-          <textarea v-model="store.sources.telegram" rows="6" class="w-full bg-bg border border-border rounded px-3 py-2 text-xs font-mono text-text-1 focus:outline-none focus:border-accent/60 focus:ring-2 focus:ring-accent/20" />
-          <p class="text-[11px] text-text-3 mt-2">{{ tgCount }} chaînes</p>
-        </LCard>
-        <LCard title="Comptes X à suivre" description="Via RSS-Bridge local, 1 handle par ligne (sans @)">
-          <textarea v-model="store.sources.xAccounts" rows="6" class="w-full bg-bg border border-border rounded px-3 py-2 text-xs font-mono text-text-1 focus:outline-none focus:border-accent/60 focus:ring-2 focus:ring-accent/20" />
-          <p class="text-[11px] text-text-3 mt-2">{{ xCount }} comptes</p>
-        </LCard>
-        <LCard title="Recherches Google News" description="Un mot-clé par ligne (optionnel)">
-          <textarea v-model="store.sources.googleNews" rows="3" placeholder="ex : climat" class="w-full bg-bg border border-border rounded px-3 py-2 text-xs font-mono text-text-1 placeholder:text-text-3 focus:outline-none focus:border-accent/60 focus:ring-2 focus:ring-accent/20" />
-        </LCard>
+      <div class="flex gap-2">
+        <LButton variant="secondary" @click="importOpen = true">⤓ Importer</LButton>
+        <LButton @click="addOpen = true">+ Ajouter</LButton>
       </div>
     </div>
 
-    <div class="grid md:grid-cols-2 gap-4">
-      <LCard title="Regarder combien d'heures en arrière" description="10 h = on ne prend que le très récent">
-        <input type="number" v-model.number="store.sources.lookbackHours" class="w-full h-8 bg-bg border border-border rounded px-2.5 text-sm focus:outline-none focus:border-accent/60" />
-      </LCard>
-      <LCard title="Charger combien de sources à la fois" description="5 = rapide sans surcharger les serveurs">
-        <input type="number" v-model.number="store.sources.concurrency" class="w-full h-8 bg-bg border border-border rounded px-2.5 text-sm focus:outline-none focus:border-accent/60" />
-      </LCard>
-    </div>
+    <LCard :padding="false">
+      <!-- Toolbar -->
+      <div class="px-4 pt-3 pb-3 flex flex-wrap items-center gap-2">
+        <div class="flex items-center gap-2 h-8 px-2.5 rounded border border-border bg-bg flex-1 max-w-xs">
+          <span class="text-text-3 text-xs">⌕</span>
+          <input v-model="search" placeholder="Rechercher une source…" class="bg-transparent outline-none text-xs text-text-1 placeholder:text-text-3 w-full" />
+        </div>
+        <!-- Filtro fiabilité -->
+        <div class="flex bg-bg border border-border rounded overflow-hidden">
+          <button v-for="f in trustFilters" :key="f.key" @click="trustFilter = f.key"
+            class="px-2.5 h-8 text-[11px] font-medium transition-colors inline-flex items-center gap-1.5"
+            :class="trustFilter === f.key ? 'bg-surface-hover text-text-1' : 'text-text-3 hover:text-text-2'">
+            <span v-if="f.key !== 'all'" class="w-1.5 h-1.5 rounded-full" :class="dotClass(f.key)"></span>{{ f.label }}
+          </button>
+        </div>
+        <span class="ml-auto text-[11px] text-text-3">{{ filtered.length }}/{{ store.sources.list.length }} sources · {{ activeCount }} actives</span>
+      </div>
 
-    <!-- Santé des sources -->
-    <LCard title="Santé des sources" description="Flux en échec au dernier passage">
-      <table class="w-full text-left text-xs">
-        <thead><tr class="text-[10px] uppercase tracking-wider text-text-3 border-b border-border">
-          <th class="py-2 pr-3 font-medium">Adresse</th><th class="py-2 pr-3 font-medium">Statut</th><th class="py-2 pr-3 font-medium">Erreur</th><th></th>
-        </tr></thead>
+      <!-- Table -->
+      <table class="w-full text-left border-collapse">
+        <thead>
+          <tr class="border-y border-border text-[10px] uppercase tracking-wider text-text-3">
+            <th class="px-4 py-2 font-medium w-24">Fiabilité</th>
+            <th class="py-2 pr-3 font-medium">Source</th>
+            <th class="py-2 pr-3 font-medium hidden md:table-cell">Santé</th>
+            <th class="py-2 pr-3 font-medium">Active</th>
+            <th class="py-2 px-3"></th>
+          </tr>
+        </thead>
         <tbody>
-          <tr v-for="(f, i) in failedSources" :key="i" class="border-b border-border/50 hover:bg-surface-hover/50 transition-colors">
-            <td class="py-2 pr-3 font-mono text-text-2 truncate max-w-xs">{{ f.url }}</td>
-            <td class="py-2 pr-3"><LBadge variant="danger">En échec</LBadge></td>
-            <td class="py-2 pr-3 text-text-3">{{ f.error }}</td>
-            <td class="py-2"><LButton variant="ghost" @click="">Réessayer</LButton></td>
+          <tr v-for="s in filtered" :key="s.id" class="border-b border-border/50 hover:bg-surface-hover/50 transition-colors group">
+            <!-- Trust dot : clic pour cycler -->
+            <td class="pl-4 py-2">
+              <button @click="cycleTrust(s.id)" :title="`Fiabilité ${trustLabel(s.trust)} — cliquer pour changer`"
+                class="inline-flex items-center gap-1.5 px-1.5 py-0.5 rounded hover:bg-surface-hover transition-colors">
+                <span class="w-2 h-2 rounded-full" :class="dotClass(s.trust)"></span>
+                <span class="text-[11px] capitalize text-text-2">{{ trustLabel(s.trust) }}</span>
+              </button>
+            </td>
+            <td class="py-2.5 pr-3 min-w-0">
+              <p class="text-xs font-medium truncate">{{ hostOf(s.url) }}</p>
+              <a :href="s.url" target="_blank" rel="noopener" class="text-[11px] text-text-3 hover:text-info transition-colors line-clamp-1">{{ s.url }}</a>
+            </td>
+            <td class="py-2.5 pr-3 hidden md:table-cell"><LBadge :variant="healthOf(s.url).variant">{{ healthOf(s.url).label }}</LBadge></td>
+            <td class="py-2.5 pr-3"><LToggle :model-value="s.active" @update:model-value="(v: boolean) => setActive(s.id, v)" /></td>
+            <td class="py-2.5 px-3">
+              <div class="flex justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+                <LButton variant="ghost" @click="removeOne(s.id)" title="Supprimer">🗑</LButton>
+              </div>
+            </td>
           </tr>
         </tbody>
       </table>
+
+      <LEmpty v-if="filtered.length === 0 && !store.loading" icon="◎" title="Aucune source"
+        description="Ajoute des flux RSS ou importe une liste d'un coup.">
+        <template #action><LButton @click="addOpen = true">+ Ajouter une source</LButton></template>
+      </LEmpty>
     </LCard>
 
-    <!-- Import CSV modal -->
-    <LModal :open="importOpen" title="Importer des sources depuis un CSV" @close="importOpen = false">
-      <p class="text-xs text-text-2 mb-3">Colle une liste d'URLs (une par ligne). Elles seront ajoutées aux sources existantes.</p>
+    <!-- Comptes X / Telegram / Google News -->
+    <div class="grid lg:grid-cols-2 gap-4">
+      <LCard title="Chaînes Telegram" description="Sans @, 1 par ligne">
+        <textarea v-model="store.sources.telegram" rows="4" class="w-full bg-bg border border-border rounded px-3 py-2 text-xs font-mono text-text-1 focus:outline-none focus:border-accent/60 focus:ring-2 focus:ring-accent/20" />
+      </LCard>
+      <LCard title="Comptes X à suivre" description="Via RSS-Bridge, handles sans @, 1 par ligne">
+        <textarea v-model="store.sources.xAccounts" rows="4" class="w-full bg-bg border border-border rounded px-3 py-2 text-xs font-mono text-text-1 focus:outline-none focus:border-accent/60 focus:ring-2 focus:ring-accent/20" />
+      </LCard>
+      <LCard title="Recherches Google News" description="Un mot-clé par ligne (optionnel)">
+        <textarea v-model="store.sources.googleNews" rows="3" placeholder="ex : climat" class="w-full bg-bg border border-border rounded px-3 py-2 text-xs font-mono text-text-1 placeholder:text-text-3 focus:outline-none focus:border-accent/60 focus:ring-2 focus:ring-accent/20" />
+      </LCard>
+      <LCard title="Serveur RSS-Bridge" description="Convertit les comptes X en flux RSS — requis si tu suis des comptes X">
+        <LInput v-model="bridgeProxy" />
+        <p class="text-[11px] text-text-3 mt-2">Par défaut sur ta machine : http://localhost:3300</p>
+      </LCard>
+    </div>
+
+    <!-- Vidéos Telegram -->
+    <LCard title="Vidéos Telegram" description="Transcription automatique des vidéos publiées dans les chaînes suivies">
+      <div class="space-y-3">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-sm font-medium">Activer l'ingestion vidéo</p>
+            <p class="text-[11px] text-text-3">Plus lourd — à activer seulement si besoin</p>
+          </div>
+          <LToggle :model-value="store.video.ingestEnabled" @update:model-value="(v: boolean) => { store.video.ingestEnabled = v; store.markDirty() }" />
+        </div>
+        <template v-if="store.video.ingestEnabled">
+          <div class="grid md:grid-cols-2 gap-3">
+            <div>
+              <p class="text-xs font-medium mb-1">Modèle de pré-filtre</p>
+              <select v-model="store.video.prefilterModel" class="w-full h-8 bg-bg border border-border rounded px-2 text-xs focus:outline-none focus:border-accent/60">
+                <option>gemini-2.0-flash</option><option>gemini-3-flash-preview</option>
+              </select>
+            </div>
+            <div>
+              <p class="text-xs font-medium mb-1">Modèle de transcription</p>
+              <select v-model="store.video.transcribeModel" class="w-full h-8 bg-bg border border-border rounded px-2 text-xs focus:outline-none focus:border-accent/60">
+                <option>gemini-2.0-flash</option><option>gemini-3-flash-preview</option>
+              </select>
+            </div>
+          </div>
+          <LTextarea label="Question de pré-filtre" help="L'IA répond OUI ou NON — OUI = la vidéo est transcrite" :rows="2" v-model="videoPromptProxy" />
+          <LInput label="Taille audio maximum (Mo)" type="number" v-model.number="store.video.maxAudioMb" />
+        </template>
+      </div>
+    </LCard>
+
+    <!-- Modal ajouter -->
+    <LModal :open="addOpen" title="Ajouter une source" @close="addOpen = false">
+      <div class="space-y-3">
+        <LInput label="Adresse du flux RSS" placeholder="https://exemple.com/rss" v-model="newUrl" />
+        <div v-if="newUrl.trim()" class="text-xs text-text-2 flex items-center gap-2">
+          Fiabilité détectée :
+          <span class="inline-flex items-center gap-1.5"><span class="w-2 h-2 rounded-full" :class="dotClass(detectTrust(newUrl))"></span>{{ trustLabel(detectTrust(newUrl)) }}</span>
+          <span class="text-text-3">— modifiable après</span>
+        </div>
+        <p v-if="duplicateError" class="text-xs text-danger">{{ duplicateError }}</p>
+      </div>
+      <template #footer>
+        <LButton variant="secondary" @click="addOpen = false">Annuler</LButton>
+        <LButton :disabled="!newUrl.trim() || !!duplicateError" @click="confirmAdd">Ajouter</LButton>
+      </template>
+    </LModal>
+
+    <!-- Modal importer -->
+    <LModal :open="importOpen" title="Importer des sources" wide @close="importOpen = false">
+      <p class="text-xs text-text-2 mb-3">Colle une liste d'URLs (une par ligne). Les doublons sont ignorés, la fiabilité détectée automatiquement.</p>
       <LTextarea v-model="csvPaste" :rows="8" placeholder="https://exemple.com/rss&#10;https://autre.fr/feed" />
       <template #footer>
         <LButton variant="secondary" @click="importOpen = false">Annuler</LButton>
-        <LButton @click="doImport">Importer {{ csvLines }} URL{{ csvLines > 1 ? 's' : '' }}</LButton>
+        <LButton :disabled="csvLines === 0" @click="doImport">Importer {{ csvLines }} URL{{ csvLines > 1 ? 's' : '' }}</LButton>
       </template>
     </LModal>
   </div>
@@ -69,37 +150,113 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { useConfigStore } from '../stores/config'
+import { useConfigStore, detectTrust, hostOf } from '../stores/config'
 import LCard from '../components/ui/LCard.vue'
 import LButton from '../components/ui/LButton.vue'
 import LBadge from '../components/ui/LBadge.vue'
-import LModal from '../components/ui/LModal.vue'
+import LToggle from '../components/ui/LToggle.vue'
+import LInput from '../components/ui/LInput.vue'
 import LTextarea from '../components/ui/LTextarea.vue'
+import LModal from '../components/ui/LModal.vue'
+import LEmpty from '../components/ui/LEmpty.vue'
 
 const store = useConfigStore()
+const search = ref('')
+const trustFilter = ref<'all' | 'high' | 'medium' | 'low'>('all')
+const addOpen = ref(false)
 const importOpen = ref(false)
+const newUrl = ref('')
 const csvPaste = ref('')
-const csvLines = computed(() => csvPaste.value.split('\n').filter(s => s.trim()).length)
 
-const rssCount = computed(() => store.sources.rss.split('\n').filter(s => s.trim()).length)
-const tgCount = computed(() => store.sources.telegram.split('\n').filter(s => s.trim()).length)
-const xCount = computed(() => store.sources.xAccounts?.split('\n').filter(s => s.trim()).length ?? 0)
-
-const failedSources = [
-  { url: 'https://www.rtl.fr/actu/rss', error: 'HTTP 404' },
-  { url: 'https://www.fidh.org/en/rss', error: 'HTTP 404' },
-  { url: 'https://www.amnesty.org/en/feed/', error: 'HTTP 403' },
+// Échecs réels du dernier scan VPS — plus tard : venus de GET /api/sources-health
+const FAILED = [
+  'https://www.rtl.fr/actu/rss',
+  'https://www.arretsurimages.net/rss',
+  'https://www.politis.fr/feed/',
+  'https://www.palestinechronicle.com/feed/',
 ]
 
+const filtered = computed(() =>
+  store.sources.list.filter(s => {
+    if (trustFilter.value !== 'all' && s.trust !== trustFilter.value) return false
+    if (search.value.trim()) {
+      const hay = `${hostOf(s.url)} ${s.url}`.toLowerCase()
+      if (!hay.includes(search.value.toLowerCase())) return false
+    }
+    return true
+  })
+)
+const activeCount = computed(() => store.sources.list.filter(s => s.active).length)
+const csvLines = computed(() => csvPaste.value.split('\n').filter(s => s.trim()).length)
+const duplicateError = computed(() => {
+  const u = newUrl.value.trim().toLowerCase()
+  if (!u) return ''
+  return store.sources.list.some(s => s.url.toLowerCase() === u) ? 'Cette source existe déjà.' : ''
+})
+
+const bridgeProxy = computed({
+  get: () => store.sources.bridgeUrl,
+  set: (v: string) => { store.sources.bridgeUrl = v; store.markDirty() },
+})
+const videoPromptProxy = computed({
+  get: () => store.video.prefilterPrompt,
+  set: (v: string) => { store.video.prefilterPrompt = v; store.markDirty() },
+})
+
+const trustFilters = [
+  { key: 'all', label: 'Toutes' },
+  { key: 'high', label: 'Haute' },
+  { key: 'medium', label: 'Moyenne' },
+  { key: 'low', label: 'Faible' },
+] as const
+
+function dotClass(t: string) {
+  return t === 'high' ? 'bg-accent' : t === 'medium' ? 'bg-warning' : 'bg-danger'
+}
+function trustLabel(t: string) {
+  return t === 'high' ? 'haute' : t === 'medium' ? 'moyenne' : 'faible'
+}
+function cycleTrust(id: string) {
+  const s = store.sources.list.find(x => x.id === id)
+  if (!s) return
+  s.trust = s.trust === 'high' ? 'medium' : s.trust === 'medium' ? 'low' : 'high'
+  store.markDirty()
+}
+function setActive(id: string, v: boolean) {
+  const s = store.sources.list.find(x => x.id === id)
+  if (s) { s.active = v; store.markDirty() }
+}
+function removeOne(id: string) {
+  store.sources.list = store.sources.list.filter(x => x.id !== id)
+  store.markDirty()
+}
+function confirmAdd() {
+  const url = newUrl.value.trim()
+  if (!url || duplicateError.value) return
+  store.sources.list.unshift({ id: Math.random().toString(36).slice(2, 9), url, trust: detectTrust(url), active: true })
+  store.markDirty()
+  newUrl.value = ''
+  addOpen.value = false
+}
 function doImport() {
-  const urls = csvPaste.value.split('\n').map(s => s.trim()).filter(Boolean)
-  const existing = new Set(store.sources.rss.split('\n').map(s => s.trim()))
-  const added = urls.filter(u => !existing.has(u))
-  if (added.length) {
-    store.sources.rss = [...store.sources.rss.split('\n').filter(s => s.trim()), ...added].join('\n')
-    store.markDirty()
+  const urls = csvPaste.value.split('\n').map(u => u.trim()).filter(Boolean)
+  const existing = new Set(store.sources.list.map(s => s.url.toLowerCase()))
+  let added = 0
+  for (const url of urls) {
+    if (existing.has(url.toLowerCase())) continue
+    existing.add(url.toLowerCase())
+    store.sources.list.push({ id: Math.random().toString(36).slice(2, 9), url, trust: detectTrust(url), active: true })
+    added++
   }
+  if (added > 0) store.markDirty()
   csvPaste.value = ''
   importOpen.value = false
+}
+
+// Santé : réelle plus tard via l'API daemon ; en attendant les échecs connus du VPS
+function healthOf(url: string): { variant: 'success' | 'warning' | 'danger'; label: string } {
+  if (FAILED.includes(url)) return { variant: 'danger', label: 'En échec' }
+  if (!url.startsWith('https://')) return { variant: 'warning', label: 'HTTP' }
+  return { variant: 'success', label: 'OK' }
 }
 </script>

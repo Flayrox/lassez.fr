@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import CommandPalette from './components/CommandPalette.vue'
 
@@ -7,6 +7,10 @@ const route = useRoute()
 const router = useRouter()
 const collapsed = ref(false)
 const qoeMock = ref(true)
+
+// Le thème vit sur <html> (les variables CSS sont déclarées sur :root) —
+// pas sur une div, sinon var(--bg) etc. ne s'appliquent jamais.
+onMounted(() => document.documentElement.setAttribute('data-theme', 'dark'))
 
 const groups = [
   {

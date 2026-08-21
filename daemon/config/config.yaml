@@ -44,6 +44,7 @@ research:
 
 editorial:
   aiModelPro: gemini-2.5-pro          # ai_model_standard ; le graphe utilisait gemini-3.1-pro-preview pour researcher
+  aiModelVerification: gemini-3-flash-preview  # validator (ai_model_main du VPS)
   maxConcurrentTasks: 3
   baseIdentity: ""
   researchMission: ""

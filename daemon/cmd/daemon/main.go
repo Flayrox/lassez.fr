@@ -35,19 +35,32 @@ import (
 
 func main() {
 	// -once : exécute un seul cycle complet (pipeline + publisher) puis sort.
-	// Utilisé par l'endpoint POST /api/payload/radar/trigger (bouton "Nouveau scan").
+	// -config : chemin du YAML de configuration.
 	once := flag.Bool("once", false, "exécuter un seul cycle et sortir")
+	configPath := flag.String("config", "config/config.yaml", "chemin du fichier de configuration YAML")
 	flag.Parse()
 
 	loadEnv()
 
-	client := payload.New("")
-	resolver := config.NewResolver(client)
+	// ── Settings YAML + client local SQLite (plus de Payload) ──
+	resolver := config.NewResolverFromProvider(config.FileProvider(*configPath))
 
 	// ── API HTTP du labo (signaux SQLite local) ──
-	// Le labo (labo.lassez.fr / :2505 en dev) lit et met à jour les signaux ici.
-	if dbPath := os.Getenv("RADAR_DB_PATH"); dbPath != "" {
-		if st, err := store.Open(dbPath); err == nil {
+	dbPath := os.Getenv("RADAR_DB_PATH")
+	if dbPath == "" {
+		dbPath = "../data/radar.db"
+	}
+	localClient, err := payload.NewLocal(dbPath, func() (map[string]any, error) {
+		return resolver.Settings()
+	})
+	if err != nil {
+		log.Fatalf("[Daemon] 💥 SQLite indisponible (%s) : %v", dbPath, err)
+	}
+	client := localClient // même interface que l'ancien client Payload
+
+	{
+		st, err := store.Open(dbPath)
+		if err == nil {
 			go func() {
 				addr := os.Getenv("LABO_API_ADDR")
 				if addr == "" {
@@ -59,44 +72,37 @@ func main() {
 				}
 			}()
 		} else {
-			log.Printf("[Daemon] ⚠️ SQLite indisponible (%s) : %v", dbPath, err)
+			log.Printf("[Daemon] ⚠️ SQLite indisponible pour le labo : %v", err)
 		}
 	}
 
-	// Assure l'existence du global radar-settings AVANT de configurer le
-	// logger : le niveau de journalisation et le miroir Payload y sont lus.
-	if err := client.EnsureSettings(); err != nil {
-		log.Printf("[Daemon] ⚠️ radar-settings introuvables, initialisation : %v", err)
-	} else {
-		log.Printf("[Daemon] radar-settings chargées.")
-	}
 	resolver.Invalidate()
 
 	settings, _ := resolver.Settings()
 	logOpts := logger.Options{
 		Level:         settingString(settings, "logLevel", "INFO"),
-		MirrorPayload: settingBool(settings, "logMirrorPayload", true),
+		MirrorPayload: false, // plus de miroir Payload — fichier daemon.log uniquement
 	}
 
-	// Le logger écrit dans logs/daemon.log (rotation 10 Mo) ET envoie les
-	// entrées dans la collection Payload logs (heartbeat du dashboard).
+	// Logger : fichier logs/daemon.log (rotation 10 Mo). AppendLog du client
+	// local est un no-op conservé pour compat.
 	loggerInstance, err := logger.New(client, "", logOpts)
 	if err != nil {
 		log.Printf("[Daemon] ⚠️ Logger fichier indisponible: %v", err)
 	}
 	defer loggerInstance.Close()
 
-	// Redirige les log.Printf des nœuds vers le logger (fichier + Payload).
+	// Redirige les log.Printf des nœuds vers le logger (fichier).
 	log.SetFlags(0)
 	log.SetOutput(&logRedirect{logger: loggerInstance})
 
 	loggerInstance.Info("Daemon", "==========================================")
 	loggerInstance.Info("Daemon", "   L'ASSEZ - DEMON RADAR (Go)            ")
 	loggerInstance.Info("Daemon", "==========================================")
-	loggerInstance.Info("Daemon", "[Daemon] API Payload : "+client.BaseURL())
-	loggerInstance.Info("Daemon", "[Daemon] Journalisation : niveau="+logOpts.Level+", miroir Payload="+fmt.Sprintf("%t", logOpts.MirrorPayload))
+	loggerInstance.Info("Daemon", "[Daemon] Stockage : "+client.BaseURL())
+	loggerInstance.Info("Daemon", "[Daemon] Journalisation : niveau="+logOpts.Level)
 
-	// Purge périodique des vieux logs Payload (rétention radar-settings).
+	// Purge périodique des vieux journaux (rétention système) — no-op local.
 	go pruneLogsLoop(client, resolver, loggerInstance)
 
 	// Mode one-shot (trigger manuel) : un cycle pipeline + publisher puis exit.
@@ -191,7 +197,7 @@ func pruneLogsLoop(client *payload.Client, resolver *config.Resolver, loggerInst
 		if err := client.PruneLogs(cutoff); err != nil {
 			loggerInstance.Warn("Daemon", "⚠️ Purge des logs échouée : "+err.Error())
 		} else {
-			loggerInstance.Info("Daemon", fmt.Sprintf("🧹 Logs Payload purgés (rétention %d jours).", days))
+			loggerInstance.Warn("Daemon", "🧹 Purge des vieux journaux effectuée.")
 		}
 		resolver.Invalidate()
 	}

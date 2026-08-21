@@ -1,63 +1,42 @@
-// Package payload provides a minimal Payload REST client used by the
-// daemon. It mirrors the behaviour of radar_lassez/lib/payload-client.ts:
-// JWT login against the authors collection, then CRUD on the radar
-// collections (sources, seen-urls, signals) and the radar-settings global.
+// Package payload — COMPAT SHIP LOCAL.
+//
+// Anciennement un client REST vers Payload CMS ; depuis le pivot qoe.fi,
+// ce fichier implémente exactement la même API Go mais tout est stocké
+// localement :
+//   - signaux, seen-urls et publications → SQLite (data/radar.db, tables daemon_*)
+//   - settings → config/config.yaml aplati en map (clés historiques préservées)
+//
+// Les nœuds du pipeline ne changent pas : ils continuent d'appeler
+// client.GetSignalsByStatus / UpdateSignal / CreateSignals / etc.
 package payload
 
 import (
-	"bytes"
+	"database/sql"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"io"
 	"log"
-	"net/http"
-	"net/url"
-	"os"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
+
+	_ "modernc.org/sqlite"
 )
 
-// Client is a thread-safe Payload REST client.
 type Client struct {
-	baseURL        string
-	http           *http.Client
-	mu             sync.Mutex
-	token          string
-	tokenExpiresAt time.Time
-} // ID accepts both string and numeric Payload document ids.
-type ID string
-
-// UnmarshalJSON handles Payload ids that may be numbers or strings.
-func (id *ID) UnmarshalJSON(data []byte) error {
-	var s string
-	if err := json.Unmarshal(data, &s); err == nil {
-		*id = ID(s)
-		return nil
-	}
-	var n json.Number
-	if err := json.Unmarshal(data, &n); err == nil {
-		*id = ID(n.String())
-		return nil
-	}
-	return fmt.Errorf("unsupported id: %s", data)
+	db       *sql.DB
+	settings func() (map[string]any, error)
 }
 
-// Number returns the id as a JSON-safe value: the raw number for numeric
-// Payload ids (serial), the string otherwise. Required because Payload
-// rejects string ids for numeric relationship columns.
-func (id ID) Number() any {
-	n, err := strconv.ParseInt(string(id), 10, 64)
-	if err != nil {
-		return string(id)
-	}
+// ID — identifiant de signal/publication (entier sérialisé en chaîne).
+type ID string
+
+// Number convertit l'ID en entier si possible.
+func (id ID) Number() int64 {
+	n, _ := strconv.ParseInt(string(id), 10, 64)
 	return n
 }
 
-// Signal mirrors a document of the Payload "signals" collection. RawData
-// keeps the raw JSON so nodes can extract fields like clusterTitle.
+// Signal — document du pipeline (miroir de l'ancienne collection Payload).
 type Signal struct {
 	ID         ID              `json:"id"`
 	RawData    json.RawMessage `json:"raw_data"`
@@ -69,8 +48,6 @@ type Signal struct {
 	ImageURL   string          `json:"image_url"`
 }
 
-// TaxonomyTemplate mirrors a document of the "taxonomy-templates"
-// collection, with the fields the pipeline needs.
 type TaxonomyTemplate struct {
 	Name        string `json:"name"`
 	DisplayName string `json:"display_name"`
@@ -79,7 +56,6 @@ type TaxonomyTemplate struct {
 	SortOrder   int    `json:"sort_order"`
 }
 
-// Source mirrors a document of the Payload "sources" collection.
 type Source struct {
 	ID                ID     `json:"id"`
 	URL               string `json:"url"`
@@ -89,411 +65,8 @@ type Source struct {
 	TrustScore        int    `json:"trust_score"`
 	AllowSourceImages bool   `json:"allow_source_images"`
 	Active            bool   `json:"active"`
-	HealthStatus      string `json:"health_status"`
 }
 
-// DefaultBaseURL resolves the Payload API base from the environment using
-// the same cascade as the TS client: PAYLOAD_API_URL > PAYLOAD_URL >
-// PAYLOAD_SERVER_URL, with a /api/payload suffix appended when missing.
-func DefaultBaseURL() string {
-	base := firstEnv("PAYLOAD_API_URL", "PAYLOAD_URL", "PAYLOAD_SERVER_URL")
-	if base == "" {
-		base = "http://localhost:5173"
-	}
-	base = strings.TrimRight(base, "/")
-	if !strings.Contains(base, "/api/payload") {
-		base += "/api/payload"
-	}
-	return base
-}
-
-// New creates a Client. An empty baseURL falls back to DefaultBaseURL.
-func New(baseURL string) *Client {
-	if baseURL == "" {
-		baseURL = DefaultBaseURL()
-	}
-	return &Client{
-		baseURL: baseURL,
-		http:    &http.Client{Timeout: 30 * time.Second},
-	}
-}
-
-func (c *Client) BaseURL() string { return c.baseURL }
-
-// HTTP exposes the underlying http.Client (shared timeouts) for outbound
-// calls that are not Payload API calls, e.g. webhook pushes.
-func (c *Client) HTTP() *http.Client { return c.http }
-
-// login authenticates against the authors collection and caches the JWT.
-func (c *Client) login() (string, error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	if c.token != "" && time.Now().Before(c.tokenExpiresAt) {
-		return c.token, nil
-	}
-
-	email := firstEnv("PAYLOAD_ADMIN_EMAIL", "PAYLOAD_BOT_EMAIL")
-	if email == "" {
-		email = "bot@lassez.fr"
-	}
-	password := firstEnv("PAYLOAD_ADMIN_PASSWORD", "PAYLOAD_BOT_PASSWORD")
-
-	body, _ := json.Marshal(map[string]string{"email": email, "password": password})
-	resp, err := c.http.Post(c.baseURL+"/authors/login", "application/json", bytes.NewReader(body))
-	if err != nil {
-		return "", fmt.Errorf("payload login: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		data, _ := io.ReadAll(io.LimitReader(resp.Body, 300))
-		return "", fmt.Errorf("payload login failed (HTTP %d): %s", resp.StatusCode, data)
-	}
-
-	var out struct {
-		Token string `json:"token"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
-		return "", fmt.Errorf("decode login: %w", err)
-	}
-	if out.Token == "" {
-		return "", fmt.Errorf("payload login: no token received")
-	}
-
-	c.token = out.Token
-	c.tokenExpiresAt = time.Now().Add(90 * time.Minute)
-	return c.token, nil
-}
-
-// apiError marks a non-2xx HTTP response so the retry logic can tell server
-// errors (5xx) apart from client errors and network failures.
-type apiError struct {
-	status int
-	msg    string
-}
-
-func (e *apiError) Error() string { return e.msg }
-
-// request performs an authenticated request. On a 401 it refreshes the token
-// once and retries, mirroring the TS client. Idempotent methods (GET, PATCH,
-// DELETE) additionally retry transient failures (5xx, network errors) with
-// backoff; POSTs are never retried to avoid creating duplicate documents.
-func (c *Client) request(method, path string, body any, retry bool) ([]byte, error) {
-	const maxAttempts = 3
-	var lastErr error
-	for attempt := 1; attempt <= maxAttempts; attempt++ {
-		data, err := c.requestOnce(method, path, body, retry)
-		if err == nil {
-			return data, nil
-		}
-		lastErr = err
-		if attempt == maxAttempts || !shouldRetry(method, err) {
-			break
-		}
-		time.Sleep(time.Duration(attempt) * time.Second)
-	}
-	return nil, lastErr
-}
-
-func shouldRetry(method string, err error) bool {
-	switch method {
-	case http.MethodGet, http.MethodPatch, http.MethodDelete:
-	default:
-		return false
-	}
-	var ae *apiError
-	if errors.As(err, &ae) {
-		return ae.status >= 500
-	}
-	// Network-level failure (timeout, refused, reset): safe to retry.
-	return true
-}
-
-func (c *Client) requestOnce(method, path string, body any, retry bool) ([]byte, error) {
-	token, err := c.login()
-	if err != nil {
-		return nil, err
-	}
-
-	var reader io.Reader
-	if body != nil {
-		b, err := json.Marshal(body)
-		if err != nil {
-			return nil, fmt.Errorf("marshal body: %w", err)
-		}
-		reader = bytes.NewReader(b)
-	}
-
-	req, err := http.NewRequest(method, c.baseURL+path, reader)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "JWT "+token)
-
-	resp, err := c.http.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	data, _ := io.ReadAll(resp.Body)
-
-	if resp.StatusCode == http.StatusUnauthorized && retry {
-		c.mu.Lock()
-		c.token = ""
-		c.tokenExpiresAt = time.Time{}
-		c.mu.Unlock()
-		return c.requestOnce(method, path, body, false)
-	}
-
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, &apiError{status: resp.StatusCode, msg: fmt.Sprintf("payload %s %s (HTTP %d): %s", method, path, resp.StatusCode, truncate(string(data), 300))}
-	}
-	return data, nil
-}
-
-// GetSettings reads the radar-settings global. It returns (nil, nil) when
-// the global does not exist yet.
-func (c *Client) GetSettings() (map[string]any, error) {
-	data, err := c.request(http.MethodGet, "/globals/radar-settings", nil, true)
-	if err != nil {
-		if strings.Contains(err.Error(), "404") {
-			return nil, nil
-		}
-		return nil, err
-	}
-	var settings map[string]any
-	if err := json.Unmarshal(data, &settings); err != nil {
-		return nil, fmt.Errorf("decode settings: %w", err)
-	}
-	return settings, nil
-}
-
-// EnsureSettings creates the radar-settings global if it does not exist yet.
-func (c *Client) EnsureSettings() error {
-	current, err := c.GetSettings()
-	if err != nil {
-		return err
-	}
-	if current != nil {
-		return nil
-	}
-	_, err = c.request(http.MethodPost, "/globals/radar-settings", map[string]any{}, true)
-	return err
-}
-
-// UpdateSettings upserts the radar-settings global. Payload updates globals
-// with POST (upsert), not PATCH: a PATCH returns 404 "Route not found".
-func (c *Client) UpdateSettings(data map[string]any) error {
-	_, err := c.request(http.MethodPost, "/globals/radar-settings", data, true)
-	return err
-}
-
-// AppendLog writes one entry to the Payload logs collection. It never fails
-// the caller: logs are best-effort (the heartbeat of the admin dashboard).
-func (c *Client) AppendLog(level, nodeID, message string) {
-	_, err := c.request(http.MethodPost, "/logs", map[string]any{
-		"level":     level,
-		"node_id":   nodeID,
-		"message":   message,
-		"timestamp": time.Now().UTC().Format(time.RFC3339),
-	}, true)
-	if err != nil {
-		log.Printf("[payload] appendLog échoué: %v", err)
-	}
-}
-
-// GetActiveSources returns the active sources of the sources collection.
-func (c *Client) GetActiveSources() ([]Source, error) {
-	data, err := c.request(http.MethodGet, "/sources?where[active][equals]=true&limit=1000&depth=0", nil, true)
-	if err != nil {
-		return nil, err
-	}
-	var out struct {
-		Docs []Source `json:"docs"`
-	}
-	if err := json.Unmarshal(data, &out); err != nil {
-		return nil, fmt.Errorf("decode sources: %w", err)
-	}
-	return out.Docs, nil
-}
-
-// GetSeenURLs returns the list of URLs already observed by the deduplicator.
-func (c *Client) GetSeenURLs() ([]string, error) {
-	data, err := c.request(http.MethodGet, "/seen-urls?limit=0&depth=0&select[url]=true", nil, true)
-	if err != nil {
-		return nil, err
-	}
-	var out struct {
-		Docs []struct {
-			URL string `json:"url"`
-		} `json:"docs"`
-	}
-	if err := json.Unmarshal(data, &out); err != nil {
-		return nil, fmt.Errorf("decode seen-urls: %w", err)
-	}
-	urls := make([]string, 0, len(out.Docs))
-	for _, d := range out.Docs {
-		urls = append(urls, d.URL)
-	}
-	return urls, nil
-}
-
-// AddSeenURLs registers new URLs, ignoring duplicate-key errors.
-func (c *Client) AddSeenURLs(urls []string) error {
-	for _, u := range urls {
-		_, err := c.request(http.MethodPost, "/seen-urls", map[string]string{"url": u}, true)
-		if err != nil {
-			// Duplicates (unique url) are expected and ignored.
-			continue
-		}
-	}
-	return nil
-}
-
-// PurgeSeenURLs deletes seen-urls older than the given instant.
-func (c *Client) PurgeSeenURLs(before time.Time) error {
-	iso := url.QueryEscape(before.UTC().Format(time.RFC3339))
-	_, err := c.request(http.MethodDelete, "/seen-urls?where[createdAt][less_than]="+iso, nil, true)
-	return err
-}
-
-// PruneLogs deletes Payload logs entries older than the given instant. Used
-// to enforce the radar-settings logRetentionDays retention.
-func (c *Client) PruneLogs(before time.Time) error {
-	iso := url.QueryEscape(before.UTC().Format(time.RFC3339))
-	_, err := c.request(http.MethodDelete, "/logs?where[timestamp][less_than]="+iso, nil, true)
-	return err
-}
-
-// GetSignalsSince returns signals created after the given instant.
-func (c *Client) GetSignalsSince(after time.Time) ([]Signal, error) {
-	iso := url.QueryEscape(after.UTC().Format(time.RFC3339))
-	data, err := c.request(http.MethodGet, "/signals?where[createdAt][greater_than]="+iso+"&limit=1000&depth=0", nil, true)
-	if err != nil {
-		return nil, err
-	}
-	return decodeSignalDocs(data)
-}
-
-// GetSignalsByStatus returns signals with the given status, oldest first.
-func (c *Client) GetSignalsByStatus(status string) ([]Signal, error) {
-	data, err := c.request(http.MethodGet, "/signals?where[status][equals]="+url.QueryEscape(status)+"&limit=500&depth=0&sort=createdAt", nil, true)
-	if err != nil {
-		return nil, err
-	}
-	return decodeSignalDocs(data)
-}
-
-// GetTaxonomyTemplates returns the taxonomy templates, optionally only the
-// active ones, ordered by sort_order.
-func (c *Client) GetTaxonomyTemplates(activeOnly bool) ([]TaxonomyTemplate, error) {
-	where := ""
-	if activeOnly {
-		where = "?where[active][equals]=true"
-	}
-	data, err := c.request(http.MethodGet, "/taxonomy-templates"+where+"&limit=500&depth=0&sort=sort_order", nil, true)
-	if err != nil {
-		return nil, err
-	}
-	var out struct {
-		Docs []TaxonomyTemplate `json:"docs"`
-	}
-	if err := json.Unmarshal(data, &out); err != nil {
-		return nil, fmt.Errorf("decode taxonomy-templates: %w", err)
-	}
-	return out.Docs, nil
-}
-
-// UpdateSignal patches a signal, coercing JSON string fields to objects.
-func (c *Client) UpdateSignal(id ID, data map[string]any) error {
-	out := make(map[string]any, len(data))
-	for k, v := range data {
-		switch k {
-		case "raw_data", "final_draft", "tags":
-			out[k] = coerceJSON(v)
-		default:
-			out[k] = v
-		}
-	}
-	_, err := c.request(http.MethodPatch, "/signals/"+url.PathEscape(string(id)), out, true)
-	return err
-}
-
-func decodeSignalDocs(data []byte) ([]Signal, error) {
-	var out struct {
-		Docs []Signal `json:"docs"`
-	}
-	if err := json.Unmarshal(data, &out); err != nil {
-		return nil, fmt.Errorf("decode signals: %w", err)
-	}
-	return out.Docs, nil
-}
-
-// CreateSignals creates signals in Payload. JSON fields are sent as objects.
-func (c *Client) CreateSignals(rows []map[string]any) error {
-	for _, row := range rows {
-		payload := normalizeSignalRow(row)
-		_, err := c.request(http.MethodPost, "/signals", payload, true)
-		if err != nil {
-			return fmt.Errorf("create signal: %w", err)
-		}
-	}
-	return nil
-}
-
-// normalizeSignalRow applies the same JSON-string coercion the TS client
-// performs on raw_data / final_draft / tags, and derives source_title.
-func normalizeSignalRow(row map[string]any) map[string]any {
-	out := make(map[string]any, len(row)+1)
-	for k, v := range row {
-		switch k {
-		case "raw_data", "final_draft", "tags":
-			out[k] = coerceJSON(v)
-		default:
-			out[k] = v
-		}
-	}
-	if title, _ := out["source_title"].(string); title == "" {
-		out["source_title"] = extractTitle(out["raw_data"])
-	}
-	return out
-}
-
-func coerceJSON(v any) any {
-	if s, ok := v.(string); ok {
-		var parsed any
-		if err := json.Unmarshal([]byte(s), &parsed); err == nil {
-			return parsed
-		}
-		return s
-	}
-	return v
-}
-
-func extractTitle(v any) string {
-	raw, ok := v.(map[string]any)
-	if !ok {
-		if s, ok := v.(string); ok {
-			_ = json.Unmarshal([]byte(s), &raw)
-		}
-	}
-	for _, key := range []string{"clusterTitle", "headline"} {
-		if t, ok := raw[key].(string); ok && t != "" {
-			return t
-		}
-	}
-	return "Sujet sans titre"
-}
-
-// ============================================================
-// PUBLICATIONS (missions de diffusion)
-// ============================================================
-
-// Publication mirrors a document of the Payload "publications" collection.
-// Signal holds the raw JSON of the relationship: a plain id when fetched
-// with depth=0, or the full signal object with depth>=1.
 type Publication struct {
 	ID          ID              `json:"id"`
 	Signal      json.RawMessage `json:"signal"`
@@ -503,8 +76,6 @@ type Publication struct {
 	PublishedAt *time.Time      `json:"published_at"`
 }
 
-// TopicID returns the related signal id whether the relationship was
-// serialized as a string or an object.
 func (p *Publication) TopicID() (ID, bool) {
 	if len(p.Signal) == 0 {
 		return "", false
@@ -522,8 +93,6 @@ func (p *Publication) TopicID() (ID, bool) {
 	return "", false
 }
 
-// Topic returns the embedded signal when the publication was fetched with
-// depth >= 1.
 func (p *Publication) Topic() (*Signal, bool) {
 	var sig Signal
 	if err := json.Unmarshal(p.Signal, &sig); err == nil && sig.ID != "" {
@@ -532,70 +101,353 @@ func (p *Publication) Topic() (*Signal, bool) {
 	return nil, false
 }
 
-// GetPendingSignalsWithoutPublications returns PENDING signals that have no
-// publication yet, mirroring the TS client: fetch pending signals, then
-// exclude those referenced by at least one publication.
-func (c *Client) GetPendingSignalsWithoutPublications() ([]Signal, error) {
-	pending, err := c.GetSignalsByStatus("PENDING")
-	if err != nil {
-		return nil, err
-	}
-	if len(pending) == 0 {
-		return nil, nil
-	}
-
-	ids := make([]string, 0, len(pending))
-	for _, s := range pending {
-		ids = append(ids, string(s.ID))
-	}
-	data, err := c.request(http.MethodGet, "/publications?where[signal][in]="+url.QueryEscape(strings.Join(ids, ","))+"&limit=500&depth=0", nil, true)
-	if err != nil {
-		return nil, err
-	}
-	var out struct {
-		Docs []struct {
-			Signal json.RawMessage `json:"signal"`
-		} `json:"docs"`
-	}
-	if err := json.Unmarshal(data, &out); err != nil {
-		return nil, fmt.Errorf("decode publications: %w", err)
-	}
-
-	withPubs := make(map[string]bool, len(out.Docs))
-	for _, d := range out.Docs {
-		if id, ok := relationshipID(d.Signal); ok {
-			withPubs[id] = true
-		}
-	}
-
-	result := pending[:0]
-	for _, s := range pending {
-		if !withPubs[string(s.ID)] {
-			result = append(result, s)
-		}
-	}
-	return result, nil
+type PublicationInput struct {
+	TopicID     ID
+	Platform    string
+	Status      string
+	ScheduledAt time.Time
 }
 
-// GetSignal returns a single signal by id, or (nil, nil) when not found.
+// ── Construction ────────────────────────────────────────────────────────────
+
+// NewLocal ouvre le SQLite local (tables daemon_*) et branche le provider
+// de settings (config YAML aplatie). WAL activé : lectures du labo pendant
+// que le daemon écrit.
+func NewLocal(dbPath string, settingsProvider func() (map[string]any, error)) (*Client, error) {
+	db, err := sql.Open("sqlite", dbPath+"?mode=rw")
+	if err != nil {
+		return nil, err
+	}
+	db.SetMaxOpenConns(1)
+	for _, pragma := range []string{
+		"PRAGMA journal_mode=WAL",
+		"PRAGMA busy_timeout=5000",
+	} {
+		if _, err := db.Exec(pragma); err != nil {
+			log.Printf("[payload-local] pragma %q : %v", pragma, err)
+		}
+	}
+	c := &Client{db: db, settings: settingsProvider}
+	if err := c.migrate(); err != nil {
+		return nil, fmt.Errorf("migration daemon_* : %w", err)
+	}
+	return c, nil
+}
+
+func (c *Client) migrate() error {
+	stmts := []string{
+		`CREATE TABLE IF NOT EXISTS daemon_signals (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			raw_data TEXT,
+			final_draft TEXT,
+			tags TEXT DEFAULT '[]',
+			status TEXT NOT NULL DEFAULT 'INGESTED',
+			taxonomy TEXT,
+			geo TEXT,
+			image_url TEXT,
+			published_at TEXT,
+			created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_dsignals_status ON daemon_signals(status)`,
+		`CREATE TABLE IF NOT EXISTS daemon_seen_urls (
+			url TEXT PRIMARY KEY,
+			created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+		)`,
+		`CREATE TABLE IF NOT EXISTS daemon_publications (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			topic_id INTEGER NOT NULL,
+			platform TEXT NOT NULL,
+			status TEXT NOT NULL DEFAULT 'PENDING',
+			scheduled_at TEXT NOT NULL,
+			published_at TEXT
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_dpubs_due ON daemon_publications(status, scheduled_at)`,
+	}
+	for _, s := range stmts {
+		if _, err := c.db.Exec(s); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (c *Client) Close() error { return c.db.Close() }
+
+// BaseURL — identité locale (les nœuds l'affichent au démarrage).
+func (c *Client) BaseURL() string { return "local://sqlite" }
+
+// ── Settings (YAML) ─────────────────────────────────────────────────────────
+
+func (c *Client) GetSettings() (map[string]any, error) {
+	if c.settings == nil {
+		return map[string]any{}, nil
+	}
+	return c.settings()
+}
+
+func (c *Client) EnsureSettings() error { return nil } // plus de global à créer
+
+func (c *Client) UpdateSettings(map[string]any) error { return nil } // heartbeat = no-op
+
+// AppendLog — le miroir Payload est débranché ; le fichier daemon.log suffit.
+func (c *Client) AppendLog(string, string, string) {}
+
+func (c *Client) PruneLogs(time.Time) error { return nil }
+
+// ── Sources (depuis le YAML) ────────────────────────────────────────────────
+
+func (c *Client) GetActiveSources() ([]Source, error) {
+	settings, err := c.GetSettings()
+	if err != nil {
+		return nil, err
+	}
+	out := []Source{}
+	appendURLs := func(raw any, typ string) {
+		switch v := raw.(type) {
+		case []string:
+			for _, url := range v {
+				out = append(out, makeSource(len(out)+1, url, typ))
+			}
+		case []any:
+			for _, item := range v {
+				if u, ok := item.(string); ok {
+					out = append(out, makeSource(len(out)+1, u, typ))
+				}
+			}
+		}
+	}
+	if ing, ok := settings["ingestion"].(map[string]any); ok {
+		if src, ok := ing["sources"].(map[string]any); ok {
+			appendURLs(src["rss"], "RSS")
+			appendURLs(src["googleNews"], "GOOGLE_NEWS")
+			appendURLs(src["telegram"], "TELEGRAM")
+		}
+	}
+	return out, nil
+}
+
+func makeSource(n int, url, typ string) Source {
+	host := url
+	if u, err := parseHost(url); err == nil {
+		host = u
+	}
+	return Source{
+		ID:                ID(fmt.Sprintf("%d", n)),
+		URL:               url,
+		Type:              typ,
+		SourceName:        host,
+		SourceBias:        "Indépendant",
+		TrustScore:        trustFromURL(url),
+		AllowSourceImages: trustFromURL(url) >= 7,
+		Active:            true,
+	}
+}
+
+func parseHost(raw string) (string, error) {
+	u := strings.TrimPrefix(strings.TrimPrefix(raw, "https://"), "http://")
+	i := strings.IndexAny(u, "/?")
+	if i >= 0 {
+		u = u[:i]
+	}
+	if u == "" {
+		return "", fmt.Errorf("host vide")
+	}
+	return strings.TrimPrefix(u, "www."), nil
+}
+
+// trustFromURL reproduit la source_trust_map du VPS (🟢9 · 🟡7 · 🔴3).
+func trustFromURL(url string) int {
+	h := strings.ToLower(url)
+	high := []string{"mediapart", "humanite", "blast", "reporterre", "basta", "politis", "arretsurimages", "972mag", "amnesty", "hrw", "btselem", "fidh", "phr", "palestinechronicle", "wafa", "palinfo", "maannews"}
+	medium := []string{"france24", "rfi", "francetvinfo", "lemonde", "leparisien", "lacroix", "la-croix", "rtl", "nouvelobs", "globalvoices", "thenewhumanitarian", "theconversation", "chathamhouse", "haaretz", "un.org"}
+	low := []string{"lefigaro", "figaro", "cnews", "bfmtv", "freedomhouse"}
+	for _, k := range high {
+		if strings.Contains(h, k) {
+			return 9
+		}
+	}
+	for _, k := range medium {
+		if strings.Contains(h, k) {
+			return 7
+		}
+	}
+	for _, k := range low {
+		if strings.Contains(h, k) {
+			return 3
+		}
+	}
+	return 5
+}
+
+// ── Seen URLs ───────────────────────────────────────────────────────────────
+
+func (c *Client) GetSeenURLs() ([]string, error) {
+	rows, err := c.db.Query(`SELECT url FROM daemon_seen_urls`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var u string
+		if err := rows.Scan(&u); err != nil {
+			return nil, err
+		}
+		out = append(out, u)
+	}
+	return out, rows.Err()
+}
+
+func (c *Client) AddSeenURLs(urls []string) error {
+	tx, err := c.db.Begin()
+	if err != nil {
+		return err
+	}
+	for _, u := range urls {
+		if _, err := tx.Exec(`INSERT OR IGNORE INTO daemon_seen_urls(url) VALUES(?)`, u); err != nil {
+			tx.Rollback()
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
+func (c *Client) PurgeSeenURLs(before time.Time) error {
+	_, err := c.db.Exec(`DELETE FROM daemon_seen_urls WHERE created_at < ?`, before.UTC().Format(time.RFC3339))
+	return err
+}
+
+// ── Signaux ─────────────────────────────────────────────────────────────────
+
+const signalCols = `id, raw_data, final_draft, tags, status, taxonomy, geo, image_url`
+
+func scanSignal(row interface{ Scan(...any) error }) (Signal, error) {
+	var sig Signal
+	var id int64
+	var rawData, finalDraft, tags sql.NullString
+	var taxonomy, geo, imageURL sql.NullString
+	err := row.Scan(&id, &rawData, &finalDraft, &tags, &sig.Status, &taxonomy, &geo, &imageURL)
+	sig.ID = ID(strconv.FormatInt(id, 10))
+	sig.RawData = json.RawMessage(fromNull(rawData))
+	sig.FinalDraft = json.RawMessage(fromNull(finalDraft))
+	sig.Tags = json.RawMessage(fromNull(tags))
+	sig.Taxonomy = fromNull(taxonomy)
+	sig.Geo = fromNull(geo)
+	sig.ImageURL = fromNull(imageURL)
+	return sig, err
+}
+
+func fromNull(v sql.NullString) string {
+	if v.Valid {
+		return v.String
+	}
+	return ""
+}
+
+const signalSelect = `SELECT ` + signalCols + ` FROM daemon_signals`
+
+func (c *Client) GetSignalsByStatus(status string) ([]Signal, error) {
+	rows, err := c.db.Query(signalSelect+` WHERE status = ? ORDER BY id DESC`, status)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Signal
+	for rows.Next() {
+		sig, err := scanSignal(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, sig)
+	}
+	return out, rows.Err()
+}
+
+func (c *Client) GetSignalsSince(after time.Time) ([]Signal, error) {
+	rows, err := c.db.Query(signalSelect+` WHERE created_at >= ? ORDER BY id DESC`, after.UTC().Format(time.RFC3339))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Signal
+	for rows.Next() {
+		sig, err := scanSignal(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, sig)
+	}
+	return out, rows.Err()
+}
+
 func (c *Client) GetSignal(id ID) (*Signal, error) {
-	data, err := c.request(http.MethodGet, "/signals/"+url.PathEscape(string(id))+"?depth=0", nil, true)
+	row := c.db.QueryRow(signalSelect+` WHERE id = ?`, id.Number())
+	sig, err := scanSignal(row)
+	if err == sql.ErrNoRows {
+		return nil, fmt.Errorf("signal %s introuvable", id)
+	}
 	if err != nil {
-		if strings.Contains(err.Error(), "404") {
-			return nil, nil
-		}
 		return nil, err
 	}
-	var out struct {
-		Doc Signal `json:"doc"`
-	}
-	if err := json.Unmarshal(data, &out); err != nil {
-		return nil, fmt.Errorf("decode signal: %w", err)
-	}
-	return &out.Doc, nil
+	return &sig, nil
 }
 
-// UpdateManySignals patches several signals with the same data.
+func (c *Client) CreateSignals(rows []map[string]any) error {
+	tx, err := c.db.Begin()
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		if _, err := tx.Exec(
+			`INSERT INTO daemon_signals(raw_data, status, tags) VALUES(?,?,COALESCE(?,'[]'))`,
+			strVal(r["raw_data"]), strVal(r["status"]), strVal(r["tags"]),
+		); err != nil {
+			tx.Rollback()
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
+var signalFieldCols = map[string]string{
+	"status":      "status",
+	"taxonomy":    "taxonomy",
+	"geo":         "geo",
+	"image_url":   "image_url",
+	"final_draft": "final_draft",
+	"tags":        "tags",
+	"publishedAt": "published_at",
+}
+
+func (c *Client) UpdateSignal(id ID, data map[string]any) error {
+	sets := []string{}
+	args := []any{}
+	for k, v := range data {
+		col, ok := signalFieldCols[k]
+		if !ok {
+			continue
+		}
+		val := v
+		if t, isTime := v.(time.Time); isTime {
+			val = t.UTC().Format(time.RFC3339)
+		}
+		if s, isStr := val.(string); !isStr {
+			b, _ := json.Marshal(val)
+			val = string(b)
+		} else if k == "publishedAt" {
+			val = s
+		}
+		sets = append(sets, col+" = ?")
+		args = append(args, val)
+	}
+	if len(sets) == 0 {
+		return nil
+	}
+	args = append(args, id.Number())
+	_, err := c.db.Exec(`UPDATE daemon_signals SET `+strings.Join(sets, ", ")+` WHERE id = ?`, args...)
+	return err
+}
+
 func (c *Client) UpdateManySignals(ids []ID, data map[string]any) error {
 	for _, id := range ids {
 		if err := c.UpdateSignal(id, data); err != nil {
@@ -605,196 +457,173 @@ func (c *Client) UpdateManySignals(ids []ID, data map[string]any) error {
 	return nil
 }
 
-// GetLastScheduledPublication returns the most recent publication for a
-// platform, used to space out scheduled missions.
-func (c *Client) GetLastScheduledPublication(platform string) (*Publication, error) {
-	data, err := c.request(http.MethodGet, "/publications?where[platform][equals]="+url.QueryEscape(platform)+"&limit=1&sort=-scheduled_at&depth=0", nil, true)
+// ── Taxonomy templates (depuis les formats YAML) ────────────────────────────
+
+func (c *Client) GetTaxonomyTemplates(activeOnly bool) ([]TaxonomyTemplate, error) {
+	settings, err := c.GetSettings()
 	if err != nil {
 		return nil, err
 	}
-	var out struct {
-		Docs []Publication `json:"docs"`
+	out := []TaxonomyTemplate{}
+	formats, _ := settings["formats"].([]any)
+	for i, f := range formats {
+		m, ok := f.(map[string]any)
+		if !ok {
+			continue
+		}
+		active := boolVal(m["actif"], m["active"])
+		if activeOnly && !active {
+			continue
+		}
+		name := strVal(m["nom"])
+		out = append(out, TaxonomyTemplate{
+			Name:        name,
+			DisplayName: name,
+			PromptText:  strVal(m["consigne"], m["formatInstructions"]),
+			Active:      active,
+			SortOrder:   i,
+		})
 	}
-	if err := json.Unmarshal(data, &out); err != nil {
-		return nil, fmt.Errorf("decode publications: %w", err)
+	return out, nil
+}
+
+// ── Publications (file de diffusion locale) ─────────────────────────────────
+
+func (c *Client) GetPendingSignalsWithoutPublications() ([]Signal, error) {
+	rows, err := c.db.Query(signalSelect + ` WHERE status = 'PENDING'
+		AND id NOT IN (SELECT topic_id FROM daemon_publications)
+		ORDER BY id DESC`)
+	if err != nil {
+		return nil, err
 	}
-	if len(out.Docs) == 0 {
+	defer rows.Close()
+	var out []Signal
+	for rows.Next() {
+		sig, err := scanSignal(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, sig)
+	}
+	return out, rows.Err()
+}
+
+func (c *Client) CreatePublications(rows []PublicationInput) error {
+	tx, err := c.db.Begin()
+	if err != nil {
+		return err
+	}
+	for _, row := range rows {
+		if _, err := tx.Exec(
+			`INSERT INTO daemon_publications(topic_id, platform, status, scheduled_at) VALUES(?,?,?,?)`,
+			row.TopicID.Number(), row.Platform, row.Status, row.ScheduledAt.UTC().Format(time.RFC3339),
+		); err != nil {
+			tx.Rollback()
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
+// GetDuePublications — missions PENDING arrivées à échéance, signal embarqué
+// (JSON complet dans Publication.Signal pour Topic()/TopicID()).
+func (c *Client) GetDuePublications(limit int) ([]Publication, error) {
+	rows, err := c.db.Query(`
+		SELECT p.id, p.platform, p.status, p.scheduled_at, p.published_at, p.topic_id
+		FROM daemon_publications p
+		WHERE p.status = 'PENDING' AND p.scheduled_at <= ?
+		ORDER BY p.scheduled_at ASC LIMIT ?`,
+		time.Now().UTC().Format(time.RFC3339), limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Publication
+	for rows.Next() {
+		var pub Publication
+		var id, topicID int64
+		var publishedAt sql.NullString
+		if err := rows.Scan(&id, &pub.Platform, &pub.Status, &pub.ScheduledAt, &publishedAt, &topicID); err != nil {
+			return nil, err
+		}
+		pub.ID = ID(strconv.FormatInt(id, 10))
+		if publishedAt.Valid && publishedAt.String != "" {
+			if t, err := time.Parse(time.RFC3339, publishedAt.String); err == nil {
+				pub.PublishedAt = &t
+			}
+		}
+		if sig, err := c.GetSignal(ID(strconv.FormatInt(topicID, 10))); err == nil {
+			if b, err := json.Marshal(sig); err == nil {
+				pub.Signal = b
+			}
+		}
+		out = append(out, pub)
+	}
+	return out, rows.Err()
+}
+
+func (c *Client) GetLastScheduledPublication(platform string) (*Publication, error) {
+	row := c.db.QueryRow(`
+		SELECT id, platform, status, scheduled_at, published_at
+		FROM daemon_publications WHERE platform = ? AND scheduled_at > ?
+		ORDER BY scheduled_at DESC LIMIT 1`, platform, time.Now().UTC().Format(time.RFC3339))
+	var pub Publication
+	var id int64
+	var publishedAt sql.NullString
+	err := row.Scan(&id, &pub.Platform, &pub.Status, &pub.ScheduledAt, &publishedAt)
+	if err == sql.ErrNoRows {
 		return nil, nil
 	}
-	return &out.Docs[0], nil
-}
-
-// PublicationInput is a mission to schedule (Phase A of the publisher).
-type PublicationInput struct {
-	TopicID     ID
-	Platform    string
-	Status      string
-	ScheduledAt time.Time
-}
-
-// CreatePublications creates the scheduled missions (one per signal x
-// platform) in the publications collection.
-func (c *Client) CreatePublications(rows []PublicationInput) error {
-	for _, row := range rows {
-		_, err := c.request(http.MethodPost, "/publications", map[string]any{
-			// Payload serial IDs must be sent as numbers, not strings.
-			"signal":       row.TopicID.Number(),
-			"platform":     row.Platform,
-			"status":       row.Status,
-			"scheduled_at": row.ScheduledAt.UTC().Format(time.RFC3339),
-		}, true)
-		if err != nil {
-			// Logged and skipped: one failed mission must not block the batch.
-			log.Printf("[payload] create publication %s/%s: %v", row.Platform, row.TopicID, err)
-		}
-	}
-	return nil
-}
-
-// GetDuePublications returns PENDING publications whose scheduled_at has
-// passed, with the embedded signal (depth=1), oldest first.
-func (c *Client) GetDuePublications(limit int) ([]Publication, error) {
-	now := url.QueryEscape(time.Now().UTC().Format(time.RFC3339))
-	data, err := c.request(http.MethodGet, fmt.Sprintf("/publications?where[status][equals]=PENDING&where[scheduled_at][less_than_equal]=%s&limit=%d&depth=1&sort=scheduled_at", now, limit), nil, true)
 	if err != nil {
 		return nil, err
 	}
-	var out struct {
-		Docs []Publication `json:"docs"`
-	}
-	if err := json.Unmarshal(data, &out); err != nil {
-		return nil, fmt.Errorf("decode publications: %w", err)
-	}
-	return out.Docs, nil
+	pub.ID = ID(strconv.FormatInt(id, 10))
+	return &pub, nil
 }
 
-// UpdatePublication patches a publication, mapping the camelCase fields the
-// nodes use to the collection snake_case columns.
 func (c *Client) UpdatePublication(id ID, data map[string]any) error {
-	out := make(map[string]any, len(data))
-	for k, v := range data {
-		switch k {
-		case "scheduledAt":
-			if t, ok := v.(time.Time); ok {
-				out["scheduled_at"] = t.UTC().Format(time.RFC3339)
-			}
-		case "publishedAt":
-			if t, ok := v.(time.Time); ok {
-				out["published_at"] = t.UTC().Format(time.RFC3339)
-			}
-		default:
-			out[k] = v
-		}
+	sets, args := []string{}, []any{}
+	if st, ok := data["status"].(string); ok {
+		sets, args = append(sets, "status = ?"), append(args, st)
 	}
-	_, err := c.request(http.MethodPatch, "/publications/"+url.PathEscape(string(id)), out, true)
+	if pt, ok := data["publishedAt"].(time.Time); ok {
+		sets, args = append(sets, "published_at = ?"), append(args, pt.UTC().Format(time.RFC3339))
+	}
+	if len(sets) == 0 {
+		return nil
+	}
+	args = append(args, id.Number())
+	_, err := c.db.Exec(`UPDATE daemon_publications SET `+strings.Join(sets, ", ")+` WHERE id = ?`, args...)
 	return err
 }
 
-// CountPendingPublications counts the PENDING missions left for a signal.
 func (c *Client) CountPendingPublications(topicID ID) (int, error) {
-	data, err := c.request(http.MethodGet, "/publications?where[signal][equals]="+url.PathEscape(string(topicID))+"&where[status][equals]=PENDING&limit=1", nil, true)
-	if err != nil {
-		return 0, err
-	}
-	var out struct {
-		TotalDocs int `json:"totalDocs"`
-	}
-	if err := json.Unmarshal(data, &out); err != nil {
-		return 0, fmt.Errorf("decode publications count: %w", err)
-	}
-	return out.TotalDocs, nil
+	var n int
+	err := c.db.QueryRow(
+		`SELECT COUNT(*) FROM daemon_publications WHERE topic_id = ? AND status = 'PENDING'`,
+		topicID.Number()).Scan(&n)
+	return n, err
 }
 
-// ============================================================
-// TAGS & RÉVÉLATIONS (injection site public)
-// ============================================================
+// ── helpers ─────────────────────────────────────────────────────────────────
 
-// FindTag returns the id of the tag with the given name, or "" if absent.
-func (c *Client) FindTag(name string) (ID, error) {
-	data, err := c.request(http.MethodGet, "/tags?where[name][equals]="+url.QueryEscape(name)+"&limit=1&depth=0", nil, true)
-	if err != nil {
-		return "", err
-	}
-	var out struct {
-		Docs []struct {
-			ID ID `json:"id"`
-		} `json:"docs"`
-	}
-	if err := json.Unmarshal(data, &out); err != nil {
-		return "", fmt.Errorf("decode tags: %w", err)
-	}
-	if len(out.Docs) == 0 {
-		return "", nil
-	}
-	return out.Docs[0].ID, nil
-}
-
-// CreateTag creates a tag (name; the slug is generated by Payload's
-// ensureTagSlug hook) and returns its id.
-func (c *Client) CreateTag(name string) (ID, error) {
-	data, err := c.request(http.MethodPost, "/tags", map[string]string{"name": name}, true)
-	if err != nil {
-		return "", err
-	}
-	var out struct {
-		Doc struct {
-			ID ID `json:"id"`
-		} `json:"doc"`
-	}
-	if err := json.Unmarshal(data, &out); err != nil {
-		return "", fmt.Errorf("decode tag: %w", err)
-	}
-	return out.Doc.ID, nil
-}
-
-// CreateRevelation posts an investigation article to the revelations
-// collection, which feeds the public site.
-// CreateRevelation creates a revelation and returns its ID (empty string if
-// the response did not carry one). The daemon links it back to the source
-// signal so the admin sees the signal → revelation relation in Payload.
-func (c *Client) CreateRevelation(data map[string]any) (string, error) {
-	raw, err := c.request(http.MethodPost, "/revelations", data, true)
-	if err != nil {
-		return "", err
-	}
-	var doc struct {
-		ID ID `json:"id"`
-	}
-	if len(raw) > 0 {
-		_ = json.Unmarshal(raw, &doc)
-	}
-	return string(doc.ID), nil
-}
-
-func relationshipID(raw json.RawMessage) (string, bool) {
-	if len(raw) == 0 {
-		return "", false
-	}
-	var s string
-	if err := json.Unmarshal(raw, &s); err == nil {
-		return s, true
-	}
-	var obj struct {
-		ID ID `json:"id"`
-	}
-	if err := json.Unmarshal(raw, &obj); err == nil && obj.ID != "" {
-		return string(obj.ID), true
-	}
-	return "", false
-}
-
-func firstEnv(keys ...string) string {
-	for _, k := range keys {
-		if v := os.Getenv(k); v != "" {
-			return v
+func strVal(v ...any) string {
+	for _, x := range v {
+		if s, ok := x.(string); ok && s != "" {
+			return s
 		}
 	}
 	return ""
 }
 
-func truncate(s string, n int) string {
-	if len(s) <= n {
-		return s
+func boolVal(vs ...any) bool {
+	for _, v := range vs {
+		switch b := v.(type) {
+		case bool:
+			return b
+		case string:
+			return strings.EqualFold(b, "true")
+		}
 	}
-	return s[:n]
+	return false
 }

@@ -1,0 +1,180 @@
+package config
+
+import (
+	"os"
+	"strconv"
+
+	"gopkg.in/yaml.v3"
+)
+
+// LoadYAMLSettings lit config/config.yaml et l'aplatit en map avec les
+// CLÉS HISTORIQUES que les nœuds Go lisent déjà (aiModelFlash,
+// similarityThreshold, minPublishDelay…). Secrets injectés depuis l'env.
+func LoadYAMLSettings(path string) (map[string]any, error) {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return map[string]any{}, err
+	}
+	var doc map[string]any
+	if err := yaml.Unmarshal(raw, &doc); err != nil {
+		return map[string]any{}, err
+	}
+	return flatten(doc), nil
+}
+
+// flatten — aplatit le YAML en clés historiques + clés préfixées.
+func flatten(d map[string]any) map[string]any {
+	out := map[string]any{}
+
+	get := func(path ...string) any {
+		cur := any(d)
+		for _, p := range path {
+			m, ok := cur.(map[string]any)
+			if !ok {
+				return nil
+			}
+			cur = m[p]
+		}
+		return cur
+	}
+	set := func(k string, v any) {
+		if v != nil {
+			out[k] = v
+		}
+	}
+	f := func(path ...string) float64 {
+		switch v := get(path...).(type) {
+		case int:
+			return float64(v)
+		case float64:
+			return v
+		}
+		return 0
+	}
+	s := func(path ...string) string {
+		v, _ := get(path...).(string)
+		return v
+	}
+
+	// Ingestion
+	set("rss_lookback_hours", f("ingestion", "timeWindowHours"))
+	set("rssLookbackHours", f("ingestion", "rssLookbackHours"))
+	set("maxArticles", f("ingestion", "maxArticlesPerScan"))
+	set("ingestion.concurrency", f("ingestion", "concurrency"))
+	// Bloc brut préservé : GetActiveSources() lit les listes d'URLs dedans
+	if ing := get("ingestion"); ing != nil {
+		out["ingestion"] = ing
+	}
+
+	// Dedup
+	set("similarityThreshold", f("dedup", "similarityThreshold"))
+	set("dedupLookbackHours", f("dedup", "lookbackHours"))
+	set("dedup.recentHours", f("dedup", "lookbackHours"))
+
+	// Research
+	set("research.aiModelFlash", s("research", "aiModelFlash"))
+	set("research.maxConcurrentTasks", f("research", "maxConcurrentTasks"))
+	set("research.customModifier", s("research", "customPromptModifier"))
+	set("aiModelFlash", orString(s("research", "aiModelFlash"), "gemini-3-flash-preview"))
+	set("aiModelDecrypt", s("research", "aiModelDecrypt"))
+	set("researcherSystemPrompt", s("research", "systemPrompt"))
+	set("researcherRejectCriteria", s("research", "rejectCriteria"))
+	set("webSearchEnabled", get("research", "webSearchEnabled"))
+	set("scoreThreshold", f("research", "scoreThreshold"))
+
+	// Editorial (+ validator)
+	set("editor.aiModelPro", s("editorial", "aiModelPro"))
+	set("editor.maxConcurrentTasks", f("editorial", "maxConcurrentTasks"))
+	set("validator.aiModelValidator", s("editorial", "aiModelVerification"))
+	set("validator.maxConcurrentTasks", float64(5))
+	set("aiModelPro", orString(s("editorial", "aiModelPro"), "gemini-2.5-pro"))
+	set("baseIdentityPrompt", s("editorial", "baseIdentity"))
+	set("researchMissionPrompt", s("editorial", "researchMission"))
+	set("vocabularyRulesPrompt", s("editorial", "vocabularyRules"))
+	set("imageRulesPrompt", s("editorial", "imageRules"))
+	set("customPromptModifier", s("editorial", "customModifier"))
+
+	// Publisher
+	set("enableDiscord", get("publisher", "enableDiscord"))
+	set("enableQoe", get("publisher", "enableQoe"))
+	set("enableX", get("publisher", "enableX"))
+	set("enableBluesky", get("publisher", "enableBluesky"))
+	set("enableMastodon", get("publisher", "enableMastodon"))
+	set("discordTestMode", get("publisher", "discordTestMode"))
+	set("discordPublishMode", s("publisher", "discordPublishMode"))
+	set("qoePublishMode", s("publisher", "qoePublishMode"))
+	set("xPublishMode", s("publisher", "xPublishMode"))
+	set("blueskyPublishMode", s("publisher", "blueskyPublishMode"))
+	set("mastodonPublishMode", s("publisher", "mastodonPublishMode"))
+	set("minPublishDelay", f("publisher", "minDelayMinutes"))
+	set("maxPublishDelay", f("publisher", "maxDelayMinutes"))
+	set("enableAutoPublish", get("publisher", "enableAutoPublish"))
+	set("targetsByType", get("publisher", "targetsByType"))
+
+	// Scheduling (format daemon : "LUN 20:08\nMAR 20:08")
+	mode := s("scheduling", "mode")
+	set("schedulingMode", mode)
+	set("scrapingInterval", f("scheduling", "scrapingIntervalMinutes"))
+	if slotsRaw, ok := get("scheduling", "weeklySlots").([]any); ok && len(slotsRaw) > 0 {
+		lines := ""
+		for _, sl := range slotsRaw {
+			if m, ok := sl.(map[string]any); ok {
+				day, _ := m["day"].(string)
+				tm, _ := m["time"].(string)
+				lines += day + " " + tm + "\n"
+			}
+		}
+		set("daemonSchedule", lines)
+	} else {
+		set("daemonSchedule", "")
+	}
+
+	// Pipeline graph (nœuds actifs — le graphe visuel du labo)
+	set("pipelineGraphJson", s("pipeline", "graphJson"))
+
+	// Media
+	set("allowSourceImages", true) // global ; par-source via trust dans Sources
+	set("imageOverlayEnabled", get("media", "overlayEnabled"))
+	set("imageOverlayOpacity", f("media", "overlayOpacity"))
+	set("imageBoxScale169", f("media", "boxScale169"))
+	set("imageBoxScale11", f("media", "boxScale11"))
+
+	// Video
+	set("videoIngestEnabled", get("video", "ingestEnabled"))
+	set("videoPrefilterModel", s("video", "prefilterModel"))
+	set("videoTranscribeModel", s("video", "transcribeModel"))
+	set("videoPrefilterPrompt", s("video", "prefilterPrompt"))
+	set("videoMaxAudioMb", f("video", "maxAudioMb"))
+
+	// Formats (taxonomy templates pour l'éditorialiste)
+	if formats, ok := get("formats").([]any); ok {
+		set("formats", formats)
+	}
+
+	// Système
+	set("logLevel", s("system", "logLevel"))
+	set("logRetentionDays", f("system", "logRetentionDays"))
+	set("maintenanceMode", get("system", "maintenanceMode"))
+	set("maintenanceMessage", s("system", "maintenanceMessage"))
+
+	// QoE (client qoe.fi lit aussi l'env directement ; ici pour le registry)
+	qoeMock := os.Getenv("QOE_MOCK")
+	set("qoeMockEnabled", qoeMock != "false")
+
+	// Secrets depuis l'env — jamais dans le YAML versionné.
+	EnvOverride(out, map[string]string{
+		"GEMINI_API_KEY":      "geminiApiKey",
+		"DISCORD_WEBHOOK_URL": "discordWebhookUrl",
+	})
+
+	return out
+}
+
+func orString(a, b string) string {
+	if a != "" {
+		return a
+	}
+	return b
+}
+
+var _ = strconv.Itoa // keep import if future use

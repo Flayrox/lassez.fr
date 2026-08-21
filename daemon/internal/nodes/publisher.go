@@ -199,10 +199,7 @@ func buildRegistry(client *payload.Client, resolver *config.Resolver) *publish.R
 			HTTP:             httpClient,
 		}))
 	}
-	if boolParam(resolver, "publisher", "enablePayloadCMS", true) {
-		registry.Add(publish.NewPayload(publish.PayloadConfig{Client: client}))
-	}
-	// QOE — remplace Payload (mock tant que QOE_MOCK=true)
+	// QOE — qoe.fi (mock tant que QOE_MOCK=true) : remplace définitivement Payload
 	if boolParam(resolver, "publisher", "enableQoe", true) {
 		registry.Add(publish.NewQoe(publish.QoeConfig{Client: qoe.NewFromEnv()}))
 	}

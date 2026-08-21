@@ -145,8 +145,11 @@ func RunIngestion(client *payload.Client, resolver *config.Resolver) ([]Ingested
 			feed, err := parser.ParseURL(src.URL)
 			if err != nil {
 				log.Printf("[Node 1] ❌ Erreur d'aspiration %s (%s): %v", src.SourceName, src.URL, err)
+				_ = client.RecordSourceHealth(src.URL, src.Type, src.SourceName, false, "ERR", err.Error())
 				return
 			}
+			// Santé : le flux répond, la source est saine (0 échec consécutif).
+			_ = client.RecordSourceHealth(src.URL, src.Type, src.SourceName, true, "OK", "")
 
 			for _, item := range feed.Items {
 				if item.Link == "" || item.Title == "" {

@@ -33,12 +33,20 @@ dedup:
   lookbackHours: 10          # dedup_recent_hours = 10
   purgeSeenUrlsDays: 7
 
+filters:                     # mots à suivre / à ignorer (keywords / bannedKeywords)
+  keywords: []
+  bannedKeywords: []
+  allowSourceImages: true
+
 research:
   aiModelFlash: gemini-3-flash-preview   # ai_model_main / ai_model_breaking
   aiModelDecrypt: gemini-2.5-pro         # ai_model_decrypt
   maxConcurrentTasks: 5
   scoreThreshold: 50
   webSearchEnabled: true     # google_search_*_enabled = true (x3)
+  googleSearchBreaking: true # recherche web par type d'article
+  googleSearchStandard: true
+  googleSearchDecrypt: true
   systemPrompt: ""           # ai_prompt_relevance vide → fallback code
   rejectCriteria: ""         # idem
 
@@ -46,11 +54,28 @@ editorial:
   aiModelPro: gemini-2.5-pro          # ai_model_standard ; le graphe utilisait gemini-3.1-pro-preview pour researcher
   aiModelVerification: gemini-3-flash-preview  # validator (ai_model_main du VPS)
   maxConcurrentTasks: 3
+  aiPrompt: ""               # le grand prompt éditorial (ai_prompt) — vide → fallback code
+  modelByType:               # ai_model_breaking / standard / decrypt
+    alerte: gemini-3.1-pro-preview
+    standard: gemini-2.5-flash
+    decrypt: gemini-2.5-pro
   baseIdentity: ""
   researchMission: ""
   vocabularyRules: ""
   imageRules: ""
   customModifier: ""         # ai_prompt global vide
+
+# Registry des modèles IA — alimente tous les selects du labo (label UI + value API)
+modelRegistry:
+  - { label: "Gemini 3.1 Pro (le plus fort)", value: gemini-3.1-pro-preview }
+  - { label: "Gemini 2.5 Pro", value: gemini-2.5-pro }
+  - { label: "Gemini 2.5 Flash", value: gemini-2.5-flash }
+  - { label: "Gemini 3 Flash (rapide)", value: gemini-3-flash-preview }
+  - { label: "Gemini 2.0 Flash (léger)", value: gemini-2.0-flash }
+
+# Métadonnées par source (biais, confiance, images, actif) — le daemon lit
+# ingestion.sources.rss (URLs actives) ; cette section est gérée par le labo.
+sourcesMeta: []
 
 formats:                     # types_ouverture observés + daemon_rss_types
   - id: ALERTE_INFO
@@ -69,6 +94,9 @@ formats:                     # types_ouverture observés + daemon_rss_types
     couleur: "#7c3aed"
     consigne: ""
 
+pipeline:                    # graphe visuel du labo (Atelier) — nœuds actifs
+  graphJson: '{"nodes":[{"type":"ingestion","enabled":true},{"type":"dedup","enabled":true},{"type":"research","enabled":true},{"type":"editor","enabled":true},{"type":"validator","enabled":true},{"type":"media","enabled":true}]}'
+
 publisher:
   enableDiscord: true        # social_discord_enabled = true (+ test mode)
   discordTestMode: true      # discord_test_mode = true
@@ -81,6 +109,7 @@ publisher:
   minDelayMinutes: 1         # min_delay_min = 1
   maxDelayMinutes: 2         # max_delay_min = 2
   enableAutoPublish: false   # auto_pilot_enabled = false !
+  enableAutoApprove: false   # auto_approve_enabled — Mode Fantôme (IA approuve sans modération)
   targetsByType:             # social_targets_by_type_json réel
     "🔴 ALERTE INFO !":
       discord: true
@@ -114,6 +143,7 @@ video:
   prefilterModel: gemini-2.0-flash
   transcribeModel: gemini-2.0-flash
   prefilterPrompt: "Ce message Telegram parle-t-il de politique, de mouvements sociaux, de justice ou d un evenement d interet public ? Reponds uniquement par OUI ou NON."
+  prefilterMinChars: 20      # video_prefilter_min_chars
   maxAudioMb: 20
 
 trustMap:                    # source_trust_map — 🟢 haute / 🟡 moyenne / 🔴 faible
@@ -124,8 +154,14 @@ trustMap:                    # source_trust_map — 🟢 haute / 🟡 moyenne / 
 system:
   logLevel: INFO
   logRetentionDays: 7
+  logMirrorEnabled: true     # envoyer les journaux au tableau de bord
   maintenanceMode: false
   maintenanceMessage: "L'Assez fait peau neuve. Nous revenons dans quelques instants pour encore plus d'investigations radicalement indépendantes."
+  popupEnabled: false
+  popupTitle: "Soutenez L'Assez !"
+  popupText: "Votre média indépendant a besoin de vous pour continuer ses enquêtes sans concession. Soutenez-nous par un don."
+  popupLinkLabel: "Faire un don"
+  popupLinkUrl: "/soutenir"
 
 elections:                   # conservé tel quel — traitement spécial prévu plus tard
   targetSlug: municipales-2026

@@ -2,11 +2,13 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import CommandPalette from './components/CommandPalette.vue'
+import { useConfigStore } from './stores/config'
 
 const route = useRoute()
 const router = useRouter()
 const collapsed = ref(false)
 const qoeMock = ref(true)
+const cfg = useConfigStore()
 
 // Le thème vit sur <html> (les variables CSS sont déclarées sur :root) —
 // pas sur une div, sinon var(--bg) etc. ne s'appliquent jamais.
@@ -73,6 +75,16 @@ function onPaletteAction(id: string) {
           class="hidden sm:inline-flex text-[10px] font-mono px-1.5 py-0.5 rounded border"
           :class="qoeMock ? 'border-warning/40 text-warning bg-warning/5' : 'border-accent/40 text-accent bg-accent-muted'"
         >{{ qoeMock ? 'QOE MOCK' : 'QOE LIVE' }}</span>
+        <span
+          v-if="cfg.apiOk"
+          class="hidden sm:inline-flex text-[10px] font-mono px-1.5 py-0.5 rounded border border-accent/40 text-accent bg-accent-muted"
+          title="Config sauvegardée dans daemon/config/config.yaml"
+        >⚙ daemon</span>
+        <span
+          v-else
+          class="hidden sm:inline-flex text-[10px] font-mono px-1.5 py-0.5 rounded border border-border text-text-3"
+          title="Daemon injoignable — config locale (localStorage)"
+        >⚙ local</span>
         <div class="w-7 h-7 rounded-full bg-gradient-to-br from-accent/60 to-info/60 ring-1 ring-border cursor-pointer"></div>
       </div>
     </header>

@@ -2,6 +2,7 @@ package config
 
 import (
 	"os"
+	"path/filepath"
 	"strconv"
 
 	"gopkg.in/yaml.v3"
@@ -19,7 +20,15 @@ func LoadYAMLSettings(path string) (map[string]any, error) {
 	if err := yaml.Unmarshal(raw, &doc); err != nil {
 		return map[string]any{}, err
 	}
-	return flatten(doc), nil
+	out := flatten(doc)
+	// Secrets locaux (daemon/config/.secrets.yaml, gitignoré) — écrits par le
+	// labo via /api/secrets. Ils écrasent l'env si présents dans le fichier.
+	if sec := LoadSecrets(filepath.Join(filepath.Dir(path), ".secrets.yaml")); sec != nil {
+		for k, v := range sec {
+			out[k] = v
+		}
+	}
+	return out, nil
 }
 
 // flatten — aplatit le YAML en clés historiques + clés préfixées.
@@ -80,6 +89,10 @@ func flatten(d map[string]any) map[string]any {
 	set("researcherSystemPrompt", s("research", "systemPrompt"))
 	set("researcherRejectCriteria", s("research", "rejectCriteria"))
 	set("webSearchEnabled", get("research", "webSearchEnabled"))
+	// Recherche web PAR TYPE (google_search_breaking/standard/decrypt_enabled)
+	set("googleSearchBreakingEnabled", get("research", "googleSearchBreaking"))
+	set("googleSearchStandardEnabled", get("research", "googleSearchStandard"))
+	set("googleSearchDecryptEnabled", get("research", "googleSearchDecrypt"))
 	set("scoreThreshold", f("research", "scoreThreshold"))
 
 	// Editorial (+ validator)
@@ -93,6 +106,19 @@ func flatten(d map[string]any) map[string]any {
 	set("vocabularyRulesPrompt", s("editorial", "vocabularyRules"))
 	set("imageRulesPrompt", s("editorial", "imageRules"))
 	set("customPromptModifier", s("editorial", "customModifier"))
+	set("aiPrompt", s("editorial", "aiPrompt"))
+	// Modèles par type d'article (ai_model_main/breaking/standard/decrypt)
+	if mbt, ok := get("editorial", "modelByType").(map[string]any); ok {
+		set("aiModelBreaking", sMap(mbt, "alerte"))
+		set("aiModelStandard", sMap(mbt, "standard"))
+		set("aiModelDecrypt", sMap(mbt, "decrypt"))
+	}
+	if reg, ok := get("modelRegistry").([]any); ok {
+		set("modelRegistry", reg)
+	}
+	if meta, ok := get("sourcesMeta").([]any); ok {
+		set("sourcesMeta", meta)
+	}
 
 	// Publisher
 	set("enableDiscord", get("publisher", "enableDiscord"))
@@ -109,6 +135,7 @@ func flatten(d map[string]any) map[string]any {
 	set("minPublishDelay", f("publisher", "minDelayMinutes"))
 	set("maxPublishDelay", f("publisher", "maxDelayMinutes"))
 	set("enableAutoPublish", get("publisher", "enableAutoPublish"))
+	set("enableAutoApprove", get("publisher", "enableAutoApprove")) // Mode Fantôme
 	set("targetsByType", get("publisher", "targetsByType"))
 
 	// Scheduling (format daemon : "LUN 20:08\nMAR 20:08")
@@ -132,8 +159,18 @@ func flatten(d map[string]any) map[string]any {
 	// Pipeline graph (nœuds actifs — le graphe visuel du labo)
 	set("pipelineGraphJson", s("pipeline", "graphJson"))
 
+	// Filtres (keywords / banned — le labo les persiste dans le YAML)
+	if filters, ok := get("filters").(map[string]any); ok {
+		if kws, ok := filters["keywords"].([]any); ok {
+			set("keywords", kws)
+		}
+		if bws, ok := filters["bannedKeywords"].([]any); ok {
+			set("bannedKeywords", bws)
+		}
+		set("allowSourceImages", filters["allowSourceImages"])
+	}
+
 	// Media
-	set("allowSourceImages", true) // global ; par-source via trust dans Sources
 	set("imageOverlayEnabled", get("media", "overlayEnabled"))
 	set("imageOverlayOpacity", f("media", "overlayOpacity"))
 	set("imageBoxScale169", f("media", "boxScale169"))
@@ -144,6 +181,7 @@ func flatten(d map[string]any) map[string]any {
 	set("videoPrefilterModel", s("video", "prefilterModel"))
 	set("videoTranscribeModel", s("video", "transcribeModel"))
 	set("videoPrefilterPrompt", s("video", "prefilterPrompt"))
+	set("videoPrefilterMinChars", f("video", "prefilterMinChars"))
 	set("videoMaxAudioMb", f("video", "maxAudioMb"))
 
 	// Formats (taxonomy templates pour l'éditorialiste)
@@ -154,6 +192,7 @@ func flatten(d map[string]any) map[string]any {
 	// Système
 	set("logLevel", s("system", "logLevel"))
 	set("logRetentionDays", f("system", "logRetentionDays"))
+	set("logMirrorEnabled", get("system", "logMirrorEnabled"))
 	set("maintenanceMode", get("system", "maintenanceMode"))
 	set("maintenanceMessage", s("system", "maintenanceMessage"))
 
@@ -167,6 +206,36 @@ func flatten(d map[string]any) map[string]any {
 		"DISCORD_WEBHOOK_URL": "discordWebhookUrl",
 	})
 
+	return out
+}
+
+// sMap lit une valeur string dans une map.
+func sMap(m map[string]any, key string) string {
+	if v, ok := m[key].(string); ok {
+		return v
+	}
+	return ""
+}
+
+// LoadSecrets lit le fichier de secrets local (structure {publisher: {...}})
+// et l'aplatit en clés historiques (discordWebhookUrl, xApiKey…).
+func LoadSecrets(path string) map[string]any {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return nil // pas de fichier secrets → rien
+	}
+	var doc struct {
+		Publisher map[string]any `yaml:"publisher"`
+	}
+	if err := yaml.Unmarshal(raw, &doc); err != nil || doc.Publisher == nil {
+		return nil
+	}
+	out := map[string]any{}
+	for k, v := range doc.Publisher {
+		if s, ok := v.(string); ok && s != "" {
+			out[k] = s
+		}
+	}
 	return out
 }
 

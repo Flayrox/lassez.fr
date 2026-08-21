@@ -162,6 +162,18 @@ func (c *Client) migrate() error {
 			published_at TEXT
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_dpubs_due ON daemon_publications(status, scheduled_at)`,
+		`CREATE TABLE IF NOT EXISTS daemon_source_health (
+			url TEXT PRIMARY KEY,
+			type TEXT NOT NULL DEFAULT 'RSS',
+			source_name TEXT,
+			consecutive_failures INTEGER NOT NULL DEFAULT 0,
+			last_status TEXT,
+			last_error TEXT,
+			status TEXT NOT NULL DEFAULT 'HEALTHY',
+			last_ok_at TEXT,
+			last_check_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+			updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+		)`,
 	}
 	for _, s := range stmts {
 		if _, err := c.db.Exec(s); err != nil {
@@ -277,6 +289,74 @@ func trustFromURL(url string) int {
 		}
 	}
 	return 5
+}
+
+// ── Santé des sources (radar_source_health de l'ancien radar) ────────────────
+
+type SourceHealth struct {
+	URL                string `json:"url"`
+	Type               string `json:"type"`
+	SourceName         string `json:"source_name"`
+	ConsecutiveFailures int    `json:"consecutive_failures"`
+	LastStatus         string `json:"last_status"`
+	LastError          string `json:"last_error"`
+	Status             string `json:"status"` // HEALTHY / DEGRADED / DISABLED
+	LastOKAt           string `json:"last_ok_at"`
+	LastCheckAt        string `json:"last_check_at"`
+}
+
+// RecordSourceHealth — mis à jour par le nœud ingestion à chaque aspiration.
+// Un succès remet les échecs à zéro ; un échec les incrémente. Au-delà du
+// seuil (5 échecs consécutifs) la source passe DISABLED (quarantaine), sinon
+// DEGRADED.
+func (c *Client) RecordSourceHealth(url, typ, name string, ok bool, statusText, errMsg string) error {
+	now := time.Now().UTC().Format(time.RFC3339)
+	if ok {
+		_, err := c.db.Exec(`
+			INSERT INTO daemon_source_health(url, type, source_name, consecutive_failures, last_status, last_error, status, last_ok_at, last_check_at, updated_at)
+			VALUES(?,?,?,0,?,NULL,'HEALTHY',?,?,?)
+			ON CONFLICT(url) DO UPDATE SET
+				type=excluded.type, source_name=excluded.source_name,
+				consecutive_failures=0, last_status=excluded.last_status, last_error=NULL,
+				status='HEALTHY', last_ok_at=excluded.last_ok_at, last_check_at=excluded.last_check_at,
+				updated_at=excluded.updated_at`,
+			url, typ, name, statusText, now, now, now)
+		return err
+	}
+	_, err := c.db.Exec(`
+		INSERT INTO daemon_source_health(url, type, source_name, consecutive_failures, last_status, last_error, status, last_check_at, updated_at)
+		VALUES(?,?,?,1,?,?,'DEGRADED',?,?)
+		ON CONFLICT(url) DO UPDATE SET
+			type=excluded.type, source_name=excluded.source_name,
+			consecutive_failures=daemon_source_health.consecutive_failures+1,
+			last_status=excluded.last_status, last_error=excluded.last_error,
+			status=CASE WHEN daemon_source_health.consecutive_failures+1 >= 5 THEN 'DISABLED' ELSE 'DEGRADED' END,
+			last_check_at=excluded.last_check_at, updated_at=excluded.updated_at`,
+		url, typ, name, statusText, errMsg, now, now)
+	return err
+}
+
+// GetSourceHealth — toute la table, pour GET /api/sources-health du labo.
+func (c *Client) GetSourceHealth() ([]SourceHealth, error) {
+	rows, err := c.db.Query(`
+		SELECT url, type, COALESCE(source_name,''), consecutive_failures,
+		       COALESCE(last_status,''), COALESCE(last_error,''), status,
+		       COALESCE(last_ok_at,''), COALESCE(last_check_at,'')
+		FROM daemon_source_health ORDER BY status DESC, consecutive_failures DESC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []SourceHealth{}
+	for rows.Next() {
+		var h SourceHealth
+		if err := rows.Scan(&h.URL, &h.Type, &h.SourceName, &h.ConsecutiveFailures,
+			&h.LastStatus, &h.LastError, &h.Status, &h.LastOKAt, &h.LastCheckAt); err != nil {
+			return nil, err
+		}
+		out = append(out, h)
+	}
+	return out, rows.Err()
 }
 
 // ── Seen URLs ───────────────────────────────────────────────────────────────

@@ -12,20 +12,44 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/Flayrox/LASSEZ/daemon/internal/config"
+	"github.com/Flayrox/LASSEZ/daemon/internal/payload"
 	"github.com/Flayrox/LASSEZ/daemon/internal/store"
 )
 
 type Server struct {
-	Store *store.Store
-	Mux   *http.ServeMux
+	Store      *store.Store
+	Client     *payload.Client // santé des sources + futur accès signaux daemon_*
+	Mux        *http.ServeMux
+	ConfigPath string          // config/config.yaml — édité par le labo
+	Resolver   *config.Resolver // invalidé après chaque écriture
 }
 
-func New(s *store.Store) *Server {
-	srv := &Server{Store: s, Mux: http.NewServeMux()}
+func New(s *store.Store, client *payload.Client, cfgPath string, resolver *config.Resolver) *Server {
+	srv := &Server{Store: s, Client: client, Mux: http.NewServeMux(), ConfigPath: cfgPath, Resolver: resolver}
 	srv.Mux.HandleFunc("GET /api/healthz", srv.healthz)
 	srv.Mux.HandleFunc("GET /api/signals", srv.listSignals)
 	srv.Mux.HandleFunc("PATCH /api/signals", srv.patchSignals)
+	srv.Mux.HandleFunc("GET /api/config", srv.getConfig)
+	srv.Mux.HandleFunc("PATCH /api/config", srv.patchConfig)
+	srv.Mux.HandleFunc("GET /api/secrets", srv.getSecrets)
+	srv.Mux.HandleFunc("PATCH /api/secrets", srv.patchSecrets)
+	srv.Mux.HandleFunc("GET /api/sources-health", srv.listSourceHealth)
 	return srv
+}
+
+// listSourceHealth — santé réelle des sources enregistrée par l'ingestion.
+func (srv *Server) listSourceHealth(w http.ResponseWriter, _ *http.Request) {
+	if srv.Client == nil {
+		writeJSON(w, 200, map[string]any{"data": []any{}})
+		return
+	}
+	health, err := srv.Client.GetSourceHealth()
+	if err != nil {
+		writeJSON(w, 500, map[string]any{"error": err.Error()})
+		return
+	}
+	writeJSON(w, 200, map[string]any{"data": health})
 }
 
 func (srv *Server) healthz(w http.ResponseWriter, _ *http.Request) {

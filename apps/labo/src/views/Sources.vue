@@ -35,6 +35,7 @@
           <tr class="border-y border-border text-[10px] uppercase tracking-wider text-text-3">
             <th class="px-4 py-2 font-medium w-24">Fiabilité</th>
             <th class="py-2 pr-3 font-medium">Source</th>
+            <th class="py-2 pr-3 font-medium hidden lg:table-cell">Biais</th>
             <th class="py-2 pr-3 font-medium hidden md:table-cell">Santé</th>
             <th class="py-2 pr-3 font-medium">Active</th>
             <th class="py-2 px-3"></th>
@@ -54,7 +55,15 @@
               <p class="text-xs font-medium truncate">{{ hostOf(s.url) }}</p>
               <a :href="s.url" target="_blank" rel="noopener" class="text-[11px] text-text-3 hover:text-info transition-colors line-clamp-1">{{ s.url }}</a>
             </td>
-            <td class="py-2.5 pr-3 hidden md:table-cell"><LBadge :variant="healthOf(s.url).variant">{{ healthOf(s.url).label }}</LBadge></td>
+            <td class="py-2.5 pr-3 hidden lg:table-cell">
+              <select :value="s.bias" @change="setBias(s.id, ($event.target as HTMLSelectElement).value)"
+                class="h-7 bg-bg border border-border rounded px-1.5 text-[11px] text-text-2 focus:outline-none focus:border-accent/60 max-w-[140px]">
+                <option v-for="b in BIAS_VALUES" :key="b" :value="b">{{ b }}</option>
+              </select>
+            </td>
+            <td class="py-2.5 pr-3 hidden md:table-cell">
+              <LBadge :variant="healthOf(s.url).variant" :title="healthTitle(s.url)">{{ healthOf(s.url).label }}</LBadge>
+            </td>
             <td class="py-2.5 pr-3"><LToggle :model-value="s.active" @update:model-value="(v: boolean) => setActive(s.id, v)" /></td>
             <td class="py-2.5 px-3">
               <div class="flex justify-end opacity-0 group-hover:opacity-100 transition-opacity">
@@ -114,7 +123,10 @@
             </div>
           </div>
           <LTextarea label="Question de pré-filtre" help="L'IA répond OUI ou NON — OUI = la vidéo est transcrite" :rows="2" v-model="videoPromptProxy" />
-          <LInput label="Taille audio maximum (Mo)" type="number" v-model.number="store.video.maxAudioMb" />
+          <div class="grid md:grid-cols-2 gap-3">
+            <LInput label="Longueur min. du message (caractères)" help="En dessous, le message est ignoré — video_prefilter_min_chars" type="number" v-model.number="store.video.prefilterMinChars" />
+            <LInput label="Taille audio maximum (Mo)" type="number" v-model.number="store.video.maxAudioMb" />
+          </div>
         </template>
       </div>
     </LCard>
@@ -150,7 +162,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { useConfigStore, detectTrust, hostOf } from '../stores/config'
+import { useConfigStore, detectTrust, hostOf, BIAS_VALUES } from '../stores/config'
 import LCard from '../components/ui/LCard.vue'
 import LButton from '../components/ui/LButton.vue'
 import LBadge from '../components/ui/LBadge.vue'
@@ -168,13 +180,6 @@ const importOpen = ref(false)
 const newUrl = ref('')
 const csvPaste = ref('')
 
-// Échecs réels du dernier scan VPS — plus tard : venus de GET /api/sources-health
-const FAILED = [
-  'https://www.rtl.fr/actu/rss',
-  'https://www.arretsurimages.net/rss',
-  'https://www.politis.fr/feed/',
-  'https://www.palestinechronicle.com/feed/',
-]
 
 const filtered = computed(() =>
   store.sources.list.filter(s => {
@@ -226,6 +231,10 @@ function setActive(id: string, v: boolean) {
   const s = store.sources.list.find(x => x.id === id)
   if (s) { s.active = v; store.markDirty() }
 }
+function setBias(id: string, v: string) {
+  const s = store.sources.list.find(x => x.id === id)
+  if (s && BIAS_VALUES.includes(v)) { s.bias = v; store.markDirty() }
+}
 function removeOne(id: string) {
   store.sources.list = store.sources.list.filter(x => x.id !== id)
   store.markDirty()
@@ -253,10 +262,34 @@ function doImport() {
   importOpen.value = false
 }
 
-// Santé : réelle plus tard via l'API daemon ; en attendant les échecs connus du VPS
+// Santé réelle enregistrée par le daemon à chaque scan (daemon_source_health).
+// Sans daemon : repli sur les échecs connus du VPS pour ne pas tout montrer vert.
+const FALLBACK_FAILED = [
+  'https://www.rtl.fr/actu/rss',
+  'https://www.arretsurimages.net/rss',
+  'https://www.politis.fr/feed/',
+  'https://www.palestinechronicle.com/feed/',
+]
 function healthOf(url: string): { variant: 'success' | 'warning' | 'danger'; label: string } {
-  if (FAILED.includes(url)) return { variant: 'danger', label: 'En échec' }
+  const h = store.sourceHealth[url]
+  if (h) {
+    if (h.status === 'DISABLED') return { variant: 'danger', label: `Quarantaine (${h.consecutive_failures} échecs)` }
+    if (h.status === 'DEGRADED') return { variant: 'warning', label: `En échec (${h.consecutive_failures})` }
+    return { variant: 'success', label: 'OK' }
+  }
+  // Daemon muet : on garde les échecs réels connus du dernier scan VPS
+  if (FALLBACK_FAILED.includes(url)) return { variant: 'danger', label: 'En échec' }
   if (!url.startsWith('https://')) return { variant: 'warning', label: 'HTTP' }
   return { variant: 'success', label: 'OK' }
+}
+function healthTitle(url: string): string {
+  const h = store.sourceHealth[url]
+  if (!h) return 'Aucune donnée du daemon'
+  const lines = [
+    `Dernier check : ${h.last_check_at ? new Date(h.last_check_at).toLocaleString('fr-FR') : '—'}`,
+    h.last_status ? `Statut : ${h.last_status}` : '',
+    h.last_error ? `Erreur : ${h.last_error}` : '',
+  ]
+  return lines.filter(Boolean).join('\n')
 }
 </script>

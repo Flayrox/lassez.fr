@@ -27,6 +27,16 @@
       <input type="range" min="20" max="80" v-model.number="store.ecriture.scoreMini" class="w-full accent-accent" />
     </LCard>
 
+    <LCard>
+      <div class="flex items-center justify-between">
+        <div>
+          <p class="text-sm font-medium">Recherche web pour l'IA</p>
+          <p class="text-[11px] text-text-3 mt-0.5">Gemini peut chercher sur le web pour vérifier les sujets (activé pour tri, décryptage et standard)</p>
+        </div>
+        <LToggle :model-value="store.ecriture.webSearchEnabled" @update:model-value="(v: boolean) => { store.ecriture.webSearchEnabled = v; store.markDirty() }" />
+      </div>
+    </LCard>
+
     <!-- Blocs de consignes -->
     <div v-for="block in blocks" :key="block.key" class="bg-surface border border-border rounded-card">
       <button class="w-full flex items-center gap-3 px-4 py-3 hover:bg-surface-hover/60 transition-colors" @click="expanded = expanded === block.key ? null : block.key">

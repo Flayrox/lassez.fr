@@ -19,6 +19,10 @@
           <textarea v-model="store.sources.telegram" rows="6" class="w-full bg-bg border border-border rounded px-3 py-2 text-xs font-mono text-text-1 focus:outline-none focus:border-accent/60 focus:ring-2 focus:ring-accent/20" />
           <p class="text-[11px] text-text-3 mt-2">{{ tgCount }} chaînes</p>
         </LCard>
+        <LCard title="Comptes X à suivre" description="Via RSS-Bridge local, 1 handle par ligne (sans @)">
+          <textarea v-model="store.sources.xAccounts" rows="6" class="w-full bg-bg border border-border rounded px-3 py-2 text-xs font-mono text-text-1 focus:outline-none focus:border-accent/60 focus:ring-2 focus:ring-accent/20" />
+          <p class="text-[11px] text-text-3 mt-2">{{ xCount }} comptes</p>
+        </LCard>
         <LCard title="Recherches Google News" description="Un mot-clé par ligne (optionnel)">
           <textarea v-model="store.sources.googleNews" rows="3" placeholder="ex : climat" class="w-full bg-bg border border-border rounded px-3 py-2 text-xs font-mono text-text-1 placeholder:text-text-3 focus:outline-none focus:border-accent/60 focus:ring-2 focus:ring-accent/20" />
         </LCard>
@@ -79,6 +83,7 @@ const csvLines = computed(() => csvPaste.value.split('\n').filter(s => s.trim())
 
 const rssCount = computed(() => store.sources.rss.split('\n').filter(s => s.trim()).length)
 const tgCount = computed(() => store.sources.telegram.split('\n').filter(s => s.trim()).length)
+const xCount = computed(() => store.sources.xAccounts?.split('\n').filter(s => s.trim()).length ?? 0)
 
 const failedSources = [
   { url: 'https://www.rtl.fr/actu/rss', error: 'HTTP 404' },

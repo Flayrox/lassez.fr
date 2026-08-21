@@ -33,6 +33,16 @@
       </div>
     </LCard>
 
+    <LCard title="Mode maintenance" description="Remplace le site public par un écran « revenons bientôt »">
+      <div class="space-y-3">
+        <div class="flex items-center justify-between gap-2">
+          <p class="text-xs font-medium">Activer la maintenance</p>
+          <LToggle :model-value="store.systeme.maintenanceMode" @update:model-value="(v: boolean) => { store.systeme.maintenanceMode = v; store.markDirty() }" />
+        </div>
+        <LTextarea v-if="store.systeme.maintenanceMode" v-model="store.systeme.maintenanceMessage" :rows="2" label="Message affiché" />
+      </div>
+    </LCard>
+
     <LCard title="Où tout est gardé">
       <ul class="text-xs text-text-2 space-y-1.5 font-mono">
         <li><span class="text-text-3">Config</span> daemon/config/config.yaml</li>

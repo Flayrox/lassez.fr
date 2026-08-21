@@ -1,115 +1,144 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 
-// Store complet — reprend les 82 clés radar_settings mais avec des mots simples
-// Plus de "pipelineGraphJson" ou "dedupLookbackHours" brut, tout est rangé par usage réel
+// Store labo — valeurs par défaut = la VRAIE config qui tournait sur le VPS
+// (radar.db 04/08/2026, voir docs/labo-bases-saines.md + daemon/config/config.yaml)
+
+export interface WeeklySlot { day: string; time: string } // ex { day:'LUN', time:'20:08' }
+export interface FormatItem { id: string; nom: string; actif: boolean; couleur: string; consigne: string }
+
+const DAYS = ['DIM', 'LUN', 'MAR', 'MER', 'JEU', 'VEN', 'SAM']
+
 export const useConfigStore = defineStore('config', () => {
-  // 1. Chaîne de fabrication (6 étapes) — ex-pipelineGraphJson
+  // ── Atelier (chaîne de fabrication) ──
   const atelier = ref([
-    { type: 'ingestion', label: 'Collecte', enabled: true, desc: 'On récupère les nouveaux articles (RSS / Telegram)', order: 1 },
-    { type: 'dedup', label: 'Anti-doublons', enabled: true, desc: 'On enlève les articles déjà vus', order: 2 },
-    { type: 'research', label: 'Tri', enabled: true, desc: 'L’IA note l’intérêt du sujet (0-100)', order: 3 },
-    { type: 'editor', label: 'Rédaction', enabled: true, desc: 'L’IA écrit le brouillon d’enquête', order: 4 },
-    { type: 'validator', label: 'Vérification', enabled: true, desc: 'On vérifie les faits avant publication', order: 5 },
-    { type: 'media', label: 'Image', enabled: true, desc: 'On ajoute une illustration', order: 6 },
+    { type: 'ingestion', label: 'Collecte', enabled: true, desc: 'On récupère les nouveaux articles', order: 1 },
+    { type: 'dedup', label: 'Anti-doublons', enabled: true, desc: 'Similarité 65%, fenêtre 10 h', order: 2 },
+    { type: 'research', label: 'Tri', enabled: true, desc: 'Gemini Flash note 0–100', order: 3 },
+    { type: 'editor', label: 'Rédaction', enabled: true, desc: 'Gemini Pro écrit l’enquête', order: 4 },
+    { type: 'validator', label: 'Vérification', enabled: true, desc: 'Auto-pilote désactivé pour l’instant', order: 5 },
+    { type: 'media', label: 'Image', enabled: true, desc: 'Overlay 50%, box 78%', order: 6 },
   ])
 
-  // 2. D'où viennent les infos
+  // ── Sources (les 11 flux RSS réellement actifs + comptes X via bridge) ──
   const sources = ref({
-    rss: `https://www.lemonde.fr/rss/une.xml
-https://www.mediapart.fr/articles/feed
-https://www.francetvinfo.fr/titres.rss
-https://www.humanite.fr/rss
-https://www.la-croix.com/RSS
-https://www.blast-info.fr/rss.xml`,
-    telegram: `brevesdepresse
-AlertesInfos
-mediavenir`,
-    googleNews: ``,
-    lookbackHours: 10, // regarder X heures en arrière
-    concurrency: 5, // combien de flux en même temps
+    rss: [
+      'https://www.france24.com/en/rss',
+      'https://www.rfi.fr/en/rss',
+      'https://www.lemonde.fr/rss/une.xml',
+      'https://www.mediapart.fr/articles/feed',
+      'https://www.francetvinfo.fr/titres.rss',
+      'https://www.humanite.fr/rss',
+      'https://www.la-croix.com/RSS',
+      'http://tempsreel.nouvelobs.com/rss.xml',
+      'https://www.blast-info.fr/rss.xml',
+      'https://basta.media/spip.php?page=backend',
+      'https://reporterre.net/spip.php?page=backend',
+    ].join('\n'),
+    telegram: '',
+    xAccounts: ['JLMelenchon', 'MathildePanot', 'RimaHas', 'Manuel_Bompard', 'FranceInsoumise', 'ImpactMediaFR'].join('\n'),
+    googleNews: '',
+    lookbackHours: 10,
+    maxArticlesPerScan: 20,
+    concurrency: 5,
   })
 
-  // 3. Ce qu'on garde ou pas
+  // ── Filtres (valeurs réelles) ──
   const filtres = ref({
-    motsCles: 'écologie, social, politique', // keywords
-    motsInterdits: 'crypto, sport', // bannedKeywords
-    seuilRessemblance: 45, // 0-100% (0.45)
-    fenetreDoublonsHeures: 48, // dedupLookbackHours
-    imagesAutorisees: true, // allowSourceImages
+    motsCles: '',
+    motsInterdits: '',
+    seuilRessemblance: 65,       // dedup_similarity_threshold
+    fenetreDoublonsHeures: 10,   // dedup_recent_hours
+    imagesAutorisees: true,
   })
 
-  // 4. Comment l'IA écrit
+  // ── Écriture (prompts vides dans la DB → fallback code ; modèles réels) ──
   const ecriture = ref({
-    modeleRapide: 'gemini-3-flash-preview', // aiModelFlash
-    modeleRedaction: 'gemini-3.1-pro-preview', // aiModelPro
-    modeleVerification: 'gemini-3-flash-preview', // aiModelValidator
+    modeleRapide: 'gemini-3-flash-preview',
+    modeleRedaction: 'gemini-2.5-pro',
+    modeleVerification: 'gemini-3-flash-preview',
     tachesEnMemeTempsRapide: 5,
     tachesEnMemeTempsRedaction: 3,
-    scoreMini: 50, // sur 100 pour garder le sujet
-    consigneTri: 'Tu es rédacteur en chef d’investigation. Trie la valeur journalistique.',
-    criteresRejet: 'Rejeter faits divers mineurs, pub déguisée.',
-    identite: 'Tu es rédacteur en chef de L’Assez. Style percutant, sans langue de bois.',
-    mission: 'Transformer le brut en enquête étayée.',
-    vocabulaire: 'Vocabulaire précis, incisif, factuel.',
-    consignesImages: 'Mots-clés d’illustration sobres et évocateurs.',
-    consigneGlobale: '', // customPromptModifier
+    scoreMini: 50,
+    webSearchEnabled: true,      // google_search_*_enabled x3
+    consigneTri: '',
+    criteresRejet: '',
+    identite: '',
+    mission: '',
+    vocabulaire: '',
+    consignesImages: '',
+    consigneGlobale: '',         // customPromptModifier
   })
 
-  // 5. Formats d'articles (ex-taxonomyTemplates)
-  const formats = ref([
-    { id: 'alerte', nom: '🔴 Alerte', actif: true, consigne: 'Format alerte brève', couleur: '#DC2626' },
-    { id: 'decryptage', nom: '🔎 Décryptage', actif: true, consigne: 'Format analyse posée', couleur: '#7c3aed' },
+  // ── Formats (types d’ouverture réellement utilisés) ──
+  const formats = ref<FormatItem[]>([
+    { id: 'ALERTE_INFO', nom: '🔴 ALERTE INFO !', actif: true, couleur: '#DC2626', consigne: '' },
+    { id: 'FAIT_DU_JOUR', nom: '📌 LE FAIT DU JOUR', actif: false, couleur: '#111111', consigne: '' },
+    { id: 'DECRYPTAGE', nom: '🔎 DÉCRYPTAGE', actif: false, couleur: '#7c3aed', consigne: '' },
   ])
 
-  // 6. Où on publie
+  // ── Partage (réel : Discord seul + test mode, pilote auto OFF) ──
   const partage = ref({
     discord: true,
     qoe: true,
     x: false,
     bluesky: false,
     mastodon: false,
-    discordMode: 'DIRECT' as 'DIRECT'|'SCHEDULED',
-    qoeMode: 'DIRECT' as 'DIRECT'|'SCHEDULED',
-    delaiMini: 60,
-    delaiMaxi: 120,
-    auto: true, // enableAutoPublish
+    discordMode: 'DIRECT' as 'DIRECT' | 'SCHEDULED',
+    qoeMode: 'DIRECT' as 'DIRECT' | 'SCHEDULED',
+    delaiMini: 1,   // min_delay_min
+    delaiMaxi: 2,   // max_delay_min
+    auto: false,    // auto_pilot_enabled = false
+    discordTestMode: true,
   })
 
-  // 7. Quand on publie
+  // ── Planning (calendrier réel : tous les jours à 20:08, Europe/Paris) ──
   const planning = ref({
-    mode: 'hybrid' as 'pulse'|'calendar'|'hybrid',
-    intervalleMinutes: 60,
-    heures: '08:00, 18:00',
+    mode: 'calendar' as 'pulse' | 'calendar' | 'hybrid',
+    intervalleMinutes: 6,        // scan_interval_hours = 0.1 h
+    timezone: 'Europe/Paris',
+    weeklySlots: DAYS.map(d => ({ day: d, time: '20:08' })) as WeeklySlot[],
   })
 
-  // 8. Santé (logs)
+  // ── Système ──
   const systeme = ref({
-    niveauLogs: 'INFO' as 'DEBUG'|'INFO'|'WARN'|'ERROR',
+    niveauLogs: 'INFO',
     garderLogsJours: 7,
     miroirLogs: true,
+    maintenanceMode: false,
+    maintenanceMessage: 'L’Assez fait peau neuve. Nous revenons dans quelques instants.',
   })
 
   const dirty = ref(false)
-  function markDirty(){ dirty.value = true }
-  function save(){
+  function markDirty() { dirty.value = true }
+
+  function save() {
     dirty.value = false
-    localStorage.setItem('labo-config', JSON.stringify({
+    localStorage.setItem('labo-config-v2', JSON.stringify({
       atelier: atelier.value, sources: sources.value, filtres: filtres.value,
       ecriture: ecriture.value, formats: formats.value, partage: partage.value,
-      planning: planning.value, systeme: systeme.value
+      planning: planning.value, systeme: systeme.value,
     }))
   }
-  function load(){
-    const raw = localStorage.getItem('labo-config')
-    if(raw){ try{
-      const o=JSON.parse(raw)
-      atelier.value=o.atelier??atelier.value; sources.value=o.sources??sources.value
-      filtres.value=o.filtres??filtres.value; ecriture.value=o.ecriture??ecriture.value
-      formats.value=o.formats??formats.value; partage.value=o.partage??partage.value
-      planning.value=o.planning??planning.value; systeme.value=o.systeme??systeme.value
-    }catch{} }
+  function load() {
+    const raw = localStorage.getItem('labo-config-v2')
+    if (raw) {
+      try {
+        const o = JSON.parse(raw)
+        atelier.value = o.atelier ?? atelier.value
+        sources.value = o.sources ?? sources.value
+        filtres.value = o.filtres ?? filtres.value
+        ecriture.value = o.ecriture ?? ecriture.value
+        formats.value = o.formats ?? formats.value
+        partage.value = o.partage ?? partage.value
+        planning.value = o.planning ?? planning.value
+        systeme.value = o.systeme ?? systeme.value
+      } catch {}
+    }
   }
   load()
+
   return { atelier, sources, filtres, ecriture, formats, partage, planning, systeme, dirty, markDirty, save }
 })
+
+export { DAYS }

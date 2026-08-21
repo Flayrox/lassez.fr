@@ -3,14 +3,15 @@
 import React, { useState } from 'react';
 import ElectionResultsLive from './ElectionResultsLive';
 import Link from 'next/link';
-import type { Post } from '../payload-types';
+import Image from 'next/image';
+import type { Post } from '../types';
 import { getArticleUrl } from '../lib/getArticleUrl';
-import { format } from 'date-fns';
-import { fr } from 'date-fns/locale';
 import { regions, departments as deptNames } from '../lib/geo-data';
 import { formatCommuneSlug } from '../lib/seo-engine';
 import { formatElectionLabel } from '../lib/elections';
 import { sanitizeHtmlForRender } from '../lib/sanitizeHtmlForRender';
+
+const electionsDateFormatter = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
 interface ElectionsClientProps {
     electionSlug: string;
@@ -151,16 +152,12 @@ export default function ElectionsClient({ electionSlug, articles, departments = 
                                 >
                                     {imageUrl && (
                                         <div className="h-36 overflow-hidden border-b-2 border-ink">
-                                            <img
-                                                src={imageUrl}
-                                                alt={titleHtml}
-                                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                                            />
+                                             <div className="relative w-full h-full"><Image src={imageUrl} alt={titleHtml} fill sizes="(max-width: 768px) 100vw, 33vw" className="object-cover group-hover:scale-105 transition-transform duration-500" /></div>
                                         </div>
                                     )}
                                     <div className="p-4">
                                         <div className="font-mono text-[9px] text-ink/40 uppercase font-black mb-2">
-                                            {postDate ? format(new Date(postDate), 'dd.MM.yyyy', { locale: fr }) : ''} — {author.toUpperCase()}
+                                            {postDate ? electionsDateFormatter.format(new Date(postDate)) : ''} — {author.toUpperCase()}
                                         </div>
                                         <h3
                                             className="font-serif font-black text-sm uppercase leading-tight text-ink group-hover:underline decoration-lassez-red decoration-2 underline-offset-4"

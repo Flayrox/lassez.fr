@@ -9,12 +9,12 @@ const config: Config = {
     theme: {
         extend: {
             fontFamily: {
-                sans: ['var(--font-inter)', 'sans-serif'],
-                serif: ['var(--font-playfair)', 'serif'],
-                mono: ['var(--font-jetbrains)', 'monospace'],
-                headline: ['var(--font-newsreader)', 'serif'],
-                label: ['var(--font-space-grotesk)', 'sans-serif'],
-                body: ['var(--font-space-grotesk)', 'sans-serif'],
+                sans: ['var(--font-inter)', 'system-ui', 'sans-serif'],
+                serif: ['var(--font-playfair)', 'Georgia', 'serif'],
+                mono: ['ui-monospace', 'SFMono-Regular', 'monospace'],
+                headline: ['var(--font-playfair)', 'Georgia', 'serif'],
+                label: ['var(--font-inter)', 'system-ui', 'sans-serif'],
+                body: ['var(--font-inter)', 'system-ui', 'sans-serif'],
             },
             keyframes: {
                 marquee: {

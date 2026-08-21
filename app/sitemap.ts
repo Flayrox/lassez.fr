@@ -2,7 +2,7 @@ import { MetadataRoute } from 'next';
 import { getPayloadClient } from '@/lib/payload';
 import { formatCommuneSlug } from '../lib/seo-engine';
 import { parseJsonArray } from '../lib/elections';
-import type { Post, Category, Lesson, Revelation } from '@/payload-types';
+import type { Post, Category, Lesson, Revelation } from '@/types';
 
 const BASE_URL = 'https://lassez.fr';
 

@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { usePathname } from 'next/navigation';
 import { useSettings } from './SettingsProvider';
 
@@ -42,13 +41,9 @@ export default function CommunicationLayer() {
     return (
         <>
             {/* 🛠 MODE MAINTENANCE */}
-            <AnimatePresence>
-                {isMaintenanceActive && !isAdminPage && (
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="fixed inset-0 z-[9999] bg-stone-50 flex flex-col items-center justify-center p-6 text-center"
+            {isMaintenanceActive && !isAdminPage && (
+                    <div
+                        className="fixed inset-0 z-[9999] bg-stone-50 flex flex-col items-center justify-center p-6 text-center animate-in fade-in"
                     >
                         <div className="max-w-md space-y-6">
                             <div className="w-20 h-20 bg-rose-600 rounded-3xl mx-auto flex items-center justify-center shadow-xl mb-8">
@@ -71,19 +66,14 @@ export default function CommunicationLayer() {
                                 </p>
                             </div>
                         </div>
-                    </motion.div>
+                    </div>
                 )}
-            </AnimatePresence>
 
             {/* ✨ POP-UP PROMO / INFO */}
-            <AnimatePresence>
-                {showPopup && !isMaintenanceActive && (
+            {showPopup && !isMaintenanceActive && (
                     <div className="fixed inset-0 z-[9998] flex items-center justify-center p-4 bg-stone-900/40 backdrop-blur-sm">
-                        <motion.div
-                            initial={{ opacity: 0, scale: 0.9, y: 20 }}
-                            animate={{ opacity: 1, scale: 1, y: 0 }}
-                            exit={{ opacity: 0, scale: 0.9, y: 20 }}
-                            className="bg-white border-4 border-stone-900 rounded-3xl p-8 max-w-sm w-full shadow-[12px_12px_0px_0px_rgba(28,25,23,1)] relative"
+                        <div
+                            className="bg-white border-4 border-stone-900 rounded-3xl p-8 max-w-sm w-full shadow-[12px_12px_0px_0px_rgba(28,25,23,1)] relative animate-in fade-in zoom-in duration-200"
                         >
                             <button
                                 onClick={closePopup}
@@ -118,10 +108,9 @@ export default function CommunicationLayer() {
                                     </button>
                                 </div>
                             </div>
-                        </motion.div>
+                        </div>
                     </div>
                 )}
-            </AnimatePresence>
         </>
     );
 }

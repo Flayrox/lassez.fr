@@ -1,19 +1,24 @@
 import React from 'react';
+import Image from 'next/image';
 
 interface GlitchImageProps {
   src: string;
   alt: string;
   className?: string;
+  priority?: boolean;
 }
 
-const GlitchImage: React.FC<GlitchImageProps> = ({ src, alt, className }) => {
+const GlitchImage: React.FC<GlitchImageProps> = ({ src, alt, className, priority = false }) => {
   return (
     <div className={`relative overflow-hidden group ${className}`}>
-      {/* Base Image */}
-      <img 
-        src={src} 
-        alt={alt} 
-        className="w-full h-full object-cover relative z-10"
+      {/* Base Image — next/image optimized */}
+      <Image
+        src={src}
+        alt={alt}
+        fill
+        sizes="(max-width: 768px) 100vw, 400px"
+        priority={priority}
+        className="object-cover relative z-10"
       />
       
       {/* Glitch Layer 1 (Cyan/Red shift) */}

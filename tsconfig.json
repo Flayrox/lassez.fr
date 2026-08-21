@@ -19,9 +19,6 @@
     "allowJs": true,
     "jsx": "react-jsx",
     "paths": {
-      "@payload-config": [
-        "./payload.config.ts"
-      ],
       "@/*": [
         "./*"
       ]
@@ -47,8 +44,6 @@
   ],
   "exclude": [
     "node_modules",
-    "scratch/**",
-    "payload/seed-dev.ts",
-    "payload/seed-*.ts"
+    "scratch/**"
   ]
 }

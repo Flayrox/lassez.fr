@@ -3,16 +3,17 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { AlertTriangleIcon, LoaderIcon, ChevronUpIcon } from './icons';
-import { format, parseISO, isValid } from 'date-fns';
-import { fr } from 'date-fns/locale';
-import type { Revelation, Tag } from '../payload-types';
+import type { Revelation, Tag } from '../types';
+
+const revDateFormatter = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 
 interface PayloadResult { docs: Revelation[]; totalDocs: number; hasNextPage: boolean; }
 type GeoFilter = 'all' | 'france' | 'international';
 
 function safeDate(raw?: string | null): Date | null {
     if (!raw) return null;
-    try { const d = parseISO(raw); return isValid(d) ? d : null; } catch { return null; }
+    const d = new Date(raw);
+    return isNaN(d.getTime()) ? null : d;
 }
 function stripHtml(html: string) { return html.replace(/<[^>]+>/g, '').trim(); }
 
@@ -141,7 +142,7 @@ function RevCard({ rev, isExpanded, onToggle, onTag, activeTag }: {
                         <div className="flex items-center gap-3">
                             {date && (
                                 <span className="font-mono text-[10px] font-black bg-ink text-paper px-2 py-0.5">
-                                    {format(date, 'dd.MM HH:mm', { locale: fr })}
+                                    {revDateFormatter.format(date)}
                                 </span>
                             )}
                             {rev.zone_geo && (

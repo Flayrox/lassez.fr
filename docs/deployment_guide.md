@@ -1,74 +1,30 @@
-# 🚀 Guide de Déploiement Lassez.fr
+# 🚀 Déploiement L'Assez — Front clean
 
-Le déploiement est **unifié sur un seul pipeline** : GitHub Actions → VPS → PM2. Plusieurs anciens systèmes (Docker Compose, `full_deploy.cjs` multi-environnements) ont été supprimés.
+Pipeline unique : GitHub Actions → VPS → PM2 (1 seul process).
 
-## 📦 Pipeline Canonique (Automatique)
+1. **Sync** : `git pull` sur `/var/www/lassez-repo`
+2. **Copy** : rsync → `/var/www/lassez` (`.env` conservé)
+3. **Build** : `npm ci && npm run build`
+4. **Restart** : `pm2 startOrReload ecosystem.config.cjs --update-env && pm2 save`
 
-Un push sur la branche `main` déclenche le workflow `.github/workflows/deploy.yml` :
+Fallback manuel : `VPS_HOST=... VPS_USER=root npm run deploy:vps` (script `scripts/deploy_vps_unified.cjs`)
 
-1. **Synchronisation** : le dépôt est tiré sur le VPS (`/var/www/lassez-repo`).
-2. **Copie** : rsync vers l'environnement unique `/var/www/lassez-api` (le `.env` local du VPS est conservé).
-3. **Build** : `npm ci` → `npm run payload:migrate` → `npm run build`.
-4. **Redémarrage** : `pm2 startOrReload ecosystem.config.cjs --update-env` + `pm2 save`.
-
-> L'IP du VPS et la clé SSH sont configurées dans les secrets GitHub (`VPS_SSH_KEY`).
-
-## 🛠️ Déploiement Manuel (Fallback)
-
-En cas de besoin, le script `scripts/deploy_vps_unified.cjs` reproduit le même flux :
-
-```bash
-VPS_HOST=178.104.197.3 VPS_USER=root VPS_SSH_KEY="$(cat ~/.ssh/id_ed25519)" npm run deploy:vps
-```
-
-Variables utilisées : `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY`, `VPS_REMOTE_DIR` (défaut `/var/www/lassez-prod`), `VPS_GIT_BRANCH` (défaut `main`).
-
-## 📦 Configuration des Services (PM2)
-
-Un seul environnement `/var/www/lassez-api` fait tourner 4 processus (fichier `ecosystem.config.cjs`) :
+## PM2
 
 | Nom | Port | Description |
 | :--- | :--- | :--- |
-| `lassez-front` | **3000** | Le site public (lassez.fr) |
-| `lassez-api` | **3001** | L'API Payload et l'Admin (api.lassez.fr) |
-| `lassez-studio` | **3002** | Interface de curation, d'automatisation & de workflow (studio.lassez.fr) |
-| `lassez-daemon` | **3005** | Daemon principal Radar (ingestion, rédaction, publisher) |
+| `lassez-front` | **3000** | Site public (lassez.fr) |
 
-> ⚠️ **Migration PM2 (une seule fois)** : si d'anciens processus nommés `radar-api`, `radar-front`, `radar-studio` ou `radar-daemon` tournent encore sur le VPS, supprimez-les pour libérer les ports :
-> ```bash
-> pm2 delete radar-api radar-front radar-studio radar-daemon
-> pm2 save
-> ```
-> Le workflow GitHub Actions le fait automatiquement à chaque déploiement (`pm2 delete ... || true`).
+Anciens services supprimés : `lassez-api` (3001), `lassez-studio` (3002), `lassez-daemon` (3005)
 
-### Commandes Utiles :
-- **Voir le statut** : `pm2 list`
-- **Voir les logs** : `pm2 logs [nom]`
-- **Redémarrer un service** : `pm2 restart [nom]`
-
-## 🔐 Gestion des Rôles (RBAC)
-
-Les permissions sont gérées via le champ `roles` dans la collection **Auteurs** (Payload).
-
-- **Admin** : Accès total.
-- **Éditeur** : Peut modifier tous les articles et révélations.
-- **Auteur** : Ne peut modifier que ses **propres** créations.
-
-### Donner les droits Admin à un utilisateur :
 ```bash
-# Nécessite DATABASE_URL dans l'environnement (cf. .env)
-node scripts/grant_admin.cjs email@exemple.com
+pm2 list
+pm2 logs lassez-front
+pm2 restart lassez-front
 ```
 
-## ⚠️ Notes Techniques
-- **Base de Données** : Payload utilise Supabase (Postgres). Les migrations sont appliquées automatiquement par le workflow de déploiement (`npm run payload:migrate`).
-- **Base Radar** : le daemon écrit dans Payload (Postgres). Les collections dédiées (`signals`, `sources`, `publications`, `seen-urls`, `taxonomy-templates`, `logs`) et le global `radar-settings` remplacent l'ancienne base Prisma. Le daemon est écrit en **Go** (`daemon/`), compilé en binaire `linux/amd64` par le workflow, et lancé par PM2 (`./daemon/bin/daemon`).
-- **Base legacy du front** : `data/radar.db` (SQLite, élections/config/nav) reste utilisé par le site public et est poussé au VPS via `node scripts/push_radar_db_to_vps.cjs`.
-- **Clé SSH** : le déploiement GitHub Actions utilise le secret `VPS_SSH_KEY` ; les scripts manuels utilisent `~/.ssh/id_ed25519`.
+## Notes
 
-## 🔄 Migration Radar (une seule fois, avant de basculer le daemon)
-
-1. Appliquer le schéma : `npm run payload:migrate` (déjà fait par le workflow).
-2. Créer le compte bot admin : `npx tsx payload/create-bot.ts` (lit `PAYLOAD_BOT_EMAIL` / `PAYLOAD_BOT_PASSWORD`).
-3. Importer les données SQLite → Payload : `node scripts/migrate_radar_to_payload.cjs`.
-4. Vérifier que le `.env` racine contient `PAYLOAD_API_URL`, `PAYLOAD_BOT_EMAIL` et `PAYLOAD_BOT_PASSWORD` : le daemon Go les charge lui-même au démarrage (il ne lit plus `radar_lassez/.env`, supprimé).
+- Plus de Payload / DB Supabase en front pour l'instant. Le futur provider sera branché dans `lib/data.ts`.
+- `data/radar.db` (élections) conservé en local si besoin, mais le front tourne sans (fallback).
+- Secrets GitHub : `VPS_SSH_KEY` + `VPS_HOST`.

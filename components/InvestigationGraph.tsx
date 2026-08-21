@@ -1,8 +1,10 @@
 'use client';
 
 import React, { useMemo, useRef, useState, useEffect } from 'react';
-import ForceGraph2D from 'react-force-graph-2d';
+import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
+
+const ForceGraph2D = dynamic(() => import('react-force-graph-2d'), { ssr: false });
 import { usePosts } from '../hooks/usePosts';
 import { useCategories } from '../hooks/useCategories';
 import { getArticleUrl } from '../lib/getArticleUrl';

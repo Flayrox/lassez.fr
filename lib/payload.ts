@@ -1,16 +1,26 @@
-import { getPayload } from 'payload';
-import config from '@payload-config';
+/**
+ * Compat shim — Payload débranché
+ * @deprecated utiliser lib/data.ts
+ */
+export { find, findGlobal, findByID } from './data';
 
-let cachedPayload: any = null;
+const emptyFindResult = () => ({
+  docs: [],
+  totalDocs: 0,
+  totalPages: 0,
+  page: 1,
+  limit: 10,
+  hasPrevPage: false,
+  hasNextPage: false,
+  prevPage: null,
+  nextPage: null,
+});
 
-export const getPayloadClient = async () => {
-    if (cachedPayload) return cachedPayload;
-
-    try {
-        cachedPayload = await getPayload({ config });
-        return cachedPayload;
-    } catch (error) {
-        console.error('[Payload Client] Initialization failed:', error);
-        throw error;
-    }
-};
+export const getPayloadClient = async () => ({
+  find: async (_args: any) => emptyFindResult(),
+  findGlobal: async (_args: any) => ({}),
+  findByID: async (_args: any) => null,
+  count: async (_args: any) => ({ totalDocs: 0 }),
+  update: async (_args: any) => ({}),
+  delete: async (_args: any) => ({}),
+});

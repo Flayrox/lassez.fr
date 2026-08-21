@@ -7,7 +7,7 @@ import ArticleClient from '@/components/ArticleClient';
 import Layout from '@/components/Layout';
 import PreviewShell from '@/components/PreviewShell';
 import JsonLd from '@/components/JsonLd';
-import type { Post, Category } from '@/payload-types';
+import type { Post, Category } from '@/types';
 
 type Props = {
     params: Promise<{ category: string; slug: string }>;

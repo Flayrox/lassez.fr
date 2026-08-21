@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { LoaderIcon, GlobeIcon, MapPinIcon, ShieldIcon } from '../icons';
-import type { Tag } from '../../payload-types';
+import type { Tag } from '../../types';
 
 interface RevelationsSidebarProps {
     onClose: () => void;

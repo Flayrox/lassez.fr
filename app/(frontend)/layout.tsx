@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { Suspense } from 'react';
 import Script from 'next/script';
 import './globals.css';
-import { Inter, Playfair_Display, JetBrains_Mono, Newsreader, Space_Grotesk } from 'next/font/google';
+import { Inter, Playfair_Display } from 'next/font/google';
 import { getNavItems } from '@/lib/db-nav';
 import ThemeInitializer from '@/components/ThemeInitializer';
 import { getSettings } from '@/lib/get-settings';
@@ -12,20 +12,10 @@ import Sidebar from '@/components/Sidebar';
 import { SettingsProvider } from '@/components/SettingsProvider';
 import { UIProvider } from '@/components/UIProvider';
 
-const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
-const playfair = Playfair_Display({ subsets: ['latin'], variable: '--font-playfair' });
-const jetbrains = JetBrains_Mono({ subsets: ['latin'], variable: '--font-jetbrains' });
-const newsreader = Newsreader({ 
-    subsets: ['latin'], 
-    variable: '--font-newsreader',
-    display: 'swap',
-    style: ['normal', 'italic']
-});
-const spaceGrotesk = Space_Grotesk({ 
-    subsets: ['latin'], 
-    variable: '--font-space-grotesk',
-    display: 'swap'
-});
+// Duo fonts : Playfair (brand serif L'Assez) + Inter (générique sans)
+// Les autres (mono/headline) tombent en fallback système pour alléger ~120kb
+const inter = Inter({ subsets: ['latin'], variable: '--font-inter', display: 'swap' });
+const playfair = Playfair_Display({ subsets: ['latin'], variable: '--font-playfair', display: 'swap' });
 
 const matomoBootstrapScript = (url: string, id: string) => `
   var _paq = window._paq = window._paq || [];
@@ -144,10 +134,9 @@ export default async function RootLayout({
     const bodyClassName = 'public-plane bg-paper text-ink bg-noise overflow-x-hidden paper-texture';
 
     return (
-        <html lang="fr" className={`${inter.variable} ${playfair.variable} ${jetbrains.variable} ${newsreader.variable} ${spaceGrotesk.variable}`}>
+        <html lang="fr" className={`${inter.variable} ${playfair.variable}`}>
             <head>
                 <meta name="fediverse:creator" content="@lassezmedia@mastodon.social" />
-                <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
                 <script
                     id="structured-data-org"
                     type="application/ld+json"

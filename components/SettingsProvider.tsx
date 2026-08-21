@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext } from 'react';
-import { Setting } from '@/payload-types';
+import { Setting } from '@/types';
 
 const SettingsContext = createContext<Setting | null>(null);
 

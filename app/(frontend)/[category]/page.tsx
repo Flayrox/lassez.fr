@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation';
 import { getPayloadClient } from '@/lib/payload';
 import CategoryClient from '@/components/CategoryClient';
 import Layout from '@/components/Layout';
-import type { Category, Post } from '@/payload-types';
+import type { Category, Post } from '@/types';
 
 type Props = {
     params: Promise<{ category: string }>;

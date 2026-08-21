@@ -1,8 +1,8 @@
 import { Metadata } from 'next';
 import Layout from '@/components/Layout';
 import ElectionsClient from '@/components/ElectionsClient';
-import type { Post } from '@/payload-types';
-import type { Where } from 'payload';
+import type { Post } from '@/types';
+import type { Where } from '@/lib/payload-where';
 import { getPayloadClient } from '@/lib/payload';
 import Script from 'next/script';
 import Database from 'better-sqlite3';

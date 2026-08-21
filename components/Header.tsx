@@ -4,9 +4,9 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
 import { SearchIcon, MenuIcon } from './icons';
-import { format } from 'date-fns';
-import { fr } from 'date-fns/locale';
 import { useNav } from './NavProvider';
+
+const headerDateFormatter = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' });
 
 interface HeaderProps {
   onMenuClick: () => void;
@@ -73,7 +73,7 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
           </div>
           <div className="flex items-center gap-2 truncate px-2">
             <span className="w-1.5 h-1.5 bg-lassez-red rounded-full shrink-0 animate-pulse"></span>
-            <span className="truncate uppercase">{format(today, 'd MMM yyyy', { locale: fr })}</span>
+            <span className="truncate uppercase">{headerDateFormatter.format(today)}</span>
           </div>
           <div className="hidden lg:block shrink-0">
             Accès : Public / Illimité

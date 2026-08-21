@@ -26,7 +26,6 @@ const remoteScript = [
   `git checkout ${branch}`,
   `git reset --hard origin/${branch}`,
   installCommand,
-  `npm run payload:migrate`,
   buildCommand,
   restartCommand,
   `echo DEPLOY_OK`

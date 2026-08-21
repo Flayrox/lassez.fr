@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getPayloadClient } from '@/lib/payload';
-import type { Where } from 'payload';
+import type { Where } from '@/lib/payload-where';
 
 export const dynamic = 'force-dynamic';
 

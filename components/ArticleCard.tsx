@@ -1,11 +1,12 @@
 
 import React from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { WPPost, WPTerm, WPCategory } from '../types';
-import { format } from 'date-fns';
-import { fr } from 'date-fns/locale';
 import { getArticleUrl } from '../lib/getArticleUrl';
 import { sanitizeHtmlForRender } from '../lib/sanitizeHtmlForRender';
+
+const dateFormatter = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
 interface ArticleCardProps {
     post: WPPost;
@@ -47,16 +48,20 @@ const ArticleCard: React.FC<ArticleCardProps> = ({ post, tag, featured = false }
                 </div>
 
                 <div className={`relative border-b-2 border-lassez-border bg-ink/5 scanline overflow-hidden ${featured ? 'h-64 sm:h-[450px]' : 'h-52'}`}>
-                    <img
+                    <Image
                         src={imageUrl}
                         alt={post.title}
-                        className={`w-full h-full object-cover group-hover:scale-105 transition-all duration-500`}
+                        fill
+                        sizes={featured ? "(max-width: 768px) 100vw, 66vw" : "(max-width: 768px) 100vw, 33vw"}
+                        priority={featured}
+                        fetchPriority={featured ? "high" : "auto"}
+                        className="object-cover group-hover:scale-105 transition-transform duration-500"
                     />
                 </div>
 
                 <div className="p-3 md:p-4 flex flex-col flex-grow bg-paper-bright relative z-10">
                     <div className="mb-2 flex items-center text-[9px] font-mono font-bold uppercase tracking-widest text-ink/40 border-b border-ink/10 pb-1.5">
-                        <span>{format(new Date(post.publishedAt || post.createdAt), 'dd.MM.yyyy', { locale: fr })}</span>
+                        <span>{dateFormatter.format(new Date(post.publishedAt || post.createdAt))}</span>
                         <span className="mx-2">/</span>
                         <span className="text-lassez-red">{author.toUpperCase()}</span>
                     </div>

@@ -1,5 +1,5 @@
 import useSWR from 'swr';
-import type { Post } from '../payload-types';
+import type { Post } from '../types';
 
 const fetcher = (url: string) => fetch(url).then(r => {
     if (!r.ok) throw new Error(`HTTP ${r.status}`);

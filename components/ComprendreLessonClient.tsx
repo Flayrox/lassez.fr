@@ -5,8 +5,6 @@ import { WPPost, WPTerm } from '../types';
 import Link from 'next/link';
 import ReadingProgress from './ReadingProgress';
 import { useProgress } from '../hooks/useProgress';
-import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
 import { SaveIcon } from './icons';
 
 interface Props {
@@ -62,14 +60,18 @@ const ComprendreLessonClient: React.FC<Props> = ({ post: initialPost, livePrevie
         progress.markAsCompleted(post.id);
     };
 
-    const handleSaveAsPdf = () => {
-        if (articleRef.current) {
-            html2canvas(articleRef.current, { scale: 1.5, useCORS: true, backgroundColor: '#FBF9F4' }).then(canvas => {
-                const pdf = new jsPDF('p', 'mm', 'a4');
-                pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, 210, canvas.height * 210 / canvas.width);
-                pdf.save(`FICHE_REVISION_${post.slug}.pdf`);
-            }).catch(() => { });
-        }
+    const handleSaveAsPdf = async () => {
+        if (!articleRef.current) return;
+        const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
+            import('html2canvas'),
+            import('jspdf'),
+        ]);
+        try {
+            const canvas = await html2canvas(articleRef.current, { scale: 1.5, useCORS: true, backgroundColor: '#FBF9F4' });
+            const pdf = new jsPDF('p', 'mm', 'a4');
+            pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, 210, canvas.height * 210 / canvas.width);
+            pdf.save(`FICHE_REVISION_${post.slug}.pdf`);
+        } catch {}
     };
 
     return (

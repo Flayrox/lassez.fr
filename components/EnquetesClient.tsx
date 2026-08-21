@@ -6,22 +6,18 @@ import { useSearchParams } from 'next/navigation';
 import { usePosts } from '../hooks/usePosts';
 import { useCategories } from '../hooks/useCategories';
 import { AlertTriangleIcon, SearchIcon, XIcon, LoaderIcon, ChevronLeftIcon } from './icons';
-import { format, parseISO, isValid } from 'date-fns';
-import { fr } from 'date-fns/locale';
 import Link from 'next/link';
 import GlitchImage from './GlitchImage';
-import type { Post, Category } from '../payload-types';
+import type { Post, Category } from '../types';
+
+const enqueteDateFormatter = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit' });
 
 const PER_PAGE = 10;
 
 function safeDate(raw: string | null | undefined): Date | null {
     if (!raw) return null;
-    try {
-        const d = parseISO(raw);
-        return isValid(d) ? d : null;
-    } catch {
-        return null;
-    }
+    const d = new Date(raw);
+    return isNaN(d.getTime()) ? null : d;
 }
 
 function getArticleUrl(post: Post): string {
@@ -65,7 +61,7 @@ function PostCard({ post, index, page }: { post: Post; index: number; page: numb
                 <div className="flex flex-col p-4 md:p-6 flex-grow justify-between relative">
                     <div>
                         <div className="flex items-center text-[10px] font-mono font-bold text-gray-500 mb-3 border-b-2 border-gray-100 pb-2 uppercase tracking-widest">
-                            <span>{date ? format(date, 'dd.MM.yy', { locale: fr }) : '—'}</span>
+                            <span>{date ? enqueteDateFormatter.format(date) : '—'}</span>
                             <span className="mx-2 text-lassez-red">///</span>
                             <span>Ag. {author.split(' ')[0]}</span>
                         </div>

@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { LoaderIcon } from '../icons';
 import useSWR from 'swr';
-import type { Category } from '../../payload-types';
+import type { Category } from '../../types';
 
 interface EnqueteSidebarProps {
     onClose: () => void;

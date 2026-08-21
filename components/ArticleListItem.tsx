@@ -2,11 +2,11 @@
 import React from 'react';
 import Link from 'next/link';
 import { WPPost, WPTerm, WPCategory } from '../types';
-import { format } from 'date-fns';
-import { fr } from 'date-fns/locale';
 import GlitchImage from './GlitchImage';
 import { getArticleUrl } from '../lib/getArticleUrl';
 import { sanitizeHtmlForRender } from '../lib/sanitizeHtmlForRender';
+
+const listDateFormatter = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit' });
 
 interface ArticleListItemProps {
     post: WPPost;
@@ -51,7 +51,7 @@ const ArticleListItem: React.FC<ArticleListItemProps> = ({ post }) => {
 
                     <div>
                         <div className="flex items-center text-[10px] font-mono font-bold text-gray-500 mb-3 border-b-2 border-gray-100 pb-2 uppercase tracking-widest">
-                            <span>{format(new Date(post.publishedAt || post.createdAt), 'dd.MM.yy', { locale: fr })}</span>
+                            <span>{listDateFormatter.format(new Date(post.publishedAt || post.createdAt))}</span>
                             <span className="mx-2 text-lassez-red">///</span>
                             <span>Ag. {author.split(' ')[0]}</span>
                         </div>

@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "next dev -p 2500",
+    "dev:labo": "npm --prefix apps/labo run dev",
+    "dev:all": "concurrently -n lassez,labo -c red,blue \"npm:dev\" \"npm:dev:labo\"",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
@@ -37,6 +39,7 @@
     "@types/papaparse": "^5.5.2",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
+    "concurrently": "^10.0.5",
     "typescript": "~5.8.2"
   }
 }

@@ -1,0 +1,46 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Thème — 100% tokenisé, zéro hex dans les .vue ── */
+:root[data-theme='dark'] {
+  --bg: #0a0a0a;
+  --surface: #111111;
+  --surface-hover: #1a1a1a;
+  --border: #262626;
+  --text-1: #ededed;
+  --text-2: #a1a1aa;
+  --text-3: #52525b;
+  --accent: #3ecf8e;
+  --accent-hover: #35b87d;
+  --accent-fg: #052e1b;
+  --accent-muted: rgba(62, 207, 142, 0.12);
+  --danger: #f87171;
+  --warning: #fbbf24;
+  --info: #60a5fa;
+}
+
+:root[data-theme='light'] {
+  /* À remplir pour le light mode (fin de projet) */
+}
+
+html,
+body {
+  background: var(--bg);
+  color: var(--text-1);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}

@@ -1,0 +1,30 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Labo Config",
+  "type": "object",
+  "required": ["ingestion","dedup","research","editorial","publisher","scheduling"],
+  "properties": {
+    "ingestion": {
+      "type": "object",
+      "properties": {
+        "timeWindowHours": {"type":"integer","minimum":1},
+        "rssLookbackHours": {"type":"integer"},
+        "concurrency": {"type":"integer","minimum":1,"maximum":20}
+      }
+    },
+    "dedup": {
+      "type":"object",
+      "properties": {
+        "similarityThreshold": {"type":"number","minimum":0,"maximum":1},
+        "lookbackHours": {"type":"integer"}
+      }
+    },
+    "publisher": {
+      "type":"object",
+      "properties": {
+        "enableQoe": {"type":"boolean"},
+        "enableDiscord": {"type":"boolean"}
+      }
+    }
+  }
+}

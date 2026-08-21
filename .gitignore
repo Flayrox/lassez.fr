@@ -50,3 +50,10 @@ public/uploads/
 __MACOSX/
 .vscode/
 .idea/
+
+# Bases SQLite lourdes (récupérables via VPS / backups locaux)
+data/radar.db*
+data/*.bak
+
+# Builds labo
+apps/labo/dist/

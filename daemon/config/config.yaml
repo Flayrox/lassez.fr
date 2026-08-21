@@ -1,0 +1,63 @@
+# Labo L'Assez — config pro (Go + Vue)
+# Articles → qoe.fi (mock tant que PUB_ID pas créé), comprendre/mini-news → local SQLite
+
+ingestion:
+  timeWindowHours: 12
+  rssLookbackHours: 10
+  sources:
+    rss:
+      - https://www.lemonde.fr/rss/une.xml
+      - https://www.mediapart.fr/articles/feed
+      - https://www.francetvinfo.fr/titres.rss
+      - https://www.humanite.fr/rss
+    telegram: []
+    googleNews: []
+  concurrency: 5
+
+dedup:
+  similarityThreshold: 0.45
+  lookbackHours: 48
+  purgeSeenUrlsDays: 7
+
+research:
+  aiModelFlash: gemini-3-flash-preview
+  maxConcurrentTasks: 5
+  scoreThreshold: 50
+  systemPrompt: "Tu es rédacteur en chef d'investigation. Trie la valeur journalistique."
+  rejectCriteria: "Rejeter faits divers mineurs, pub déguisée, annonces corporate triviales."
+
+editorial:
+  aiModelPro: gemini-3.1-pro-preview
+  maxConcurrentTasks: 3
+  baseIdentity: "Tu es rédacteur en chef de L'Assez. Style percutant, analytique, sans langue de bois."
+  researchMission: "Transformer le brut en investigation étayée."
+  vocabularyRules: "Vocabulaire précis, incisif, factuel. Pas de sensationnalisme gratuit."
+  imageRules: "Mots-clés d'illustration sobres et évocateurs."
+
+publisher:
+  enableDiscord: true
+  enableQoe: true  # qoe.fi (mock si QOE_MOCK=true)
+  enableX: false
+  enableBluesky: false
+  enableMastodon: false
+  discordPublishMode: DIRECT
+  qoePublishMode: DIRECT
+  minDelayMinutes: 60
+  maxDelayMinutes: 120
+  enableAutoPublish: true
+
+scheduling:
+  mode: hybrid # pulse | calendar | hybrid
+  scrapingIntervalMinutes: 60
+  daemonSchedule: "LUN,MAR,MER,JEU,VEN 08:00"
+
+pipeline:
+  # Graphe Vue Flow (activeNodes = types présents)
+  graphJson: '{"nodes":[{"type":"ingestion"},{"type":"dedup"},{"type":"research"},{"type":"editor"},{"type":"validator"},{"type":"media"},{"type":"publisher"}]}'
+
+qoe:
+  mock: true # passer à false quand QOE_API_KEY + QOE_PUBLICATION_ID en .env
+  baseUrl: https://api.qoe.fi/v1
+
+storage:
+  sqlitePath: ./data/radar.db # seenUrls + publications queue + lessons/mini-news

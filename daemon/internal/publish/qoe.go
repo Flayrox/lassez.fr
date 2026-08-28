@@ -3,7 +3,7 @@ package publish
 import (
 	"fmt"
 
-	"github.com/Flayrox/LASSEZ/daemon/internal/qoe"
+	"github.com/Flayrox/lassez.fr/daemon/internal/qoe"
 )
 
 // QoeConfig — diffusion vers qoe.fi (remplace Payload)

@@ -10,10 +10,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Flayrox/LASSEZ/daemon/internal/config"
-	"github.com/Flayrox/LASSEZ/daemon/internal/payload"
-	"github.com/Flayrox/LASSEZ/daemon/internal/publish"
-	"github.com/Flayrox/LASSEZ/daemon/internal/qoe"
+	"github.com/Flayrox/lassez.fr/daemon/internal/config"
+	"github.com/Flayrox/lassez.fr/daemon/internal/payload"
+	"github.com/Flayrox/lassez.fr/daemon/internal/publish"
+	"github.com/Flayrox/lassez.fr/daemon/internal/qoe"
 )
 
 type publisherPlatform struct {

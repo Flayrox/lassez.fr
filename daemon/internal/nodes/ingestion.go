@@ -13,8 +13,8 @@ import (
 
 	"github.com/mmcdole/gofeed"
 
-	"github.com/Flayrox/LASSEZ/daemon/internal/config"
-	"github.com/Flayrox/LASSEZ/daemon/internal/payload"
+	"github.com/Flayrox/lassez.fr/daemon/internal/config"
+	"github.com/Flayrox/lassez.fr/daemon/internal/payload"
 )
 
 // IngestedArticle is a freshly ingested article, ready for deduplication.

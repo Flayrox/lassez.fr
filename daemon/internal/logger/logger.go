@@ -14,7 +14,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Flayrox/LASSEZ/daemon/internal/payload"
+	"github.com/Flayrox/lassez.fr/daemon/internal/payload"
 )
 
 const maxLogSize = 10 * 1024 * 1024 // 10 MB

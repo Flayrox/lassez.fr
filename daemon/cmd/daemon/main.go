@@ -23,13 +23,13 @@ import (
 
 	"github.com/joho/godotenv"
 
-	"github.com/Flayrox/LASSEZ/daemon/internal/api"
-	"github.com/Flayrox/LASSEZ/daemon/internal/config"
-	"github.com/Flayrox/LASSEZ/daemon/internal/logger"
-	"github.com/Flayrox/LASSEZ/daemon/internal/nodes"
-	"github.com/Flayrox/LASSEZ/daemon/internal/payload"
-	"github.com/Flayrox/LASSEZ/daemon/internal/pipeline"
-	"github.com/Flayrox/LASSEZ/daemon/internal/scheduler"
+	"github.com/Flayrox/lassez.fr/daemon/internal/api"
+	"github.com/Flayrox/lassez.fr/daemon/internal/config"
+	"github.com/Flayrox/lassez.fr/daemon/internal/logger"
+	"github.com/Flayrox/lassez.fr/daemon/internal/nodes"
+	"github.com/Flayrox/lassez.fr/daemon/internal/payload"
+	"github.com/Flayrox/lassez.fr/daemon/internal/pipeline"
+	"github.com/Flayrox/lassez.fr/daemon/internal/scheduler"
 )
 
 func main() {

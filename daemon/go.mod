@@ -1,4 +1,4 @@
-module github.com/Flayrox/LASSEZ/daemon
+module github.com/Flayrox/lassez.fr/daemon
 
 go 1.26.5
 

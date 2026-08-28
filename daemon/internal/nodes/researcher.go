@@ -12,8 +12,8 @@ import (
 	"github.com/google/generative-ai-go/genai"
 	"google.golang.org/api/option"
 
-	"github.com/Flayrox/LASSEZ/daemon/internal/config"
-	"github.com/Flayrox/LASSEZ/daemon/internal/payload"
+	"github.com/Flayrox/lassez.fr/daemon/internal/config"
+	"github.com/Flayrox/lassez.fr/daemon/internal/payload"
 )
 
 const (

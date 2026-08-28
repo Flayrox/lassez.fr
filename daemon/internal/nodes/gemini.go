@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Flayrox/LASSEZ/daemon/internal/config"
+	"github.com/Flayrox/lassez.fr/daemon/internal/config"
 )
 
 // geminiAPIKey résout la clé API Gemini pour un nœud du pipeline, dans cet

@@ -105,6 +105,52 @@ func RunIngestion(client *payload.Client, resolver *config.Resolver) ([]Ingested
 		})
 	}
 
+	// 4. Normalisation des canaux de type « mot-clé » :
+	//   - GOOGLE_NEWS : un mot-clé (ex « climat ») devient l'URL de recherche
+	//     RSS officielle de Google News — sinon gofeed tenterait de parser
+	//     « climat » comme une URL et échouerait.
+	//   - X : un handle (ex « JLMelenchon ») devient un flux Atom via le
+	//     RSS-Bridge (TwitterBridge), comme le faisait l'ancien daemon TS.
+	//   Un flux RSS déjà complet (URL http…) est laissé tel quel.
+	bridge := ""
+	if b, ok := settings["rssBridgeUrl"].(string); ok {
+		bridge = strings.TrimRight(b, "/")
+	}
+	normalized := make([]sourceToProcess, 0, len(sources))
+	for _, src := range sources {
+		if strings.HasPrefix(src.URL, "http") {
+			normalized = append(normalized, src) // flux RSS déjà complet
+			continue
+		}
+		switch src.Type {
+		case "GOOGLE_NEWS":
+			src.URL = "https://news.google.com/rss/search?q=" + url.QueryEscape(src.URL) + "&hl=fr&gl=FR&ceid=FR:fr"
+			src.SourceName = "GNews: " + src.SourceName
+			normalized = append(normalized, src)
+		case "X":
+			if bridge == "" {
+				log.Printf("[Node 1] ⚠️ Compte X %s ignoré : RSS-Bridge non configuré (rssBridgeUrl).", src.URL)
+				continue
+			}
+			src.URL = bridge + "/?action=display&bridge=TwitterBridge&context=By+username&u=" +
+				url.QueryEscape(src.URL) + "&format=Atom"
+			normalized = append(normalized, src)
+		case "TELEGRAM":
+			if bridge == "" {
+				log.Printf("[Node 1] ⚠️ Chaîne Telegram %s ignorée : RSS-Bridge non configuré (rssBridgeUrl).", src.URL)
+				continue
+			}
+			// Sans @ — même passerelle que l'ancien daemon TS : le flux public de la
+			// chaîne via RSS-Bridge (TelegramBridge, paramètre c).
+			src.URL = bridge + "/?action=display&bridge=TelegramBridge&context=Channel&c=" +
+				url.QueryEscape(src.URL) + "&format=Atom"
+			normalized = append(normalized, src)
+		default:
+			normalized = append(normalized, src)
+		}
+	}
+	sources = normalized
+
 	if len(sources) == 0 {
 		log.Printf("[Node 1: Ingestion] ⚠️ Aucune source configurée.")
 		return nil, nil

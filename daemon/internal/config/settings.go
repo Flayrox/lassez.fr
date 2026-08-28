@@ -28,6 +28,18 @@ func LoadYAMLSettings(path string) (map[string]any, error) {
 			out[k] = v
 		}
 	}
+
+	// Mode qoe.fi : mock tant qu'aucune clé n'est configurée (QOE_MOCK force).
+	// Calculé APRÈS le merge des secrets pour voir une clé collée par le labo.
+	qoeMock := os.Getenv("QOE_MOCK")
+	qoeKey, _ := out["qoeApiKey"].(string)
+	if qoeMock == "true" {
+		out["qoeMockEnabled"] = true
+	} else if qoeMock == "false" {
+		out["qoeMockEnabled"] = false
+	} else {
+		out["qoeMockEnabled"] = qoeKey == ""
+	}
 	return out, nil
 }
 
@@ -70,6 +82,8 @@ func flatten(d map[string]any) map[string]any {
 	set("rssLookbackHours", f("ingestion", "rssLookbackHours"))
 	set("maxArticles", f("ingestion", "maxArticlesPerScan"))
 	set("ingestion.concurrency", f("ingestion", "concurrency"))
+	// URL de base du RSS-Bridge (comptes X → flux Atom TwitterBridge)
+	set("rssBridgeUrl", s("ingestion", "rssBridgeUrl"))
 	// Bloc brut préservé : GetActiveSources() lit les listes d'URLs dedans
 	if ing := get("ingestion"); ing != nil {
 		out["ingestion"] = ing
@@ -107,7 +121,12 @@ func flatten(d map[string]any) map[string]any {
 	set("imageRulesPrompt", s("editorial", "imageRules"))
 	set("customPromptModifier", s("editorial", "customModifier"))
 	set("aiPrompt", s("editorial", "aiPrompt"))
-	// Modèles par type d'article (ai_model_main/breaking/standard/decrypt)
+	// Modèles par format (modelByFormat : id du format → modèle) — l'éditorialiste
+	// choisit le modèle selon la taxonomie du sujet. Legacy modelByType conservé
+	// (ai_model_main/breaking/standard/decrypt) pour les vieilles configs.
+	if mbf, ok := get("editorial", "modelByFormat").(map[string]any); ok {
+		set("modelByFormat", mbf)
+	}
 	if mbt, ok := get("editorial", "modelByType").(map[string]any); ok {
 		set("aiModelBreaking", sMap(mbt, "alerte"))
 		set("aiModelStandard", sMap(mbt, "standard"))
@@ -135,8 +154,13 @@ func flatten(d map[string]any) map[string]any {
 	set("minPublishDelay", f("publisher", "minDelayMinutes"))
 	set("maxPublishDelay", f("publisher", "maxDelayMinutes"))
 	set("enableAutoPublish", get("publisher", "enableAutoPublish"))
-	set("enableAutoApprove", get("publisher", "enableAutoApprove")) // Mode Fantôme
+	set("enableAutoApprove", get("publisher", "enableAutoApprove"))           // Mode Fantôme
+	set("enableAutoApproveMedia", get("publisher", "enableAutoApproveMedia")) // média conservé en mode fantôme
 	set("targetsByType", get("publisher", "targetsByType"))
+	// qoe.fi (clé + publication dans .secrets.yaml, base URL dans le YAML)
+	set("qoeApiKey", s("publisher", "qoeApiKey"))
+	set("qoePublicationId", s("publisher", "qoePublicationId"))
+	set("qoeBaseUrl", s("publisher", "qoeBaseUrl"))
 
 	// Scheduling (format daemon : "LUN 20:08\nMAR 20:08")
 	mode := s("scheduling", "mode")
@@ -196,9 +220,8 @@ func flatten(d map[string]any) map[string]any {
 	set("maintenanceMode", get("system", "maintenanceMode"))
 	set("maintenanceMessage", s("system", "maintenanceMessage"))
 
-	// QoE (client qoe.fi lit aussi l'env directement ; ici pour le registry)
-	qoeMock := os.Getenv("QOE_MOCK")
-	set("qoeMockEnabled", qoeMock != "false")
+	// QoE — le mode mock est recalculé dans LoadYAMLSettings APRÈS le merge
+	// des secrets (une clé collée par le labo désactive le mock).
 
 	// Secrets depuis l'env — jamais dans le YAML versionné.
 	EnvOverride(out, map[string]string{

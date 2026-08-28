@@ -133,10 +133,11 @@
       </div>
       <div class="space-y-3">
         <LTextarea label="JSON du compte de service (le fichier .json téléchargé depuis Google Cloud)" :rows="5"
-          :model-value="store.secrets.vertexServiceAccount"
+          :model-value="vertexShown ? store.secrets.vertexServiceAccount : (vertexConfigured ? '••••••••  (JSON configuré — clique dans le champ pour le voir ou le remplacer)' : '')"
+          @focus="vertexShown = true" @blur="vertexShown = false"
           @update:model-value="(v: string) => { store.secrets.vertexServiceAccount = v.trim(); store.markDirty() }"
           placeholder='{ "type": "service_account", "project_id": "…", … }'
-          help="Google Cloud Console → IAM & Admin → Comptes de service → créer un compte → Clés → Ajouter une clé → JSON. Stocké dans .secrets.yaml, jamais dans git." />
+          help="Google Cloud Console → IAM & Admin → Comptes de service → créer un compte → Clés → Ajouter une clé → JSON. Contient la clé privée — masqué par défaut. Stocké dans .secrets.yaml, jamais dans git." />
         <LInput label="Région" :model-value="store.secrets.vertexRegion"
           @update:model-value="(v: string) => { store.secrets.vertexRegion = v.trim() || 'global'; store.markDirty() }"
           placeholder="global"
@@ -145,6 +146,32 @@
           {{ vertexResult.ok ? '✓ Vertex AI fonctionne' : '✗ ' + vertexResult.error }}
           <span v-if="vertexResult.ok" class="text-text-3">· {{ vertexResult.latencyMs }} ms · {{ vertexResult.model }} · {{ vertexResult.project }}@{{ vertexResult.region }} · « {{ vertexResult.reply }} »</span>
         </p>
+      </div>
+    </LCard>
+
+    <LCard title="Recherche d'images (Google officiel)" description="Le nœud Média illustre chaque article — avec cette clé il utilise l'API Google Images officielle (100 recherches gratuites/jour), sinon il retombe sur Wikimedia Commons.">
+      <div class="space-y-3">
+        <div class="flex items-center justify-between gap-2">
+          <div>
+            <p class="text-xs font-medium">{{ cseConfigured ? 'Recherche Google configurée' : 'Non configuré' }}</p>
+            <p class="text-[11px] text-text-3">
+              {{ cseConfigured
+                ? "Le nœud Média cherche les illustrations avec l'API officielle, puis Wikimedia en secours."
+                : 'Sans clé, les illustrations viennent de Wikimedia Commons (gratuit, sans clé). Active la Custom Search JSON API pour de vraies images Google.' }}
+            </p>
+          </div>
+          <LBadge :variant="cseConfigured ? 'success' : 'warning'">{{ cseConfigured ? 'actif' : 'inactif' }}</LBadge>
+        </div>
+        <LInput label="Clé API (Custom Search JSON API)" type="password"
+          :model-value="store.secrets.googleCseApiKey"
+          @update:model-value="(v: string) => { store.secrets.googleCseApiKey = v.trim(); store.markDirty() }"
+          placeholder="AIza…"
+          help="Google Cloud Console → APIs & Services → Custom Search API → Créer des identifiants → Clé API (gratuit, sans carte). Stockée dans .secrets.yaml, jamais dans git." />
+        <LInput label="ID du moteur de recherche (cx)"
+          :model-value="store.secrets.googleCseId"
+          @update:model-value="(v: string) => { store.secrets.googleCseId = v.trim(); store.markDirty() }"
+          placeholder="0123456789abcdefg:hijklmnopqrst"
+          help="programmablesearchengine.google.com → créer un moteur qui cherche TOUT le web → activer « Recherche d'images » → copier l'ID (cx)." />
       </div>
     </LCard>
 
@@ -274,6 +301,8 @@ async function testGeminiKey() {
 
 // ── Vertex AI (secours) : statut + test réel via le daemon (POST /api/vertex/test) ──
 const vertexConfigured = computed(() => !!store.secrets.vertexServiceAccount)
+const vertexShown = ref(false)
+const cseConfigured = computed(() => !!store.secrets.googleCseApiKey && !!store.secrets.googleCseId)
 const vertexTesting = ref(false)
 const vertexResult = ref<{ ok: boolean; error?: string; latencyMs?: number; model?: string; project?: string; region?: string; reply?: string } | null>(null)
 

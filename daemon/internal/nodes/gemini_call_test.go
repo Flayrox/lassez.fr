@@ -77,7 +77,7 @@ func TestBuildGeminiBodySansRecherche(t *testing.T) {
 }
 
 // TestBuildGeminiBodyVertex — le corps pour Vertex AI est en camelCase
-// (systemInstruction) et porte l'outil googleSearchRetrieval : c'est ce qui
+// (systemInstruction) et porte l'outil googleSearch : c'est ce qui
 // fait chercher le modèle sur internet sur le chemin payant fiable.
 func TestBuildGeminiBodyVertex(t *testing.T) {
 	body := buildGeminiBody(geminiParams{
@@ -100,8 +100,8 @@ func TestBuildGeminiBodyVertex(t *testing.T) {
 		t.Fatalf("tools attendu : %v", body["tools"])
 	}
 	first, ok := tools[0].(map[string]any)
-	if !ok || first["googleSearchRetrieval"] == nil {
-		t.Fatalf("outil googleSearchRetrieval attendu : %v", tools[0])
+	if !ok || first["googleSearch"] == nil {
+		t.Fatalf("outil googleSearch attendu : %v", tools[0])
 	}
 	gc := body["generationConfig"].(map[string]any)
 	if gc["responseMimeType"] != "application/json" {

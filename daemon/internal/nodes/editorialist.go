@@ -146,9 +146,8 @@ func RunEditorialist(client *payload.Client, resolver *config.Resolver) error {
 			defer func() { <-sem }()
 
 			raw := struct {
-				ClusterTitle  string `json:"clusterTitle"`
-				Excerpt       string `json:"excerpt"`
-				SourceContent string `json:"source_content"`
+				ClusterTitle string            `json:"clusterTitle"`
+				Articles     []IngestedArticle `json:"articles"`
 			}{}
 			_ = json.Unmarshal(topic.RawData, &raw)
 
@@ -188,18 +187,19 @@ func RunEditorialist(client *payload.Client, resolver *config.Resolver) error {
 					sb.WriteString(fmt.Sprintf("\nSCHÉMA DE SORTIE JSON ATTENDU :\n%s\n", template.OutputSchema))
 				}
 			}
-
-			excerpt := raw.Excerpt
-			if excerpt == "" {
-				excerpt = raw.SourceContent
-			}
 			geo := topic.Geo
 			if geo == "" {
 				geo = "Global"
 			}
+
+			// MATIÈRE PREMIÈRE : extraits RSS de tous les articles + contenu
+			// complet des meilleures sources (fetch direct). Avant ceci, le
+			// modèle ne recevait que le titre du cluster.
+			material := buildSourceMaterial(raw.Articles)
+
 			userPrompt := fmt.Sprintf(
-				"REDACTION DU DOSSIER :\nTitre source : %s\nContenu source : %s\nCatégorie : %s\nZone Geo : %s",
-				orTitle(raw.ClusterTitle), excerpt, taxonomy, geo,
+				"REDACTION DU DOSSIER :\nTitre source : %s\nCatégorie : %s\nZone Geo : %s%s\n\nRédige l'article en t'appuyant UNIQUEMENT sur la matière première ci-dessus (contenu complet des articles, extraits, biais des sources). Ne jamais inventer de faits absents de cette matière.",
+				orTitle(raw.ClusterTitle), taxonomy, geo, material,
 			)
 
 			// Modèle par format : modelByFormat (id du format → modèle) prime sur

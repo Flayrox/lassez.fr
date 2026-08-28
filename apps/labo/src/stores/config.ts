@@ -1,11 +1,21 @@
 import { defineStore } from 'pinia'
 import { ref, watch } from 'vue'
+import { FACTORY_PROMPTS, FACTORY_FORMATS } from './factory'
 
 // Store labo — valeurs par défaut = la VRAIE config qui tournait sur le VPS
 // (radar.db 04/08/2026, voir docs/labo-bases-saines.md + daemon/config/config.yaml)
 
 export interface WeeklySlot { day: string; time: string } // ex { day:'LUN', time:'20:08' }
-export interface FormatItem { id: string; nom: string; actif: boolean; couleur: string; consigne: string }
+export interface FormatItem {
+  id: string
+  nom: string
+  actif: boolean
+  couleur: string
+  description: string
+  consigne: string      // formatInstructions — envoyées à l'IA de rédaction
+  exemples: string[]    // few-shot learning — des posts d'exemple à recopier
+  schema: string        // outputSchemaJson — le schéma JSON de sortie attendu
+}
 export interface SourceItem {
   id: string
   url: string
@@ -80,6 +90,12 @@ export const useConfigStore = defineStore('config', () => {
     maxArticlesPerScan: 20,
     concurrency: 5,
     bridgeUrl: 'http://localhost:3300', // RSS-Bridge pour les comptes X
+    // Canaux d'ingestion activables/désactivables un par un (le daemon reçoit
+    // une liste vide quand un canal est coupé).
+    telegramEnabled: true,
+    xEnabled: true,
+    googleNewsEnabled: true,
+    rssBridgeEnabled: true,
   })
 
   // ── Filtres ──
@@ -99,22 +115,30 @@ export const useConfigStore = defineStore('config', () => {
     tachesEnMemeTempsRapide: 5,
     tachesEnMemeTempsRedaction: 3,
     scoreMini: 50,
-    // Recherche web PAR TYPE d'article (google_search_*_enabled de l'ancienne DB)
-    webSearchBreaking: true,
-    webSearchStandard: true,
-    webSearchDecrypt: true,
-    // Modèle par type d'article (ai_model_main/breaking/standard/decrypt)
-    modeleAlerte: 'gemini-3.1-pro-preview',
-    modeleStandard: 'gemini-2.5-flash',
-    modeleDecryptage: 'gemini-2.5-pro',
-    // Le grand prompt éditorial (ai_prompt) — la ligne éditoriale complète
+    // Recherche web : un seul interrupteur global — l'IA de rédaction vérifie
+    // les sujets sur le web pour TOUS les types d'articles. Il alimente aussi
+    // les anciennes clés par type (google_search_*_enabled) pour compat.
+    webSearchEnabled: true,
+    // Modèle par format (modeleParFormat : id du format → modèle). Les valeurs
+    // ci-dessous = le mapping réel du VPS (ai_model_breaking/standard/decrypt),
+    // transposé sur les formats actuels. Un format sans entrée utilise modeleRedaction.
+    modeleParFormat: {
+      FLASH: 'gemini-2.5-flash',
+      CITATION: 'gemini-2.5-flash',
+      ALERTE: 'gemini-3.1-pro-preview',
+      DECRYPTAGE: 'gemini-2.5-pro',
+      INFO: 'gemini-2.5-flash',
+    },
+    // Le grand prompt éditorial (ai_prompt) — la ligne éditoriale complète.
+    // Les blocs ci-dessous portent le DNA factory de L'Assez (identité "Le
+    // Mécanicien", vocabulaire, méthode des 3 tirs…) — éditables dans le labo.
     promptEditorial: '',
-    consigneTri: '',
-    criteresRejet: '',
-    identite: '',
-    mission: '',
-    vocabulaire: '',
-    consignesImages: '',
+    consigneTri: FACTORY_PROMPTS.consigneTri,
+    criteresRejet: FACTORY_PROMPTS.criteresRejet,
+    identite: FACTORY_PROMPTS.identite,
+    mission: FACTORY_PROMPTS.mission,
+    vocabulaire: FACTORY_PROMPTS.vocabulaire,
+    consignesImages: FACTORY_PROMPTS.consignesImages,
     consigneGlobale: '',
   })
 
@@ -133,13 +157,9 @@ export const useConfigStore = defineStore('config', () => {
     return out.length ? out : modelRegistry.value
   }
 
-  // ── Formats (4 tags obligatoires du prompt éditorial) ──
-  const formats = ref<FormatItem[]>([
-    { id: 'ALERTE_INFO', nom: '🔴 ALERTE INFO !', actif: true, couleur: '#DC2626', consigne: '' },
-    { id: 'FAIT_DU_JOUR', nom: '📌 LE FAIT DU JOUR', actif: false, couleur: '#111111', consigne: '' },
-    { id: 'DECRYPTAGE', nom: '🔎 DÉCRYPTAGE', actif: false, couleur: '#7c3aed', consigne: '' },
-    { id: 'A_VENIR', nom: '🗓️ À VENIR', actif: false, couleur: '#2563eb', consigne: '' },
-  ])
+  // ── Formats (les "Formats de News" de l'ancien labo : instructions de
+  // format + exemples few-shot + schéma JSON de sortie par type d'info) ──
+  const formats = ref<FormatItem[]>(FACTORY_FORMATS.map(x => ({ ...x, actif: true, exemples: [...x.exemples] })))
 
   // ── Partage ──
   const partage = ref({
@@ -157,6 +177,7 @@ export const useConfigStore = defineStore('config', () => {
     delaiMaxi: 2,
     auto: false,               // auto_pilot_enabled = false sur le VPS
     autoApprove: false,        // auto_approve_enabled — Mode Fantôme (l'IA approuve sans modération)
+    autoApproveMedia: true,    // mode fantôme : garder l'enrichissement média (false = PENDING direct)
     discordTestMode: true,
   })
 
@@ -167,6 +188,10 @@ export const useConfigStore = defineStore('config', () => {
     xApiKey: '', xApiSecret: '', xAccessToken: '', xAccessSecret: '',
     blueskyIdentifier: '', blueskyAppPassword: '',
     mastodonInstanceUrl: '', mastodonAccessToken: '',
+    // qoe.fi — la clé d'API + l'id de publication (jamais dans git)
+    qoeApiKey: '',
+    qoePublicationId: '',
+    qoeBaseUrl: 'https://api.qoe.fi/v1',
   })
 
   // ── Planning (réel : tous les jours à 20:08, Europe/Paris) ──
@@ -208,6 +233,60 @@ export const useConfigStore = defineStore('config', () => {
     popupLinkLabel: 'Faire un don',
     popupLinkUrl: '/soutenir',
   })
+
+  // ── État de sauvegarde (indicateur visible dans la topbar) ──
+  const saveState = ref<'clean' | 'saving' | 'saved' | 'error'>('clean')
+  const lastSavedAt = ref<Date | null>(null)
+  // Une sauvegarde a échoué (daemon éteint) mais la config est en localStorage :
+  // on retentera automatiquement jusqu'à ce que config.yaml soit à jour.
+  const configPending = ref(false)
+
+  // ── Modèles référencés par NOM (label), pas par valeur API ──
+  // Tous les champs « modèle » du store gardent le label affiché ; à la
+  // sauvegarde, le label est résolu vers la valeur API courante du registry.
+  // Modifier la valeur (ID API) d'un modèle déjà sélectionné ne casse donc
+  // plus aucune sélection — les sélections suivent le nom.
+  function modelLabelOf(v: string): string {
+    if (!v) return v
+    const m = modelRegistry.value.find(x => x.value === v)
+    return m ? m.label : v
+  }
+  function modelValueOf(l: string): string {
+    if (!l) return l
+    const m = modelRegistry.value.find(x => x.label === l)
+    return m ? m.value : l
+  }
+  function normalizeModelFields() {
+    // Un modèle inconnu (vieille config, valeur hors registry) est ajouté au
+    // registry pour que le select ne reste jamais vide au chargement.
+    const ensure = (raw: string): string => {
+      const label = modelLabelOf(raw)
+      const hasLabel = modelRegistry.value.some(m => m.label === label)
+      const hasValue = modelRegistry.value.some(m => m.value === raw)
+      if (!hasLabel && !hasValue && raw.trim()) modelRegistry.value.push({ label, value: raw })
+      return label
+    }
+    ecriture.value.modeleRapide = ensure(ecriture.value.modeleRapide)
+    ecriture.value.modeleRedaction = ensure(ecriture.value.modeleRedaction)
+    ecriture.value.modeleVerification = ensure(ecriture.value.modeleVerification)
+    const mbf: Record<string, string> = {}
+    for (const k of Object.keys(ecriture.value.modeleParFormat)) mbf[k] = ensure(ecriture.value.modeleParFormat[k])
+    ecriture.value.modeleParFormat = mbf
+    video.value.prefilterModel = ensure(video.value.prefilterModel)
+    video.value.transcribeModel = ensure(video.value.transcribeModel)
+  }
+
+  // Garde-fous de l'autosave : pendant qu'on hydrate (localStorage / daemon),
+  // on ne veut pas marquer le store « sale ».
+  const hydrating = ref(false)
+  let baseline = ''
+  function stateSnapshot() {
+    return JSON.stringify([
+      atelier.value, positions.value, sources.value, filtres.value, ecriture.value,
+      formats.value, partage.value, planning.value, media.value, video.value,
+      systeme.value, matrix.value, modelRegistry.value,
+    ])
+  }
 
   const dirty = ref(false)
   function markDirty() { dirty.value = true }
@@ -259,12 +338,28 @@ export const useConfigStore = defineStore('config', () => {
   const boolOr = (v: any, def: boolean) => (typeof v === 'boolean' ? v : def)
   const numOr = (v: any, def: number) => (typeof v === 'number' ? v : def)
   const pctOf = (v: any, def: number) => (typeof v === 'number' ? Math.round(v * 100) : def)
-  // editorial.modelByType est soit un objet {alerte, standard, decrypt}, soit la valeur directe
-  const modelByType = (editorial: any, slot: string) => {
-    if (!editorial) return ''
-    if (typeof editorial === 'string') return editorial
-    if (isObj(editorial.modelByType)) return editorial.modelByType[slot]
-    return ''
+  // editorial.modelByType (legacy, objet {alerte, standard, decrypt}) → transcrit
+  // sur les formats actuels, pour migrer une vieille config.yaml.
+  const LEGACY_SLOT_TO_FORMAT: Record<string, string> = { alerte: 'ALERTE', standard: 'INFO', decrypt: 'DECRYPTAGE' }
+  const legacyModels = (editorial: any): Record<string, string> => {
+    if (!isObj(editorial) || !isObj(editorial.modelByType)) return {}
+    const mbt = editorial.modelByType
+    const out: Record<string, string> = {}
+    for (const [slot, fmtId] of Object.entries(LEGACY_SLOT_TO_FORMAT)) {
+      if (typeof mbt[slot] === 'string' && mbt[slot]) out[fmtId] = mbt[slot]
+    }
+    return out
+  }
+  // Modèles par format : modelByFormat (nouveau) prime ; sinon legacy modelByType ;
+  // sinon les défauts du store. Les champs vides ne sont jamais pris.
+  function normalizeModelByFormat(saved: unknown, legacy: Record<string, string>, def: Record<string, string>) {
+    const out: Record<string, string> = { ...def }
+    if (isObj(saved)) {
+      for (const k of Object.keys(saved)) if (typeof saved[k] === 'string' && saved[k]) out[k] = saved[k]
+    } else {
+      for (const k of Object.keys(legacy)) if (legacy[k]) out[k] = legacy[k]
+    }
+    return out
   }
 
   // Le store → structure imbriquée de config.yaml (sections gérées par le labo)
@@ -272,7 +367,7 @@ export const useConfigStore = defineStore('config', () => {
     const targetsByType: Record<string, Record<string, boolean>> = {}
     for (const f of formats.value) {
       const m = matrix.value[f.id] ?? {}
-      targetsByType[f.nom] = {
+      targetsByType[f.id] = {
         qoe: m.qoe !== false,
         discord: m.discord !== false,
         x: m.x === true,
@@ -285,11 +380,23 @@ export const useConfigStore = defineStore('config', () => {
         timeWindowHours: sources.value.lookbackHours,
         maxArticlesPerScan: sources.value.maxArticlesPerScan,
         concurrency: sources.value.concurrency,
+        // Un canal coupé dans le labo → liste vide côté daemon (il n'aspire rien).
         sources: {
           rss: sources.value.list.filter(s => s.active).map(s => s.url),
-          telegram: lines(sources.value.telegram),
-          xAccounts: lines(sources.value.xAccounts),
-          googleNews: lines(sources.value.googleNews),
+          telegram: sources.value.telegramEnabled ? lines(sources.value.telegram) : [],
+          xAccounts: sources.value.xEnabled ? lines(sources.value.xAccounts) : [],
+          googleNews: sources.value.googleNewsEnabled ? lines(sources.value.googleNews) : [],
+        },
+        // RSS-Bridge : l'URL de base sert au daemon pour convertir les comptes X
+        // en flux Atom (TwitterBridge). Vide si le canal est coupé → le daemon
+        // ignore les comptes X (il ne peut pas les convertir).
+        rssBridgeUrl: sources.value.rssBridgeEnabled ? sources.value.bridgeUrl : '',
+        // État des canaux (section labo — le daemon l'ignore).
+        channels: {
+          telegram: sources.value.telegramEnabled,
+          x: sources.value.xEnabled,
+          googleNews: sources.value.googleNewsEnabled,
+          rssBridge: sources.value.rssBridgeEnabled,
         },
       },
       // Métadonnées par source (biais, fiabilité, images, actif) — le daemon lit
@@ -305,27 +412,34 @@ export const useConfigStore = defineStore('config', () => {
         allowSourceImages: filtres.value.imagesAutorisees,
       },
       research: {
-        aiModelFlash: ecriture.value.modeleRapide,
-        aiModelDecrypt: ecriture.value.modeleRedaction,
+        aiModelFlash: modelValueOf(ecriture.value.modeleRapide),
+        aiModelDecrypt: modelValueOf(ecriture.value.modeleRedaction),
         maxConcurrentTasks: ecriture.value.tachesEnMemeTempsRapide,
         scoreThreshold: ecriture.value.scoreMini,
-        googleSearchBreaking: ecriture.value.webSearchBreaking,
-        googleSearchStandard: ecriture.value.webSearchStandard,
-        googleSearchDecrypt: ecriture.value.webSearchDecrypt,
-        webSearchEnabled: ecriture.value.webSearchBreaking || ecriture.value.webSearchStandard || ecriture.value.webSearchDecrypt,
+        // Un seul interrupteur global ; les anciennes clés par type restent
+        // écrites à l'identique pour être lisibles par les vieux daemons.
+        webSearchEnabled: ecriture.value.webSearchEnabled,
+        googleSearchBreaking: ecriture.value.webSearchEnabled,
+        googleSearchStandard: ecriture.value.webSearchEnabled,
+        googleSearchDecrypt: ecriture.value.webSearchEnabled,
         systemPrompt: ecriture.value.consigneTri,
         rejectCriteria: ecriture.value.criteresRejet,
         customPromptModifier: ecriture.value.consigneGlobale,
       },
       editorial: {
-        aiModelPro: ecriture.value.modeleRedaction,
-        aiModelVerification: ecriture.value.modeleVerification,
+        aiModelPro: modelValueOf(ecriture.value.modeleRedaction),
+        aiModelVerification: modelValueOf(ecriture.value.modeleVerification),
         maxConcurrentTasks: ecriture.value.tachesEnMemeTempsRedaction,
         aiPrompt: ecriture.value.promptEditorial,
+        modelByFormat: Object.fromEntries(
+          Object.entries(ecriture.value.modeleParFormat).map(([k, v]) => [k, modelValueOf(v)])
+        ),
+        // Clés legacy (alerte/standard/decrypt) conservées pour compat — le
+        // daemon lit modelByFormat (par id de format) depuis cette version.
         modelByType: {
-          alerte: ecriture.value.modeleAlerte,
-          standard: ecriture.value.modeleStandard,
-          decrypt: ecriture.value.modeleDecryptage,
+          alerte: modelValueOf(ecriture.value.modeleParFormat['ALERTE'] ?? ecriture.value.modeleRedaction),
+          standard: modelValueOf(ecriture.value.modeleParFormat['INFO'] ?? ecriture.value.modeleRedaction),
+          decrypt: modelValueOf(ecriture.value.modeleParFormat['DECRYPTAGE'] ?? ecriture.value.modeleRedaction),
         },
         baseIdentity: ecriture.value.identite,
         researchMission: ecriture.value.mission,
@@ -334,7 +448,11 @@ export const useConfigStore = defineStore('config', () => {
         customModifier: ecriture.value.consigneGlobale,
       },
       modelRegistry: modelRegistry.value,
-      formats: formats.value.map(f => ({ id: f.id, nom: f.nom, actif: f.actif, couleur: f.couleur, consigne: f.consigne })),
+      formats: formats.value.map(f => ({
+        id: f.id, nom: f.nom, actif: f.actif, couleur: f.couleur,
+        description: f.description, consigne: f.consigne,
+        exemples: f.exemples, schema: f.schema,
+      })),
       publisher: {
         enableDiscord: partage.value.discord,
         discordTestMode: partage.value.discordTestMode,
@@ -351,6 +469,7 @@ export const useConfigStore = defineStore('config', () => {
         maxDelayMinutes: partage.value.delaiMaxi,
         enableAutoPublish: partage.value.auto,
         enableAutoApprove: partage.value.autoApprove, // Mode Fantôme
+        enableAutoApproveMedia: partage.value.autoApproveMedia, // média en mode fantôme
         targetsByType,
       },
       scheduling: {
@@ -367,8 +486,8 @@ export const useConfigStore = defineStore('config', () => {
       },
       video: {
         ingestEnabled: video.value.ingestEnabled,
-        prefilterModel: video.value.prefilterModel,
-        transcribeModel: video.value.transcribeModel,
+        prefilterModel: modelValueOf(video.value.prefilterModel),
+        transcribeModel: modelValueOf(video.value.transcribeModel),
         prefilterPrompt: video.value.prefilterPrompt,
         prefilterMinChars: video.value.prefilterMinChars,
         maxAudioMb: video.value.maxAudioMb,
@@ -426,6 +545,22 @@ export const useConfigStore = defineStore('config', () => {
     sources.value.lookbackHours = numOr(ing.timeWindowHours, sources.value.lookbackHours)
     sources.value.maxArticlesPerScan = numOr(ing.maxArticlesPerScan, sources.value.maxArticlesPerScan)
     sources.value.concurrency = numOr(ing.concurrency, sources.value.concurrency)
+    if (typeof ing.rssBridgeUrl === 'string' && ing.rssBridgeUrl) sources.value.bridgeUrl = ing.rssBridgeUrl
+    if (isObj(ing.channels)) {
+      // Le bloc channels fait foi quand il existe.
+      sources.value.telegramEnabled = boolOr(ing.channels.telegram, true)
+      sources.value.xEnabled = boolOr(ing.channels.x, true)
+      sources.value.googleNewsEnabled = boolOr(ing.channels.googleNews, true)
+      sources.value.rssBridgeEnabled = boolOr(ing.channels.rssBridge, true)
+    } else {
+      // Ancienne config sans bloc channels → tous les canaux sont activés.
+      // Évite qu'un localStorage périmé (daemon éteint) désactive tout et vide
+      // les listes (comptes X…) au prochain enregistrement.
+      sources.value.telegramEnabled = true
+      sources.value.xEnabled = true
+      sources.value.googleNewsEnabled = true
+      sources.value.rssBridgeEnabled = true
+    }
 
     // Filtres
     const dedup = isObj(y.dedup) ? y.dedup : {}
@@ -451,7 +586,6 @@ export const useConfigStore = defineStore('config', () => {
       tachesEnMemeTempsRapide: numOr(research.maxConcurrentTasks, ecriture.value.tachesEnMemeTempsRapide),
       tachesEnMemeTempsRedaction: numOr(editorial.maxConcurrentTasks, ecriture.value.tachesEnMemeTempsRedaction),
       scoreMini: numOr(research.scoreThreshold, ecriture.value.scoreMini),
-      webSearchEnabled: boolOr(research.webSearchEnabled, ecriture.value.webSearchEnabled),
       consigneTri: sOr(research.systemPrompt, ecriture.value.consigneTri),
       criteresRejet: sOr(research.rejectCriteria, ecriture.value.criteresRejet),
       identite: sOr(editorial.baseIdentity, ecriture.value.identite),
@@ -459,30 +593,20 @@ export const useConfigStore = defineStore('config', () => {
       vocabulaire: sOr(editorial.vocabularyRules, ecriture.value.vocabulaire),
       consignesImages: sOr(editorial.imageRules, ecriture.value.consignesImages),
       consigneGlobale: sOr(editorial.customModifier, sOr(research.customPromptModifier, ecriture.value.consigneGlobale)),
-      // Recherche web par type + modèles par type + grand prompt éditorial
-      webSearchBreaking: boolOr(research.googleSearchBreaking, boolOr(research.webSearchEnabled, ecriture.value.webSearchBreaking)),
-      webSearchStandard: boolOr(research.googleSearchStandard, boolOr(research.webSearchEnabled, ecriture.value.webSearchStandard)),
-      webSearchDecrypt: boolOr(research.googleSearchDecrypt, boolOr(research.webSearchEnabled, ecriture.value.webSearchDecrypt)),
-      modeleAlerte: sOr(modelByType(editorial, 'alerte'), sOr(research.aiModelDecrypt, ecriture.value.modeleAlerte)),
-      modeleStandard: sOr(modelByType(editorial, 'standard'), sOr(research.aiModelFlash, ecriture.value.modeleStandard)),
-      modeleDecryptage: sOr(modelByType(editorial, 'decrypt'), sOr(research.aiModelDecrypt, ecriture.value.modeleDecryptage)),
+      // Recherche web globale + modèles par format + grand prompt éditorial
+      webSearchEnabled: boolOr(research.webSearchEnabled, boolOr(research.googleSearchBreaking, boolOr(research.googleSearchStandard, boolOr(research.googleSearchDecrypt, ecriture.value.webSearchEnabled)))),
+      modeleParFormat: normalizeModelByFormat(editorial.modelByFormat, legacyModels(editorial), ecriture.value.modeleParFormat),
       promptEditorial: sOr(editorial.aiPrompt, ecriture.value.promptEditorial),
     }
     if (Array.isArray(y.modelRegistry) && y.modelRegistry.length > 0) {
       modelRegistry.value = normalizeRegistry(y.modelRegistry)
     }
 
-    // Formats
-    if (Array.isArray(y.formats) && y.formats.length > 0) {
-      formats.value = y.formats
-        .filter((f: any) => f && typeof f.id === 'string')
-        .map((f: any) => ({
-          id: f.id,
-          nom: typeof f.nom === 'string' ? f.nom : 'Format',
-          actif: f.actif !== false,
-          couleur: typeof f.couleur === 'string' ? f.couleur : '#3ecf8e',
-          consigne: typeof f.consigne === 'string' ? f.consigne : '',
-        }))
+    // Formats — les 5 rubriques de l'ancienne DB restent TOUJOURS présentes
+    // avec leurs instructions/exemples/schéma (factory) ; un champ vide dans
+    // la config sauvegardée retombe sur le template au lieu de l'effacer.
+    if (Array.isArray(y.formats)) {
+      formats.value = mergeFormats(y.formats)
     }
 
     // Partage + matrice
@@ -504,11 +628,12 @@ export const useConfigStore = defineStore('config', () => {
       delaiMaxi: numOr(pub.maxDelayMinutes, partage.value.delaiMaxi),
       auto: boolOr(pub.enableAutoPublish, partage.value.auto),
       autoApprove: boolOr(pub.enableAutoApprove, partage.value.autoApprove),
+      autoApproveMedia: boolOr(pub.enableAutoApproveMedia, partage.value.autoApproveMedia),
     }
     if (isObj(pub.targetsByType)) {
       matrix.value = defaultMatrix()
       for (const f of formats.value) {
-        const t = pub.targetsByType[f.nom]
+        const t = pub.targetsByType[f.id]
         if (isObj(t)) {
           matrix.value[f.id] = {
             qoe: t.qoe !== false,
@@ -589,6 +714,22 @@ export const useConfigStore = defineStore('config', () => {
     if (isObj(saved)) for (const k of Object.keys(def)) if (saved[k] !== undefined) out[k] = saved[k]
     return out as T
   }
+  // Variante pour la section Écriture : une chaîne VIDE ne doit JAMAIS écraser
+  // le défaut — les blocs de prompts (identité, tri…) ont pour convention
+  // « vide = texte par défaut du code » (c'était le comportement de l'ancienne
+  // DB, où tous les ai_prompt_* étaient vides). Une vieille config ne peut
+  // donc plus vider les blocs par accident.
+  function pickEcriture(def: any, saved: unknown) {
+    const out: Record<string, any> = { ...def }
+    if (!isObj(saved)) return out
+    for (const k of Object.keys(def)) {
+      const v = saved[k]
+      if (v === undefined) continue
+      if (typeof v === 'string' && v.trim() === '') continue
+      out[k] = v
+    }
+    return out
+  }
   function normalizeAtelier(saved: unknown) {
     const def = atelier.value
     if (!Array.isArray(saved) || saved.length === 0) return def
@@ -606,23 +747,54 @@ export const useConfigStore = defineStore('config', () => {
         }
       })
   }
-  function normalizeFormats(saved: unknown) {
-    if (!Array.isArray(saved)) return formats.value
-    return saved
-      .filter((f: any) => f && typeof f.id === 'string')
-      .map((f: any) => ({
-        id: f.id,
-        nom: typeof f.nom === 'string' ? f.nom : 'Format',
-        actif: f.actif !== false,
-        couleur: typeof f.couleur === 'string' ? f.couleur : '#3ecf8e',
-        consigne: typeof f.consigne === 'string' ? f.consigne : '',
-      }))
+  // Les 4 anciens formats par défaut (avant le portage de l'ancienne DB) :
+  // ils sont remplacés par les 5 rubriques factory, sans consigne à migrer.
+  const LEGACY_DEFAULT_FORMAT_IDS = ['ALERTE_INFO', 'FAIT_DU_JOUR', 'A_VENIR']
+  function mergeFormats(saved: unknown): FormatItem[] {
+    // On part TOUJOURS des 5 rubriques de l'ancienne DB (factory) : instructions
+    // de format + exemples few-shot + schéma de sortie. C'est le défaut.
+    const out: FormatItem[] = FACTORY_FORMATS.map(x => ({ ...x, actif: true, exemples: [...x.exemples] }))
+    if (!Array.isArray(saved)) return out
+    const byId = new Map<string, any>()
+    for (const f of saved) {
+      if (f && typeof f === 'object' && typeof f.id === 'string' && !LEGACY_DEFAULT_FORMAT_IDS.includes(f.id)) byId.set(f.id, f)
+    }
+    // 1) Les rubriques factory : un champ vide dans la config sauvegardée
+    //    retombe sur le template (jamais d'instructions effacées par une
+    //    vieille config ou un localStorage périmé).
+    for (const base of out) {
+      const s = byId.get(base.id)
+      if (!s) continue
+      base.nom = typeof s.nom === 'string' && s.nom ? s.nom : base.nom
+      base.actif = s.actif !== false
+      base.couleur = typeof s.couleur === 'string' && s.couleur ? s.couleur : base.couleur
+      base.description = typeof s.description === 'string' && s.description ? s.description : base.description
+      base.consigne = typeof s.consigne === 'string' && s.consigne ? s.consigne : base.consigne
+      base.exemples = Array.isArray(s.exemples) && s.exemples.length > 0 ? s.exemples.filter((e: any) => typeof e === 'string') : base.exemples
+      base.schema = typeof s.schema === 'string' && s.schema ? s.schema : base.schema
+      byId.delete(base.id)
+    }
+    // 2) Les formats créés par l'utilisateur (ids hors factory) sont gardés.
+    for (const [, s] of byId) {
+      out.push({
+        id: s.id,
+        nom: typeof s.nom === 'string' && s.nom ? s.nom : 'Format',
+        actif: s.actif !== false,
+        couleur: typeof s.couleur === 'string' && s.couleur ? s.couleur : '#3ecf8e',
+        description: typeof s.description === 'string' ? s.description : '',
+        consigne: typeof s.consigne === 'string' ? s.consigne : '',
+        exemples: Array.isArray(s.exemples) ? s.exemples.filter((e: any) => typeof e === 'string') : [],
+        schema: typeof s.schema === 'string' ? s.schema : '',
+      })
+    }
+    return out
   }
+  function normalizeFormats(saved: unknown) { return mergeFormats(saved) }
   function normalizeSources(saved: unknown) {
     const def = sources.value
     const out: any = { ...def }
     if (isObj(saved)) {
-      for (const k of ['telegram', 'xAccounts', 'googleNews', 'lookbackHours', 'maxArticlesPerScan', 'concurrency', 'bridgeUrl'])
+      for (const k of ['telegram', 'xAccounts', 'googleNews', 'lookbackHours', 'maxArticlesPerScan', 'concurrency', 'bridgeUrl', 'telegramEnabled', 'xEnabled', 'googleNewsEnabled', 'rssBridgeEnabled'])
         if (saved[k] !== undefined) out[k] = saved[k]
       if (Array.isArray(saved.list) && saved.list.length > 0) {
         out.list = saved.list
@@ -666,26 +838,32 @@ export const useConfigStore = defineStore('config', () => {
     return { mode, intervalleMinutes, timezone, weeklySlots }
   }
   function load() {
+    hydrating.value = true
     const raw = localStorage.getItem('labo-config-v2')
-    if (!raw) return
-    try {
-      const o = JSON.parse(raw)
-      if (!o || typeof o !== 'object') return
-      atelier.value = normalizeAtelier(o.atelier)
-      positions.value = isObj(o.positions) ? o.positions : {}
-      sources.value = normalizeSources(o.sources)
-      filtres.value = pick(filtres.value, o.filtres)
-      ecriture.value = pick(ecriture.value, o.ecriture)
-      formats.value = normalizeFormats(o.formats)
-      partage.value = pick(partage.value, o.partage)
-      planning.value = normalizePlanning(o.planning)
-      media.value = pick(media.value, o.media)
-      video.value = pick(video.value, o.video)
-      systeme.value = pick(systeme.value, o.systeme)
-      matrix.value = normalizeMatrix(o.matrix)
-      modelRegistry.value = normalizeRegistry(o.modelRegistry)
-      persistLocal() // réécrit la config normalisée → le localStorage est guéri pour la suite
-    } catch { /* config illisible → on garde les défauts, pas de page blanche */ }
+    if (raw) {
+      try {
+        const o = JSON.parse(raw)
+        if (o && typeof o === 'object') {
+          atelier.value = normalizeAtelier(o.atelier)
+          positions.value = isObj(o.positions) ? o.positions : {}
+          sources.value = normalizeSources(o.sources)
+          filtres.value = pick(filtres.value, o.filtres)
+          ecriture.value = pickEcriture(ecriture.value, o.ecriture)
+          formats.value = normalizeFormats(o.formats)
+          partage.value = pick(partage.value, o.partage)
+          planning.value = normalizePlanning(o.planning)
+          media.value = pick(media.value, o.media)
+          video.value = pick(video.value, o.video)
+          systeme.value = pick(systeme.value, o.systeme)
+          matrix.value = normalizeMatrix(o.matrix)
+          modelRegistry.value = normalizeRegistry(o.modelRegistry)
+        }
+      } catch { /* config illisible → on garde les défauts, pas de page blanche */ }
+    }
+    hydrating.value = false
+    normalizeModelFields()
+    baseline = stateSnapshot()
+    persistLocal() // réécrit la config normalisée → le localStorage est guéri pour la suite
   }
   load()
 
@@ -702,11 +880,34 @@ export const useConfigStore = defineStore('config', () => {
 
   // Sauvegarde complète : localStorage (backup local) + config.yaml + secrets via le daemon.
   async function save() {
+    saveState.value = 'saving'
     dirty.value = false
     persistLocal()
     await pushToDaemon()
     await pushSecretsToDaemon()
+    lastSavedAt.value = new Date()
+    if (apiError.value) {
+      // Daemon injoignable : rien n'est perdu (localStorage OK), la config.yaml
+      // sera rattrapée automatiquement dès que le daemon répond.
+      configPending.value = true
+      saveState.value = 'error'
+    } else {
+      configPending.value = false
+      saveState.value = 'saved'
+    }
   }
+
+  // Rattrapage automatique : tant qu'une sauvegarde est en attente, on retente
+  // un push toutes les 15 s — dès que le daemon revient, la config.yaml est à jour.
+  setInterval(async () => {
+    if (!configPending.value) return
+    await pushToDaemon()
+    if (!apiError.value) {
+      configPending.value = false
+      lastSavedAt.value = new Date()
+      saveState.value = 'saved'
+    }
+  }, 15_000)
 
   // Pousse la config vers le daemon → écrit daemon/config/config.yaml.
   async function pushToDaemon() {
@@ -755,6 +956,7 @@ export const useConfigStore = defineStore('config', () => {
 
   // Au démarrage : si le daemon répond, sa config.yaml fait foi sur le localStorage.
   async function loadFromDaemon() {
+    hydrating.value = true
     try {
       const res = await fetch('/api/config')
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
@@ -762,11 +964,14 @@ export const useConfigStore = defineStore('config', () => {
       applyFromYaml(y)
       apiOk.value = true
       apiError.value = null
-      persistLocal()
     } catch (e: any) {
       apiOk.value = false
       apiError.value = e?.message || String(e)
     }
+    hydrating.value = false
+    normalizeModelFields()
+    baseline = stateSnapshot()
+    persistLocal()
     await loadSecretsFromDaemon()
     await loadSourceHealth()
   }
@@ -781,11 +986,24 @@ export const useConfigStore = defineStore('config', () => {
     saveTimer = setTimeout(() => { save() }, 600)
   })
 
+  // Watcher profond : rattrape les v-model directs qui n'appellent pas
+  // markDirty() — TOUT changement d'état est détecté et marqué à sauver,
+  // donc rien ne se perd même sans bouton « Enregistrer ».
+  watch([atelier, positions, sources, filtres, ecriture, formats, partage, planning, media, video, systeme, matrix, modelRegistry], () => {
+    if (hydrating.value) return
+    const s = stateSnapshot()
+    if (s !== baseline) {
+      baseline = s
+      dirty.value = true
+    }
+  }, { deep: true })
+  baseline = stateSnapshot()
+
   return {
     atelier, positions, sources, filtres, ecriture, formats,
     partage, planning, media, video, systeme, matrix, modelRegistry, secrets,
-    sourceHealth, dirty, markDirty, save, apiOk, apiError, loadFromDaemon,
-    pushSecretsToDaemon, loadSourceHealth,
+    sourceHealth, dirty, markDirty, save, saveState, lastSavedAt, apiOk, apiError, loadFromDaemon,
+    pushSecretsToDaemon, loadSourceHealth, configPending,
   }
 })
 

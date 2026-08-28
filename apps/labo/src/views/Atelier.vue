@@ -179,19 +179,19 @@ const fieldsFor = (type: string): Field[] => {
       ]
     case 'research':
       return [
-        { key: 'aiModelFlash', label: 'Modèle de tri', help: 'Le plus rapide pour noter 0–100', type: 'select', options: store.modelRegistry.map(m => m.value), value: store.ecriture.modeleRapide, apply: (v: string) => (store.ecriture.modeleRapide = v) },
+        { key: 'aiModelFlash', label: 'Modèle de tri', help: 'Le plus rapide pour noter 0–100', type: 'select', options: store.modelRegistry.map(m => m.label), value: store.ecriture.modeleRapide, apply: (v: string) => (store.ecriture.modeleRapide = v) },
         { key: 'concurrency', label: 'Traiter combien à la fois', help: 'En parallèle', type: 'slider', min: 1, max: 10, value: store.ecriture.tachesEnMemeTempsRapide, apply: (v: number) => (store.ecriture.tachesEnMemeTempsRapide = v) },
-        { key: 'webSearch', label: 'Recherche web (standard)', help: 'Gemini vérifie sur le web avant de noter — réglage fin par type dans Écriture', type: 'toggle-row', value: store.ecriture.webSearchStandard, apply: (v: boolean) => (store.ecriture.webSearchStandard = v) },
+        { key: 'webSearch', label: 'Recherche web', help: "Gemini vérifie sur le web avant de rédiger — pour tous les types d'articles (réglable dans Écriture)", type: 'toggle-row', value: store.ecriture.webSearchEnabled, apply: (v: boolean) => (store.ecriture.webSearchEnabled = v) },
       ]
     case 'editor':
       return [
-        { key: 'aiModelPro', label: 'Modèle de rédaction', help: 'Le plus fort pour écrire', type: 'select', options: store.modelRegistry.map(m => m.value), value: store.ecriture.modeleRedaction, apply: (v: string) => (store.ecriture.modeleRedaction = v) },
+        { key: 'aiModelPro', label: 'Modèle de rédaction', help: 'Le plus fort pour écrire', type: 'select', options: store.modelRegistry.map(m => m.label), value: store.ecriture.modeleRedaction, apply: (v: string) => (store.ecriture.modeleRedaction = v) },
         { key: 'concurrency', label: 'Rédiger combien à la fois', type: 'slider', min: 1, max: 8, value: store.ecriture.tachesEnMemeTempsRedaction, apply: (v: number) => (store.ecriture.tachesEnMemeTempsRedaction = v) },
       ]
     case 'validator':
       return [
         { key: 'scoreMini', label: 'Note minimale /100', help: 'En dessous → rejeté automatiquement', type: 'slider', min: 20, max: 80, value: store.ecriture.scoreMini, apply: (v: number) => (store.ecriture.scoreMini = v) },
-        { key: 'autoApprove', label: 'Mode Fantôme : approuver sans modération', help: 'L’IA approuve directement — distinct de la publication auto (Partage)', type: 'toggle-row', value: store.partage.autoApprove, apply: (v: boolean) => (store.partage.autoApprove = v) },
+        { key: 'autoApprove', label: 'Mode Fantôme : l’IA valide à ta place', help: 'Les articles passent directement à la publication, sans modération humaine — distinct de la Publication auto (Partage)', type: 'toggle-row', value: store.partage.autoApprove, apply: (v: boolean) => (store.partage.autoApprove = v) },
       ]
     case 'media':
       return [

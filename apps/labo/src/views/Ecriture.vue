@@ -2,203 +2,229 @@
   <div class="space-y-5">
     <div>
       <h1 class="text-lg font-semibold">Écriture</h1>
-      <p class="text-xs text-text-3 mt-0.5">Les consignes qu'on donne aux IA pour trier et rédiger</p>
+      <p class="text-xs text-text-3 mt-0.5">Les consignes qu'on donne aux IA — et les formats de chaque type d'info</p>
+      <p class="text-[11px] text-accent mt-1">💾 Enregistrement automatique : tout ce que tu modifies est gardé au fil de la frappe.</p>
     </div>
 
-    <div class="grid md:grid-cols-3 gap-4">
-      <LCard title="Modèle pour trier" description="Le plus rapide — note de 0 à 100">
-        <select v-model="store.ecriture.modeleRapide" class="w-full h-8 bg-bg border border-border rounded px-2 text-xs focus:outline-none focus:border-accent/60">
-          <option v-for="m in store.modelRegistry" :key="m.value" :value="m.value">{{ m.label }}</option>
-        </select>
-      </LCard>
-      <LCard title="Modèle pour écrire" description="Le plus fort pour rédiger l'article">
-        <select v-model="store.ecriture.modeleRedaction" class="w-full h-8 bg-bg border border-border rounded px-2 text-xs focus:outline-none focus:border-accent/60">
-          <option v-for="m in store.modelRegistry" :key="m.value" :value="m.value">{{ m.label }}</option>
-        </select>
-      </LCard>
-      <LCard title="Modèle pour vérifier" description="Contrôle les faits avant publication">
-        <select v-model="store.ecriture.modeleVerification" class="w-full h-8 bg-bg border border-border rounded px-2 text-xs focus:outline-none focus:border-accent/60">
-          <option v-for="m in store.modelRegistry" :key="m.value" :value="m.value">{{ m.label }}</option>
-        </select>
-      </LCard>
-    </div>
+    <LCard :padding="false">
+      <LTabs v-model="tab" :tabs="[{ key: 'consignes', label: 'Consignes' }, { key: 'formats', label: 'Formats' }]" />
+      <div class="p-4">
+        <template v-if="tab === 'consignes'">
+          <div class="space-y-6">
+            <!-- ── Modèles & notation ── -->
+            <section-head label="Modèles & notation" />
 
-    <LCard title="Note minimale pour garder un sujet" :description="`${store.ecriture.scoreMini}/100 — en dessous, le sujet est rejeté automatiquement`">
-      <input type="range" min="20" max="80" v-model.number="store.ecriture.scoreMini" class="w-full accent-accent" />
-    </LCard>
+            <LCard :padding="false">
+              <div class="grid md:grid-cols-4 gap-px bg-border">
+                <div class="bg-surface p-4">
+                  <p class="text-xs font-medium text-text-1">Modèle pour trier</p>
+                  <p class="text-[11px] text-text-3 mt-0.5 mb-2">Le plus rapide — note de 0 à 100</p>
+                  <select v-model="store.ecriture.modeleRapide" class="w-full h-8 bg-bg border border-border rounded px-2 text-xs focus:outline-none focus:border-accent/60">
+                    <option v-for="m in store.modelRegistry" :key="m.label" :value="m.label">{{ m.label }}</option>
+                  </select>
+                </div>
+                <div class="bg-surface p-4">
+                  <p class="text-xs font-medium text-text-1">Modèle pour écrire</p>
+                  <p class="text-[11px] text-text-3 mt-0.5 mb-2">Le plus fort pour rédiger l'article</p>
+                  <select v-model="store.ecriture.modeleRedaction" class="w-full h-8 bg-bg border border-border rounded px-2 text-xs focus:outline-none focus:border-accent/60">
+                    <option v-for="m in store.modelRegistry" :key="m.label" :value="m.label">{{ m.label }}</option>
+                  </select>
+                </div>
+                <div class="bg-surface p-4">
+                  <p class="text-xs font-medium text-text-1">Modèle pour vérifier</p>
+                  <p class="text-[11px] text-text-3 mt-0.5 mb-2">Contrôle les faits avant publication</p>
+                  <select v-model="store.ecriture.modeleVerification" class="w-full h-8 bg-bg border border-border rounded px-2 text-xs focus:outline-none focus:border-accent/60">
+                    <option v-for="m in store.modelRegistry" :key="m.label" :value="m.label">{{ m.label }}</option>
+                  </select>
+                </div>
+                <div class="bg-surface p-4">
+                  <p class="text-xs font-medium text-text-1">Note minimale</p>
+                  <p class="text-[11px] text-text-3 mt-0.5 mb-2">En dessous, le sujet est rejeté</p>
+                  <input type="range" min="20" max="80" v-model.number="store.ecriture.scoreMini" class="w-full accent-accent" />
+                  <p class="text-[10px] text-text-3 mt-1">{{ store.ecriture.scoreMini }}/100</p>
+                </div>
+              </div>
+            </LCard>
 
-    <!-- Modèle par type d'article (ai_model_main/breaking/standard/decrypt) -->
-    <LCard title="Modèle par type d'article" description="Chaque rubrique peut avoir son IA — une Alerte a besoin du plus fort, un standard du plus rapide">
-      <div class="grid md:grid-cols-3 gap-4">
-        <div>
-          <p class="text-xs font-medium mb-1">🔴 Alertes</p>
-          <p class="text-[10px] text-text-3 mb-1.5">Breaking news — le plus fort pour décider vite</p>
-          <select v-model="store.ecriture.modeleAlerte" class="w-full h-8 bg-bg border border-border rounded px-2 text-xs focus:outline-none focus:border-accent/60">
-            <option v-for="m in store.modelRegistry" :key="m.value" :value="m.value">{{ m.label }}</option>
-          </select>
-        </div>
-        <div>
-          <p class="text-xs font-medium mb-1">📌 Standard</p>
-          <p class="text-[10px] text-text-3 mb-1.5">Le fait du jour — équilibre vitesse/qualité</p>
-          <select v-model="store.ecriture.modeleStandard" class="w-full h-8 bg-bg border border-border rounded px-2 text-xs focus:outline-none focus:border-accent/60">
-            <option v-for="m in store.modelRegistry" :key="m.value" :value="m.value">{{ m.label }}</option>
-          </select>
-        </div>
-        <div>
-          <p class="text-xs font-medium mb-1">🔎 Décryptage</p>
-          <p class="text-[10px] text-text-3 mb-1.5">Analyse de fond — le plus nuancé</p>
-          <select v-model="store.ecriture.modeleDecryptage" class="w-full h-8 bg-bg border border-border rounded px-2 text-xs focus:outline-none focus:border-accent/60">
-            <option v-for="m in store.modelRegistry" :key="m.value" :value="m.value">{{ m.label }}</option>
-          </select>
-        </div>
+            <!-- ── Par format ── -->
+            <section-head label="Par format" />
+
+            <div class="grid lg:grid-cols-2 gap-4">
+              <LCard title="Modèle par format" description="Chaque rubrique a son IA — le défaut = modèle de rédaction">
+                <div class="space-y-2">
+                  <div v-for="f in store.formats.filter(x => x.actif)" :key="f.id" class="flex items-center gap-2 border border-border/50 rounded px-3 py-1.5">
+                    <span class="w-2 h-2 rounded-full shrink-0" :style="{ background: f.couleur }"></span>
+                    <span class="text-xs text-text-1 flex-1 truncate">{{ f.nom }}</span>
+                    <select :value="modelOf(f.id)" @change="setModel(f.id, ($event.target as HTMLSelectElement).value)" class="h-7 bg-bg border border-border rounded px-2 text-[11px] focus:outline-none focus:border-accent/60">
+                      <option v-for="m in store.modelRegistry" :key="m.label" :value="m.label">{{ m.label }}</option>
+                    </select>
+                  </div>
+                </div>
+              </LCard>
+
+              <LCard title="Recherche web" description="Vérifie les faits et creuse le contexte — pour tous les types d'articles">
+                <div class="flex items-center justify-between gap-2 border border-border/50 rounded px-3 py-2">
+                  <span class="text-xs text-text-1">Vérifier les sujets sur le web</span>
+                  <LToggle :model-value="store.ecriture.webSearchEnabled" @update:model-value="(v: boolean) => { store.ecriture.webSearchEnabled = v; store.markDirty() }" />
+                </div>
+              </LCard>
+            </div>
+
+            <!-- ── Ligne éditoriale ── -->
+            <section-head label="Ligne éditoriale" />
+
+            <LCard :padding="false">
+              <div v-for="block in blocks" :key="block.key" class="border-b border-border last:border-b-0">
+                <button class="w-full flex items-center gap-3 px-4 py-3 hover:bg-surface-hover/60 transition-colors text-left" @click="expanded = expanded === block.key ? null : block.key">
+                  <span class="w-7 h-7 rounded bg-surface-hover flex items-center justify-center text-sm shrink-0">{{ block.icon }}</span>
+                  <span class="flex-1 min-w-0">
+                    <span class="text-xs font-medium text-text-1 block">{{ block.label }}</span>
+                    <span class="text-[11px] text-text-3 line-clamp-2 block mt-0.5">{{ previewOf(block) }}</span>
+                  </span>
+                  <LBadge v-if="block.get() !== block.resetTo" variant="accent">Personnalisé</LBadge>
+                  <span class="text-text-3 shrink-0">{{ expanded === block.key ? '−' : '+' }}</span>
+                </button>
+                <div v-if="expanded === block.key" class="border-t border-border px-4 py-4 bg-bg/40">
+                  <p class="text-[11px] text-text-3 mb-2">{{ block.help }}</p>
+                  <LTextarea :model-value="block.get()" @update:model-value="block.set" :rows="7" />
+                  <div class="flex justify-between items-center mt-2">
+                    <button v-if="block.resetTo" @click="block.set(block.resetTo)" class="text-[11px] text-text-3 hover:text-danger transition-colors">↺ Remettre par défaut</button>
+                    <span class="text-[10px] font-mono text-text-3 ml-auto">{{ block.get().length }} caractères</span>
+                  </div>
+                </div>
+              </div>
+            </LCard>
+
+            <!-- ── Modèles disponibles ── -->
+            <section-head label="Modèles IA disponibles" />
+
+            <LCard>
+              <div class="space-y-1.5">
+                <div v-for="(m, i) in store.modelRegistry" :key="m.label" class="flex items-center gap-2 border border-border/50 rounded px-3 py-1.5" :class="{ 'border-accent/60': editingIndex === i }">
+                  <template v-if="editingIndex === i">
+                    <input v-model="editLabel" placeholder="Nom affiché…" class="flex-1 min-w-0 h-7 bg-bg border border-accent/50 rounded px-2 text-xs focus:outline-none focus:border-accent" />
+                    <input v-model="editValue" placeholder="ID API…" class="flex-1 min-w-0 h-7 bg-bg border border-accent/50 rounded px-2 text-xs font-mono focus:outline-none focus:border-accent" />
+                    <button @click="confirmEdit(i)" class="text-accent hover:text-accent-hover transition-colors px-1" title="Valider">✓</button>
+                    <button @click="cancelEdit" class="text-text-3 hover:text-text-1 transition-colors px-1" title="Annuler">✕</button>
+                  </template>
+                  <template v-else>
+                    <span class="text-xs text-text-1 flex-1 truncate" :title="m.label">{{ m.label }}</span>
+                    <code class="text-[10px] font-mono text-text-3 truncate max-w-[180px]">{{ m.value }}</code>
+                    <button @click="startEdit(i)" class="text-text-3 hover:text-text-1 transition-colors px-1" title="Modifier (nom + ID API)">✎</button>
+                    <button @click="removeRegistry(i)" class="text-text-3 hover:text-danger transition-colors px-1" title="Retirer">✕</button>
+                  </template>
+                </div>
+                <p v-if="editError" class="text-[11px] text-danger">{{ editError }}</p>
+                <div class="flex items-center gap-2 pt-2">
+                  <input v-model="newRegLabel" placeholder="Nom affiché…" class="flex-1 h-8 bg-bg border border-border rounded px-2.5 text-xs focus:outline-none focus:border-accent/60" />
+                  <input v-model="newRegValue" placeholder="ID API…" class="flex-1 h-8 bg-bg border border-border rounded px-2.5 text-xs font-mono focus:outline-none focus:border-accent/60" />
+                  <LButton :disabled="!newRegLabel.trim() || !newRegValue.trim()" @click="addRegistry">+ Ajouter</LButton>
+                </div>
+                <p class="text-[10px] text-text-3 pt-1">Les sélections (trier, écrire, vérifier, par format…) suivent le <b>nom</b> du modèle : tu peux changer son ID API sans casser ce qui est déjà choisi.</p>
+              </div>
+            </LCard>
+          </div>
+        </template>
+        <Formats v-else />
       </div>
     </LCard>
-
-    <!-- Recherche web par type (google_search_*_enabled) -->
-    <LCard title="Recherche web par type" description="Gemini peut chercher sur le web pour vérifier les sujets — activable indépendamment par rubrique">
-      <div class="space-y-2">
-        <div v-for="row in webRows" :key="row.key" class="flex items-center justify-between gap-2 border border-border/50 rounded px-3 py-2">
-          <span class="text-xs text-text-1">{{ row.label }}</span>
-          <LToggle :model-value="row.get()" @update:model-value="row.set" />
-        </div>
-      </div>
-    </LCard>
-
-    <!-- Le grand prompt éditorial (ai_prompt) -->
-    <LCard title="Ligne éditoriale complète" description="Le texte d'origine qui définit qui est L'Assez, ce qu'on ignore, les tactiques, les tags obligatoires — laisse vide pour utiliser le texte par défaut du code">
-      <LTextarea v-model="promptEditorialProxy" :rows="10" help="C'est le prompt le plus puissant : il est ajouté à chaque rédaction. Vide = comportement par défaut du daemon." />
-      <p class="text-[11px] text-text-3 mt-2">{{ store.ecriture.promptEditorial.length }} caractères</p>
-    </LCard>
-
-    <!-- Registry des modèles IA -->
-    <LCard title="Modèles IA disponibles" description="La liste qui alimente tous les sélecteurs de modèles — ajoute un modèle, il apparaît partout">
-      <div class="space-y-1.5">
-        <div v-for="(m, i) in store.modelRegistry" :key="m.value" class="flex items-center gap-2 border border-border/50 rounded px-3 py-1.5">
-          <span class="text-xs text-text-1 flex-1 truncate">{{ m.label }}</span>
-          <code class="text-[10px] font-mono text-text-3">{{ m.value }}</code>
-          <button @click="removeRegistry(i)" class="text-text-3 hover:text-danger transition-colors px-1" title="Retirer">✕</button>
-        </div>
-        <div class="flex items-center gap-2 pt-2">
-          <input v-model="newRegLabel" placeholder="Nom affiché…" class="flex-1 h-8 bg-bg border border-border rounded px-2.5 text-xs focus:outline-none focus:border-accent/60" />
-          <input v-model="newRegValue" placeholder="ID API (ex: gemini-2.5-pro)…" class="flex-1 h-8 bg-bg border border-border rounded px-2.5 text-xs font-mono focus:outline-none focus:border-accent/60" />
-          <LButton :disabled="!newRegLabel.trim() || !newRegValue.trim()" @click="addRegistry">+ Ajouter</LButton>
-        </div>
-      </div>
-    </LCard>
-
-    <!-- Blocs de consignes -->
-    <div v-for="block in blocks" :key="block.key" class="bg-surface border border-border rounded-card">
-      <button class="w-full flex items-center gap-3 px-4 py-3 hover:bg-surface-hover/60 transition-colors" @click="expanded = expanded === block.key ? null : block.key">
-        <span class="w-7 h-7 rounded bg-surface-hover flex items-center justify-center text-sm shrink-0">{{ block.icon }}</span>
-        <span class="flex-1 text-left min-w-0">
-          <span class="text-xs font-medium text-text-1 block">{{ block.label }}</span>
-          <span class="text-[11px] text-text-3 line-clamp-1 block">{{ block.preview || 'Vide — le texte par défaut du code sera utilisé' }}</span>
-        </span>
-        <LBadge v-if="block.preview" variant="accent">Personnalisé</LBadge>
-        <span class="text-text-3">{{ expanded === block.key ? '−' : '+' }}</span>
-      </button>
-      <div v-if="expanded === block.key" class="border-t border-border p-4 space-y-2">
-        <p class="text-[11px] text-text-3">{{ block.help }}</p>
-        <LTextarea :model-value="block.get()" @update:model-value="block.set" :rows="6" />
-        <div class="flex justify-between items-center">
-          <button v-if="block.resetTo" @click="block.set(block.resetTo)" class="text-[11px] text-text-3 hover:text-danger transition-colors">↺ Remettre par défaut</button>
-          <span class="text-[10px] font-mono text-text-3 ml-auto">{{ block.get().length }} caractères</span>
-        </div>
-      </div>
-    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, h } from 'vue'
 import { useConfigStore } from '../stores/config'
+import { FACTORY_PROMPTS } from '../stores/factory'
 import LCard from '../components/ui/LCard.vue'
 import LBadge from '../components/ui/LBadge.vue'
 import LTextarea from '../components/ui/LTextarea.vue'
 import LButton from '../components/ui/LButton.vue'
+import LTabs from '../components/ui/LTabs.vue'
+import LToggle from '../components/ui/LToggle.vue'
+import Formats from './Formats.vue'
 
+// Petit titre de section (comme les groupes de navigation) + filet.
+const SectionHead = {
+  props: { label: { type: String, required: true } },
+  setup: (props: { label: string }) => () =>
+    h('div', { class: 'flex items-center gap-3 pt-1' }, [
+      h('h2', { class: 'text-[11px] font-semibold uppercase tracking-wider text-text-3' }, props.label),
+      h('div', { class: 'flex-1 h-px bg-border' }),
+    ]),
+}
 const store = useConfigStore()
 const expanded = ref<string | null>(null)
+const tab = ref('consignes')
 
-const promptEditorialProxy = computed({
-  get: () => store.ecriture.promptEditorial,
-  set: (v: string) => { store.ecriture.promptEditorial = v; store.markDirty() },
-})
+// Modèle par format : un select par rubrique active, défaut = modèle de rédaction.
+function modelOf(formatId: string) {
+  return store.ecriture.modeleParFormat[formatId] ?? store.ecriture.modeleRedaction
+}
+function setModel(formatId: string, v: string) {
+  store.ecriture.modeleParFormat[formatId] = v
+  store.markDirty()
+}
 
-const webRows = [
-  { key: 'breaking', label: '🔴 Alertes', get: () => store.ecriture.webSearchBreaking, set: (v: boolean) => { store.ecriture.webSearchBreaking = v; store.markDirty() } },
-  { key: 'standard', label: '📌 Standard', get: () => store.ecriture.webSearchStandard, set: (v: boolean) => { store.ecriture.webSearchStandard = v; store.markDirty() } },
-  { key: 'decrypt', label: '🔎 Décryptage', get: () => store.ecriture.webSearchDecrypt, set: (v: boolean) => { store.ecriture.webSearchDecrypt = v; store.markDirty() } },
+interface Block {
+  key: string
+  icon: string
+  label: string
+  help: string
+  resetTo: string
+  get: () => string
+  set: (v: string) => void
+}
+const setKey = (key: keyof typeof store.ecriture) => (v: string) => { (store.ecriture as any)[key] = v; store.markDirty() }
+const getKey = (key: keyof typeof store.ecriture) => () => String((store.ecriture as any)[key] ?? '')
+
+// Ligne éditoriale — les textes par défaut sont ceux qui tournaient sur le VPS
+// (ai_prompt_* vides → défauts du code, portés dans stores/factory.ts).
+const blocks: Block[] = [
+  { key: 'identite', icon: '◆', label: "Qui est L'Assez", help: "Le ton du média, la personnalité de l'IA (« Le Mécanicien »).", resetTo: FACTORY_PROMPTS.identite, get: getKey('identite'), set: setKey('identite') },
+  { key: 'mission', icon: '➤', label: "Mission d'enquête", help: "Transformer l'info brute en enquête étayée — recherche web comprise quand elle est activée.", resetTo: FACTORY_PROMPTS.mission, get: getKey('mission'), set: setKey('mission') },
+  { key: 'vocabulaire', icon: 'Aa', label: 'Mots à utiliser ou éviter', help: 'La règle de vocabulaire : mots interdits, mots autorisés, traduction de la novlangue.', resetTo: FACTORY_PROMPTS.vocabulaire, get: getKey('vocabulaire'), set: setKey('vocabulaire') },
+  { key: 'consignesImages', icon: '▣', label: 'Consigne pour les images', help: 'La méthode des 3 tirs pour choisir les illustrations.', resetTo: FACTORY_PROMPTS.consignesImages, get: getKey('consignesImages'), set: setKey('consignesImages') },
+  { key: 'consigneTri', icon: '⚖', label: 'Consigne pour trier', help: "Ce que le robot garde ou jette au moment du tri (Researcher).", resetTo: FACTORY_PROMPTS.consigneTri, get: getKey('consigneTri'), set: setKey('consigneTri') },
+  { key: 'criteresRejet', icon: '✕', label: "Ce qu'on jette", help: 'Les critères de rejet explicites du tri.', resetTo: FACTORY_PROMPTS.criteresRejet, get: getKey('criteresRejet'), set: setKey('criteresRejet') },
+  { key: 'consigneGlobale', icon: '✦', label: 'Consigne globale (pour tout)', help: "Ex : « insiste sur l'écologie cette semaine » — ajoutée à chaque cycle, en plus des blocs ci-dessus.", resetTo: '', get: getKey('consigneGlobale'), set: setKey('consigneGlobale') },
 ]
 
-// Registry des modèles IA (CRUD) — alimente tous les selects
+const previewOf = (b: Block) => {
+  const v = b.get().trim()
+  return v || 'Vide — le texte par défaut du code sera utilisé'
+}
+
 const newRegLabel = ref('')
 const newRegValue = ref('')
+const editingIndex = ref(-1)
+const editLabel = ref('')
+const editValue = ref('')
+const editError = ref('')
 function addRegistry() {
-  const label = newRegLabel.value.trim()
-  const value = newRegValue.value.trim()
+  const label = newRegLabel.value.trim(); const value = newRegValue.value.trim()
   if (!label || !value) return
-  if (store.modelRegistry.some(m => m.value === value)) return
-  store.modelRegistry.push({ label, value })
-  store.markDirty()
-  newRegLabel.value = ''
-  newRegValue.value = ''
+  if (store.modelRegistry.some(m => m.label === label)) { editError.value = 'Ce nom de modèle existe déjà.'; return }
+  if (store.modelRegistry.some(m => m.value === value)) { editError.value = 'Cet ID API existe déjà.'; return }
+  store.modelRegistry.push({ label, value }); store.markDirty()
+  newRegLabel.value = ''; newRegValue.value = ''; editError.value = ''
 }
-function removeRegistry(i: number) {
-  store.modelRegistry.splice(i, 1)
-  store.markDirty()
+function removeRegistry(i: number) { store.modelRegistry.splice(i, 1); store.markDirty() }
+function startEdit(i: number) {
+  editingIndex.value = i
+  editLabel.value = store.modelRegistry[i].label
+  editValue.value = store.modelRegistry[i].value
+  editError.value = ''
 }
-
-const blocks = [
-  {
-    key: 'consigneTri', icon: '⚖', label: 'Consigne pour trier',
-    help: 'Dis à l’IA ce qui mérite d’être traité en article',
-    preview: store.ecriture.consigneTri,
-    get: () => store.ecriture.consigneTri,
-    set: (v: string) => { store.ecriture.consigneTri = v; store.markDirty() },
-    resetTo: '',
-  },
-  {
-    key: 'criteresRejet', icon: '✕', label: 'Ce qu’on jette',
-    help: 'Ex : faits divers mineurs, publicité déguisée',
-    preview: store.ecriture.criteresRejet,
-    get: () => store.ecriture.criteresRejet,
-    set: (v: string) => { store.ecriture.criteresRejet = v; store.markDirty() },
-  },
-  {
-    key: 'identite', icon: '◆', label: 'Qui est L’Assez',
-    help: 'Le ton du média, la personnalité de l’IA',
-    preview: store.ecriture.identite,
-    get: () => store.ecriture.identite,
-    set: (v: string) => { store.ecriture.identite = v; store.markDirty() },
-  },
-  {
-    key: 'mission', icon: '➤', label: 'Mission d’enquête',
-    help: 'Transformer l’info brute en enquête étayée',
-    preview: store.ecriture.mission,
-    get: () => store.ecriture.mission,
-    set: (v: string) => { store.ecriture.mission = v; store.markDirty() },
-  },
-  {
-    key: 'vocabulaire', icon: 'Aa', label: 'Mots à utiliser ou éviter',
-    help: 'Précis et factuel, pas de sensationnalisme',
-    preview: store.ecriture.vocabulaire,
-    get: () => store.ecriture.vocabulaire,
-    set: (v: string) => { store.ecriture.vocabulaire = v; store.markDirty() },
-  },
-  {
-    key: 'consignesImages', icon: '▣', label: 'Consigne pour les images',
-    help: 'Quels mots-clés pour choisir les illustrations',
-    preview: store.ecriture.consignesImages,
-    get: () => store.ecriture.consignesImages,
-    set: (v: string) => { store.ecriture.consignesImages = v; store.markDirty() },
-  },
-  {
-    key: 'consigneGlobale', icon: '✦', label: 'Consigne globale (pour tout le cycle)',
-    help: 'Ex : « insiste sur l’écologie cette semaine » — laisse vide si rien à ajouter',
-    preview: store.ecriture.consigneGlobale,
-    get: () => store.ecriture.consigneGlobale,
-    set: (v: string) => { store.ecriture.consigneGlobale = v; store.markDirty() },
-  },
-]
+function cancelEdit() { editingIndex.value = -1; editError.value = '' }
+function confirmEdit(i: number) {
+  const label = editLabel.value.trim(); const value = editValue.value.trim()
+  if (!label || !value) { editError.value = 'Nom et ID API requis.'; return }
+  if (store.modelRegistry.some((m, j) => j !== i && m.label === label)) { editError.value = 'Ce nom de modèle existe déjà.'; return }
+  if (store.modelRegistry.some((m, j) => j !== i && m.value === value)) { editError.value = 'Cet ID API existe déjà.'; return }
+  store.modelRegistry[i].label = label
+  store.modelRegistry[i].value = value
+  store.markDirty()
+  editingIndex.value = -1
+  editError.value = ''
+}
 </script>

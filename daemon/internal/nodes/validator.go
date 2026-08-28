@@ -130,6 +130,7 @@ func RunValidator(client *payload.Client, resolver *config.Resolver) error {
 				maxTokens:      validatorTokens,
 				search:         searchWeb,
 				responseSchema: schemaValidator(),
+				vertex:         VertexAIConfig(resolver),
 			})
 			if err != nil {
 				// Quota dépassé : on ne marque PAS le sujet en erreur, il sera

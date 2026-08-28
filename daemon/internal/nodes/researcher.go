@@ -142,6 +142,7 @@ func RunResearcher(client *payload.Client, resolver *config.Resolver) error {
 				maxTokens:      researchTokens,
 				search:         searchWeb,
 				responseSchema: schemaResearcher(),
+				vertex:         VertexAIConfig(resolver),
 			})
 			if err != nil {
 				if isQuotaError(err) {

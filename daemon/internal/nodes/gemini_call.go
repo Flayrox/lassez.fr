@@ -6,18 +6,33 @@
 // chaque rédaction. Un seul chemin pour les 3 nœuds IA : température, topP,
 // maxTokens, recherche web, sortie JSON structurée (mêmes capacités que le
 // SDK, plus le grounding).
+//
+// Deux fournisseurs (providers) sont supportés, testés dans l'ordre :
+//  1. AI Studio (generativelanguage.googleapis.com) avec une clé API — gratuit ;
+//  2. Vertex AI / Gemini Enterprise Agent Platform (aiplatform.googleapis.com)
+//     avec un compte de service Google Cloud — payant, « marche à coup sûr ».
+//     Utilisé automatiquement quand la clé AI Studio est absente, épuisée
+//     (crédits depleted) ou invalide : le pipeline ne s'arrête jamais.
 package nodes
 
 import (
 	"bytes"
 	"context"
+	"crypto"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/sha256"
+	"crypto/x509"
+	"encoding/base64"
 	"encoding/json"
+	"encoding/pem"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -45,6 +60,23 @@ const (
 	validatorTokens = int32(2048)
 )
 
+// geminiProvider — le fournisseur vers lequel part l'appel REST.
+type geminiProvider int
+
+const (
+	providerStudio geminiProvider = iota // AI Studio : clé API + google_search
+	providerVertex                       // Vertex AI : compte de service + googleSearchRetrieval
+)
+
+// vertexConfig — connexion Vertex AI (Gemini Enterprise Agent Platform) :
+// le compte de service Google Cloud fait foi (JSON téléchargé depuis la
+// console), le project_id en est extrait, la région choisit l'endpoint.
+type vertexConfig struct {
+	ProjectID          string // extrait du JSON du compte de service (project_id)
+	Region             string // "global" (recommandé) ou us-central1, europe-west1…
+	ServiceAccountJSON string // contenu complet du fichier .json du compte de service
+}
+
 type geminiParams struct {
 	apiKey         string
 	model          string
@@ -56,23 +88,41 @@ type geminiParams struct {
 	maxTokens      int32
 	search         bool           // grounding Google Search (recherche web réelle)
 	responseSchema map[string]any // sortie JSON structurée (nil = texte libre)
+	vertex         *vertexConfig  // secours Vertex AI (nil = pas de secours)
 }
 
 var geminiHTTPClient = &http.Client{Timeout: 120 * time.Second}
 
 // buildGeminiBody — le corps JSON de l'appel REST, testable sans réseau.
-func buildGeminiBody(p geminiParams) map[string]any {
+// Les deux providers parlent le même protocole, mais avec des noms de champs
+// et des outils différents : AI Studio accepte snake_case + google_search,
+// Vertex exige camelCase + googleSearchRetrieval.
+func buildGeminiBody(p geminiParams, prov geminiProvider) map[string]any {
 	gc := map[string]any{
-		"temperature":    p.temperature,
-		"topP":           p.topP,
+		"temperature":     p.temperature,
+		"topP":            p.topP,
 		"maxOutputTokens": p.maxTokens,
-		"candidateCount": 1,
+		"candidateCount":  1,
 	}
 	if p.responseSchema != nil {
 		gc["responseMimeType"] = "application/json"
 		gc["responseSchema"] = p.responseSchema
 	}
-	body := map[string]any{
+	var body map[string]any
+	if prov == providerVertex {
+		body = map[string]any{
+			"systemInstruction": map[string]any{"parts": []any{map[string]any{"text": p.system}}},
+			"contents":          []any{map[string]any{"role": "user", "parts": []any{map[string]any{"text": p.user}}}},
+			"generationConfig":  gc,
+		}
+		if p.search {
+			// Vertex AI : le grounding Google Search (payant, fiable) porte un
+			// nom différent de celui d'AI Studio.
+			body["tools"] = []any{map[string]any{"googleSearchRetrieval": map[string]any{}}}
+		}
+		return body
+	}
+	body = map[string]any{
 		"system_instruction": map[string]any{"parts": []any{map[string]any{"text": p.system}}},
 		"contents":           []any{map[string]any{"role": "user", "parts": []any{map[string]any{"text": p.user}}}},
 		"generationConfig":   gc,
@@ -86,16 +136,46 @@ func buildGeminiBody(p geminiParams) map[string]any {
 }
 
 // callGemini exécute un appel génération, retourne le texte produit.
-// Deux replis automatiques pour ne JAMAIS stagner sur un quota (le niveau
-// gratuit est limité — on fait tourner le pipeline quoi qu'il arrive) :
-//  1. La recherche web (grounding Google Search) échoue par quota (429,
-//     5 000 recherches/mois) → on réessaie SANS l'outil, l'IA travaille alors
-//     sur la matière première seule ; la recherche reprendra d'elle-même
-//     quand le quota reviendra.
-//  2. Le modèle lui-même est hors quota sur le compte (ex: gemini-3.7-flash
-//     indisponible en niveau gratuit) → repli sur modelFallback (flash-lite).
+// Deux niveaux de repli pour ne JAMAIS stagner :
+//
+// Niveau 1 — le fournisseur : AI Studio d'abord (clé API, gratuit), puis
+// Vertex AI si un compte de service est configuré ET que la clé AI Studio
+// échoue pour n'importe quelle raison (quota, crédits épuisés, clé morte).
+//
+// Niveau 2 — dans chaque fournisseur :
+//  1. La recherche web (grounding) échoue par quota (429) → on réessaie SANS
+//     l'outil, l'IA travaille alors sur la matière première seule.
+//  2. Le modèle est hors quota sur le compte → repli sur modelFallback.
 func callGemini(ctx context.Context, p geminiParams) (string, error) {
-	text, err := callGeminiRaw(ctx, p)
+	var studioErr error
+	if p.apiKey != "" {
+		text, err := callGeminiWithFallbacks(ctx, p, providerStudio)
+		if err == nil {
+			return text, nil
+		}
+		studioErr = err
+		if p.vertex == nil {
+			return "", err
+		}
+		log.Printf("[Gemini] ⚠️ AI Studio indisponible (%v) — bascule sur Vertex AI.", err)
+	} else if p.vertex == nil {
+		return "", fmt.Errorf("aucune configuration Gemini : ni clé AI Studio ni compte de service Vertex AI")
+	}
+
+	text, err := callGeminiWithFallbacks(ctx, p, providerVertex)
+	if err != nil {
+		if studioErr != nil {
+			return "", fmt.Errorf("AI Studio : %v — puis Vertex AI : %v", studioErr, err)
+		}
+		return "", err
+	}
+	return text, nil
+}
+
+// callGeminiWithFallbacks — un fournisseur donné, avec les replis recherche
+// web puis modèle de secours (les deux ne doivent jamais bloquer un cycle).
+func callGeminiWithFallbacks(ctx context.Context, p geminiParams, prov geminiProvider) (string, error) {
+	text, err := callGeminiRaw(ctx, p, prov)
 	if err == nil || !isQuotaError(err) {
 		return text, err
 	}
@@ -104,7 +184,7 @@ func callGemini(ctx context.Context, p geminiParams) (string, error) {
 		p2 := p
 		p2.search = false
 		log.Printf("[Gemini] ⚠️ Recherche web indisponible (%v) — nouvel essai sans grounding.", err)
-		text, err = callGeminiRaw(ctx, p2)
+		text, err = callGeminiRaw(ctx, p2, prov)
 		if err == nil || !isQuotaError(err) {
 			return text, err
 		}
@@ -115,24 +195,44 @@ func callGemini(ctx context.Context, p geminiParams) (string, error) {
 		p3.model = p.modelFallback
 		p3.search = false
 		log.Printf("[Gemini] ⚠️ Modèle %s hors quota (%v) — repli sur %s.", p.model, err, p.modelFallback)
-		return callGeminiRaw(ctx, p3)
+		return callGeminiRaw(ctx, p3, prov)
 	}
 	return "", err
 }
 
-// callGeminiRaw — l'appel REST nu (sans fallback).
-func callGeminiRaw(ctx context.Context, p geminiParams) (string, error) {
-	raw, err := json.Marshal(buildGeminiBody(p))
+// callGeminiRaw — l'appel REST nu (sans fallback) vers le fournisseur donné.
+func callGeminiRaw(ctx context.Context, p geminiParams, prov geminiProvider) (string, error) {
+	raw, err := json.Marshal(buildGeminiBody(p, prov))
 	if err != nil {
 		return "", err
 	}
-	endpoint := fmt.Sprintf("%s/models/%s:generateContent", geminiRESTBase, url.PathEscape(p.model))
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(raw))
-	if err != nil {
-		return "", err
+
+	var endpoint string
+	var req *http.Request
+	if prov == providerVertex {
+		if p.vertex == nil {
+			return "", fmt.Errorf("configuration Vertex AI manquante")
+		}
+		tok, err := vertexAccessToken(ctx, p.vertex.ServiceAccountJSON)
+		if err != nil {
+			return "", err
+		}
+		endpoint = fmt.Sprintf("https://%s-aiplatform.googleapis.com/v1/projects/%s/locations/%s/publishers/google/models/%s:generateContent",
+			p.vertex.Region, url.PathEscape(p.vertex.ProjectID), p.vertex.Region, url.PathEscape(p.model))
+		req, err = http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(raw))
+		if err != nil {
+			return "", err
+		}
+		req.Header.Set("Authorization", "Bearer "+tok)
+	} else {
+		endpoint = fmt.Sprintf("%s/models/%s:generateContent", geminiRESTBase, url.PathEscape(p.model))
+		req, err = http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(raw))
+		if err != nil {
+			return "", err
+		}
+		req.Header.Set("x-goog-api-key", p.apiKey)
 	}
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("x-goog-api-key", p.apiKey)
 
 	resp, err := geminiHTTPClient.Do(req)
 	if err != nil {
@@ -185,6 +285,138 @@ func truncate(s string, n int) string {
 	return s[:n] + "…"
 }
 
+// ── Authentification Vertex AI : JWT signé → token OAuth2 (caché ~1 h) ──────
+// Le compte de service Google Cloud s'authentifie sans mot de passe : on signe
+// un JWT avec sa clé privée (RS256) et on l'échange contre un token d'accès
+// court (1 h) auprès de oauth2.googleapis.com. Le token est réutilisé tant
+// qu'il est valide — un seul échange par heure, pas un par appel.
+
+var (
+	vertexTokenMu sync.Mutex
+	vertexToken   struct {
+		sa    string // compte de service qui a produit le token (comparaison exacte)
+		token string
+		exp   time.Time
+	}
+)
+
+// vertexAccessToken retourne un token OAuth2 valide pour le compte de service,
+// en réutilisant le token en cache tant qu'il n'expire pas (5 min de marge).
+func vertexAccessToken(ctx context.Context, saJSON string) (string, error) {
+	vertexTokenMu.Lock()
+	defer vertexTokenMu.Unlock()
+	if vertexToken.sa == saJSON && vertexToken.token != "" && vertexToken.exp.After(time.Now().Add(5*time.Minute)) {
+		return vertexToken.token, nil
+	}
+	tok, exp, err := fetchVertexToken(ctx, saJSON)
+	if err != nil {
+		return "", err
+	}
+	vertexToken = struct {
+		sa    string
+		token string
+		exp   time.Time
+	}{saJSON, tok, exp}
+	return tok, nil
+}
+
+// fetchVertexToken — le vrai échange JWT → token OAuth2 (testé sans réseau).
+func fetchVertexToken(ctx context.Context, saJSON string) (string, time.Time, error) {
+	var sa struct {
+		ClientEmail string `json:"client_email"`
+		PrivateKey  string `json:"private_key"`
+		TokenURI    string `json:"token_uri"`
+	}
+	if err := json.Unmarshal([]byte(saJSON), &sa); err != nil {
+		return "", time.Time{}, fmt.Errorf("compte de service Vertex illisible (JSON invalide) : %v", err)
+	}
+	if sa.ClientEmail == "" || sa.PrivateKey == "" {
+		return "", time.Time{}, fmt.Errorf("compte de service Vertex incomplet (client_email + private_key requis)")
+	}
+	tokenURI := sa.TokenURI
+	if tokenURI == "" {
+		tokenURI = "https://oauth2.googleapis.com/token"
+	}
+
+	// JWT RS256 signé avec la clé privée du compte de service.
+	now := time.Now()
+	header := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"RS256","typ":"JWT"}`))
+	claims, _ := json.Marshal(map[string]any{
+		"iss":   sa.ClientEmail,
+		"scope": "https://www.googleapis.com/auth/cloud-platform",
+		"aud":   tokenURI,
+		"iat":   now.Unix(),
+		"exp":   now.Add(time.Hour).Unix(),
+	})
+	signingInput := header + "." + base64.RawURLEncoding.EncodeToString(claims)
+
+	block, _ := pem.Decode([]byte(sa.PrivateKey))
+	if block == nil {
+		return "", time.Time{}, fmt.Errorf("clé privée Vertex illisible (PEM invalide)")
+	}
+	key, err := parseRSAPrivateKey(block.Bytes)
+	if err != nil {
+		return "", time.Time{}, err
+	}
+	digest := sha256.Sum256([]byte(signingInput))
+	sig, err := rsa.SignPKCS1v15(rand.Reader, key, crypto.SHA256, digest[:])
+	if err != nil {
+		return "", time.Time{}, err
+	}
+	assertion := signingInput + "." + base64.RawURLEncoding.EncodeToString(sig)
+
+	form := url.Values{}
+	form.Set("grant_type", "urn:ietf:params:oauth:grant-type:jwt-bearer")
+	form.Set("assertion", assertion)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, tokenURI, strings.NewReader(form.Encode()))
+	if err != nil {
+		return "", time.Time{}, err
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	resp, err := geminiHTTPClient.Do(req)
+	if err != nil {
+		return "", time.Time{}, err
+	}
+	defer resp.Body.Close()
+	respBody, err := io.ReadAll(io.LimitReader(resp.Body, 1_000_000))
+	if err != nil {
+		return "", time.Time{}, err
+	}
+
+	var tr struct {
+		AccessToken string `json:"access_token"`
+		ExpiresIn   int    `json:"expires_in"`
+		Error       string `json:"error"`
+		ErrorDesc   string `json:"error_description"`
+	}
+	if err := json.Unmarshal(respBody, &tr); err != nil {
+		return "", time.Time{}, fmt.Errorf("réponse token Vertex illisible (%d) : %s", resp.StatusCode, truncate(string(respBody), 200))
+	}
+	if tr.AccessToken == "" {
+		return "", time.Time{}, fmt.Errorf("token Vertex refusé : %s %s", tr.Error, tr.ErrorDesc)
+	}
+	exp := time.Now().Add(time.Hour)
+	if tr.ExpiresIn > 0 {
+		exp = time.Now().Add(time.Duration(tr.ExpiresIn) * time.Second)
+	}
+	return tr.AccessToken, exp, nil
+}
+
+func parseRSAPrivateKey(der []byte) (*rsa.PrivateKey, error) {
+	if k, err := x509.ParsePKCS8PrivateKey(der); err == nil {
+		rk, ok := k.(*rsa.PrivateKey)
+		if !ok {
+			return nil, fmt.Errorf("clé privée Vertex non-RSA")
+		}
+		return rk, nil
+	}
+	if k, err := x509.ParsePKCS1PrivateKey(der); err == nil {
+		return k, nil
+	}
+	return nil, fmt.Errorf("clé privée Vertex illisible (PKCS8 ou PKCS1 attendue)")
+}
+
 // PingGemini — test de connectivité utilisé par le bouton « Tester la clé »
 // du studio (POST /api/gemini/test) : MÊME chemin que le pipeline (REST +
 // grounding google_search), pour valider exactement ce que feront les nœuds.
@@ -192,6 +424,27 @@ func PingGemini(ctx context.Context, apiKey string) (latencyMs int64, reply stri
 	start := time.Now()
 	text, err := callGemini(ctx, geminiParams{
 		apiKey:      apiKey,
+		model:       "gemini-3.5-flash-lite",
+		system:      "Tu es un assistant de test. Réponds uniquement par le mot : OK",
+		user:        "Test de connexion.",
+		temperature: 0,
+		topP:        0.9,
+		maxTokens:   32,
+		search:      true,
+	})
+	if err != nil {
+		return 0, "", err
+	}
+	return time.Since(start).Milliseconds(), strings.TrimSpace(text), nil
+}
+
+// PingVertex — test de connectivité pour le bouton « Tester Vertex AI » du
+// studio (POST /api/vertex/test) : MÊME chemin que le pipeline (REST +
+// grounding googleSearchRetrieval), via le compte de service.
+func PingVertex(ctx context.Context, vc *vertexConfig) (latencyMs int64, reply string, err error) {
+	start := time.Now()
+	text, err := callGemini(ctx, geminiParams{
+		vertex:      vc,
 		model:       "gemini-3.5-flash-lite",
 		system:      "Tu es un assistant de test. Réponds uniquement par le mot : OK",
 		user:        "Test de connexion.",

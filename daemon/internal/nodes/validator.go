@@ -29,9 +29,26 @@ type validationResult struct {
 
 // RunValidator is Node 5 of the pipeline: it re-reads DRAFTED drafts for
 // factual and editorial compliance, then moves them to VALIDATED or rejects
-// them (REJECTED / REJECTED_ERROR).
+// them (REJECTED / REJECTED_ERROR). Avec enableAutoApprove (Mode Fantôme),
+// la validation IA vaut approbation : les brouillons valides passent
+// directement PENDING (file de publication) sans modération ni enrichissement.
 func RunValidator(client *payload.Client, resolver *config.Resolver) error {
 	log.Printf("\n[Node 5: Validator] ⚖️ Lancement de la validation éditoriale...")
+
+	// Mode Fantôme (auto_approve_enabled) : la validation IA vaut approbation.
+	// Par défaut l'enrichissement média est conservé (enableAutoApproveMedia=true) :
+	// le brouillon passe VALIDATED → nœud Image → PENDING → auto-approuvé à la
+	// programmation. Avec enableAutoApproveMedia=false il saute VALIDATED/Image
+	// et va directement PENDING.
+	autoApprove := boolParam(resolver, "publisher", "enableAutoApprove", false)
+	autoApproveMedia := boolParam(resolver, "publisher", "enableAutoApproveMedia", true)
+	if autoApprove {
+		if autoApproveMedia {
+			log.Printf("[Node 5] 👻 Mode Fantôme ACTIF : validation IA = approbation, enrichissement média conservé (enableAutoApproveMedia=true).")
+		} else {
+			log.Printf("[Node 5] 👻 Mode Fantôme ACTIF (sans média) : les brouillons valides passent directement PENDING.")
+		}
+	}
 
 	topics, err := client.GetSignalsByStatus("DRAFTED")
 	if err != nil {
@@ -141,7 +158,13 @@ func RunValidator(client *payload.Client, resolver *config.Resolver) error {
 			}
 
 			if eval.IsValid {
-				update := map[string]any{"status": "VALIDATED"}
+				// Mode Fantôme sans média : la validation vaut approbation → PENDING direct.
+				// Sinon (défaut) : VALIDATED → le nœud Image enrichit → PENDING.
+				target := "VALIDATED"
+				if autoApprove && !autoApproveMedia {
+					target = "PENDING"
+				}
+				update := map[string]any{"status": target}
 				if eval.Corrections != "" {
 					var merged map[string]any
 					if len(topic.FinalDraft) > 0 {
@@ -160,6 +183,9 @@ func RunValidator(client *payload.Client, resolver *config.Resolver) error {
 					return
 				}
 				log.Printf("[Node 5] ✅ Validé : %s", topic.ID)
+				if autoApprove {
+					log.Printf("[Node 5] 👻 Mode Fantôme : %s auto-approuvé (→ %s).", topic.ID, target)
+				}
 			} else {
 				if err := client.UpdateSignal(topic.ID, map[string]any{"status": "REJECTED"}); err != nil {
 					log.Printf("[Node 5] ❌ Update %s: %v", topic.ID, err)

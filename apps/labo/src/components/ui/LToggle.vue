@@ -1,5 +1,5 @@
 <script setup lang="ts">
-defineProps<{ modelValue: boolean }>()
+defineProps<{ modelValue: boolean; disabled?: boolean }>()
 defineEmits<{ (e: 'update:modelValue', v: boolean): void }>()
 </script>
 
@@ -7,9 +7,10 @@ defineEmits<{ (e: 'update:modelValue', v: boolean): void }>()
   <button
     role="switch"
     :aria-checked="modelValue"
+    :disabled="disabled"
     @click="$emit('update:modelValue', !modelValue)"
     class="relative w-8 h-[18px] rounded-full transition-colors shrink-0"
-    :class="modelValue ? 'bg-accent' : 'bg-border'"
+    :class="[modelValue ? 'bg-accent' : 'bg-border', disabled ? 'opacity-40 cursor-not-allowed' : '']"
   >
     <span
       class="absolute top-[2px] w-[14px] h-[14px] rounded-full bg-white transition-all"

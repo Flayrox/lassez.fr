@@ -98,8 +98,16 @@ func maxItemsPerCycle(resolver *config.Resolver, nodeType string, def int) int {
 	if resolver == nil {
 		return def
 	}
-	if v := resolver.GetEffectiveParam(nodeType, "maxItemsPerCycle", float64(def)); v != nil {
+	// 1. Réglage de nœud (maxItemsPerCycle) ou clé globale du même nom.
+	if v := resolver.GetEffectiveParam(nodeType, "maxItemsPerCycle", nil); v != nil {
 		if n := int(toFloat64(v, float64(def))); n > 0 {
+			return n
+		}
+	}
+	// 2. Clé globale aplatie maxArticles (= ingestion.maxArticlesPerScan, le
+	//    "Maximum d'articles par passage" du labo — Sources/Atelier).
+	if settings, err := resolver.Settings(); err == nil && settings != nil {
+		if n := int(toFloat64(settings["maxArticles"], 0)); n > 0 {
 			return n
 		}
 	}

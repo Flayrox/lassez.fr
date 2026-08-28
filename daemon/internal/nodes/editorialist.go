@@ -16,18 +16,26 @@ import (
 	"github.com/Flayrox/LASSEZ/daemon/internal/payload"
 )
 
+// Le DNA factory de L'Assez (porté de l'ancien labo, scripts/seed-taxonomies.ts) :
+// ces fallbacks s'appliquent quand le YAML/labo ne fournit pas de valeur.
 const (
-	fallbackBaseIdentity    = "Tu es le rédacteur en chef du média d'investigation L'Assez. Ton style est percutant, analytique et sans langue de bois."
-	fallbackResearchMission = "Transformer les informations brutes en un compte-rendu d'investigation captivant et étayé."
-	fallbackVocabularyRules = "Utiliser un vocabulaire précis, incisif et factuel. Bannir le jargon vague et le sensationnalisme gratuit."
-	fallbackImageRules      = "Suggérer des mots-clés d'illustrations sobres et évocateurs."
+	fallbackBaseIdentity    = "Tu es le Rédacteur en Chef de \"L'Assez\", un média d'investigation radical sur les réseaux sociaux. Ta mission est de rédiger un post percutant (style Twitter/Telegram) à partir des sources fournies.\nTON : Urgent, scandalisé, implacable, intelligent et direct (\"Le Mécanicien\"). Tu refuses le jargon militant poussiéreux."
+	fallbackResearchMission = "=== MISSION DE RECHERCHE ET SYNTHÈSE ===\n1. Utilise le CONTENU FOURNI dans le contexte comme base de ton analyse.\n2. Utilise ton outil GOOGLE SEARCH pour :\n   - Vérifier les faits.\n   - Extraire le \"passif\" ou les casseroles des protagonistes mentionnés.\n   - Trouver des éléments de contexte plus larges pour armer ton attaque implacable."
+	fallbackVocabularyRules = "=== LA RÈGLE DE VOCABULAIRE (ALERTE ROUGE - SANCTION) ===\n- MOTS INTERDITS (Trop sociologiques) : Oligarchie, Bourgeoisie, Bloc bourgeois, Prolétaire, Superstructure, Dystopie, Grand capital, Peste brune, Camisole libérale.\n- MOTS AUTORISÉS (Impact direct) : Le gouvernement, les milliardaires, le patronat, la Macronie, la droite, l'extrême droite, les travailleurs, l'État, les actionnaires.\n- Traduis la novlangue : \"Maintien de l'ordre\" = Répression policière. \"Hub de retour\" = Camps de déportation.\n- Règle sur la Palestine : Parle de \"colons israéliens\", de \"sionistes\" ou du \"gouvernement de Netanyahu\", JAMAIS de \"colons juifs\". Dénonce le génocide et l'hypocrisie occidentale tout en évitant les amalgames antisémites."
+	fallbackImageRules      = "=== RÈGLE DES IMAGES (LA MÉTHODE DES TIRS) ===\nTrouver des images d'actualité précises sur le web peut être difficile. Juge lequel des 3 \"Tirs\" conviendrait : Tir 1 (Le Sniper) une seule requête ultra précise ; Tir 2 (Le Pistolet) 2 requêtes contexte/lieu ; Tir 3 (Le Fusil à pompe) 3 requêtes symboles larges. Remplis le tableau image_search_queries avec 1, 2 ou 3 requêtes selon le tir choisi."
 )
 
 type draftResult struct {
-	Headline     string   `json:"headline"`
-	Body         string   `json:"body"`
-	Tags         []string `json:"tags"`
-	ImageKeyword string   `json:"imageKeyword"`
+	Taxonomie          string   `json:"taxonomie"`
+	Geo                string   `json:"geo"`
+	Tags               []string `json:"tags"`
+	Headline           string   `json:"headline"`
+	Body               string   `json:"body"`
+	ImageSearchQueries []string `json:"image_search_queries"`
+	ImageKeyword       string   `json:"imageKeyword"`
+	Metadata           struct {
+		AccentColor string `json:"accent_color"`
+	} `json:"metadata"`
 }
 
 // RunEditorialist is Node 4 of the pipeline: it writes the investigation
@@ -99,15 +107,27 @@ func RunEditorialist(client *payload.Client, resolver *config.Resolver) error {
 		templates = nil
 	}
 
-	model := ai.GenerativeModel(modelName)
-	model.ResponseMIMEType = "application/json"
-	model.ResponseSchema = &genai.Schema{
+	// Recherche web : quand elle est désactivée, on retire l'outil GOOGLE SEARCH
+	// de la mission de recherche — l'IA ne rédige qu'à partir du contenu fourni.
+	// (Le grounding natif du SDK genai viendra plus tard : GoogleSearchRetrieval
+	// n'est pas dispo dans v0.20.1.)
+	if !boolParam(resolver, "editor", "webSearchEnabled", true) {
+		researchMission = stripGoogleSearch(researchMission)
+		log.Printf("[Node 4] 🔍 Recherche web désactivée : l'IA rédige sans vérification en ligne.")
+	}
+
+	// Schéma de sortie commun à tous les appels (créé une fois, réutilisé par
+	// le modèle de chaque topic).
+	draftSchema := &genai.Schema{
 		Type: genai.TypeObject,
 		Properties: map[string]*genai.Schema{
-			"headline":     {Type: genai.TypeString, Description: "Titre percutant au style L'Assez"},
-			"body":         {Type: genai.TypeString, Description: "Corps complet du texte d'investigation"},
-			"tags":         {Type: genai.TypeArray, Items: &genai.Schema{Type: genai.TypeString}, Description: "Mots-clés et thématiques"},
-			"imageKeyword": {Type: genai.TypeString, Description: "Mot-clé en anglais pour l'illustration d'arrière-plan"},
+			"taxonomie":            {Type: genai.TypeString, Description: "La catégorie choisie (FLASH, CITATION, ALERTE, DÉCRYPTAGE, INFO)"},
+			"geo":                  {Type: genai.TypeString, Description: "Zone géographique (france / international)"},
+			"tags":                 {Type: genai.TypeArray, Items: &genai.Schema{Type: genai.TypeString}, Description: "Mots-clés et thématiques"},
+			"headline":             {Type: genai.TypeString, Description: "Titre percutant au style L'Assez"},
+			"body":                 {Type: genai.TypeString, Description: "Corps complet du post (respecte le format de la catégorie)"},
+			"image_search_queries": {Type: genai.TypeArray, Items: &genai.Schema{Type: genai.TypeString}, Description: "1 à 3 requêtes d'image selon la méthode des Tirs"},
+			"metadata":             {Type: genai.TypeObject, Description: "Métadonnées du format", Properties: map[string]*genai.Schema{"accent_color": {Type: genai.TypeString}}},
 		},
 		Required: []string{"headline", "body", "tags"},
 	}
@@ -138,7 +158,7 @@ func RunEditorialist(client *payload.Client, resolver *config.Resolver) error {
 			}
 			var template *payload.TaxonomyTemplate
 			for i := range templates {
-				if strings.EqualFold(templates[i].Name, taxonomy) {
+				if strings.EqualFold(templates[i].Name, taxonomy) || strings.EqualFold(templates[i].DisplayName, taxonomy) {
 					template = &templates[i]
 					break
 				}
@@ -152,8 +172,21 @@ func RunEditorialist(client *payload.Client, resolver *config.Resolver) error {
 			sb.WriteString(vocabularyRules)
 			sb.WriteString("\n")
 			sb.WriteString(imageRules)
-			if template != nil && template.PromptText != "" {
-				sb.WriteString(fmt.Sprintf("\n\nCONSIGNES CATÉGORIE [%s] :\n%s\n", template.Name, template.PromptText))
+			if template != nil {
+				if template.PromptText != "" {
+					sb.WriteString(fmt.Sprintf("\n\nCONSIGNES CATÉGORIE [%s] :\n%s\n", template.DisplayName, template.PromptText))
+				}
+				// Few-shot : des posts d'exemple du format — recopie le STYLE, pas le contenu.
+				if len(template.Examples) > 0 {
+					sb.WriteString(fmt.Sprintf("\nEXEMPLES DE POSTS [%s] (imite le style, jamais le contenu) :\n", template.DisplayName))
+					for i, ex := range template.Examples {
+						sb.WriteString(fmt.Sprintf("--- EXEMPLE %d ---\n%s\n", i+1, ex))
+					}
+				}
+				// Schéma de sortie JSON attendu.
+				if template.OutputSchema != "" {
+					sb.WriteString(fmt.Sprintf("\nSCHÉMA DE SORTIE JSON ATTENDU :\n%s\n", template.OutputSchema))
+				}
 			}
 
 			excerpt := raw.Excerpt
@@ -169,11 +202,21 @@ func RunEditorialist(client *payload.Client, resolver *config.Resolver) error {
 				orTitle(raw.ClusterTitle), excerpt, taxonomy, geo,
 			)
 
+			// Modèle par format : modelByFormat (id du format → modèle) prime sur
+			// le modèle de rédaction global — chaque rubrique a son IA.
+			effModel := modelName
+			if m := modelForFormat(resolver, taxonomy); m != "" {
+				effModel = m
+			}
+			m := ai.GenerativeModel(effModel)
+			m.ResponseMIMEType = "application/json"
+			m.ResponseSchema = draftSchema
+
 			// Timeout par appel : une API qui pend ne doit pas bloquer le nœud.
 			callCtx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 			defer cancel()
 			rl.Wait()
-			resp, err := model.GenerateContent(callCtx, genai.Text(sb.String()+"\n\n"+userPrompt))
+			resp, err := m.GenerateContent(callCtx, genai.Text(sb.String()+"\n\n"+userPrompt))
 			if err != nil {
 				if isQuotaError(err) {
 					log.Printf("[Node 4] ⏸️ Quota Gemini atteint (%s) : sujet laissé en attente.", topic.ID)
@@ -194,12 +237,23 @@ func RunEditorialist(client *payload.Client, resolver *config.Resolver) error {
 				return
 			}
 
-			finalDraft, _ := json.Marshal(map[string]string{"headline": draft.Headline, "body": draft.Body})
+			// Le brouillon final porte tout le schéma (headline/body + requêtes d'image),
+			// le publisher lit headline/body, le nœud Media lit image_search_queries.
+			finalDraft, _ := json.Marshal(map[string]any{
+				"taxonomie": draft.Taxonomie, "geo": draft.Geo,
+				"headline": draft.Headline, "body": draft.Body,
+				"tags":                 draft.Tags,
+				"image_search_queries": draft.ImageSearchQueries,
+				"metadata":             draft.Metadata,
+			})
 			tagsJSON, _ := json.Marshal(draft.Tags)
 			if len(tagsJSON) == 0 {
 				tagsJSON = []byte("[]")
 			}
 			imageKeyword := draft.ImageKeyword
+			if imageKeyword == "" && len(draft.ImageSearchQueries) > 0 {
+				imageKeyword = draft.ImageSearchQueries[0]
+			}
 			if imageKeyword == "" {
 				imageKeyword = topic.ImageURL
 			}
@@ -223,4 +277,49 @@ func RunEditorialist(client *payload.Client, resolver *config.Resolver) error {
 
 	log.Printf("[Node 4: Editorialist] Rédaction terminée.")
 	return nil
+}
+
+// modelForFormat — modèle dédié au format (editorial.modelByFormat du YAML,
+// clé = id du format), si présent. Vide sinon → le modèle global est utilisé.
+func modelForFormat(resolver *config.Resolver, taxonomy string) string {
+	settings, err := resolver.Settings()
+	if err != nil || settings == nil {
+		return ""
+	}
+	mbf, ok := settings["modelByFormat"].(map[string]any)
+	if !ok {
+		return ""
+	}
+	for k, v := range mbf {
+		if strings.EqualFold(k, taxonomy) {
+			if s, ok := v.(string); ok && s != "" {
+				return s
+			}
+		}
+	}
+	return ""
+}
+
+// stripGoogleSearch — retire l'outil GOOGLE SEARCH de la mission de recherche
+// quand la recherche web est désactivée : l'IA n'utilise que le contenu fourni.
+func stripGoogleSearch(prompt string) string {
+	lines := strings.Split(prompt, "\n")
+	out := make([]string, 0, len(lines))
+	skip := false
+	for _, l := range lines {
+		trimmed := strings.TrimSpace(l)
+		if strings.Contains(strings.ToUpper(l), "GOOGLE SEARCH") {
+			skip = true
+			continue
+		}
+		if skip {
+			// Les puces de l'outil sont indentées ; une ligne non indentée relance.
+			if l == "" || strings.HasPrefix(trimmed, "-") || strings.HasPrefix(trimmed, "*") || strings.HasPrefix(l, "   ") || strings.HasPrefix(l, "\t") {
+				continue
+			}
+			skip = false
+		}
+		out = append(out, l)
+	}
+	return strings.Join(out, "\n")
 }

@@ -17,8 +17,8 @@ import (
 )
 
 const (
-	fallbackResearcherSystem = "Tu es un rédacteur en chef d'investigation. Ton rôle est de trier et évaluer la valeur journalistique des dépêches brutes."
-	fallbackRejectCriteria   = "Rejeter les faits divers mineurs sans portée sociétale, la publicité déguisée et les annonces corporate triviales."
+	fallbackResearcherSystem = "Tu es le filtre éditorial de L'Assez, un média d'investigation anticapitaliste. Ton but est de filtrer l'actualité brute et de la catégoriser.\nGarde les sujets systémiques : inégalités, luttes sociales, corruption, extrême-droite, mensonges médiatiques, impérialisme.\nJette les polémiques stériles, les faits divers, la communication gouvernementale classique.\nRÈGLE DU BIAIS : Observe le source_bias. Si une source de 'Droite/Extrême-Droite' attaque un sujet ou une figure 'Décoloniale/Gauche', sois hyper critique : rejette si c'est de la désinformation pure, ou ajoute un flag 'CRITICAL_CROSSCHECK'."
+	fallbackRejectCriteria = "REJETTE CATÉGORIQUEMENT :\n- Faits divers isolés (accidents, crimes passionnels, vols).\n- Lifestyle, divertissement, sport, tech \"gadget\".\n- Micro-polémiques de réseaux sociaux sans enjeu de pouvoir réel."
 )
 
 type researchEvaluation struct {
@@ -92,6 +92,23 @@ func RunResearcher(client *payload.Client, resolver *config.Resolver) error {
 		}
 	}
 
+	// Les formats actifs (id + description) : Gemini doit choisir sa taxonomie
+	// parmi les vraies catégories configurées, pas n'importe quelle chaîne.
+	taxonomyList := ""
+	if templates, err := client.GetTaxonomyTemplates(true); err == nil {
+		var parts []string
+		for _, t := range templates {
+			line := t.Name
+			if t.Description != "" {
+				line += " : " + t.Description
+			}
+			parts = append(parts, "- "+line)
+		}
+		if len(parts) > 0 {
+			taxonomyList = "\n\nCATÉGORIES DISPONIBLES (choisis EXACTEMENT un de ces ids pour suggestedTaxonomy) :\n" + strings.Join(parts, "\n") + "\n"
+		}
+	}
+
 	model := ai.GenerativeModel(modelName)
 	model.ResponseMIMEType = "application/json"
 	model.ResponseSchema = &genai.Schema{
@@ -127,7 +144,7 @@ func RunResearcher(client *payload.Client, resolver *config.Resolver) error {
 			}{}
 			_ = json.Unmarshal(topic.RawData, &raw)
 
-			prompt := buildResearchPrompt(researcherSystem, rejectCriteria, customPrompt, raw)
+			prompt := buildResearchPrompt(researcherSystem, rejectCriteria, customPrompt, taxonomyList, raw)
 
 			// Timeout par appel : une API qui pend ne doit pas bloquer le nœud.
 			callCtx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
@@ -159,7 +176,15 @@ func RunResearcher(client *payload.Client, resolver *config.Resolver) error {
 				title = string(topic.ID)
 			}
 
-			if eval.Approved && eval.Score >= 50 {
+			// scoreThreshold — le slider "Note minimale" du labo (Écriture + Atelier).
+		// Défaut 50 = le labo est à 50/100 slider minimum.
+		scoreThreshold := 50
+		if v := resolver.GetEffectiveParam("research", "scoreThreshold", float64(50)); v != nil {
+			if n := int(toFloat64(v, 50)); n >= 0 && n <= 100 {
+				scoreThreshold = n
+			}
+		}
+		if eval.Approved && eval.Score >= scoreThreshold {
 				taxonomy := eval.SuggestedTaxonomy
 				if taxonomy == "" {
 					taxonomy = "INFO"
@@ -192,7 +217,7 @@ func RunResearcher(client *payload.Client, resolver *config.Resolver) error {
 	return nil
 }
 
-func buildResearchPrompt(system, reject, custom string, raw struct {
+func buildResearchPrompt(system, reject, custom, taxonomyList string, raw struct {
 	ClusterTitle  string `json:"clusterTitle"`
 	Excerpt       string `json:"excerpt"`
 	SourceContent string `json:"source_content"`
@@ -202,6 +227,7 @@ func buildResearchPrompt(system, reject, custom string, raw struct {
 	sb.WriteString(system)
 	sb.WriteString("\n\nCRITÈRES DE REJET :\n")
 	sb.WriteString(reject)
+	sb.WriteString(taxonomyList)
 	if custom != "" {
 		sb.WriteString("\n\nCONSIGNES ÉDITORIALES SPÉCIFIQUES :\n")
 		sb.WriteString(custom)

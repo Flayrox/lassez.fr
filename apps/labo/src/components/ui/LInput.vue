@@ -11,7 +11,7 @@ defineEmits<{ (e: 'update:modelValue', v: string): void }>()
       :type="type ?? 'text'"
       :value="modelValue"
       @input="$emit('update:modelValue', ($event.target as HTMLInputElement).value)"
-      class="w-full h-8 bg-bg border border-border rounded px-2.5 text-xs text-text-1 placeholder:text-text-3 focus:outline-none focus:border-accent/60 focus:ring-2 focus:ring-accent/20 transition-all"
+      class="w-full h-8 bg-bg border border-border rounded-md px-2.5 text-xs text-text-1 placeholder:text-text-3 focus:outline-none focus:border-accent/60 focus:ring-2 focus:ring-accent/20 transition-colors"
     />
   </label>
 </template>

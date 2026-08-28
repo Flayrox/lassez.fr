@@ -88,6 +88,7 @@ editorial:
         === RÈGLE DES IMAGES (LA MÉTHODE DES TIRS) ===
         Trouver des images d'actualité précises sur le web peut être difficile. Juge lequel des 3 "Tirs" conviendrait : Tir 1 (Le Sniper) une seule requête ultra précise ; Tir 2 (Le Pistolet) 2 requêtes contexte/lieu ; Tir 3 (Le Fusil à pompe) 3 requêtes symboles larges. Remplis le tableau image_search_queries avec 1, 2 ou 3 requêtes selon le tir choisi.
     personaName: "Le Mécanicien" # nom du rédacteur IA — éditable dans le labo (Écriture)
+    thinkingBudget: 8192 # raisonnement de la rédaction (thinking tokens) — élevé par défaut
     customModifier: ""
 # Registry des modèles IA — alimente tous les selects du labo (label UI + value API)
 modelRegistry: [{"label": "Gemini 3.7 Flash", "value": "gemini-3.7-flash"}, {"label": "Gemini 3.5 Flash Lite", "value": "gemini-3.5-flash-lite"}, {"label": "Gemini 2.5 Flash", "value": "gemini-2.5-flash"}, {"label": "gemini-2.0-flash", "value": "gemini-2.0-flash"}]

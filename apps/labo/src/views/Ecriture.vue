@@ -83,10 +83,25 @@
                 </div>
               </LCard>
 
-              <LCard title="Recherche web" description="L'IA cherche sur internet à chaque article : vérifier les faits, dénicher le passif des personnalités, étoffer le contexte. Activé = articles plus fiables, mais un peu plus lent.">
-                <div class="flex items-center justify-between gap-2 border border-border/50 rounded px-3 py-2">
-                  <span class="text-xs text-text-1">Vérifier les sujets sur le web</span>
-                  <LToggle :model-value="store.ecriture.webSearchEnabled" @update:model-value="(v: boolean) => { store.ecriture.webSearchEnabled = v; store.markDirty() }" />
+              <LCard title="Recherche web + raisonnement" description="À chaque article, l'IA raisonne longuement (thinking) et cherche sur internet avant d'écrire. C'est ce qui remplace l'ancienne étape de vérification : un seul passage rédige ET contrôle.">
+                <div class="space-y-2">
+                  <div class="flex items-center justify-between gap-2 border border-border/50 rounded px-3 py-2">
+                    <span class="text-xs text-text-1">Vérifier les sujets sur le web</span>
+                    <LToggle :model-value="store.ecriture.webSearchEnabled" @update:model-value="(v: boolean) => { store.ecriture.webSearchEnabled = v; store.markDirty() }" />
+                  </div>
+                  <div class="flex items-center justify-between gap-2 border border-border/50 rounded px-3 py-2">
+                    <div>
+                      <p class="text-xs text-text-1">Raisonnement (thinking)</p>
+                      <p class="text-[11px] text-text-3">Élevé = rédige et vérifie mieux, mais consomme plus de tokens. 0 = réponse directe.</p>
+                    </div>
+                    <select v-model.number="store.ecriture.thinkingBudget" @change="store.markDirty()" class="h-8 bg-bg border border-border rounded px-2 text-xs focus:outline-none focus:border-accent/60">
+                      <option :value="0">0 — rapide</option>
+                      <option :value="2048">2048 — moyen</option>
+                      <option :value="8192">8192 — élevé</option>
+                      <option :value="16384">16384 — très élevé</option>
+                      <option :value="32768">32768 — maximum</option>
+                    </select>
+                  </div>
                 </div>
               </LCard>
             </div>

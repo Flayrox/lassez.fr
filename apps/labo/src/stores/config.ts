@@ -146,6 +146,9 @@ export const useConfigStore = defineStore('config', () => {
     mission: FACTORY_PROMPTS.mission,
     vocabulaire: FACTORY_PROMPTS.vocabulaire,
     consignesImages: FACTORY_PROMPTS.consignesImages,
+    // Raisonnement de la rédaction (thinking tokens) : élevé pour rédiger ET
+    // vérifier en un seul passage. 0 = réponse directe sans raisonnement.
+    thinkingBudget: 8192,
     consigneGlobale: '',
   })
 
@@ -462,6 +465,7 @@ export const useConfigStore = defineStore('config', () => {
           decrypt: modelValueOf(ecriture.value.modeleParFormat['DECRYPTAGE'] ?? ecriture.value.modeleRedaction),
         },
         personaName: ecriture.value.personaName || 'Le Mécanicien',
+        thinkingBudget: ecriture.value.thinkingBudget || 8192,
         baseIdentity: ecriture.value.identite,
         researchMission: ecriture.value.mission,
         vocabularyRules: ecriture.value.vocabulaire,
@@ -608,6 +612,7 @@ export const useConfigStore = defineStore('config', () => {
       tachesEnMemeTempsRedaction: numOr(editorial.maxConcurrentTasks, ecriture.value.tachesEnMemeTempsRedaction),
       scoreMini: numOr(research.scoreThreshold, ecriture.value.scoreMini),
       personaName: sOr(editorial.personaName, 'Le Mécanicien'),
+      thinkingBudget: numOr(editorial.thinkingBudget, ecriture.value.thinkingBudget),
       consigneTri: sOr(research.systemPrompt, ecriture.value.consigneTri),
       criteresRejet: sOr(research.rejectCriteria, ecriture.value.criteresRejet),
       identite: sOr(editorial.baseIdentity, ecriture.value.identite),

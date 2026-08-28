@@ -112,6 +112,8 @@ func flatten(d map[string]any) map[string]any {
 	// Editorial (+ validator)
 	set("editor.aiModelPro", s("editorial", "aiModelPro"))
 	set("editor.maxConcurrentTasks", f("editorial", "maxConcurrentTasks"))
+	// Raisonnement (thinking) de la rédaction — élevé par défaut dans le code.
+	set("editor.thinkingBudget", f("editorial", "thinkingBudget"))
 	set("validator.aiModelValidator", s("editorial", "aiModelVerification"))
 	set("validator.maxConcurrentTasks", float64(5))
 	set("aiModelPro", orString(s("editorial", "aiModelPro"), "gemini-3.7-flash"))

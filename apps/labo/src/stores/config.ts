@@ -201,6 +201,10 @@ export const useConfigStore = defineStore('config', () => {
     // Gemini — la clé qui fait tourner les nœuds IA du pipeline (Tri /
     // Rédaction / Vérification). Écrite dans .secrets.yaml, jamais dans git.
     geminiApiKey: '',
+    // Vertex AI (secours) — compte de service Google Cloud : utilisé
+    // automatiquement quand la clé AI Studio est épuisée ou invalide.
+    vertexServiceAccount: '',
+    vertexRegion: 'global',
   })
 
   // ── Planning (réel : tous les jours à 20:08, Europe/Paris) ──

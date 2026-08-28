@@ -202,6 +202,7 @@ func RunEditorialist(client *payload.Client, resolver *config.Resolver) error {
 			text, err := callGemini(callCtx, geminiParams{
 				apiKey:         apiKey,
 				model:          effModel,
+				modelFallback:  "gemini-3.5-flash-lite", // repli si 3.7 flash hors quota (niveau gratuit)
 				system:         sb.String(),
 				user:           userPrompt,
 				temperature:    editorTemp,

@@ -25,7 +25,7 @@
         <!-- Editor -->
         <div v-if="expanded === f.id" class="border-t border-border p-4 space-y-4">
           <div class="space-y-1.5">
-            <p class="text-[11px] font-medium text-text-2 uppercase tracking-wider">Description — sert au tri (Researcher)</p>
+            <p class="text-[11px] font-medium text-text-2 uppercase tracking-wider">Description — aide le robot à reconnaître quand utiliser ce format, au moment du tri</p>
             <input v-model="f.description" @input="store.markDirty()" placeholder="Quand utiliser ce format…" class="w-full h-8 bg-bg border border-border rounded px-2.5 text-xs focus:outline-none focus:border-accent/60" />
           </div>
 

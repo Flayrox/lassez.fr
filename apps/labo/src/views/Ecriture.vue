@@ -6,6 +6,27 @@
       <p class="text-[11px] text-accent mt-1">💾 Enregistrement automatique : tout ce que tu modifies est gardé au fil de la frappe.</p>
     </div>
 
+    <!-- Comment ça marche — en français simple, pas de jargon interne -->
+    <LCard :padding="false">
+      <div class="px-4 py-3.5">
+        <p class="text-[11px] font-semibold uppercase tracking-wider text-text-3 mb-2">Comment ça marche</p>
+        <div class="grid md:grid-cols-3 gap-3 text-[11px] text-text-2">
+          <div class="border border-border/60 rounded p-3 bg-bg/40">
+            <p class="font-medium text-text-1 mb-1">1 · Le tri 🤖</p>
+            <p>Le robot lit les articles ramenés, les note de 0 à 100 et ne garde que ceux qui valent la peine. Tu règles sa note minimale et son filtre ci-dessous.</p>
+          </div>
+          <div class="border border-border/60 rounded p-3 bg-bg/40">
+            <p class="font-medium text-text-1 mb-1">2 · La rédaction ✍️</p>
+            <p>L'IA écrit le post : elle lit les articles, vérifie les faits sur internet, puis applique ta ligne éditoriale (les blocs ci-dessous) et le format choisi.</p>
+          </div>
+          <div class="border border-border/60 rounded p-3 bg-bg/40">
+            <p class="font-medium text-text-1 mb-1">3 · La vérification ⚖️</p>
+            <p>Un second contrôle relit le brouillon : ton, précision des faits, clarté. Il valide, corrige le texte, ou le refuse.</p>
+          </div>
+        </div>
+      </div>
+    </LCard>
+
     <LCard :padding="false">
       <LTabs v-model="tab" :tabs="[{ key: 'consignes', label: 'Consignes' }, { key: 'formats', label: 'Formats' }]" />
       <div class="p-4">
@@ -62,7 +83,7 @@
                 </div>
               </LCard>
 
-              <LCard title="Recherche web" description="Vérifie les faits et creuse le contexte — pour tous les types d'articles">
+              <LCard title="Recherche web" description="L'IA cherche sur internet à chaque article : vérifier les faits, dénicher le passif des personnalités, étoffer le contexte. Activé = articles plus fiables, mais un peu plus lent.">
                 <div class="flex items-center justify-between gap-2 border border-border/50 rounded px-3 py-2">
                   <span class="text-xs text-text-1">Vérifier les sujets sur le web</span>
                   <LToggle :model-value="store.ecriture.webSearchEnabled" @update:model-value="(v: boolean) => { store.ecriture.webSearchEnabled = v; store.markDirty() }" />
@@ -71,7 +92,7 @@
             </div>
 
             <!-- ── Ligne éditoriale ── -->
-            <section-head label="Ligne éditoriale" />
+            <section-head label="Le style d'écriture (ligne éditoriale)" />
 
             <LCard :padding="false">
               <div v-for="block in blocks" :key="block.key" class="border-b border-border last:border-b-0">
@@ -180,13 +201,13 @@ const getKey = (key: keyof typeof store.ecriture) => () => String((store.ecritur
 // Ligne éditoriale — les textes par défaut sont ceux qui tournaient sur le VPS
 // (ai_prompt_* vides → défauts du code, portés dans stores/factory.ts).
 const blocks: Block[] = [
-  { key: 'identite', icon: '◆', label: "Qui est L'Assez", help: "Le ton du média, la personnalité de l'IA (« Le Mécanicien »).", resetTo: FACTORY_PROMPTS.identite, get: getKey('identite'), set: setKey('identite') },
-  { key: 'mission', icon: '➤', label: "Mission d'enquête", help: "Transformer l'info brute en enquête étayée — recherche web comprise quand elle est activée.", resetTo: FACTORY_PROMPTS.mission, get: getKey('mission'), set: setKey('mission') },
-  { key: 'vocabulaire', icon: 'Aa', label: 'Mots à utiliser ou éviter', help: 'La règle de vocabulaire : mots interdits, mots autorisés, traduction de la novlangue.', resetTo: FACTORY_PROMPTS.vocabulaire, get: getKey('vocabulaire'), set: setKey('vocabulaire') },
-  { key: 'consignesImages', icon: '▣', label: 'Consigne pour les images', help: 'La méthode des 3 tirs pour choisir les illustrations.', resetTo: FACTORY_PROMPTS.consignesImages, get: getKey('consignesImages'), set: setKey('consignesImages') },
-  { key: 'consigneTri', icon: '⚖', label: 'Consigne pour trier', help: "Ce que le robot garde ou jette au moment du tri (Researcher).", resetTo: FACTORY_PROMPTS.consigneTri, get: getKey('consigneTri'), set: setKey('consigneTri') },
-  { key: 'criteresRejet', icon: '✕', label: "Ce qu'on jette", help: 'Les critères de rejet explicites du tri.', resetTo: FACTORY_PROMPTS.criteresRejet, get: getKey('criteresRejet'), set: setKey('criteresRejet') },
-  { key: 'consigneGlobale', icon: '✦', label: 'Consigne globale (pour tout)', help: "Ex : « insiste sur l'écologie cette semaine » — ajoutée à chaque cycle, en plus des blocs ci-dessus.", resetTo: '', get: getKey('consigneGlobale'), set: setKey('consigneGlobale') },
+  { key: 'identite', icon: '◆', label: "Le ton du média", help: "La personnalité du rédacteur IA : « Le Mécanicien » = direct, scandalisé, implacable. Il démonte le système sans langue de bois ni jargon militant. C'est le tempérament de tous les articles.", resetTo: FACTORY_PROMPTS.identite, get: getKey('identite'), set: setKey('identite') },
+  { key: 'mission', icon: '➤', label: "L'enquête avant d'écrire", help: "Ce que l'IA fait avant de rédiger : lire les articles fournis, vérifier les faits sur internet, chercher le passé des personnalités citées (leurs « casseroles ») pour étayer son propos.", resetTo: FACTORY_PROMPTS.mission, get: getKey('mission'), set: setKey('mission') },
+  { key: 'vocabulaire', icon: 'Aa', label: "Les mots à utiliser ou éviter", help: "Les mots interdits (trop militants), les mots conseillés (plus directs, ex. « le gouvernement », « les milliardaires »), et la traduction du langage officiel : « maintien de l'ordre » = répression policière.", resetTo: FACTORY_PROMPTS.vocabulaire, get: getKey('vocabulaire'), set: setKey('vocabulaire') },
+  { key: 'consignesImages', icon: '▣', label: "Comment choisir les images", help: "La méthode des 3 tirs : une recherche d'image très précise (tir 1), deux plus larges sur le lieu ou le contexte (tir 2), ou trois symboles de secours (tir 3) quand aucune photo précise n'existe.", resetTo: FACTORY_PROMPTS.consignesImages, get: getKey('consignesImages'), set: setKey('consignesImages') },
+  { key: 'consigneTri', icon: '⚖', label: "Ce que le robot garde au tri", help: "Le filtre du tri automatique : les sujets systémiques (inégalités, luttes sociales, corruption, mensonges médiatiques…), et la méfiance automatique quand une source de droite ou d'extrême droite attaque la gauche — l'IA doit alors redoubler de prudence.", resetTo: FACTORY_PROMPTS.consigneTri, get: getKey('consigneTri'), set: setKey('consigneTri') },
+  { key: 'criteresRejet', icon: '✕', label: "Ce que le robot jette", help: "Les sujets écartés d'office au tri : faits divers isolés, sport, divertissement, polémiques de réseaux sociaux sans enjeu de pouvoir.", resetTo: FACTORY_PROMPTS.criteresRejet, get: getKey('criteresRejet'), set: setKey('criteresRejet') },
+  { key: 'consigneGlobale', icon: '✦', label: 'Consigne supplémentaire (temporaire)', help: "Ex : « cette semaine, couvre surtout les manifestations » — ajoutée à chaque article, en plus des blocs ci-dessus.", resetTo: '', get: getKey('consigneGlobale'), set: setKey('consigneGlobale') },
 ]
 
 const previewOf = (b: Block) => {

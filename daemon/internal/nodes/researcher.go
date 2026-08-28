@@ -49,8 +49,8 @@ func RunResearcher(client *payload.Client, resolver *config.Resolver) error {
 	}
 	log.Printf("[Node 3] 🔍 %d sujets à analyser (limite de cycle).", len(topics))
 
-	// Clé depuis radar-settings (interface admin sécurisée), fallback .env.
-	apiKey := geminiAPIKey(resolver, "research")
+	// Clé depuis les secrets du studio (.secrets.yaml), fallback .env.
+	apiKey := GeminiAPIKey(resolver, "research")
 	if apiKey == "" {
 		log.Printf("[Node 3] ⚠️ Clé Gemini absente (geminiApiKey / GEMINI_DAEMON_API_KEY). Étape ignorée.")
 		return nil

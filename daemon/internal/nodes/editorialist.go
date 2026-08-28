@@ -58,7 +58,7 @@ func RunEditorialist(client *payload.Client, resolver *config.Resolver) error {
 	log.Printf("[Node 4] 📝 %d sujets à rédiger (limite de cycle).", len(topics))
 
 	// Clé depuis radar-settings (interface admin sécurisée), fallback .env.
-	apiKey := geminiAPIKey(resolver, "editor")
+	apiKey := GeminiAPIKey(resolver, "editor")
 	if apiKey == "" {
 		log.Printf("[Node 4] ⚠️ Clé Gemini absente (geminiApiKey / GEMINI_DAEMON_API_KEY). Étape ignorée.")
 		return nil

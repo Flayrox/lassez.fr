@@ -4,10 +4,11 @@ Tout ce qui est décidé en session mais pas encore implémenté. Coche au fur e
 
 ## ⚠️ À savoir (quota niveau gratuit)
 
-- ✅ **Clé API valide** : la nouvelle clé (Système → Clé API Gemini) fonctionne — testée le 28/08 (réponse OK).
-- ⚠️ **Quota de recherche Google épuisé** : le grounding `google_search` renvoie 429 (« quota dépassé ») sur le compte — les **5 000 recherches gratuites/mois** sont consommées. Le daemon a un **repli automatique** : il réessaie sans grounding (l'IA travaille sur la matière première), donc le pipeline tourne quand même. La recherche reprendra d'elle-même au prochain reset du quota.
-- ⚠️ **`gemini-3.7-flash` hors quota sur le compte** : 429 même sans recherche → la rédaction **retombe automatiquement sur `gemini-3.5-flash-lite`** (repli code). Quand le compte y aura droit (ou plan payant), la rédaction repassera sur 3.7 Flash sans rien changer.
-- ▶️ **Déblocage du backlog** : 470+ sujets INGESTED en attente — le tri traite 10-20 par cycle, tout se débloque progressivement.
+- ❌ **Clé AI Studio à sec** : au dernier test (28/08), Google répond « prepayment credits depleted » sur la clé (même sans recherche web) — le rechargement n'était pas encore visible. **Solution : Vertex AI en secours** (voir ci-dessous).
+- ✅ **Fallback Vertex AI implémenté** : si AI Studio échoue (quota, crédits, clé invalide), le daemon rebascule automatiquement sur Vertex AI — il suffit de coller le JSON du compte de service dans **Système → Vertex AI (secours)** et de cliquer « Tester Vertex AI ».
+- ⚠️ **Quota de recherche Google épuisé** : le grounding `google_search` renvoie 429 sur le compte — le daemon réessaie sans grounding (repli auto), la recherche reprend au reset du quota.
+- ⚠️ **`gemini-3.7-flash` hors quota sur le compte** : 429 → la rédaction **retombe automatiquement sur `gemini-3.5-flash-lite`** (repli code).
+- ▶️ **Déblocage du backlog** : 470+ sujets INGESTED en attente — le tri traite 10-20 par cycle.
 
 ## ⏳ En attente
 
@@ -32,6 +33,8 @@ Tout ce qui est décidé en session mais pas encore implémenté. Coche au fur e
 - **Verrou de cycle** : empêcher deux cycles simultanés (scan manuel + programmé) de se marcher dessus.
 
 ## ✅ Fait récemment (mémoire)
+
+- **Fallback Vertex AI** (daemon + studio) : nouveau provider dans `gemini_call.go` (auth par compte de service Google — JWT RS256 signé localement, échange OAuth2, token en cache), même structure de requête que AI Studio (grounding, température, schéma JSON). Chaîne de repli auto dans les 3 nœuds IA : AI Studio → Vertex. Endpoint `POST /api/vertex/test` pour valider le compte en un clic (même chemin que le pipeline). Carte « Vertex AI (secours) » dans Système (JSON du compte + région, défaut `global`). Tests : corps de requête Vertex camelCase + échange JWT complet sans réseau (RSA 2048, serveur factice).
 
 - **Page « Pipeline » dans le labo** (menu Transforme) : les 7 nœuds détaillés étape par étape — ce qu'il fait, ce qui entre/sort (compteurs live), les réglages qui l'affectent, le modèle IA (température, recherche web) — + bandeau budget niveau gratuit (5 000 recherches/mois, 12 req/min) + lien « Expliquer → » depuis chaque étape de l'Atelier.
 - **Répartition des modèles niveau gratuit** : Tri = `gemini-3.5-flash-lite`, Rédaction = `gemini-3.7-flash` (défaut), Vérification = `gemini-3.5-flash-lite`. Registry du labo limité aux modèles gratuits.

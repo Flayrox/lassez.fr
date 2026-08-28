@@ -5,7 +5,8 @@ Tout ce qui est décidé en session mais pas encore implémenté. Coche au fur e
 ## ⚠️ À savoir (quota niveau gratuit)
 
 - ❌ **Clé AI Studio à sec** : Google répond « prepayment credits depleted » sur la clé — le rechargement n'est pas visible.
-- ✅ **Vertex AI opérationnel** : compte de service configuré (projet `lassez-daemon`, région `global`) → `POST /api/vertex/test` = OK (337 ms). Le pipeline bascule automatiquement sur Vertex quand AI Studio échoue, **avec la recherche web active**. Fixé au passage : endpoint `global` sans préfixe d'hôte + outil `googleSearch` (pas `googleSearchRetrieval`).
+- ✅ **Vertex AI opérationnel** : compte de service configuré (projet `lassez-daemon`, région `global`) → `POST /api/vertex/test` = OK. Le pipeline bascule automatiquement sur Vertex quand AI Studio échoue, **avec la recherche web active**. Fixé : endpoint `global` sans préfixe + outil `googleSearch`.
+- ⚠️ **Images d'articles** : le scraping Google Images était bloqué (0 image trouvée — Google bloque les clients non-navigateur). Corrigé : API Google officielle (Custom Search JSON API, 100 req/jour gratuites — clé à ajouter dans **Système → Recherche d'images**) + **repli Wikimedia Commons** (gratuit, sans clé, déjà actif). Filtre d'extensions (pas de PDF/SVG). Les ~73 anciens PENDING gardent leur mot-clé — re-enrichissables en repassant VALIDATED.
 - ⚠️ **Quota de recherche Google épuisé** : le grounding `google_search` renvoie 429 sur le compte — le daemon réessaie sans grounding (repli auto), la recherche reprend au reset du quota.
 - ⚠️ **`gemini-3.7-flash` hors quota sur le compte** : 429 → la rédaction **retombe automatiquement sur `gemini-3.5-flash-lite`** (repli code).
 - ▶️ **Déblocage du backlog** : 470+ sujets INGESTED en attente — le tri traite 10-20 par cycle.
@@ -33,6 +34,9 @@ Tout ce qui est décidé en session mais pas encore implémenté. Coche au fur e
 - **Verrou de cycle** : empêcher deux cycles simultanés (scan manuel + programmé) de se marcher dessus.
 
 ## ✅ Fait récemment (mémoire)
+
+- **Nœud Média réparé** (test pipeline) : Google Images officiel (Custom Search JSON API, optionnel) → Wikimedia Commons (repli gratuit sans clé) → filtre d'extensions. Les articles reçoivent enfin de vraies images.
+- **JSON du compte de service Vertex masqué** dans Système (clé privée plus visible en clair).
 
 - **Fallback Vertex AI** (daemon + studio) : nouveau provider dans `gemini_call.go` (auth par compte de service Google — JWT RS256 signé localement, échange OAuth2, token en cache), même structure de requête que AI Studio (grounding, température, schéma JSON). Chaîne de repli auto dans les 3 nœuds IA : AI Studio → Vertex. Endpoint `POST /api/vertex/test` pour valider le compte en un clic (même chemin que le pipeline). Carte « Vertex AI (secours) » dans Système (JSON du compte + région, défaut `global`). Tests : corps de requête Vertex camelCase + échange JWT complet sans réseau (RSA 2048, serveur factice).
 

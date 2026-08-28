@@ -94,7 +94,14 @@ func (srv *Server) patchConfig(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !mergeNode(doc, &patch) {
-		writeJSON(w, 400, map[string]any{"error": "body vide ou non-objet"})
+		// Corps vide ou non-objet → vraie erreur. Corps valide mais rien à
+		// changer (config déjà à jour) → succès sans écriture : l'autosave du
+		// labo envoie parfois la config identique, ce n'est pas un échec.
+		if isEmptyDocument(&patch) {
+			writeJSON(w, 400, map[string]any{"error": "body vide ou non-objet"})
+			return
+		}
+		writeJSON(w, 200, map[string]any{"ok": true, "changed": false})
 		return
 	}
 
@@ -144,6 +151,23 @@ func writeConfigNode(path string, doc *yaml.Node) error {
 		return err
 	}
 	return os.Rename(tmp, path) // écriture atomique
+}
+
+// isEmptyDocument — true si le document YAML décodé ne contient aucun contenu.
+func isEmptyDocument(n *yaml.Node) bool {
+	if n == nil || n.Kind == 0 {
+		return true
+	}
+	if n.Kind == yaml.DocumentNode {
+		if len(n.Content) == 0 {
+			return true
+		}
+		return isEmptyDocument(n.Content[0])
+	}
+	if n.Kind == yaml.MappingNode {
+		return len(n.Content) == 0
+	}
+	return false
 }
 
 // mergeNode fusionne src dans dst. Les mappings se fusionnent clé à clé ;

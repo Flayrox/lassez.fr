@@ -1,6 +1,7 @@
 package nodes
 
 import (
+	"encoding/json"
 	"os"
 	"strings"
 	"sync"
@@ -40,6 +41,38 @@ func GeminiAPIKey(resolver *config.Resolver, nodeType string) string {
 	}
 	// 4. Repli de compatibilité.
 	return os.Getenv("GEMINI_API_KEY")
+}
+
+// VertexAIConfig résout le secours Vertex AI pour un nœud du pipeline : le
+// compte de service Google Cloud vient des secrets studio (daemon/config/
+// .secrets.yaml → champs vertexServiceAccount + vertexRegion, écrits par le
+// labo via Système → Vertex AI (secours)). Le project_id est extrait du JSON
+// du compte de service ; la région par défaut est « global » (endpoint global).
+// Retourne nil si aucun compte de service n'est configuré (pas de secours).
+func VertexAIConfig(resolver *config.Resolver) *vertexConfig {
+	if resolver == nil {
+		return nil
+	}
+	settings, err := resolver.Settings()
+	if err != nil || settings == nil {
+		return nil
+	}
+	sa, _ := settings["vertexServiceAccount"].(string)
+	if strings.TrimSpace(sa) == "" {
+		return nil
+	}
+	region, _ := settings["vertexRegion"].(string)
+	if region == "" {
+		region = "global"
+	}
+	var parsed struct {
+		ProjectID string `json:"project_id"`
+	}
+	project := ""
+	if err := json.Unmarshal([]byte(sa), &parsed); err == nil {
+		project = parsed.ProjectID
+	}
+	return &vertexConfig{ProjectID: project, Region: region, ServiceAccountJSON: sa}
 }
 
 // geminiRateLimiter limite le nombre d'appels Gemini par minute, pour rester

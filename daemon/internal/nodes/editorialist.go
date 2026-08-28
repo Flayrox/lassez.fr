@@ -210,6 +210,7 @@ func RunEditorialist(client *payload.Client, resolver *config.Resolver) error {
 				maxTokens:      editorTokens,
 				search:         searchWeb,
 				responseSchema: schemaEditorialist(),
+				vertex:         VertexAIConfig(resolver),
 			})
 			if err != nil {
 				if isQuotaError(err) {

@@ -12,7 +12,7 @@ defineEmits<{ (e: 'update:modelValue', v: string): void }>()
       @input="$emit('update:modelValue', ($event.target as HTMLTextAreaElement).value)"
       :rows="rows ?? 4"
       :placeholder="placeholder"
-      class="w-full bg-bg border border-border rounded px-2.5 py-2 text-xs font-mono text-text-1 placeholder:text-text-3 focus:outline-none focus:border-accent/60 focus:ring-2 focus:ring-accent/20 transition-all resize-y"
+      class="w-full bg-bg border border-border rounded-md px-2.5 py-2 text-xs font-mono text-text-1 placeholder:text-text-3 focus:outline-none focus:border-accent/60 focus:ring-2 focus:ring-accent/20 transition-colors resize-y"
     />
   </label>
 </template>

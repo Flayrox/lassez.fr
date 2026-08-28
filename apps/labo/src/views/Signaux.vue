@@ -23,10 +23,15 @@
         <LTabs
           v-model="tab"
           :tabs="[
-            { key: 'PENDING', label: 'En attente', count: store.counts.PENDING ?? 0 },
-            { key: 'APPROVED', label: 'À valider', count: store.counts.APPROVED ?? 0 },
+            { key: 'INGESTED', label: 'Aspirés', count: store.counts.INGESTED ?? 0 },
+            { key: 'RESEARCHED', label: 'Triés', count: store.counts.RESEARCHED ?? 0 },
+            { key: 'DRAFTED', label: 'Rédigés', count: store.counts.DRAFTED ?? 0 },
+            { key: 'VALIDATED', label: 'Validés', count: store.counts.VALIDATED ?? 0 },
+            { key: 'PENDING', label: 'À valider', count: store.counts.PENDING ?? 0 },
+            { key: 'APPROVED', label: 'À publier', count: store.counts.APPROVED ?? 0 },
+            { key: 'QUEUED', label: 'Programmés', count: store.counts.QUEUED ?? 0 },
             { key: 'PUBLISHED', label: 'Publiés', count: store.counts.PUBLISHED ?? 0 },
-            { key: 'IGNORED', label: 'Rejetés', count: store.counts.IGNORED ?? 0 },
+            { key: 'REJECTED', label: 'Rejetés', count: (store.counts.REJECTED ?? 0) + (store.counts.REJECTED_ERROR ?? 0) },
           ]"
         />
         <div class="flex items-center gap-2 pb-3">
@@ -49,19 +54,19 @@
       <table class="w-full text-left border-collapse">
         <thead>
           <tr class="border-y border-border text-[10px] uppercase tracking-wider text-text-3">
-            <th class="w-10 px-4 py-2"><input type="checkbox" :checked="allSelected" @change="toggleAll" class="accent-accent" /></th>
+            <th class="w-10 pl-4 pr-3 py-2"><input type="checkbox" :checked="allSelected" @change="toggleAll" class="accent-accent" /></th>
             <th class="py-2 pr-3 font-medium">Titre</th>
             <th class="py-2 pr-3 font-medium hidden md:table-cell">Format</th>
             <th class="py-2 pr-3 font-medium">Zone</th>
             <th class="py-2 pr-3 font-medium hidden lg:table-cell">Fiabilité</th>
             <th class="py-2 pr-3 font-medium hidden sm:table-cell">Reçu</th>
-            <th class="py-2 px-3 font-medium"></th>
+            <th class="py-2 pl-3 pr-4 font-medium"></th>
           </tr>
         </thead>
         <tbody>
           <template v-for="s in filtered" :key="s.id">
             <tr class="border-b border-border/50 hover:bg-surface-hover/60 transition-colors group" :class="{ 'bg-surface-hover': selected.includes(s.id) }">
-              <td class="pl-4 py-2.5"><input type="checkbox" :checked="selected.includes(s.id)" @change="toggle(s.id)" class="accent-accent" /></td>
+              <td class="pl-4 pr-3 py-2.5"><input type="checkbox" :checked="selected.includes(s.id)" @change="toggle(s.id)" class="accent-accent" /></td>
               <td class="py-2.5 pr-3 cursor-pointer max-w-md" @click="expanded = expanded === s.id ? null : s.id">
                 <p class="text-xs font-medium text-text-1 line-clamp-1">{{ s.source_title }}</p>
                 <p v-if="expanded !== s.id" class="text-[11px] text-text-3 line-clamp-1 mt-0.5">{{ s.flash_content }}</p>
@@ -75,11 +80,11 @@
                 </span>
               </td>
               <td class="py-2.5 pr-3 hidden sm:table-cell text-[11px] text-text-3 whitespace-nowrap">{{ timeAgo(s.created_at) }}</td>
-              <td class="py-2.5 px-3">
+              <td class="py-2.5 pl-3 pr-4">
                 <div class="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <LButton v-if="s.status === 'PENDING'" variant="ghost" @click.stop="bulk([s.id], 'APPROVED')" title="Valider">✓</LButton>
-                  <LButton v-if="s.status !== 'IGNORED'" variant="ghost" @click.stop="bulk([s.id], 'IGNORED')" title="Rejeter">✕</LButton>
-                  <LButton variant="ghost" @click.stop="delOne(s.id)" title="Supprimer">🗑</LButton>
+                  <LButton v-if="s.status === 'PENDING'" variant="ghost" @click.stop="bulk([s.id], 'APPROVED')" title="Valider → à publier">✓</LButton>
+                  <LButton v-if="canReject(s.status)" variant="ghost" @click.stop="bulk([s.id], 'REJECTED')" title="Rejeter">✕</LButton>
+                  <LButton v-if="canDelete(s.status)" variant="ghost" @click.stop="delOne(s.id)" title="Supprimer">🗑</LButton>
                 </div>
               </td>
             </tr>
@@ -91,8 +96,8 @@
                   <p class="text-xs text-text-2 leading-relaxed whitespace-pre-line">{{ s.flash_content }}</p>
                   <a :href="s.source_url" target="_blank" rel="noopener" class="text-[11px] text-info hover:underline break-all">{{ s.source_url }}</a>
                   <div class="flex gap-2 pt-1">
-                    <LButton @click="bulk([s.id], 'APPROVED')">Valider → à publier</LButton>
-                    <LButton variant="danger" @click="bulk([s.id], 'IGNORED')">Rejeter</LButton>
+                    <LButton v-if="s.status === 'PENDING'" @click="bulk([s.id], 'APPROVED')">Valider → à publier</LButton>
+                    <LButton v-if="canReject(s.status)" variant="danger" @click="bulk([s.id], 'REJECTED')">Rejeter</LButton>
                   </div>
                 </div>
               </td>
@@ -190,6 +195,14 @@ async function delSelected() {
 }
 function refresh() { load() }
 function doScan() { scanOpen.value = false; refresh() }
+
+// Modération : on ne rejette/supprime pas un signal déjà publié ou rejeté.
+function canReject(status: string) {
+  return status !== 'PUBLISHED' && status !== 'REJECTED' && status !== 'REJECTED_ERROR'
+}
+function canDelete(status: string) {
+  return status !== 'PUBLISHED' && status !== 'REJECTED' && status !== 'REJECTED_ERROR'
+}
 
 function formatVariant(t: string): 'accent' | 'info' | 'warning' | 'neutral' {
   const u = t.toUpperCase()

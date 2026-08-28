@@ -2,16 +2,20 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ── Thème — 100% tokenisé, zéro hex dans les .vue ── */
+/* ── Thème — 100% tokenisé, zéro hex dans les .vue ──
+   Esthétique Vercel/Supabase : fond sombre neutre, bordures fines,
+   accent vert. On affiche l'identité de L'Assez par le contenu, pas par le chrome. */
 :root,
 :root[data-theme='dark'] {
   --bg: #0a0a0a;
   --surface: #111111;
   --surface-hover: #1a1a1a;
+  --surface-2: #161616;
   --border: #262626;
+  --border-strong: #3f3f46;
   --text-1: #ededed;
   --text-2: #a1a1aa;
-  --text-3: #52525b;
+  --text-3: #71717a;
   --accent: #3ecf8e;
   --accent-hover: #35b87d;
   --accent-fg: #052e1b;
@@ -19,6 +23,7 @@
   --danger: #f87171;
   --warning: #fbbf24;
   --info: #60a5fa;
+  --radius: 8px;
   color-scheme: dark;
 }
 
@@ -32,19 +37,48 @@ html,
 body {
   background: var(--bg);
   color: var(--text-1);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Focus visible partout — accessibilité + cohérence (anneau accent, pas de flou) */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  border-radius: 4px;
+}
+
+/* Sélection lisible sur fond sombre */
+::selection {
+  background: rgba(62, 207, 142, 0.3);
+  color: var(--text-1);
 }
 
 * {
   scrollbar-width: thin;
-  scrollbar-color: var(--border) transparent;
+  scrollbar-color: var(--border-strong) transparent;
 }
 ::-webkit-scrollbar {
-  width: 4px;
-  height: 4px;
+  width: 6px;
+  height: 6px;
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--border);
+  background: var(--border-strong);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-3);
 }
 ::-webkit-scrollbar-track {
   background: transparent;
+}
+
+/* Réduction de mouvement respectée partout */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }

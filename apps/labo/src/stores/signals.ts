@@ -59,7 +59,8 @@ export const useSignalsStore = defineStore('signals', () => {
   return { all, counts, loading, error, fetchSignals, bulkUpdate, remove }
 })
 
-// Le labo affiche des tabs "humains", l'API attend les statuts SQLite
+// Statuts réels du pipeline (daemon_signals) : INGESTED → RESEARCHED →
+// DRAFTED → VALIDATED → PENDING → APPROVED → QUEUED → PUBLISHED (+ REJECTED).
 function tabToStatus(tab: string): string {
-  return tab // mêmes valeurs : PENDING / APPROVED / PUBLISHED / IGNORED
+  return tab
 }

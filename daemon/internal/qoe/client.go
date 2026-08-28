@@ -29,14 +29,43 @@ type CreateArticleInput struct {
 	Visibility    string `json:"visibility,omitempty"`
 }
 
-func NewFromEnv() *Client {
+// New — client qoe.fi configuré explicitement (le labo passe la clé par
+// .secrets.yaml via le resolver). Mode mock tant qu'aucune clé n'est présente
+// (QOE_MOCK=true force le mock, QOE_MOCK=false le désactive toujours).
+func New(cfg Config) *Client {
+	mock := cfg.APIKey == ""
+	if env := os.Getenv("QOE_MOCK"); env == "true" {
+		mock = true
+	} else if env == "false" {
+		mock = false
+	}
+	httpClient := cfg.HTTP
+	if httpClient == nil {
+		httpClient = &http.Client{}
+	}
 	return &Client{
+		BaseURL:       cfg.BaseURL,
+		APIKey:        cfg.APIKey,
+		PublicationID: cfg.PublicationID,
+		Mock:          mock,
+		HTTP:          httpClient,
+	}
+}
+
+func NewFromEnv() *Client {
+	return New(Config{
 		BaseURL:       envOr("QOE_BASE_URL", "https://api.qoe.fi/v1"),
 		APIKey:        os.Getenv("QOE_API_KEY"),
 		PublicationID: os.Getenv("QOE_PUBLICATION_ID"),
-		Mock:          os.Getenv("QOE_MOCK") != "false", // true par défaut tant que pas config
-		HTTP:          &http.Client{},
-	}
+	})
+}
+
+// Config — paramètres du client qoe.fi (le labo les fournit via .secrets.yaml).
+type Config struct {
+	BaseURL       string
+	APIKey        string
+	PublicationID string
+	HTTP          *http.Client
 }
 
 func (c *Client) CreateArticle(in CreateArticleInput) (string, error) {

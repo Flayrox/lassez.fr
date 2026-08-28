@@ -117,7 +117,7 @@ func RunCycle(client *payload.Client, resolver *config.Resolver, log *logger.Log
 	}
 
 	modelFlash := strVal(settings["aiModelFlash"], "gemini-3.5-flash-lite")
-	modelPro := strVal(settings["aiModelPro"], "gemini-3.5-flash-lite")
+	modelPro := strVal(settings["aiModelPro"], "gemini-3.7-flash")
 	log.Info("Daemon", fmt.Sprintf("🧠 Modèles IA : %s (Analyse Rapide) / %s (Rédaction)", modelFlash, modelPro))
 
 	cycleStart := time.Now()

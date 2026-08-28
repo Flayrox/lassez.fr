@@ -14,6 +14,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"strings"
@@ -47,6 +48,7 @@ const (
 type geminiParams struct {
 	apiKey         string
 	model          string
+	modelFallback  string         // modèle de repli si 429 (ex: 3.7 flash hors quota → flash-lite)
 	system         string
 	user           string
 	temperature    float32
@@ -84,7 +86,42 @@ func buildGeminiBody(p geminiParams) map[string]any {
 }
 
 // callGemini exécute un appel génération, retourne le texte produit.
+// Deux replis automatiques pour ne JAMAIS stagner sur un quota (le niveau
+// gratuit est limité — on fait tourner le pipeline quoi qu'il arrive) :
+//  1. La recherche web (grounding Google Search) échoue par quota (429,
+//     5 000 recherches/mois) → on réessaie SANS l'outil, l'IA travaille alors
+//     sur la matière première seule ; la recherche reprendra d'elle-même
+//     quand le quota reviendra.
+//  2. Le modèle lui-même est hors quota sur le compte (ex: gemini-3.7-flash
+//     indisponible en niveau gratuit) → repli sur modelFallback (flash-lite).
 func callGemini(ctx context.Context, p geminiParams) (string, error) {
+	text, err := callGeminiRaw(ctx, p)
+	if err == nil || !isQuotaError(err) {
+		return text, err
+	}
+	// 1. La recherche web peut être le facteur limitant → sans grounding.
+	if p.search {
+		p2 := p
+		p2.search = false
+		log.Printf("[Gemini] ⚠️ Recherche web indisponible (%v) — nouvel essai sans grounding.", err)
+		text, err = callGeminiRaw(ctx, p2)
+		if err == nil || !isQuotaError(err) {
+			return text, err
+		}
+	}
+	// 2. Le modèle peut être hors quota sur ce compte → repli sur le modèle de secours.
+	if p.modelFallback != "" && p.modelFallback != p.model {
+		p3 := p
+		p3.model = p.modelFallback
+		p3.search = false
+		log.Printf("[Gemini] ⚠️ Modèle %s hors quota (%v) — repli sur %s.", p.model, err, p.modelFallback)
+		return callGeminiRaw(ctx, p3)
+	}
+	return "", err
+}
+
+// callGeminiRaw — l'appel REST nu (sans fallback).
+func callGeminiRaw(ctx context.Context, p geminiParams) (string, error) {
 	raw, err := json.Marshal(buildGeminiBody(p))
 	if err != nil {
 		return "", err

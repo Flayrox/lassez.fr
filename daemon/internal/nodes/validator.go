@@ -3,13 +3,9 @@ package nodes
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"log"
 	"sync"
 	"time"
-
-	"github.com/google/generative-ai-go/genai"
-	"google.golang.org/api/option"
 
 	"github.com/Flayrox/lassez.fr/daemon/internal/config"
 	"github.com/Flayrox/lassez.fr/daemon/internal/payload"
@@ -72,13 +68,6 @@ func RunValidator(client *payload.Client, resolver *config.Resolver) error {
 		return nil
 	}
 
-	ctx := context.Background()
-	ai, err := genai.NewClient(ctx, option.WithAPIKey(apiKey))
-	if err != nil {
-		return fmt.Errorf("gemini client: %w", err)
-	}
-	defer ai.Close()
-
 	modelName := "gemini-3.5-flash-lite"
 	if v := resolver.GetEffectiveParam("validator", "aiModelValidator", modelName); v != nil {
 		if s, ok := v.(string); ok && s != "" {
@@ -93,16 +82,11 @@ func RunValidator(client *payload.Client, resolver *config.Resolver) error {
 		concurrency = 1
 	}
 
-	model := ai.GenerativeModel(modelName)
-	model.ResponseMIMEType = "application/json"
-	model.ResponseSchema = &genai.Schema{
-		Type: genai.TypeObject,
-		Properties: map[string]*genai.Schema{
-			"isValid":     {Type: genai.TypeBoolean, Description: "True si validé, False sinon"},
-			"corrections": {Type: genai.TypeString, Description: "Le texte corrigé si nécessaire"},
-			"reason":      {Type: genai.TypeString, Description: "Justification du verdict de validation"},
-		},
-		Required: []string{"isValid", "reason"},
+	// Recherche web : le validateur vérifie les faits EN LIGNE (grounding
+	// Google Search) avant de valider ou corriger un brouillon.
+	searchWeb := boolParam(resolver, "validator", "webSearchEnabled", true)
+	if !searchWeb {
+		log.Printf("[Node 5] 🔍 Recherche web désactivée : validation sans vérification en ligne.")
 	}
 
 	var (
@@ -125,13 +109,21 @@ func RunValidator(client *payload.Client, resolver *config.Resolver) error {
 				_ = json.Unmarshal(topic.FinalDraft, &draft)
 			}
 
-			prompt := validatorSystemPrompt + "\n\nVoici le brouillon à évaluer :\n" + draft.Body
-
 			// Timeout par appel : une API qui pend ne doit pas bloquer le nœud.
-			callCtx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+			callCtx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 			defer cancel()
 			rl.Wait()
-			resp, err := model.GenerateContent(callCtx, genai.Text(prompt))
+			text, err := callGemini(callCtx, geminiParams{
+				apiKey:         apiKey,
+				model:          modelName,
+				system:         validatorSystemPrompt,
+				user:           "Voici le brouillon à évaluer :\n" + draft.Body,
+				temperature:    validatorTemp,
+				topP:           validatorTopP,
+				maxTokens:      validatorTokens,
+				search:         searchWeb,
+				responseSchema: schemaValidator(),
+			})
 			if err != nil {
 				// Quota dépassé : on ne marque PAS le sujet en erreur, il sera
 				// simplement repris au prochain cycle.
@@ -140,12 +132,6 @@ func RunValidator(client *payload.Client, resolver *config.Resolver) error {
 					return
 				}
 				log.Printf("[Node 5] ❌ Erreur validation %s: %v", topic.ID, err)
-				_ = client.UpdateSignal(topic.ID, map[string]any{"status": "REJECTED_ERROR"})
-				return
-			}
-			text, err := responseText(resp)
-			if err != nil {
-				log.Printf("[Node 5] ❌ Réponse vide pour %s", topic.ID)
 				_ = client.UpdateSignal(topic.ID, map[string]any{"status": "REJECTED_ERROR"})
 				return
 			}

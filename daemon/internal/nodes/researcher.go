@@ -137,10 +137,8 @@ func RunResearcher(client *payload.Client, resolver *config.Resolver) error {
 			defer func() { <-sem }()
 
 			raw := struct {
-				ClusterTitle  string `json:"clusterTitle"`
-				Excerpt       string `json:"excerpt"`
-				SourceContent string `json:"source_content"`
-				SourceName    string `json:"source_name"`
+				ClusterTitle string            `json:"clusterTitle"`
+				Articles     []IngestedArticle `json:"articles"`
 			}{}
 			_ = json.Unmarshal(topic.RawData, &raw)
 
@@ -218,10 +216,8 @@ func RunResearcher(client *payload.Client, resolver *config.Resolver) error {
 }
 
 func buildResearchPrompt(system, reject, custom, taxonomyList string, raw struct {
-	ClusterTitle  string `json:"clusterTitle"`
-	Excerpt       string `json:"excerpt"`
-	SourceContent string `json:"source_content"`
-	SourceName    string `json:"source_name"`
+	ClusterTitle string            `json:"clusterTitle"`
+	Articles     []IngestedArticle `json:"articles"`
 }) string {
 	var sb strings.Builder
 	sb.WriteString(system)
@@ -235,12 +231,28 @@ func buildResearchPrompt(system, reject, custom, taxonomyList string, raw struct
 	}
 	sb.WriteString("\n\nSUJET À ÉVALUER :\n")
 	sb.WriteString(fmt.Sprintf("Titre : %s\n", orTitle(raw.ClusterTitle)))
-	excerpt := raw.Excerpt
-	if excerpt == "" {
-		excerpt = raw.SourceContent
+	// Les vrais articles du sujet — avec le biais et la fiabilité de CHAQUE
+	// source, pour que la règle CRITICAL_CROSSCHECK puisse réellement
+	// s'appliquer (elle référençait source_bias sans jamais le recevoir).
+	for i, a := range raw.Articles {
+		if i >= 8 {
+			sb.WriteString("… (autres articles du sujet non listés)\n")
+			break
+		}
+		sb.WriteString(fmt.Sprintf("Article %d : %s (%s)\n", i+1, orTitle(a.Title), orSource(a.SourceName)))
+		sb.WriteString(fmt.Sprintf("Biais de la source : %s | Confiance : %d/10\n", orBias(a.SourceBias), a.TrustScore))
+		snip := strings.TrimSpace(a.Content)
+		if len(snip) > 500 {
+			snip = snip[:500] + "…"
+		}
+		if snip != "" {
+			sb.WriteString("Extrait RSS : " + snip + "\n")
+		}
 	}
-	sb.WriteString(fmt.Sprintf("Extrait : %s\n", excerpt))
-	sb.WriteString(fmt.Sprintf("Source : %s", orSource(raw.SourceName)))
+	if len(raw.Articles) == 0 {
+		sb.WriteString("Aucun article brut associé (titre seul).\n")
+	}
+	sb.WriteString("\nRÈGLE DU BIAIS (obligatoire) : si une source de Droite/Extrême-Droite attaque un sujet ou une figure de Gauche/Décoloniale, sois HYPER critique : rejette si c'est de la désinformation pure, sinon ajoute le flag 'CRITICAL_CROSSCHECK' dans reason.")
 	return sb.String()
 }
 
@@ -254,6 +266,13 @@ func orTitle(s string) string {
 func orSource(s string) string {
 	if s == "" {
 		return "Inconnue"
+	}
+	return s
+}
+
+func orBias(s string) string {
+	if s == "" {
+		return "Inconnu"
 	}
 	return s
 }

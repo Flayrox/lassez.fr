@@ -110,6 +110,44 @@
       </div>
     </LCard>
 
+    <!-- Vertex AI (secours) — compte de service Google Cloud : le chemin fiable quand la clé AI Studio est épuisée -->
+    <LCard title="Vertex AI (secours)" description="Compte de service Google Cloud — utilisé automatiquement quand la clé AI Studio échoue (quota, crédits épuisés, clé invalide)">
+      <div class="flex items-center justify-between gap-3 mb-4">
+        <div class="flex items-center gap-3">
+          <span class="w-2 h-2 rounded-full" :class="vertexConfigured ? 'bg-accent' : 'bg-border'"></span>
+          <div>
+            <p class="text-sm font-medium">{{ vertexConfigured ? 'Compte de service configuré' : 'Non configuré' }}</p>
+            <p class="text-[11px] text-text-3">
+              {{ vertexConfigured
+                ? 'Le pipeline bascule automatiquement sur Vertex AI si la clé AI Studio échoue — la recherche web continue de fonctionner.'
+                : 'Sans compte de service, le pipeline dépend uniquement de la clé AI Studio. Colle le JSON ci-dessous pour activer le secours.' }}
+            </p>
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          <LButton variant="secondary" size="sm" :disabled="vertexTesting || !vertexConfigured" @click="testVertex">
+            {{ vertexTesting ? 'Test…' : 'Tester Vertex AI' }}
+          </LButton>
+          <LBadge :variant="vertexConfigured ? 'success' : 'warning'">{{ vertexConfigured ? 'actif' : 'inactif' }}</LBadge>
+        </div>
+      </div>
+      <div class="space-y-3">
+        <LTextarea label="JSON du compte de service (le fichier .json téléchargé depuis Google Cloud)" :rows="5"
+          :model-value="store.secrets.vertexServiceAccount"
+          @update:model-value="(v: string) => { store.secrets.vertexServiceAccount = v.trim(); store.markDirty() }"
+          placeholder='{ "type": "service_account", "project_id": "…", … }'
+          help="Google Cloud Console → IAM & Admin → Comptes de service → créer un compte → Clés → Ajouter une clé → JSON. Stocké dans .secrets.yaml, jamais dans git." />
+        <LInput label="Région" :model-value="store.secrets.vertexRegion"
+          @update:model-value="(v: string) => { store.secrets.vertexRegion = v.trim() || 'global'; store.markDirty() }"
+          placeholder="global"
+          help="global (recommandé) ou une région : us-central1, europe-west1… (selon où les modèles sont activés)." />
+        <p v-if="vertexResult" class="text-xs" :class="vertexResult.ok ? 'text-accent' : 'text-danger'">
+          {{ vertexResult.ok ? '✓ Vertex AI fonctionne' : '✗ ' + vertexResult.error }}
+          <span v-if="vertexResult.ok" class="text-text-3">· {{ vertexResult.latencyMs }} ms · {{ vertexResult.model }} · {{ vertexResult.project }}@{{ vertexResult.region }} · « {{ vertexResult.reply }} »</span>
+        </p>
+      </div>
+    </LCard>
+
     <LCard title="Mode maintenance" description="Remplace le site public par un écran « revenons bientôt »">
       <div class="space-y-3">
         <div class="flex items-center justify-between gap-2">
@@ -231,6 +269,24 @@ async function testGeminiKey() {
     geminiResult.value = { ok: false, error: e?.message || String(e) }
   } finally {
     geminiTesting.value = false
+  }
+}
+
+// ── Vertex AI (secours) : statut + test réel via le daemon (POST /api/vertex/test) ──
+const vertexConfigured = computed(() => !!store.secrets.vertexServiceAccount)
+const vertexTesting = ref(false)
+const vertexResult = ref<{ ok: boolean; error?: string; latencyMs?: number; model?: string; project?: string; region?: string; reply?: string } | null>(null)
+
+async function testVertex() {
+  vertexTesting.value = true
+  vertexResult.value = null
+  try {
+    const res = await fetch('/api/vertex/test', { method: 'POST' })
+    vertexResult.value = await res.json()
+  } catch (e: any) {
+    vertexResult.value = { ok: false, error: e?.message || String(e) }
+  } finally {
+    vertexTesting.value = false
   }
 }
 

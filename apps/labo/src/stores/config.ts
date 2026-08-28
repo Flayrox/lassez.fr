@@ -205,6 +205,11 @@ export const useConfigStore = defineStore('config', () => {
     // automatiquement quand la clé AI Studio est épuisée ou invalide.
     vertexServiceAccount: '',
     vertexRegion: 'global',
+    // Recherche d'images officielle Google (Custom Search JSON API) — 100
+    // requêtes/jour gratuites. Optionnelle : sans elle, le nœud média
+    // retombe sur Wikimedia Commons. Clés dans .secrets.yaml, jamais dans git.
+    googleCseApiKey: '',
+    googleCseId: '',
   })
 
   // ── Planning (réel : tous les jours à 20:08, Europe/Paris) ──

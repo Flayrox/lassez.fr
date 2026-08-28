@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"log"
+	"strings"
 	"sync"
 	"time"
 
@@ -96,6 +97,15 @@ func RunValidator(client *payload.Client, resolver *config.Resolver) error {
 		log.Printf("[Node 5] 🔍 Recherche web désactivée : validation sans vérification en ligne.")
 	}
 
+	// Nom de la persona (éditable dans le labo) — remplacé dans le prompt si
+	// l'utilisateur a renommé « Le Mécanicien ».
+	systemPrompt := validatorSystemPrompt
+	if settings, err := resolver.Settings(); err == nil && settings != nil {
+		if s, ok := settings["personaName"].(string); ok && s != "" {
+			systemPrompt = strings.ReplaceAll(systemPrompt, "Le Mécanicien", s)
+		}
+	}
+
 	var (
 		wg  sync.WaitGroup
 		sem = make(chan struct{}, concurrency)
@@ -123,7 +133,7 @@ func RunValidator(client *payload.Client, resolver *config.Resolver) error {
 			text, err := callGemini(callCtx, geminiParams{
 				apiKey:         apiKey,
 				model:          modelName,
-				system:         validatorSystemPrompt,
+				system:         systemPrompt,
 				user:           "Voici le brouillon à évaluer :\n" + draft.Body,
 				temperature:    validatorTemp,
 				topP:           validatorTopP,

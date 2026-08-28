@@ -98,6 +98,17 @@ func RunEditorialist(client *payload.Client, resolver *config.Resolver) error {
 		if s, ok := settings["imageRulesPrompt"].(string); ok && s != "" {
 			imageRules = s
 		}
+		// Nom de la persona (éditable dans le labo, editorial.personaName) :
+		// remplace l'ancien nom partout où il apparaît dans la ligne éditoriale.
+		personaName := "Le Mécanicien"
+		if s, ok := settings["personaName"].(string); ok && s != "" {
+			personaName = s
+		}
+		renamePersona := func(s string) string { return strings.ReplaceAll(s, "Le Mécanicien", personaName) }
+		baseIdentity = renamePersona(baseIdentity)
+		researchMission = renamePersona(researchMission)
+		vocabularyRules = renamePersona(vocabularyRules)
+		imageRules = renamePersona(imageRules)
 	}
 
 	templates, err := client.GetTaxonomyTemplates(true)

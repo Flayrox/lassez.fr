@@ -119,6 +119,8 @@ func flatten(d map[string]any) map[string]any {
 	set("researchMissionPrompt", s("editorial", "researchMission"))
 	set("vocabularyRulesPrompt", s("editorial", "vocabularyRules"))
 	set("imageRulesPrompt", s("editorial", "imageRules"))
+	// Nom de la persona (éditable dans le labo) : remplacé dans les prompts IA.
+	set("personaName", orString(s("editorial", "personaName"), "Le Mécanicien"))
 	set("customPromptModifier", s("editorial", "customModifier"))
 	set("aiPrompt", s("editorial", "aiPrompt"))
 	// Modèles par format (modelByFormat : id du format → modèle) — l'éditorialiste

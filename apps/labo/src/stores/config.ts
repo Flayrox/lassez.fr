@@ -138,6 +138,8 @@ export const useConfigStore = defineStore('config', () => {
     // Les blocs ci-dessous portent le DNA factory de L'Assez (identité "Le
     // Mécanicien", vocabulaire, méthode des 3 tirs…) — éditables dans le labo.
     promptEditorial: '',
+    // Nom du rédacteur IA (persona) — remplacé dans les prompts, éditable.
+    personaName: 'Le Mécanicien',
     consigneTri: FACTORY_PROMPTS.consigneTri,
     criteresRejet: FACTORY_PROMPTS.criteresRejet,
     identite: FACTORY_PROMPTS.identite,
@@ -459,6 +461,7 @@ export const useConfigStore = defineStore('config', () => {
           standard: modelValueOf(ecriture.value.modeleParFormat['INFO'] ?? ecriture.value.modeleRedaction),
           decrypt: modelValueOf(ecriture.value.modeleParFormat['DECRYPTAGE'] ?? ecriture.value.modeleRedaction),
         },
+        personaName: ecriture.value.personaName || 'Le Mécanicien',
         baseIdentity: ecriture.value.identite,
         researchMission: ecriture.value.mission,
         vocabularyRules: ecriture.value.vocabulaire,
@@ -604,6 +607,7 @@ export const useConfigStore = defineStore('config', () => {
       tachesEnMemeTempsRapide: numOr(research.maxConcurrentTasks, ecriture.value.tachesEnMemeTempsRapide),
       tachesEnMemeTempsRedaction: numOr(editorial.maxConcurrentTasks, ecriture.value.tachesEnMemeTempsRedaction),
       scoreMini: numOr(research.scoreThreshold, ecriture.value.scoreMini),
+      personaName: sOr(editorial.personaName, 'Le Mécanicien'),
       consigneTri: sOr(research.systemPrompt, ecriture.value.consigneTri),
       criteresRejet: sOr(research.rejectCriteria, ecriture.value.criteresRejet),
       identite: sOr(editorial.baseIdentity, ecriture.value.identite),

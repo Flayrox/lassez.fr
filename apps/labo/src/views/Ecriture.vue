@@ -95,6 +95,12 @@
             <section-head label="Le style d'écriture (ligne éditoriale)" />
 
             <LCard :padding="false">
+              <div class="px-4 py-3 border-b border-border">
+                <p class="text-xs font-medium text-text-1">Nom du rédacteur IA</p>
+                <p class="text-[11px] text-text-3 mt-0.5 mb-2">Le nom de la persona qui signe les articles — remplacé automatiquement dans tous les prompts (rédaction, vérification).</p>
+                <input :value="store.ecriture.personaName" @input="(e) => { store.ecriture.personaName = (e.target as HTMLInputElement).value; store.markDirty() }"
+                  placeholder="Le Mécanicien" class="w-full max-w-xs h-8 bg-bg border border-border rounded px-2.5 text-xs focus:outline-none focus:border-accent/60" />
+              </div>
               <div v-for="block in blocks" :key="block.key" class="border-b border-border last:border-b-0">
                 <button class="w-full flex items-center gap-3 px-4 py-3 hover:bg-surface-hover/60 transition-colors text-left" @click="expanded = expanded === block.key ? null : block.key">
                   <span class="w-7 h-7 rounded bg-surface-hover flex items-center justify-center text-sm shrink-0">{{ block.icon }}</span>
@@ -201,7 +207,7 @@ const getKey = (key: keyof typeof store.ecriture) => () => String((store.ecritur
 // Ligne éditoriale — les textes par défaut sont ceux qui tournaient sur le VPS
 // (ai_prompt_* vides → défauts du code, portés dans stores/factory.ts).
 const blocks: Block[] = [
-  { key: 'identite', icon: '◆', label: "Le ton du média", help: "La personnalité du rédacteur IA : « Le Mécanicien » = direct, scandalisé, implacable. Il démonte le système sans langue de bois ni jargon militant. C'est le tempérament de tous les articles.", resetTo: FACTORY_PROMPTS.identite, get: getKey('identite'), set: setKey('identite') },
+  { key: 'identite', icon: '◆', label: "Le ton du média", help: "La personnalité du rédacteur IA (le nom se règle au-dessus) : direct, scandalisé, implacable. Il démonte le système sans langue de bois ni jargon militant. C'est le tempérament de tous les articles.", resetTo: FACTORY_PROMPTS.identite, get: getKey('identite'), set: setKey('identite') },
   { key: 'mission', icon: '➤', label: "L'enquête avant d'écrire", help: "Ce que l'IA fait avant de rédiger : lire les articles fournis, vérifier les faits sur internet, chercher le passé des personnalités citées (leurs « casseroles ») pour étayer son propos.", resetTo: FACTORY_PROMPTS.mission, get: getKey('mission'), set: setKey('mission') },
   { key: 'vocabulaire', icon: 'Aa', label: "Les mots à utiliser ou éviter", help: "Les mots interdits (trop militants), les mots conseillés (plus directs, ex. « le gouvernement », « les milliardaires »), et la traduction du langage officiel : « maintien de l'ordre » = répression policière.", resetTo: FACTORY_PROMPTS.vocabulaire, get: getKey('vocabulaire'), set: setKey('vocabulaire') },
   { key: 'consignesImages', icon: '▣', label: "Comment choisir les images", help: "La méthode des 3 tirs : une recherche d'image très précise (tir 1), deux plus larges sur le lieu ou le contexte (tir 2), ou trois symboles de secours (tir 3) quand aucune photo précise n'existe.", resetTo: FACTORY_PROMPTS.consignesImages, get: getKey('consignesImages'), set: setKey('consignesImages') },

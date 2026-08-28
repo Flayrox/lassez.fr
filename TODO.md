@@ -2,9 +2,12 @@
 
 Tout ce qui est décidé en session mais pas encore implémenté. Coche au fur et à mesure.
 
-## ⚠️ Action requise
+## ⚠️ À savoir (quota niveau gratuit)
 
-- [ ] **Régénérer la clé Gemini** : la clé `GEMINI_API_KEY` du `.env` racine est **invalide** (Google répond « API key not valid » — testé). Générer une nouvelle clé sur Google AI Studio (aistudio.google.com) et la coller dans **Studio → Système → Clé API Gemini** → « Tester la clé ». Sans clé valide, Tri/Rédaction/Vérification restent en pause.
+- ✅ **Clé API valide** : la nouvelle clé (Système → Clé API Gemini) fonctionne — testée le 28/08 (réponse OK).
+- ⚠️ **Quota de recherche Google épuisé** : le grounding `google_search` renvoie 429 (« quota dépassé ») sur le compte — les **5 000 recherches gratuites/mois** sont consommées. Le daemon a un **repli automatique** : il réessaie sans grounding (l'IA travaille sur la matière première), donc le pipeline tourne quand même. La recherche reprendra d'elle-même au prochain reset du quota.
+- ⚠️ **`gemini-3.7-flash` hors quota sur le compte** : 429 même sans recherche → la rédaction **retombe automatiquement sur `gemini-3.5-flash-lite`** (repli code). Quand le compte y aura droit (ou plan payant), la rédaction repassera sur 3.7 Flash sans rien changer.
+- ▶️ **Déblocage du backlog** : 470+ sujets INGESTED en attente — le tri traite 10-20 par cycle, tout se débloque progressivement.
 
 ## ⏳ En attente
 
@@ -29,6 +32,11 @@ Tout ce qui est décidé en session mais pas encore implémenté. Coche au fur e
 - **Verrou de cycle** : empêcher deux cycles simultanés (scan manuel + programmé) de se marcher dessus.
 
 ## ✅ Fait récemment (mémoire)
+
+- **Page « Pipeline » dans le labo** (menu Transforme) : les 7 nœuds détaillés étape par étape — ce qu'il fait, ce qui entre/sort (compteurs live), les réglages qui l'affectent, le modèle IA (température, recherche web) — + bandeau budget niveau gratuit (5 000 recherches/mois, 12 req/min) + lien « Expliquer → » depuis chaque étape de l'Atelier.
+- **Répartition des modèles niveau gratuit** : Tri = `gemini-3.5-flash-lite`, Rédaction = `gemini-3.7-flash` (défaut), Vérification = `gemini-3.5-flash-lite`. Registry du labo limité aux modèles gratuits.
+- **Replis automatiques anti-quota** (callGemini) : ① recherche web 429 → réessai sans grounding ; ② modèle 429 (3.7 flash hors quota) → repli `gemini-3.5-flash-lite`. Le pipeline ne stagne plus jamais sur un quota.
+- **Prompt du Validator réécrit** : il exigeait un ton « neutre, clinique » (contradictoire avec le DNA scandalisé de L'Assez) et rejetait tous les brouillons — il valide maintenant la conformité au style L'Assez + faits + vocabulaire + amalgames + structure du format.
 
 - **Recherche web RÉELLE à chaque appel IA** : grounding Google Search natif de l'API REST Gemini (`tools:[{google_search:{}}]` — le SDK Go ne l'expose pas, on appelle l'API directement). Le Tri, la Rédaction et la Vérification cherchent maintenant sur internet à chaque sujet (vérif des faits, passif des protagonistes).
 - **Paramètres de génération verrouillés** : température 0.1 (Tri/Vérification, stricts) et 0.9 (Rédaction, créative), topP 0.9/0.95, maxOutputTokens 1024/8192/2048, candidateCount 1, sortie JSON structurée.

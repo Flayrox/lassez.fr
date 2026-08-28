@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/Flayrox/LASSEZ/daemon/internal/config"
@@ -32,11 +33,19 @@ func RunPublisher(client *payload.Client, resolver *config.Resolver) error {
 	// ========================================================
 	// PHASE A : CRÉATION DES MISSIONS DE PUBLICATION
 	// ========================================================
-	log.Printf("[Node 6: Phase A] 🔎 Recherche de nouveaux articles à planifier...")
+	// Porte de modération : sans Mode Fantôme, seuls les signaux APPROVED par un
+	// humain dans le labo sont programmés. En Mode Fantôme (enableAutoApprove),
+	// les PENDING sont considérés approuvés d'office par la validation IA.
+	autoApprove := boolParam(resolver, "publisher", "enableAutoApprove", false)
+	if autoApprove {
+		log.Printf("[Node 6: Phase A] 👻 Mode Fantôme : les signaux PENDING sont auto-approuvés.")
+	} else {
+		log.Printf("[Node 6: Phase A] ⏳ Modération active : seuls les signaux APPROVED (validation labo) sont programmés.")
+	}
 
-	pending, err := client.GetPendingSignalsWithoutPublications()
+	pending, err := client.GetApprovableSignals(autoApprove)
 	if err != nil {
-		return fmt.Errorf("pending signals: %w", err)
+		return fmt.Errorf("approvable signals: %w", err)
 	}
 
 	if len(pending) > 0 {
@@ -75,6 +84,32 @@ func RunPublisher(client *payload.Client, resolver *config.Resolver) error {
 			platforms = append(platforms, publisherPlatform{Name: name, Mode: mode})
 		}
 
+		// Matrice format → plateforme (targetsByType). La clé est l'id du format
+		// (ex: "FLASH", "ALERTE") — le labo les écrit ainsi. Si la matrice est
+		// absente, toutes les plateformes sont autorisées pour tous les formats.
+		allowedByType := map[string]map[string]bool{}
+		settings, _ := resolver.Settings()
+		if raw, ok := settings["targetsByType"].(map[string]any); ok {
+			for fmtID, v := range raw {
+				if pm, ok := v.(map[string]any); ok {
+					tgt := map[string]bool{}
+					for k, val := range pm {
+						b, _ := val.(bool)
+						tgt[k] = b
+					}
+					allowedByType[fmtID] = tgt
+				}
+			}
+		}
+		// Fallback si la matrice est absente ou vide : tout est autorisé.
+		resolveAllowed := func(fmtID string) map[string]bool {
+			if m, ok := allowedByType[fmtID]; ok && len(m) > 0 {
+				return m
+			}
+			// fallback : tout autorisé
+			return map[string]bool{"qoe": true, "discord": true, "x": true, "bluesky": true, "mastodon": true}
+		}
+
 		// Espacement des missions par plateforme.
 		lastScheduled := map[string]time.Time{}
 		now := time.Now()
@@ -98,7 +133,13 @@ func RunPublisher(client *payload.Client, resolver *config.Resolver) error {
 
 		var missions []payload.PublicationInput
 		for _, topic := range pending {
+			// La matrice filtre les plateformes autorisées pour ce signal.
+			// topicsWithAllowed := resolveAllowed(topic.Taxonomy)
 			for _, platform := range platforms {
+				// Matrice : si le format n'autorise pas cette plateforme, on saute.
+				if allowed, ok := resolveAllowed(topic.Taxonomy)[strings.ToLower(platform.Name)]; ok && !allowed {
+					continue
+				}
 				finalScheduledAt := now
 				if platform.Mode == "SCHEDULED" {
 					delayMinutes := minDelay + rand.Intn(maxDelay-minDelay+1) // min <= max garanti plus haut
@@ -199,9 +240,15 @@ func buildRegistry(client *payload.Client, resolver *config.Resolver) *publish.R
 			HTTP:             httpClient,
 		}))
 	}
-	// QOE — qoe.fi (mock tant que QOE_MOCK=true) : remplace définitivement Payload
+	// QOE — qoe.fi : remplace définitivement Payload. La clé vient de
+	// .secrets.yaml (qoeApiKey/qoePublicationId) via le resolver — le labo la
+	// colle dans Système. Tant qu'aucune clé n'est présente : mode test (mock).
 	if boolParam(resolver, "publisher", "enableQoe", true) {
-		registry.Add(publish.NewQoe(publish.QoeConfig{Client: qoe.NewFromEnv()}))
+		registry.Add(publish.NewQoe(publish.QoeConfig{Client: qoe.New(qoe.Config{
+			BaseURL:       strParam(resolver, "publisher", "qoeBaseUrl", "https://api.qoe.fi/v1"),
+			APIKey:        strParam(resolver, "publisher", "qoeApiKey", ""),
+			PublicationID: strParam(resolver, "publisher", "qoePublicationId", ""),
+		})}))
 	}
 
 	return registry

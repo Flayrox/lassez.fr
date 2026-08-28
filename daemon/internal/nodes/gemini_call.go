@@ -148,6 +148,27 @@ func truncate(s string, n int) string {
 	return s[:n] + "…"
 }
 
+// PingGemini — test de connectivité utilisé par le bouton « Tester la clé »
+// du studio (POST /api/gemini/test) : MÊME chemin que le pipeline (REST +
+// grounding google_search), pour valider exactement ce que feront les nœuds.
+func PingGemini(ctx context.Context, apiKey string) (latencyMs int64, reply string, err error) {
+	start := time.Now()
+	text, err := callGemini(ctx, geminiParams{
+		apiKey:      apiKey,
+		model:       "gemini-3.5-flash-lite",
+		system:      "Tu es un assistant de test. Réponds uniquement par le mot : OK",
+		user:        "Test de connexion.",
+		temperature: 0,
+		topP:        0.9,
+		maxTokens:   32,
+		search:      true,
+	})
+	if err != nil {
+		return 0, "", err
+	}
+	return time.Since(start).Milliseconds(), strings.TrimSpace(text), nil
+}
+
 // ── Schémas de sortie JSON (structured output, mêmes contrats qu'avant) ──
 
 func jsonObj(props map[string]any, required []string) map[string]any {

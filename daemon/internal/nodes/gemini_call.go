@@ -65,7 +65,7 @@ type geminiProvider int
 
 const (
 	providerStudio geminiProvider = iota // AI Studio : clé API + google_search
-	providerVertex                       // Vertex AI : compte de service + googleSearchRetrieval
+	providerVertex                       // Vertex AI : compte de service + googleSearch
 )
 
 // vertexConfig — connexion Vertex AI (Gemini Enterprise Agent Platform) :
@@ -96,7 +96,7 @@ var geminiHTTPClient = &http.Client{Timeout: 120 * time.Second}
 // buildGeminiBody — le corps JSON de l'appel REST, testable sans réseau.
 // Les deux providers parlent le même protocole, mais avec des noms de champs
 // et des outils différents : AI Studio accepte snake_case + google_search,
-// Vertex exige camelCase + googleSearchRetrieval.
+// Vertex exige camelCase + googleSearch.
 func buildGeminiBody(p geminiParams, prov geminiProvider) map[string]any {
 	gc := map[string]any{
 		"temperature":     p.temperature,
@@ -116,9 +116,9 @@ func buildGeminiBody(p geminiParams, prov geminiProvider) map[string]any {
 			"generationConfig":  gc,
 		}
 		if p.search {
-			// Vertex AI : le grounding Google Search (payant, fiable) porte un
-			// nom différent de celui d'AI Studio.
-			body["tools"] = []any{map[string]any{"googleSearchRetrieval": map[string]any{}}}
+			// Vertex AI : le grounding Google Search porte un nom différent de
+			// celui d'AI Studio (googleSearch, pas googleSearchRetrieval).
+			body["tools"] = []any{map[string]any{"googleSearch": map[string]any{}}}
 		}
 		return body
 	}
@@ -217,8 +217,15 @@ func callGeminiRaw(ctx context.Context, p geminiParams, prov geminiProvider) (st
 		if err != nil {
 			return "", err
 		}
-		endpoint = fmt.Sprintf("https://%s-aiplatform.googleapis.com/v1/projects/%s/locations/%s/publishers/google/models/%s:generateContent",
-			p.vertex.Region, url.PathEscape(p.vertex.ProjectID), p.vertex.Region, url.PathEscape(p.model))
+		// La région « global » n'a pas de préfixe d'hôte :
+		// https://aiplatform.googleapis.com (les régions classiques, elles,
+		// portent le préfixe : https://us-central1-aiplatform.googleapis.com).
+		host := p.vertex.Region + "-aiplatform.googleapis.com"
+		if p.vertex.Region == "global" {
+			host = "aiplatform.googleapis.com"
+		}
+		endpoint = fmt.Sprintf("https://%s/v1/projects/%s/locations/%s/publishers/google/models/%s:generateContent",
+			host, url.PathEscape(p.vertex.ProjectID), p.vertex.Region, url.PathEscape(p.model))
 		req, err = http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(raw))
 		if err != nil {
 			return "", err
@@ -440,7 +447,7 @@ func PingGemini(ctx context.Context, apiKey string) (latencyMs int64, reply stri
 
 // PingVertex — test de connectivité pour le bouton « Tester Vertex AI » du
 // studio (POST /api/vertex/test) : MÊME chemin que le pipeline (REST +
-// grounding googleSearchRetrieval), via le compte de service.
+// grounding googleSearch), via le compte de service.
 func PingVertex(ctx context.Context, vc *vertexConfig) (latencyMs int64, reply string, err error) {
 	start := time.Now()
 	text, err := callGemini(ctx, geminiParams{

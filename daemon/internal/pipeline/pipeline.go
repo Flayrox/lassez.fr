@@ -15,10 +15,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Flayrox/LASSEZ/daemon/internal/config"
-	"github.com/Flayrox/LASSEZ/daemon/internal/logger"
-	"github.com/Flayrox/LASSEZ/daemon/internal/nodes"
-	"github.com/Flayrox/LASSEZ/daemon/internal/payload"
+	"github.com/Flayrox/lassez.fr/daemon/internal/config"
+	"github.com/Flayrox/lassez.fr/daemon/internal/logger"
+	"github.com/Flayrox/lassez.fr/daemon/internal/nodes"
+	"github.com/Flayrox/lassez.fr/daemon/internal/payload"
 )
 
 // NodeType — identifiant explicite d'un nœud (utilisé dans pipelineGraphJson.nodes[].type)

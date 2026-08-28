@@ -250,7 +250,7 @@ const chain = computed(() => [
   {
     id: 4, type: 'editor', icon: '✍️', label: 'Rédaction',
     role: 'L’IA écrit le post, à la manière de L’Assez',
-    what: 'L’IA rédige le brouillon complet à partir de la matière première (extraits de tous les articles du sujet + contenu complet des 2 meilleures sources + biais/fiabilité de chaque source). Elle cherche sur le web (mission GOOGLE SEARCH du DNA) pour vérifier les faits et sortir les casseroles des protagonistes. Le format choisi au tri (FLASH, ALERTE…) impose sa structure (exemples fournis) ; le style applique l’identité « Le Mécanicien », la règle de vocabulaire et la méthode des 3 tirs pour les images.',
+    what: 'L’IA rédige le brouillon complet à partir de la matière première (extraits de tous les articles du sujet + contenu complet des 2 meilleures sources + biais/fiabilité de chaque source). Elle cherche sur le web (mission GOOGLE SEARCH du DNA) pour vérifier les faits et sortir les casseroles des protagonistes. Le format choisi au tri (FLASH, ALERTE…) impose sa structure (exemples fournis) ; le style applique l’identité du rédacteur IA (nom réglable dans Écriture), la règle de vocabulaire et la méthode des 3 tirs pour les images.',
     input: 'Les sujets triés (max 10 par passage).',
     output: 'Des brouillons complets (statut DRAFTED) : titre, corps, tags, requêtes d’images, couleur.',
     settingsTo: '/ecriture',

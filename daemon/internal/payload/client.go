@@ -46,14 +46,33 @@ type Signal struct {
 	Taxonomy   string          `json:"taxonomy"`
 	Geo        string          `json:"geo"`
 	ImageURL   string          `json:"image_url"`
+	CreatedAt  string          `json:"created_at"`
+}
+
+// LaboSignal — vue de daemon_signals pour la page Signaux du labo (même
+// forme que l'ancienne table radar_posts : source_title, flash_content…).
+type LaboSignal struct {
+	ID            int64  `json:"id"`
+	SourceTitle   string `json:"source_title"`
+	FlashContent  string `json:"flash_content"`
+	SourceURL     string `json:"source_url"`
+	Status        string `json:"status"`
+	Geo           string `json:"geo"`
+	TypeOuverture string `json:"type_ouverture"`
+	Fiabilite     string `json:"fiabilite"`
+	Tags          string `json:"tags"`
+	CreatedAt     string `json:"created_at"`
 }
 
 type TaxonomyTemplate struct {
-	Name        string `json:"name"`
-	DisplayName string `json:"display_name"`
-	PromptText  string `json:"format_instructions"`
-	Active      bool   `json:"active"`
-	SortOrder   int    `json:"sort_order"`
+	Name         string   `json:"name"`          // clé système (FLASH, ALERTE…) — utilisée pour matcher
+	DisplayName  string   `json:"display_name"`  // nom affiché (🚨 FLASH)
+	PromptText   string   `json:"format_instructions"` // consigne / formatInstructions envoyée à l'IA
+	Examples     []string `json:"examples"`      // few-shot learning — posts d'exemple
+	OutputSchema string   `json:"output_schema"` // schéma JSON de sortie attendu
+	Description  string   `json:"description"`   // quand utiliser ce format (pour le Researcher)
+	Active       bool     `json:"active"`
+	SortOrder    int      `json:"sort_order"`
 }
 
 type Source struct {
@@ -174,6 +193,26 @@ func (c *Client) migrate() error {
 			last_check_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
 			updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 		)`,
+		`CREATE TABLE IF NOT EXISTS daemon_cycles (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			started_at TEXT NOT NULL,
+			ended_at TEXT,
+			duration_ms INTEGER NOT NULL DEFAULT 0,
+			source TEXT NOT NULL DEFAULT 'pipeline',
+			error TEXT
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_dcycles_id ON daemon_cycles(id DESC)`,
+		`CREATE TABLE IF NOT EXISTS daemon_cycle_steps (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			cycle_id INTEGER NOT NULL,
+			type TEXT NOT NULL,
+			label TEXT NOT NULL,
+			status TEXT NOT NULL,
+			duration_ms INTEGER NOT NULL DEFAULT 0,
+			error TEXT,
+			detail TEXT
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_dcsteps_cycle ON daemon_cycle_steps(cycle_id)`,
 	}
 	for _, s := range stmts {
 		if _, err := c.db.Exec(s); err != nil {
@@ -184,6 +223,122 @@ func (c *Client) migrate() error {
 }
 
 func (c *Client) Close() error { return c.db.Close() }
+
+// ── Cycles (historique « Suivi » du labo) ──────────────────────────────────
+
+// CycleStep — une étape d'un cycle (Aspiré, Trié, Rédigé, Validé, Publié…).
+type CycleStep struct {
+	Type       string `json:"type"`
+	Label      string `json:"label"`
+	Status     string `json:"status"` // ok | error | skipped
+	DurationMS int64  `json:"durationMs"`
+	Error      string `json:"error,omitempty"`
+	Detail     string `json:"detail,omitempty"`
+}
+
+// Cycle — un passage complet du pipeline (ou une diffusion publisher).
+type Cycle struct {
+	ID         int64       `json:"id"`
+	StartedAt  string      `json:"started_at"`
+	EndedAt    string      `json:"ended_at"`
+	DurationMS int64       `json:"durationMs"`
+	Source     string      `json:"source"` // pipeline | publisher
+	Error      string      `json:"error,omitempty"`
+	Steps      []CycleStep `json:"steps"`
+}
+
+// StartCycle — ouvre un nouveau cycle (source : pipeline | publisher).
+func (c *Client) StartCycle(source string) (int64, error) {
+	res, err := c.db.Exec(`INSERT INTO daemon_cycles(started_at, source) VALUES(?,?)`,
+		time.Now().UTC().Format(time.RFC3339), source)
+	if err != nil {
+		return 0, err
+	}
+	return res.LastInsertId()
+}
+
+// RecordCycleStep — enregistre une étape du cycle en cours.
+func (c *Client) RecordCycleStep(cycleID int64, stepType, label, status string, dur time.Duration, errMsg, detail string) error {
+	if cycleID <= 0 {
+		return nil
+	}
+	_, err := c.db.Exec(`INSERT INTO daemon_cycle_steps(cycle_id, type, label, status, duration_ms, error, detail) VALUES(?,?,?,?,?,?,?)`,
+		cycleID, stepType, label, status, dur.Milliseconds(), errMsg, detail)
+	return err
+}
+
+// EndCycle — clôt le cycle (durée totale + erreur globale éventuelle).
+func (c *Client) EndCycle(cycleID int64, err error, dur time.Duration) error {
+	if cycleID <= 0 {
+		return nil
+	}
+	errStr := ""
+	if err != nil {
+		errStr = err.Error()
+	}
+	_, e := c.db.Exec(`UPDATE daemon_cycles SET ended_at=?, duration_ms=?, error=? WHERE id=?`,
+		time.Now().UTC().Format(time.RFC3339), dur.Milliseconds(), errStr, cycleID)
+	return e
+}
+
+// ListCycles — les derniers cycles, du plus récent au plus ancien, chacun
+// avec ses étapes dans l'ordre d'exécution.
+func (c *Client) ListCycles(limit int) ([]Cycle, error) {
+	if limit <= 0 || limit > 50 {
+		limit = 12
+	}
+	rows, err := c.db.Query(`SELECT id, COALESCE(started_at,''), COALESCE(ended_at,''), duration_ms, source, COALESCE(error,'') FROM daemon_cycles ORDER BY id DESC LIMIT ?`, limit)
+	if err != nil {
+		return nil, err
+	}
+	var cycles []Cycle
+	for rows.Next() {
+		var cy Cycle
+		if err := rows.Scan(&cy.ID, &cy.StartedAt, &cy.EndedAt, &cy.DurationMS, &cy.Source, &cy.Error); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		cycles = append(cycles, cy)
+	}
+	// On ferme les lignes AVANT de relire la connexion unique (SetMaxOpenConns(1)) :
+	// une requête imbriquée sur le même *sql.DB se bloquerait sinon.
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	// Puis on charge les étapes de chaque cycle, connexion libérée.
+	for i := range cycles {
+		steps, err := c.listCycleSteps(cycles[i].ID)
+		if err != nil {
+			return nil, err
+	}
+		cycles[i].Steps = steps
+	}
+	// Ordre chronologique pour la timeline (plus vieux en premier).
+	for i, j := 0, len(cycles)-1; i < j; i, j = i+1, j-1 {
+		cycles[i], cycles[j] = cycles[j], cycles[i]
+	}
+	return cycles, nil
+}
+
+func (c *Client) listCycleSteps(cycleID int64) ([]CycleStep, error) {
+	rows, err := c.db.Query(`SELECT type, label, status, duration_ms, COALESCE(error,''), COALESCE(detail,'') FROM daemon_cycle_steps WHERE cycle_id = ? ORDER BY id ASC`, cycleID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []CycleStep
+	for rows.Next() {
+		var st CycleStep
+		if err := rows.Scan(&st.Type, &st.Label, &st.Status, &st.DurationMS, &st.Error, &st.Detail); err != nil {
+			return nil, err
+		}
+		out = append(out, st)
+	}
+	return out, rows.Err()
+}
 
 // BaseURL — identité locale (les nœuds l'affichent au démarrage).
 func (c *Client) BaseURL() string { return "local://sqlite" }
@@ -233,6 +388,9 @@ func (c *Client) GetActiveSources() ([]Source, error) {
 			appendURLs(src["rss"], "RSS")
 			appendURLs(src["googleNews"], "GOOGLE_NEWS")
 			appendURLs(src["telegram"], "TELEGRAM")
+			// Handles X (sans @) — convertis en flux Atom TwitterBridge par le
+			// nœud d'ingestion, via rssBridgeUrl (cf. ingestion.go).
+			appendURLs(src["xAccounts"], "X")
 		}
 	}
 	return out, nil
@@ -399,14 +557,14 @@ func (c *Client) PurgeSeenURLs(before time.Time) error {
 
 // ── Signaux ─────────────────────────────────────────────────────────────────
 
-const signalCols = `id, raw_data, final_draft, tags, status, taxonomy, geo, image_url`
+const signalCols = `id, raw_data, final_draft, tags, status, taxonomy, geo, image_url, created_at`
 
 func scanSignal(row interface{ Scan(...any) error }) (Signal, error) {
 	var sig Signal
 	var id int64
-	var rawData, finalDraft, tags sql.NullString
+	var rawData, finalDraft, tags, createdAt sql.NullString
 	var taxonomy, geo, imageURL sql.NullString
-	err := row.Scan(&id, &rawData, &finalDraft, &tags, &sig.Status, &taxonomy, &geo, &imageURL)
+	err := row.Scan(&id, &rawData, &finalDraft, &tags, &sig.Status, &taxonomy, &geo, &imageURL, &createdAt)
 	sig.ID = ID(strconv.FormatInt(id, 10))
 	sig.RawData = json.RawMessage(fromNull(rawData))
 	sig.FinalDraft = json.RawMessage(fromNull(finalDraft))
@@ -414,6 +572,7 @@ func scanSignal(row interface{ Scan(...any) error }) (Signal, error) {
 	sig.Taxonomy = fromNull(taxonomy)
 	sig.Geo = fromNull(geo)
 	sig.ImageURL = fromNull(imageURL)
+	sig.CreatedAt = fromNull(createdAt)
 	return sig, err
 }
 
@@ -555,22 +714,182 @@ func (c *Client) GetTaxonomyTemplates(activeOnly bool) ([]TaxonomyTemplate, erro
 		if activeOnly && !active {
 			continue
 		}
+		id := strVal(m["id"], m["name"], m["nom"])
 		name := strVal(m["nom"])
 		out = append(out, TaxonomyTemplate{
-			Name:        name,
-			DisplayName: name,
-			PromptText:  strVal(m["consigne"], m["formatInstructions"]),
-			Active:      active,
-			SortOrder:   i,
+			Name:         id,
+			DisplayName:  name,
+			PromptText:   strVal(m["consigne"], m["formatInstructions"]),
+			Examples:     stringSlice(m["exemples"], m["examples"]),
+			OutputSchema: strVal(m["schema"], m["outputSchemaJson"]),
+			Description:  strVal(m["description"]),
+			Active:       active,
+			SortOrder:    i,
 		})
 	}
 	return out, nil
 }
 
+// stringSlice convertit une liste YAML/JSON ([]any) en []string.
+func stringSlice(vs ...any) []string {
+	for _, v := range vs {
+		switch arr := v.(type) {
+		case []any:
+			out := []string{}
+			for _, item := range arr {
+				if s, ok := item.(string); ok {
+					out = append(out, s)
+				}
+			}
+			return out
+		case []string:
+			return arr
+		}
+	}
+	return nil
+}
+
+// ── Signaux pour le labo (page Signaux, forme radar_posts) ────────────────
+
+// ListSignals — daemon_signals filtré (status/geo/q) + compteurs par statut.
+func (c *Client) ListSignals(status, geo, q string, limit int) ([]LaboSignal, error) {
+	where := []string{"1=1"}
+	args := []any{}
+	if status != "" && status != "ALL" {
+		where = append(where, "status = ?")
+		args = append(args, status)
+	}
+	if geo != "" && geo != "all" {
+		where = append(where, "geo = ?")
+		args = append(args, geo)
+	}
+	if strings.TrimSpace(q) != "" {
+		where = append(where, "(raw_data LIKE ? OR final_draft LIKE ? OR tags LIKE ?)")
+		pat := "%" + q + "%"
+		args = append(args, pat, pat, pat)
+	}
+	if limit <= 0 || limit > 200 {
+		limit = 100
+	}
+	args = append(args, limit)
+	rows, err := c.db.Query(
+		`SELECT id, raw_data, final_draft, tags, status, COALESCE(geo,'france'), COALESCE(taxonomy,''), created_at
+		 FROM daemon_signals WHERE `+strings.Join(where, " AND ")+
+		 ` ORDER BY id DESC LIMIT ?`, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []LaboSignal
+	for rows.Next() {
+		var ls LaboSignal
+		var rawData, finalDraft, tags, createdAt sql.NullString
+		if err := rows.Scan(&ls.ID, &rawData, &finalDraft, &tags, &ls.Status, &ls.Geo, &ls.TypeOuverture, &createdAt); err != nil {
+			return nil, err
+		}
+		ls = deriveLaboSignal(ls, rawData, finalDraft, tags)
+		ls.CreatedAt = fromNull(createdAt)
+		out = append(out, ls)
+	}
+	return out, rows.Err()
+}
+
+// deriveLaboSignal reconstruit source_title/url/contenu/fiabilité depuis
+// raw_data (mergedTopic JSON), le brouillon final (final_draft.body) et tags.
+func deriveLaboSignal(ls LaboSignal, rawData, finalDraft, tags sql.NullString) LaboSignal {
+	var raw struct {
+		ClusterTitle string            `json:"clusterTitle"`
+		Articles     []json.RawMessage `json:"articles"`
+	}
+	_ = json.Unmarshal([]byte(fromNull(rawData)), &raw)
+	ls.SourceTitle = raw.ClusterTitle
+	if len(raw.Articles) > 0 {
+		var art struct {
+			URL        string `json:"url"`
+			Content    string `json:"content"`
+			SourceName string `json:"source_name"`
+			TrustScore int    `json:"trust_score"`
+		}
+		_ = json.Unmarshal(raw.Articles[0], &art)
+		if ls.SourceTitle == "" {
+			ls.SourceTitle = art.SourceName
+		}
+		ls.SourceURL = art.URL
+		ls.FlashContent = art.Content
+		switch {
+		case art.TrustScore >= 8:
+			ls.Fiabilite = "haute"
+		case art.TrustScore >= 6:
+			ls.Fiabilite = "moyenne"
+		default:
+			ls.Fiabilite = "faible"
+		}
+	}
+	// Le brouillon final prime : c'est lui qui sera publié.
+	var draft struct {
+		Body string `json:"body"`
+	}
+	_ = json.Unmarshal([]byte(fromNull(finalDraft)), &draft)
+	if draft.Body != "" {
+		ls.FlashContent = draft.Body
+	}
+	if ls.TypeOuverture == "" {
+		ls.TypeOuverture = "📌 LE FAIT DU JOUR"
+	}
+	if ls.Fiabilite == "" {
+		ls.Fiabilite = "moyenne"
+	}
+	var tagList []string
+	_ = json.Unmarshal([]byte(fromNull(tags)), &tagList)
+	ls.Tags = strings.Join(tagList, ",")
+	return ls
+}
+
+// CountSignals — compteurs par statut pour les tabs du labo.
+func (c *Client) CountSignals() (map[string]int64, error) {
+	rows, err := c.db.Query(`SELECT status, COUNT(*) FROM daemon_signals GROUP BY status`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]int64{}
+	for rows.Next() {
+		var st string
+		var n int64
+		if err := rows.Scan(&st, &n); err != nil {
+			return nil, err
+		}
+		out[st] = n
+	}
+	return out, rows.Err()
+}
+
+// DeleteSignals — suppression définitive depuis le labo.
+func (c *Client) DeleteSignals(ids []ID) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	ph := strings.TrimRight(strings.Repeat("?,", len(ids)), ",")
+	args := make([]any, 0, len(ids))
+	for _, id := range ids {
+		args = append(args, id.Number())
+	}
+	_, err := c.db.Exec(`DELETE FROM daemon_signals WHERE id IN (`+ph+`)`, args...)
+	return err
+}
+
 // ── Publications (file de diffusion locale) ─────────────────────────────────
 
-func (c *Client) GetPendingSignalsWithoutPublications() ([]Signal, error) {
-	rows, err := c.db.Query(signalSelect + ` WHERE status = 'PENDING'
+// GetApprovableSignals — file de publication : les sujets prêts à être
+// programmés. C'est la porte de modération du pipeline.
+//   - autoApprove=false (défaut) : seul APPROVED (validation humaine dans le labo)
+//   - autoApprove=true  (Mode Fantôme) : PENDING est considéré approuvé d'office
+func (c *Client) GetApprovableSignals(autoApprove bool) ([]Signal, error) {
+	statuses := "('APPROVED')"
+	if autoApprove {
+		statuses = "('PENDING','APPROVED')"
+	}
+	rows, err := c.db.Query(signalSelect + ` WHERE status IN ` + statuses + `
 		AND id NOT IN (SELECT topic_id FROM daemon_publications)
 		ORDER BY id DESC`)
 	if err != nil {

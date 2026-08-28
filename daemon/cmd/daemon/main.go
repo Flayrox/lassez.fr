@@ -30,7 +30,6 @@ import (
 	"github.com/Flayrox/LASSEZ/daemon/internal/payload"
 	"github.com/Flayrox/LASSEZ/daemon/internal/pipeline"
 	"github.com/Flayrox/LASSEZ/daemon/internal/scheduler"
-	"github.com/Flayrox/LASSEZ/daemon/internal/store"
 )
 
 func main() {
@@ -58,22 +57,26 @@ func main() {
 	}
 	client := localClient // même interface que l'ancien client Payload
 
+	// Scan manuel : POST /api/scan du labo réveille la boucle principale
+	// (le canal est rempli par le serveur API, vidé par la boucle ci-dessous).
+	trigger := make(chan struct{}, 1)
+
 	{
-		st, err := store.Open(dbPath)
-		if err == nil {
-			go func() {
-				addr := os.Getenv("LABO_API_ADDR")
-				if addr == "" {
-					addr = ":2506"
-				}
-				log.Printf("[Daemon] API labo sur %s (signaux : %s)", addr, dbPath)
-				if err := http.ListenAndServe(addr, api.CORS(api.New(st, client, *configPath, resolver).Mux)); err != nil {
-					log.Printf("[Daemon] ⚠️ API labo arrêtée : %v", err)
-				}
-			}()
-		} else {
-			log.Printf("[Daemon] ⚠️ SQLite indisponible pour le labo : %v", err)
-		}
+		// API HTTP du labo : signaux réels du pipeline (daemon_signals) + config.
+		srv := api.New(client, *configPath, resolver)
+		srv.Trigger = trigger
+		// Panneau de logs du labo : on lit la fin de logs/daemon.log.
+		srv.LogPath = filepath.Join(".", "logs", "daemon.log")
+		go func() {
+			addr := os.Getenv("LABO_API_ADDR")
+			if addr == "" {
+				addr = ":2506"
+			}
+			log.Printf("[Daemon] API labo sur %s (signaux : %s)", addr, dbPath)
+			if err := http.ListenAndServe(addr, api.CORS(srv.Mux)); err != nil {
+				log.Printf("[Daemon] ⚠️ API labo arrêtée : %v", err)
+			}
+		}()
 	}
 
 	resolver.Invalidate()
@@ -110,9 +113,7 @@ func main() {
 		if err := pipeline.RunCycle(client, resolver, loggerInstance); err != nil {
 			loggerInstance.Error("Daemon", "❌ Erreur critique dans le pipeline : "+err.Error())
 		}
-		if err := nodes.RunPublisher(client, resolver); err != nil {
-			loggerInstance.Error("Daemon", "❌ Erreur dans la boucle Publisher : "+err.Error())
-		}
+		recordPublisherRun(client, time.Now())
 		return
 	}
 
@@ -129,6 +130,7 @@ func main() {
 	}()
 
 	// 1. Boucle principale (ingestion → rédaction) avec planification.
+	//    Un scan manuel (POST /api/scan du labo) réveille l'attente immédiatement.
 	go func() {
 		for {
 			if err := pipeline.RunCycle(client, resolver, loggerInstance); err != nil {
@@ -138,15 +140,23 @@ func main() {
 			settings, _ := resolver.Settings()
 			next := scheduler.Compute(settings, time.Now())
 			loggerInstance.Info("Daemon", "⏳ Prochain scan programmé : "+next.Label+" ("+formatMinutes(next.Delay)+" min).")
-			time.Sleep(next.Delay)
+			select {
+			case <-trigger:
+				loggerInstance.Info("Daemon", "⚡ Scan manuel demandé par le labo — cycle immédiat.")
+			case <-time.After(next.Delay):
+			}
 		}
 	}()
 
 	// 2. Boucle publisher (tour de contrôle) toutes les 2 minutes + heartbeat.
 	go func() {
 		for {
-			if err := nodes.RunPublisher(client, resolver); err != nil {
-				loggerInstance.Error("Daemon", "❌ Erreur dans la boucle Publisher : "+err.Error())
+			pubStart := time.Now()
+			pubErr := nodes.RunPublisher(client, resolver)
+			nodes.RecordBrickRun("publisher", "Publisher", pubErr, time.Since(pubStart))
+			recordPublisherRun(client, pubStart)
+			if pubErr != nil {
+				loggerInstance.Error("Daemon", "❌ Erreur dans la boucle Publisher : "+pubErr.Error())
 			}
 
 			// Heartbeat : rafraîchit updatedAt + log Payload (dashboard).
@@ -178,6 +188,18 @@ func (r *logRedirect) Write(p []byte) (int, error) {
 // formatMinutes affiche un délai en minutes (arrondi à la minute).
 func formatMinutes(d time.Duration) string {
 	return fmt.Sprintf("%d", int(d.Minutes()))
+}
+
+// recordPublisherRun — enregistre une diffusion publisher comme un cycle à
+// part (étape unique « Publié ») pour l'historique « Suivi » du labo.
+func recordPublisherRun(client *payload.Client, start time.Time) {
+	cycleID, err := client.StartCycle("publisher")
+	if err != nil {
+		return
+	}
+	dur := time.Since(start)
+	client.RecordCycleStep(cycleID, "publisher", "Publié", "ok", dur, "", "diffusion qoe.fi / Discord / X")
+	client.EndCycle(cycleID, nil, dur)
 }
 
 // pruneLogsLoop supprime périodiquement les entrées Payload logs plus vieilles

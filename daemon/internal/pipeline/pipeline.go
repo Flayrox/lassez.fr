@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/Flayrox/LASSEZ/daemon/internal/config"
 	"github.com/Flayrox/LASSEZ/daemon/internal/logger"
@@ -119,15 +120,25 @@ func RunCycle(client *payload.Client, resolver *config.Resolver, log *logger.Log
 	modelPro := strVal(settings["aiModelPro"], "gemini-3.5-flash-lite")
 	log.Info("Daemon", fmt.Sprintf("🧠 Modèles IA : %s (Analyse Rapide) / %s (Rédaction)", modelFlash, modelPro))
 
+	cycleStart := time.Now()
+	// Historique « Suivi » : chaque cycle est enregistré en SQLite avec ses
+	// étapes (aspiré → trié → rédigé → validé → publié), pour le labo.
+	cycleID, _ := client.StartCycle("pipeline")
+
 	var articles []nodes.IngestedArticle
 	if active["ingestion"] {
 		log.Info("Node 1", "📡 Lancement du nœud d'Ingestion multi-sources...")
+		start := time.Now()
 		fetched, err := nodes.RunIngestion(client, resolver)
+		nodes.RecordBrickRun(NodeIngestion, "Ingestion", err, time.Since(start))
+		client.RecordCycleStep(cycleID, NodeIngestion, "Aspiré", stepStatus(err), time.Since(start), errMsg(err),
+			fmt.Sprintf("%d article%s aspiré%s", len(fetched), plural(len(fetched)), plural(len(fetched))))
 		if err != nil {
 			log.Error("Node 1", "❌ Erreur ingestion: "+err.Error())
 		}
 		articles = fetched
 	} else {
+		client.RecordCycleStep(cycleID, NodeIngestion, "Aspiré", "skipped", 0, "", "étape désactivée")
 		log.Info("Daemon", "⏭️ Nœud Ingestion désactivé dans le graphe. Étape ignorée.")
 	}
 
@@ -135,7 +146,11 @@ func RunCycle(client *payload.Client, resolver *config.Resolver, log *logger.Log
 		log.Info("Node 1", fmt.Sprintf("%d nouveaux articles aspirés.", len(articles)))
 		if active["dedup"] {
 			log.Info("Node 2", "🗑️ Lancement du Deduplicator (Élimination des doublons)...")
-			if err := nodes.RunDeduplicator(client, resolver, articles); err != nil {
+			start := time.Now()
+			err := nodes.RunDeduplicator(client, resolver, articles)
+			nodes.RecordBrickRun(NodeDedup, "Dédoublonnage", err, time.Since(start))
+			client.RecordCycleStep(cycleID, NodeDedup, "Anti-doublons", stepStatus(err), time.Since(start), errMsg(err), "doublons filtrés")
+			if err != nil {
 				log.Error("Node 2", "❌ Erreur deduplicator: "+err.Error())
 			}
 		}
@@ -148,34 +163,73 @@ func RunCycle(client *payload.Client, resolver *config.Resolver, log *logger.Log
 
 	if active["research"] {
 		log.Info("Node 3", "🤖 Lancement du Researcher (IA Flash / Scoring & Filtrage)...")
-		if err := nodes.RunResearcher(client, resolver); err != nil {
+		start := time.Now()
+		err := nodes.RunResearcher(client, resolver)
+		nodes.RecordBrickRun(NodeResearch, "Researcher", err, time.Since(start))
+		client.RecordCycleStep(cycleID, NodeResearch, "Trié", stepStatus(err), time.Since(start), errMsg(err), "sujets notés 0–100")
+		if err != nil {
 			log.Error("Node 3", "❌ Erreur researcher: "+err.Error())
 		}
 	}
 
 	if active["editor"] {
 		log.Info("Node 4", "✍️ Lancement de l'Editorialist (IA Pro / Rédaction d'investigation)...")
-		if err := nodes.RunEditorialist(client, resolver); err != nil {
+		start := time.Now()
+		err := nodes.RunEditorialist(client, resolver)
+		nodes.RecordBrickRun(NodeEditor, "Editorialist", err, time.Since(start))
+		client.RecordCycleStep(cycleID, NodeEditor, "Rédigé", stepStatus(err), time.Since(start), errMsg(err), "articles rédigés")
+		if err != nil {
 			log.Error("Node 4", "❌ Erreur editorialist: "+err.Error())
 		}
 	}
 
 	if active["validator"] {
 		log.Info("Node 5", "⚖️ Lancement du Validator (Vérification et sécurité)...")
-		if err := nodes.RunValidator(client, resolver); err != nil {
+		start := time.Now()
+		err := nodes.RunValidator(client, resolver)
+		nodes.RecordBrickRun(NodeValidator, "Validator", err, time.Since(start))
+		client.RecordCycleStep(cycleID, NodeValidator, "Validé", stepStatus(err), time.Since(start), errMsg(err), "faits vérifiés")
+		if err != nil {
 			log.Error("Node 5", "❌ Erreur validator: "+err.Error())
 		}
 	}
 
 	if active["media"] {
 		log.Info("Node 6", "📸 Lancement du Media Enrichment (Création et assignation visuelle)...")
-		if err := nodes.RunMedia(client, resolver); err != nil {
+		start := time.Now()
+		err := nodes.RunMedia(client, resolver)
+		nodes.RecordBrickRun(NodeMedia, "Média", err, time.Since(start))
+		client.RecordCycleStep(cycleID, NodeMedia, "Illustré", stepStatus(err), time.Since(start), errMsg(err), "visuels assignés")
+		if err != nil {
 			log.Error("Node 6", "❌ Erreur media: "+err.Error())
 		}
 	}
 
+	nodes.RecordCycleDone(nil, time.Since(cycleStart))
+	client.EndCycle(cycleID, nil, time.Since(cycleStart))
 	log.Success("Daemon", "✅ Cycle du pipeline terminé avec succès.")
 	return nil
+}
+
+func stepStatus(err error) string {
+	if err != nil {
+		return "error"
+	}
+	return "ok"
+}
+
+func errMsg(err error) string {
+	if err == nil {
+		return ""
+	}
+	return err.Error()
+}
+
+func plural(n int) string {
+	if n > 1 {
+		return "s"
+	}
+	return ""
 }
 
 func strVal(v any, def string) string {

@@ -77,6 +77,39 @@
         help="Par défaut https://api.qoe.fi/v1 — laisse tel quel sauf si tu sais" />
     </LCard>
 
+    <!-- Clé API Gemini — les nœuds IA du pipeline (Tri / Rédaction / Vérification) -->
+    <LCard title="Clé API Gemini" description="La clé qui fait tourner les nœuds IA du pipeline (Tri, Rédaction, Vérification)">
+      <div class="flex items-center justify-between gap-3 mb-4">
+        <div class="flex items-center gap-3">
+          <span class="w-2 h-2 rounded-full" :class="geminiConfigured ? 'bg-accent' : 'bg-warning'"></span>
+          <div>
+            <p class="text-sm font-medium">{{ geminiConfigured ? 'Clé configurée' : 'Aucune clé' }}</p>
+            <p class="text-[11px] text-text-3">
+              {{ geminiConfigured
+                ? 'Les nœuds IA peuvent tourner. Sans clé valide, le Tri, la Rédaction et la Vérification sont ignorés.'
+                : 'Sans clé, le pipeline s\'arrête après la collecte (rien n\'est trié ni rédigé). Colle ta clé ci-dessous.' }}
+            </p>
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          <LButton variant="secondary" size="sm" :disabled="geminiTesting || !geminiConfigured" @click="testGeminiKey">
+            {{ geminiTesting ? 'Test…' : 'Tester la clé' }}
+          </LButton>
+          <LBadge :variant="geminiConfigured ? 'success' : 'warning'">{{ geminiConfigured ? 'active' : 'en pause' }}</LBadge>
+        </div>
+      </div>
+      <div class="space-y-3">
+        <LInput label="Clé API Gemini" type="password" :model-value="store.secrets.geminiApiKey"
+          @update:model-value="(v: string) => { store.secrets.geminiApiKey = v.trim(); store.markDirty() }"
+          placeholder="AIza…"
+          help="Stockée dans .secrets.yaml (jamais dans git). Vide = pipeline sans IA." />
+        <p v-if="geminiResult" class="text-xs" :class="geminiResult.ok ? 'text-accent' : 'text-danger'">
+          {{ geminiResult.ok ? '✓ Clé valide' : '✗ ' + geminiResult.error }}
+          <span v-if="geminiResult.ok" class="text-text-3">· {{ geminiResult.latencyMs }} ms · {{ geminiResult.model }} · réponse : « {{ geminiResult.reply }} »</span>
+        </p>
+      </div>
+    </LCard>
+
     <LCard title="Mode maintenance" description="Remplace le site public par un écran « revenons bientôt »">
       <div class="space-y-3">
         <div class="flex items-center justify-between gap-2">
@@ -144,7 +177,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useConfigStore } from '../stores/config'
 import { useSystemStore } from '../stores/system'
 import LCard from '../components/ui/LCard.vue'
@@ -180,6 +213,24 @@ function statusLabel(b: { status: string; lastRun?: string; errors?: number }): 
     case 'warning': return `En échec (${b.errors ?? 1}) · ${relTime(b.lastRun ?? '')}`
     case 'danger': return `En panne (${b.errors ?? 3}) · ${relTime(b.lastRun ?? '')}`
     default: return 'Jamais exécuté'
+  }
+}
+
+// ── Clé API Gemini : statut + test réel via le daemon (POST /api/gemini/test) ──
+const geminiConfigured = computed(() => !!store.secrets.geminiApiKey)
+const geminiTesting = ref(false)
+const geminiResult = ref<{ ok: boolean; error?: string; latencyMs?: number; model?: string; reply?: string } | null>(null)
+
+async function testGeminiKey() {
+  geminiTesting.value = true
+  geminiResult.value = null
+  try {
+    const res = await fetch('/api/gemini/test', { method: 'POST' })
+    geminiResult.value = await res.json()
+  } catch (e: any) {
+    geminiResult.value = { ok: false, error: e?.message || String(e) }
+  } finally {
+    geminiTesting.value = false
   }
 }
 

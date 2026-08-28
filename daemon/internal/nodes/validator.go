@@ -66,7 +66,7 @@ func RunValidator(client *payload.Client, resolver *config.Resolver) error {
 	log.Printf("[Node 5] ⚖️ %d sujet(s) à valider (limite de cycle).", len(topics))
 
 	// Clé depuis radar-settings (interface admin sécurisée), fallback .env.
-	apiKey := geminiAPIKey(resolver, "validator")
+	apiKey := GeminiAPIKey(resolver, "validator")
 	if apiKey == "" {
 		log.Printf("[Node 5] ⚠️ Clé Gemini absente (geminiApiKey / GEMINI_DAEMON_API_KEY). Étape ignorée.")
 		return nil

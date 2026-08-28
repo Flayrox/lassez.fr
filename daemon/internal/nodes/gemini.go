@@ -9,18 +9,19 @@ import (
 	"github.com/Flayrox/lassez.fr/daemon/internal/config"
 )
 
-// geminiAPIKey résout la clé API Gemini pour un nœud du pipeline, dans cet
+// GeminiAPIKey résout la clé API Gemini pour un nœud du pipeline, dans cet
 // ordre :
 //  1. Override par nœud dans le graphe du pipeline (pipelineGraphJson) ;
 //  2. Variable d'environnement dédiée GEMINI_DAEMON_API_KEY ;
-//  3. Global radar-settings (champ geminiApiKey) ;
+//  3. Secrets studio (daemon/config/.secrets.yaml → champ geminiApiKey, écrit
+//     par le labo via Système → Clé API Gemini) ;
 //  4. Ancienne variable GEMINI_API_KEY (repli de compatibilité).
 //
 // La clé du daemon est volontairement séparée de celle utilisée par les
 // autres consommateurs (SEO, studio-ai, GEMINI_API_KEY) : la variable dédiée
-// prime sur le champ admin pour garantir que le daemon ne consomme jamais la
+// prime sur le champ studio pour garantir que le daemon ne consomme jamais la
 // clé des autres usages, même si quelqu'un remplit le champ dans l'interface.
-func geminiAPIKey(resolver *config.Resolver, nodeType string) string {
+func GeminiAPIKey(resolver *config.Resolver, nodeType string) string {
 	// 1. Override par nœud dans le graphe (priorité absolue).
 	if v, ok := resolver.GraphOverride(nodeType, "geminiApiKey"); ok {
 		if s, ok := v.(string); ok && s != "" {

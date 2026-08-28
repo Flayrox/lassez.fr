@@ -192,6 +192,9 @@ export const useConfigStore = defineStore('config', () => {
     qoeApiKey: '',
     qoePublicationId: '',
     qoeBaseUrl: 'https://api.qoe.fi/v1',
+    // Gemini — la clé qui fait tourner les nœuds IA du pipeline (Tri /
+    // Rédaction / Vérification). Écrite dans .secrets.yaml, jamais dans git.
+    geminiApiKey: '',
   })
 
   // ── Planning (réel : tous les jours à 20:08, Europe/Paris) ──

@@ -109,9 +109,12 @@ export const useConfigStore = defineStore('config', () => {
 
   // ── Écriture ──
   const ecriture = ref({
-    modeleRapide: 'gemini-3-flash-preview',
-    modeleRedaction: 'gemini-2.5-pro',
-    modeleVerification: 'gemini-3-flash-preview',
+    // Répartition niveau gratuit : le Tri et la Vérification sur Flash Lite
+    // (volume, léger), la Rédaction sur Flash (gemini-3.7-flash, le meilleur
+    // rapport qualité/coût de la série Gemini 3).
+    modeleRapide: 'Gemini 3.5 Flash Lite',
+    modeleRedaction: 'Gemini 3.7 Flash',
+    modeleVerification: 'Gemini 3.5 Flash Lite',
     tachesEnMemeTempsRapide: 5,
     tachesEnMemeTempsRedaction: 3,
     scoreMini: 50,
@@ -123,11 +126,13 @@ export const useConfigStore = defineStore('config', () => {
     // ci-dessous = le mapping réel du VPS (ai_model_breaking/standard/decrypt),
     // transposé sur les formats actuels. Un format sans entrée utilise modeleRedaction.
     modeleParFormat: {
-      FLASH: 'gemini-2.5-flash',
-      CITATION: 'gemini-2.5-flash',
-      ALERTE: 'gemini-3.1-pro-preview',
-      DECRYPTAGE: 'gemini-2.5-pro',
-      INFO: 'gemini-2.5-flash',
+      // La rédaction passe par le Flash (gemini-3.7-flash) quel que soit le
+      // format — pas de Pro (hors budget du niveau gratuit).
+      FLASH: 'Gemini 3.7 Flash',
+      CITATION: 'Gemini 3.7 Flash',
+      ALERTE: 'Gemini 3.7 Flash',
+      DECRYPTAGE: 'Gemini 3.7 Flash',
+      INFO: 'Gemini 3.7 Flash',
     },
     // Le grand prompt éditorial (ai_prompt) — la ligne éditoriale complète.
     // Les blocs ci-dessous portent le DNA factory de L'Assez (identité "Le
@@ -142,13 +147,14 @@ export const useConfigStore = defineStore('config', () => {
     consigneGlobale: '',
   })
 
-  // ── Registry des modèles IA (label UI + value API) — alimente tous les selects ──
+  // ── Registry des modèles IA (label UI + value API) — alimente tous les selects.
+  // Niveau gratuit : seuls les Flash / Flash Lite sont proposés (les Pro ne
+  // sont pas dans le quota gratuit — Gemini 3.7 Flash = le nouveau Flash,
+  // Gemini 3.5 Flash Lite = le Flash léger de la série Gemini 3).
   const modelRegistry = ref<{ label: string; value: string }[]>([
-    { label: 'Gemini 3.1 Pro (le plus fort)', value: 'gemini-3.1-pro-preview' },
-    { label: 'Gemini 2.5 Pro', value: 'gemini-2.5-pro' },
-    { label: 'Gemini 2.5 Flash', value: 'gemini-2.5-flash' },
-    { label: 'Gemini 3 Flash (rapide)', value: 'gemini-3-flash-preview' },
-    { label: 'Gemini 2.0 Flash (léger)', value: 'gemini-2.0-flash' },
+    { label: 'Gemini 3.7 Flash', value: 'gemini-3.7-flash' },
+    { label: 'Gemini 3.5 Flash Lite', value: 'gemini-3.5-flash-lite' },
+    { label: 'Gemini 2.5 Flash (ancien)', value: 'gemini-2.5-flash' },
   ])
   function normalizeRegistry(saved: unknown) {
     if (!Array.isArray(saved)) return modelRegistry.value

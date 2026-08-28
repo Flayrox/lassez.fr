@@ -75,6 +75,25 @@ func VertexAIConfig(resolver *config.Resolver) *vertexConfig {
 	return &vertexConfig{ProjectID: project, Region: region, ServiceAccountJSON: sa}
 }
 
+// GoogleCSEConfig résout les identifiants de la recherche d'images officielle
+// Google (Custom Search JSON API) depuis les secrets studio (daemon/config/
+// .secrets.yaml → champs googleCseApiKey + googleCseId, écrits par le labo via
+// Système → Recherche d'images). Gratuit : 100 requêtes/jour. Retourne deux
+// chaînes vides si rien n'est configuré (le nœud média retombe alors sur
+// Wikimedia Commons).
+func GoogleCSEConfig(resolver *config.Resolver) (apiKey, cseID string) {
+	if resolver == nil {
+		return "", ""
+	}
+	settings, err := resolver.Settings()
+	if err != nil || settings == nil {
+		return "", ""
+	}
+	apiKey, _ = settings["googleCseApiKey"].(string)
+	cseID, _ = settings["googleCseId"].(string)
+	return strings.TrimSpace(apiKey), strings.TrimSpace(cseID)
+}
+
 // geminiRateLimiter limite le nombre d'appels Gemini par minute, pour rester
 // sous le quota (free tier : ~15 requêtes/min/modèle). C'est un verrou global
 // partagé par tous les nœuds IA : le quota est par compte, pas par nœud.

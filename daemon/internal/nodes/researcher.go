@@ -9,9 +9,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/generative-ai-go/genai"
-	"google.golang.org/api/option"
-
 	"github.com/Flayrox/lassez.fr/daemon/internal/config"
 	"github.com/Flayrox/lassez.fr/daemon/internal/payload"
 )
@@ -55,13 +52,6 @@ func RunResearcher(client *payload.Client, resolver *config.Resolver) error {
 		log.Printf("[Node 3] ⚠️ Clé Gemini absente (geminiApiKey / GEMINI_DAEMON_API_KEY). Étape ignorée.")
 		return nil
 	}
-
-	ctx := context.Background()
-	ai, err := genai.NewClient(ctx, option.WithAPIKey(apiKey))
-	if err != nil {
-		return fmt.Errorf("gemini client: %w", err)
-	}
-	defer ai.Close()
 
 	modelName := "gemini-3.5-flash-lite"
 	if v := resolver.GetEffectiveParam("research", "aiModelFlash", modelName); v != nil {
@@ -109,18 +99,12 @@ func RunResearcher(client *payload.Client, resolver *config.Resolver) error {
 		}
 	}
 
-	model := ai.GenerativeModel(modelName)
-	model.ResponseMIMEType = "application/json"
-	model.ResponseSchema = &genai.Schema{
-		Type: genai.TypeObject,
-		Properties: map[string]*genai.Schema{
-			"approved":          {Type: genai.TypeBoolean, Description: "True si le sujet présente une valeur journalistique"},
-			"score":             {Type: genai.TypeInteger, Description: "Note de 0 à 100"},
-			"reason":            {Type: genai.TypeString, Description: "Justification succincte du choix"},
-			"suggestedTaxonomy": {Type: genai.TypeString, Description: "Catégorie suggérée"},
-			"suggestedGeo":      {Type: genai.TypeString, Description: "Zone géographique concernée (ex: France, International)"},
-		},
-		Required: []string{"approved", "score", "reason"},
+	// Recherche web : le modèle fait de VRAIES recherches Google à chaque
+	// analyse (grounding natif de l'API REST) pour vérifier les faits et
+	// débusquer le passif des protagonistes. Désactivable dans le labo.
+	searchWeb := boolParam(resolver, "research", "webSearchEnabled", true)
+	if !searchWeb {
+		log.Printf("[Node 3] 🔍 Recherche web désactivée : le tri se fait sans vérification en ligne.")
 	}
 
 	var (
@@ -145,21 +129,26 @@ func RunResearcher(client *payload.Client, resolver *config.Resolver) error {
 			prompt := buildResearchPrompt(researcherSystem, rejectCriteria, customPrompt, taxonomyList, raw)
 
 			// Timeout par appel : une API qui pend ne doit pas bloquer le nœud.
-			callCtx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+			callCtx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 			defer cancel()
 			rl.Wait()
-			resp, err := model.GenerateContent(callCtx, genai.Text(prompt))
+			text, err := callGemini(callCtx, geminiParams{
+				apiKey:         apiKey,
+				model:          modelName,
+				system:         "",
+				user:           prompt,
+				temperature:    researchTemp,
+				topP:           researchTopP,
+				maxTokens:      researchTokens,
+				search:         searchWeb,
+				responseSchema: schemaResearcher(),
+			})
 			if err != nil {
 				if isQuotaError(err) {
 					log.Printf("[Node 3] ⏸️ Quota Gemini atteint (%s) : sujet laissé en attente.", topic.ID)
 					return
 				}
 				log.Printf("[Node 3] ❌ Erreur analyse sujet %s: %v", topic.ID, err)
-				return
-			}
-			text, err := responseText(resp)
-			if err != nil {
-				log.Printf("[Node 3] ❌ Réponse vide pour %s", topic.ID)
 				return
 			}
 
@@ -277,13 +266,4 @@ func orBias(s string) string {
 	return s
 }
 
-func responseText(resp *genai.GenerateContentResponse) (string, error) {
-	if resp == nil || len(resp.Candidates) == 0 || len(resp.Candidates[0].Content.Parts) == 0 {
-		return "", fmt.Errorf("no content generated")
-	}
-	text, ok := resp.Candidates[0].Content.Parts[0].(genai.Text)
-	if !ok {
-		return "", fmt.Errorf("unexpected part type")
-	}
-	return strings.TrimSpace(string(text)), nil
-}
+

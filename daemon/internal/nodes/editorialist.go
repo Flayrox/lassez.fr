@@ -9,9 +9,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/generative-ai-go/genai"
-	"google.golang.org/api/option"
-
 	"github.com/Flayrox/lassez.fr/daemon/internal/config"
 	"github.com/Flayrox/lassez.fr/daemon/internal/payload"
 )
@@ -22,7 +19,16 @@ const (
 	fallbackBaseIdentity    = "Tu es le Rédacteur en Chef de \"L'Assez\", un média d'investigation radical sur les réseaux sociaux. Ta mission est de rédiger un post percutant (style Twitter/Telegram) à partir des sources fournies.\nTON : Urgent, scandalisé, implacable, intelligent et direct (\"Le Mécanicien\"). Tu refuses le jargon militant poussiéreux."
 	fallbackResearchMission = "=== MISSION DE RECHERCHE ET SYNTHÈSE ===\n1. Utilise le CONTENU FOURNI dans le contexte comme base de ton analyse.\n2. Utilise ton outil GOOGLE SEARCH pour :\n   - Vérifier les faits.\n   - Extraire le \"passif\" ou les casseroles des protagonistes mentionnés.\n   - Trouver des éléments de contexte plus larges pour armer ton attaque implacable."
 	fallbackVocabularyRules = "=== LA RÈGLE DE VOCABULAIRE (ALERTE ROUGE - SANCTION) ===\n- MOTS INTERDITS (Trop sociologiques) : Oligarchie, Bourgeoisie, Bloc bourgeois, Prolétaire, Superstructure, Dystopie, Grand capital, Peste brune, Camisole libérale.\n- MOTS AUTORISÉS (Impact direct) : Le gouvernement, les milliardaires, le patronat, la Macronie, la droite, l'extrême droite, les travailleurs, l'État, les actionnaires.\n- Traduis la novlangue : \"Maintien de l'ordre\" = Répression policière. \"Hub de retour\" = Camps de déportation.\n- Règle sur la Palestine : Parle de \"colons israéliens\", de \"sionistes\" ou du \"gouvernement de Netanyahu\", JAMAIS de \"colons juifs\". Dénonce le génocide et l'hypocrisie occidentale tout en évitant les amalgames antisémites."
-	fallbackImageRules      = "=== RÈGLE DES IMAGES (LA MÉTHODE DES TIRS) ===\nTrouver des images d'actualité précises sur le web peut être difficile. Juge lequel des 3 \"Tirs\" conviendrait : Tir 1 (Le Sniper) une seule requête ultra précise ; Tir 2 (Le Pistolet) 2 requêtes contexte/lieu ; Tir 3 (Le Fusil à pompe) 3 requêtes symboles larges. Remplis le tableau image_search_queries avec 1, 2 ou 3 requêtes selon le tir choisi."
+	fallbackImageRules      = `=== RÈGLE DES IMAGES (LA MÉTHODE DES TIRS) ===
+Trouver des images d'actualité précises sur le web peut être difficile. C'est pourquoi tu dois TOUJOURS juger lequel des 3 "Tirs" conviendrait le plus pour illustrer ce sujet, en fonction de la probabilité de trouver une image précise sur Google. En fonction de ton choix, tu rempliras le tableau image_search_queries avec 1, 2 ou 3 requêtes. Notre robot tentera la première, puis les suivantes (s'il y en a) si elle échoue.
+
+- Tir 1 (Le Sniper) : Ultra précis, si tu juges qu'il est très probable d'avoir une image précise par rapport au contexte. Tu ne mets qu'UNE SEULE requête dans le tableau !! (ex: ["Nicolas Sarkozy tribunal de Paris"] ou si c'est plusieurs personnes ["Emmanuel Macron Angela Merkel"]).
+- Tir 2 (Le Pistolet) : Plus large, si tu juges que le Tir 1 a de grandes chances d'échouer. Contexte institutionnel ou lieu. Tu y intègres 2 requêtes (ex: ["Palais de justice de Paris façade", "Ministère de l'économie Bercy bâtiment"]).
+- Tir 3 (Le Fusil à pompe) : La sécurité absolue. Symbole général et large. À utiliser quand le contexte est impossible à illustrer avec une vraie photo de presse. Tu y intègres 3 requêtes. Par exemple si la Norvège et l'Espagne décident de reconnaitre la Palestine, alors tu pourrais mettre (ex: ["Drapeau Norvège", "Drapeau Espagne", "Drapeau Palestine"]).`
+
+	// Template de secours quand aucun format actif n'est trouvé (YAML vide) :
+	// l'éditorialiste garde quand même des consignes de base.
+	fallbackFormatPrompt = "=== CONSIGNES DE RÉDACTION (par défaut) ===\nRédige un post percutant au style L'Assez, factuel et dénonciateur. Headline percutante, body court et incisif, tags pertinents, 1 à 3 requêtes d'image selon la méthode des Tirs."
 )
 
 type draftResult struct {
@@ -64,13 +70,6 @@ func RunEditorialist(client *payload.Client, resolver *config.Resolver) error {
 		return nil
 	}
 
-	ctx := context.Background()
-	ai, err := genai.NewClient(ctx, option.WithAPIKey(apiKey))
-	if err != nil {
-		return fmt.Errorf("gemini client: %w", err)
-	}
-	defer ai.Close()
-
 	modelName := "gemini-3.5-flash-lite"
 	if v := resolver.GetEffectiveParam("editor", "aiModelPro", modelName); v != nil {
 		if s, ok := v.(string); ok && s != "" {
@@ -107,29 +106,13 @@ func RunEditorialist(client *payload.Client, resolver *config.Resolver) error {
 		templates = nil
 	}
 
-	// Recherche web : quand elle est désactivée, on retire l'outil GOOGLE SEARCH
-	// de la mission de recherche — l'IA ne rédige qu'à partir du contenu fourni.
-	// (Le grounding natif du SDK genai viendra plus tard : GoogleSearchRetrieval
-	// n'est pas dispo dans v0.20.1.)
-	if !boolParam(resolver, "editor", "webSearchEnabled", true) {
+	// Recherche web : grounding Google Search natif de l'API REST — le modèle
+	// fait de VRAIES recherches à chaque rédaction (vérif des faits, passif des
+	// protagonistes, contexte). Désactivée → on retire l'outil de la mission.
+	searchWeb := boolParam(resolver, "editor", "webSearchEnabled", true)
+	if !searchWeb {
 		researchMission = stripGoogleSearch(researchMission)
 		log.Printf("[Node 4] 🔍 Recherche web désactivée : l'IA rédige sans vérification en ligne.")
-	}
-
-	// Schéma de sortie commun à tous les appels (créé une fois, réutilisé par
-	// le modèle de chaque topic).
-	draftSchema := &genai.Schema{
-		Type: genai.TypeObject,
-		Properties: map[string]*genai.Schema{
-			"taxonomie":            {Type: genai.TypeString, Description: "La catégorie choisie (FLASH, CITATION, ALERTE, DÉCRYPTAGE, INFO)"},
-			"geo":                  {Type: genai.TypeString, Description: "Zone géographique (france / international)"},
-			"tags":                 {Type: genai.TypeArray, Items: &genai.Schema{Type: genai.TypeString}, Description: "Mots-clés et thématiques"},
-			"headline":             {Type: genai.TypeString, Description: "Titre percutant au style L'Assez"},
-			"body":                 {Type: genai.TypeString, Description: "Corps complet du post (respecte le format de la catégorie)"},
-			"image_search_queries": {Type: genai.TypeArray, Items: &genai.Schema{Type: genai.TypeString}, Description: "1 à 3 requêtes d'image selon la méthode des Tirs"},
-			"metadata":             {Type: genai.TypeObject, Description: "Métadonnées du format", Properties: map[string]*genai.Schema{"accent_color": {Type: genai.TypeString}}},
-		},
-		Required: []string{"headline", "body", "tags"},
 	}
 
 	var (
@@ -186,6 +169,9 @@ func RunEditorialist(client *payload.Client, resolver *config.Resolver) error {
 				if template.OutputSchema != "" {
 					sb.WriteString(fmt.Sprintf("\nSCHÉMA DE SORTIE JSON ATTENDU :\n%s\n", template.OutputSchema))
 				}
+			} else {
+				// Aucun format actif trouvé (YAML sans formats) → consignes de secours.
+				sb.WriteString("\n\n" + fallbackFormatPrompt + "\n")
 			}
 			geo := topic.Geo
 			if geo == "" {
@@ -208,26 +194,28 @@ func RunEditorialist(client *payload.Client, resolver *config.Resolver) error {
 			if m := modelForFormat(resolver, taxonomy); m != "" {
 				effModel = m
 			}
-			m := ai.GenerativeModel(effModel)
-			m.ResponseMIMEType = "application/json"
-			m.ResponseSchema = draftSchema
 
 			// Timeout par appel : une API qui pend ne doit pas bloquer le nœud.
-			callCtx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+			callCtx, cancel := context.WithTimeout(context.Background(), 180*time.Second)
 			defer cancel()
 			rl.Wait()
-			resp, err := m.GenerateContent(callCtx, genai.Text(sb.String()+"\n\n"+userPrompt))
+			text, err := callGemini(callCtx, geminiParams{
+				apiKey:         apiKey,
+				model:          effModel,
+				system:         sb.String(),
+				user:           userPrompt,
+				temperature:    editorTemp,
+				topP:           editorTopP,
+				maxTokens:      editorTokens,
+				search:         searchWeb,
+				responseSchema: schemaEditorialist(),
+			})
 			if err != nil {
 				if isQuotaError(err) {
 					log.Printf("[Node 4] ⏸️ Quota Gemini atteint (%s) : sujet laissé en attente.", topic.ID)
 					return
 				}
 				log.Printf("[Node 4] ❌ Erreur rédaction %s: %v", topic.ID, err)
-				return
-			}
-			text, err := responseText(resp)
-			if err != nil {
-				log.Printf("[Node 4] ❌ Réponse vide pour %s", topic.ID)
 				return
 			}
 

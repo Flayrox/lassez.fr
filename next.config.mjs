@@ -22,6 +22,9 @@ const contentSecurityPolicy = `${cspDirectives.join('; ')};`;
 const nextConfig = {
     poweredByHeader: false,
     compress: true,
+    // Dev sur domaine .test (scripts/dev-domain.sh + Caddy local) :
+    // autorise lassez.test et ses sous-domaines à interroger le dev server.
+    allowedDevOrigins: ['lassez.test', '*.lassez.test'],
     // standalone pour VPS (docker-lite)
     output: 'standalone',
     // elections utilisent encore better-sqlite3 (sera refacto après)

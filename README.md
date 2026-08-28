@@ -60,6 +60,21 @@ Routes utiles en dev :
 - Studio de templates : `http://localhost:5173/templates`
 - Daemon : `cd daemon && go build -o bin/daemon ./cmd/daemon && ./bin/daemon` (nécessite `PAYLOAD_API_URL` + identifiants bot dans `.env`)
 
+### Dev tout-en-un — domaines `.test` SANS port + ports dédiés
+
+```bash
+npm run dev:domain
+# → Studio (labo Vue, pilote le daemon) : http://studio.lassez.test   (sans port)
+# → Front site (Next.js)                : http://lassez.test          (sans port)
+# → Daemon API : 127.0.0.1:4406 · Ports directs : :4405 (labo), :2500 (front)
+```
+
+`scripts/dev-domain.sh` ajoute les entrées `/etc/hosts` (`127.0.0.1 studio.lassez.test lassez.test`, sudo demandé une fois), compile le daemon Go (`127.0.0.1:4406`), lance le labo Vite (`:4405`) et le front Next (`:2500`), puis recharge le `Caddyfile.dev` local (celui de qoe.fi, qui contient les blocs `lassez.test` / `studio.lassez.test`) pour servir le tout **sans port**. `Ctrl-C` arrête les trois.
+
+Surcharge : `LABO_HOST`, `FRONT_HOST`, `LABO_PORT`, `DAEMON_PORT`, `NEXT_PORT`, `CADDY_CONFIG` (chemin du Caddyfile à recharger). Sans Caddy lancé, les URL avec port fonctionnent quand même.
+
+Classique sans domaine : `npm run dev:labo` (labo seul) + `cd daemon && go build -o bin/daemon ./cmd/daemon && ./bin/daemon` (daemon sur `:2506`).
+
 ## 🗄️ Bases de données
 
 | Base | Techno | Usage |

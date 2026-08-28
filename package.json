@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "next dev -p 2500",
     "dev:labo": "npm --prefix apps/labo run dev",
+    "dev:domain": "bash scripts/dev-domain.sh",
     "dev:all": "concurrently -n lassez,labo -c red,blue \"npm:dev\" \"npm:dev:labo\"",
     "build": "next build",
     "start": "next start",

@@ -4,8 +4,8 @@ Tout ce qui est décidé en session mais pas encore implémenté. Coche au fur e
 
 ## ⚠️ À savoir (quota niveau gratuit)
 
-- ❌ **Clé AI Studio à sec** : au dernier test (28/08), Google répond « prepayment credits depleted » sur la clé (même sans recherche web) — le rechargement n'était pas encore visible. **Solution : Vertex AI en secours** (voir ci-dessous).
-- ✅ **Fallback Vertex AI implémenté** : si AI Studio échoue (quota, crédits, clé invalide), le daemon rebascule automatiquement sur Vertex AI — il suffit de coller le JSON du compte de service dans **Système → Vertex AI (secours)** et de cliquer « Tester Vertex AI ».
+- ❌ **Clé AI Studio à sec** : Google répond « prepayment credits depleted » sur la clé — le rechargement n'est pas visible.
+- ✅ **Vertex AI opérationnel** : compte de service configuré (projet `lassez-daemon`, région `global`) → `POST /api/vertex/test` = OK (337 ms). Le pipeline bascule automatiquement sur Vertex quand AI Studio échoue, **avec la recherche web active**. Fixé au passage : endpoint `global` sans préfixe d'hôte + outil `googleSearch` (pas `googleSearchRetrieval`).
 - ⚠️ **Quota de recherche Google épuisé** : le grounding `google_search` renvoie 429 sur le compte — le daemon réessaie sans grounding (repli auto), la recherche reprend au reset du quota.
 - ⚠️ **`gemini-3.7-flash` hors quota sur le compte** : 429 → la rédaction **retombe automatiquement sur `gemini-3.5-flash-lite`** (repli code).
 - ▶️ **Déblocage du backlog** : 470+ sujets INGESTED en attente — le tri traite 10-20 par cycle.

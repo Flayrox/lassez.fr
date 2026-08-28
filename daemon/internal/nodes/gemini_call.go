@@ -54,6 +54,11 @@ const (
 	editorTemp   = float32(0.9)
 	editorTopP   = float32(0.95)
 	editorTokens = int32(8192)
+	// editorThinking : budget de « raisonnement » (thinking tokens) de la
+	// rédaction. Élevé : l'IA raisonne longuement (avec Google Search) avant
+	// d'écrire, ce qui remplace l'ancien nœud de validation — un seul passage
+	// fait à la fois rédiger ET contrôler. Facturé en tokens de sortie.
+	editorThinking = int32(8192)
 
 	validatorTemp   = float32(0.1)
 	validatorTopP   = float32(0.9)
@@ -78,17 +83,18 @@ type vertexConfig struct {
 }
 
 type geminiParams struct {
-	apiKey         string
-	model          string
-	modelFallback  string         // modèle de repli si 429 (ex: 3.7 flash hors quota → flash-lite)
-	system         string
-	user           string
-	temperature    float32
-	topP           float32
-	maxTokens      int32
-	search         bool           // grounding Google Search (recherche web réelle)
-	responseSchema map[string]any // sortie JSON structurée (nil = texte libre)
-	vertex         *vertexConfig  // secours Vertex AI (nil = pas de secours)
+	apiKey          string
+	model           string
+	modelFallback   string         // modèle de repli si 429 (ex: 3.7 flash hors quota → flash-lite)
+	system          string
+	user            string
+	temperature     float32
+	topP            float32
+	maxTokens       int32
+	thinkingBudget  int32          // thinking tokens (raisonnement) — 0 = pas de raisonnement
+	search          bool           // grounding Google Search (recherche web réelle)
+	responseSchema  map[string]any // sortie JSON structurée (nil = texte libre)
+	vertex          *vertexConfig  // secours Vertex AI (nil = pas de secours)
 }
 
 var geminiHTTPClient = &http.Client{Timeout: 120 * time.Second}
@@ -103,6 +109,12 @@ func buildGeminiBody(p geminiParams, prov geminiProvider) map[string]any {
 		"topP":            p.topP,
 		"maxOutputTokens": p.maxTokens,
 		"candidateCount":  1,
+	}
+	if p.thinkingBudget > 0 {
+		// reasoning de la réponse (thinkingConfig.thinkingBudget = nombre de
+		// tokens de réflexion). 0 = réponse directe. Les deux fournisseurs
+		// acceptent le même champ camelCase.
+		gc["thinkingConfig"] = map[string]any{"thinkingBudget": p.thinkingBudget}
 	}
 	if p.responseSchema != nil {
 		gc["responseMimeType"] = "application/json"
@@ -266,6 +278,11 @@ func callGeminiRaw(ctx context.Context, p geminiParams, prov geminiProvider) (st
 	}
 	var sb strings.Builder
 	for _, part := range r.Candidates[0].Content.Parts {
+		// Ignore les parts « pensée » (thought:true) du mode raisonnement :
+		// seul le texte final (le JSON) doit remonter au nœud.
+		if part.Thought {
+			continue
+		}
 		sb.WriteString(part.Text)
 	}
 	return strings.TrimSpace(sb.String()), nil
@@ -275,7 +292,8 @@ type geminiRESTResponse struct {
 	Candidates []struct {
 		Content struct {
 			Parts []struct {
-				Text string `json:"text"`
+				Text    string `json:"text"`
+				Thought bool   `json:"thought"`
 			} `json:"parts"`
 		} `json:"content"`
 	} `json:"candidates"`

@@ -117,6 +117,41 @@ func RunEditorialist(client *payload.Client, resolver *config.Resolver) error {
 		templates = nil
 	}
 
+	// Raisonnement (thinking) de la rédaction : élevé par défaut — l'IA raisonne
+	// (avec Google Search) et remplace l'ancien nœud de validation : un seul
+	// passage rédige ET contrôle. Réglable via editorial.thinkingBudget.
+	thinkingBudget := editorThinking
+	if v := resolver.GetEffectiveParam("editor", "thinkingBudget", float64(editorThinking)); v != nil {
+		if n := int32(toFloat64(v, float64(editorThinking))); n > 0 {
+			thinkingBudget = n
+		}
+	}
+
+	// Validateur coupé dans le graphe → la rédaction écrit VALIDATED (prêt
+	// pour le média) au lieu de DRAFTED : le raisonnement fait office de
+	// vérification.
+	validatorActive := true
+	if settings, err := resolver.Settings(); err == nil && settings != nil {
+		if gs, ok := settings["pipelineGraphJson"].(string); ok && gs != "" {
+			var g struct {
+				Nodes []struct {
+					Type    string `json:"type"`
+					Enabled *bool  `json:"enabled"`
+				} `json:"nodes"`
+			}
+			if json.Unmarshal([]byte(gs), &g) == nil {
+				for _, n := range g.Nodes {
+					if n.Type == "validator" {
+						validatorActive = n.Enabled == nil || *n.Enabled
+					}
+				}
+			}
+		}
+	}
+	if !validatorActive {
+		log.Printf("[Node 4] 🔩 Vérification désactivée : la rédaction raisonne en un seul passage et écrit directement VALIDATED.")
+	}
+
 	// Recherche web : grounding Google Search natif de l'API REST — le modèle
 	// fait de VRAIES recherches à chaque rédaction (vérif des faits, passif des
 	// protagonistes, contexte). Désactivée → on retire l'outil de la mission.
@@ -207,21 +242,23 @@ func RunEditorialist(client *payload.Client, resolver *config.Resolver) error {
 			}
 
 			// Timeout par appel : une API qui pend ne doit pas bloquer le nœud.
-			callCtx, cancel := context.WithTimeout(context.Background(), 180*time.Second)
+			// Le raisonnement + recherche peut être long → 240 s.
+			callCtx, cancel := context.WithTimeout(context.Background(), 240*time.Second)
 			defer cancel()
 			rl.Wait()
 			text, err := callGemini(callCtx, geminiParams{
-				apiKey:         apiKey,
-				model:          effModel,
-				modelFallback:  "gemini-3.5-flash-lite", // repli si 3.7 flash hors quota (niveau gratuit)
-				system:         sb.String(),
-				user:           userPrompt,
-				temperature:    editorTemp,
-				topP:           editorTopP,
-				maxTokens:      editorTokens,
-				search:         searchWeb,
-				responseSchema: schemaEditorialist(),
-				vertex:         VertexAIConfig(resolver),
+				apiKey:          apiKey,
+				model:           effModel,
+				modelFallback:   "gemini-3.5-flash-lite", // repli si 3.7 flash hors quota (niveau gratuit)
+				system:          sb.String(),
+				user:            userPrompt,
+				temperature:     editorTemp,
+				topP:            editorTopP,
+				maxTokens:       editorTokens,
+				thinkingBudget:  thinkingBudget,
+				search:          searchWeb,
+				responseSchema:  schemaEditorialist(),
+				vertex:          VertexAIConfig(resolver),
 			})
 			if err != nil {
 				if isQuotaError(err) {
@@ -262,8 +299,12 @@ func RunEditorialist(client *payload.Client, resolver *config.Resolver) error {
 				imageKeyword = "investigation"
 			}
 
+			targetStatus := "DRAFTED"
+			if !validatorActive {
+				targetStatus = "VALIDATED" // pas de vérification : le raisonnement vaut validation
+			}
 			if err := client.UpdateSignal(topic.ID, map[string]any{
-				"status":      "DRAFTED",
+				"status":      targetStatus,
 				"final_draft": string(finalDraft),
 				"tags":        string(tagsJSON),
 				"image_url":   imageKeyword,

@@ -76,6 +76,27 @@ func TestBuildGeminiBodySansRecherche(t *testing.T) {
 	}
 }
 
+// TestBuildGeminiBodyThinking — un thinkingBudget > 0 doit ajouter
+// generationConfig.thinkingConfig.thinkingBudget (le mode raisonnement),
+// absent quand le budget est à 0.
+func TestBuildGeminiBodyThinking(t *testing.T) {
+	body := buildGeminiBody(geminiParams{apiKey: "K", model: "m", system: "S", user: "U", thinkingBudget: 8192}, providerStudio)
+	gc := body["generationConfig"].(map[string]any)
+	th, ok := gc["thinkingConfig"].(map[string]any)
+	if !ok {
+		t.Fatalf("thinkingConfig attendu avec budget > 0 : %v", gc)
+	}
+	if th["thinkingBudget"] != int32(8192) {
+		t.Errorf("thinkingBudget attendu 8192, obtenu %v", th["thinkingBudget"])
+	}
+	// Budget à 0 → pas de thinkingConfig.
+	body0 := buildGeminiBody(geminiParams{apiKey: "K", model: "m", system: "S", user: "U"}, providerStudio)
+	gc0 := body0["generationConfig"].(map[string]any)
+	if _, ok := gc0["thinkingConfig"]; ok {
+		t.Errorf("thinkingConfig ne doit pas exister avec budget 0 : %v", gc0)
+	}
+}
+
 // TestBuildGeminiBodyVertex — le corps pour Vertex AI est en camelCase
 // (systemInstruction) et porte l'outil googleSearch : c'est ce qui
 // fait chercher le modèle sur internet sur le chemin payant fiable.

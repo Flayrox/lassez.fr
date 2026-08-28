@@ -1,10 +1,10 @@
 <script setup lang="ts">
-defineProps<{ title?: string; description?: string }>()
+defineProps<{ title?: string; description?: string; padding?: boolean }>()
 </script>
 
 <template>
-  <div class="bg-surface border border-border rounded-card">
-    <div v-if="title || $slots.header" class="flex items-center justify-between px-4 pt-3 pb-2 border-b border-border/60">
+  <div class="bg-surface border border-border rounded-card overflow-hidden">
+    <div v-if="title || $slots.header" class="flex items-center justify-between px-4 pt-3 pb-2 border-b border-border">
       <slot name="header">
         <div>
           <h3 class="text-sm font-medium text-text-1">{{ title }}</h3>
@@ -13,7 +13,7 @@ defineProps<{ title?: string; description?: string }>()
       </slot>
       <slot name="actions" />
     </div>
-    <div :class="title || $slots.header ? 'p-4' : 'p-4'">
+    <div :class="padding === false ? '' : 'p-4'">
       <slot />
     </div>
   </div>

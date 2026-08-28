@@ -7,7 +7,10 @@
       </div>
       <div class="flex gap-2">
         <LButton variant="secondary" @click="importOpen = true">⤓ Importer</LButton>
-        <LButton @click="addOpen = true">+ Ajouter</LButton>
+        <LButton variant="secondary" @click="editMode = !editMode" :class="editMode ? '!border-accent !text-accent' : ''" :title="editMode ? 'Fermer le mode édition' : 'Débloquer les textes pour les modifier directement'">
+          ✎ {{ editMode ? 'Terminer' : 'Éditer' }}
+        </LButton>
+        <LButton @click="startAdd">+ Ajouter</LButton>
       </div>
     </div>
 
@@ -33,16 +36,33 @@
       <table class="w-full text-left border-collapse">
         <thead>
           <tr class="border-y border-border text-[10px] uppercase tracking-wider text-text-3">
-            <th class="px-4 py-2 font-medium w-24">Fiabilité</th>
+            <th class="pl-4 pr-3 py-2 font-medium w-24">Fiabilité</th>
             <th class="py-2 pr-3 font-medium">Source</th>
             <th class="py-2 pr-3 font-medium hidden lg:table-cell">Biais</th>
             <th class="py-2 pr-3 font-medium hidden md:table-cell">Santé</th>
             <th class="py-2 pr-3 font-medium">Active</th>
-            <th class="py-2 px-3"></th>
+            <th class="py-2 pl-3 pr-4"></th>
           </tr>
         </thead>
         <tbody>
-          <tr v-for="s in filtered" :key="s.id" class="border-b border-border/50 hover:bg-surface-hover/50 transition-colors group">
+          <!-- Ligne d'ajout inline : Entrée = valider, Échap = annuler -->
+          <tr v-if="adding" class="border-b border-accent/40 bg-accent-muted/10">
+            <td colspan="6" class="pl-4 pr-4 py-2">
+              <div class="flex items-center gap-2">
+                <input ref="addInput" v-model="newUrl" placeholder="https://exemple.com/rss — Entrée pour valider"
+                  class="flex-1 min-w-0 h-8 bg-bg border border-accent/50 rounded px-2.5 text-xs font-mono text-text-1 placeholder:text-text-3 focus:outline-none focus:border-accent"
+                  @keydown.enter="confirmAdd" @keydown.esc="adding = false" />
+                <span v-if="newUrl.trim() && !duplicateError" class="text-[11px] text-text-3 whitespace-nowrap shrink-0">
+                  <span class="w-2 h-2 rounded-full inline-block align-middle" :class="dotClass(detectTrust(newUrl))"></span>
+                  <span class="capitalize align-middle">{{ trustLabel(detectTrust(newUrl)) }}</span>
+                </span>
+                <LButton size="sm" :disabled="!newUrl.trim() || !!duplicateError" @click="confirmAdd" title="Ajouter">✓</LButton>
+                <LButton size="sm" variant="ghost" @click="adding = false" title="Annuler">✕</LButton>
+              </div>
+              <p v-if="duplicateError" class="text-[11px] text-danger mt-1">{{ duplicateError }}</p>
+            </td>
+          </tr>
+          <tr v-for="s in filtered" :key="s.id" class="border-b border-border/50 hover:bg-surface-hover/50 transition-colors group" :class="editMode ? 'bg-accent-muted/10' : ''">
             <!-- Trust dot : clic pour cycler -->
             <td class="pl-4 py-2">
               <button @click="cycleTrust(s.id)" :title="`Fiabilité ${trustLabel(s.trust)} — cliquer pour changer`"
@@ -52,8 +72,17 @@
               </button>
             </td>
             <td class="py-2.5 pr-3 min-w-0">
-              <p class="text-xs font-medium truncate">{{ hostOf(s.url) }}</p>
-              <a :href="s.url" target="_blank" rel="noopener" class="text-[11px] text-text-3 hover:text-info transition-colors line-clamp-1">{{ s.url }}</a>
+              <input
+                v-if="editMode"
+                :value="s.url"
+                @input="setUrl(s.id, ($event.target as HTMLInputElement).value)"
+                placeholder="https://…"
+                class="w-full h-7 bg-bg border border-accent/50 rounded px-2 text-xs font-mono text-text-1 placeholder:text-text-3 focus:outline-none focus:border-accent transition-colors"
+              />
+              <template v-else>
+                <p class="text-xs font-medium truncate" :title="hostOf(s.url)">{{ hostOf(s.url) }}</p>
+                <a :href="s.url" target="_blank" rel="noopener" class="text-[11px] text-text-3 hover:text-info transition-colors line-clamp-1">{{ s.url }}</a>
+              </template>
             </td>
             <td class="py-2.5 pr-3 hidden lg:table-cell">
               <select :value="s.bias" @change="setBias(s.id, ($event.target as HTMLSelectElement).value)"
@@ -65,7 +94,7 @@
               <LBadge :variant="healthOf(s.url).variant" :title="healthTitle(s.url)">{{ healthOf(s.url).label }}</LBadge>
             </td>
             <td class="py-2.5 pr-3"><LToggle :model-value="s.active" @update:model-value="(v: boolean) => setActive(s.id, v)" /></td>
-            <td class="py-2.5 px-3">
+            <td class="py-2.5 pl-3 pr-4">
               <div class="flex justify-end opacity-0 group-hover:opacity-100 transition-opacity">
                 <LButton variant="ghost" @click="removeOne(s.id)" title="Supprimer">🗑</LButton>
               </div>
@@ -76,24 +105,47 @@
 
       <LEmpty v-if="filtered.length === 0 && !store.loading" icon="◎" title="Aucune source"
         description="Ajoute des flux RSS ou importe une liste d'un coup.">
-        <template #action><LButton @click="addOpen = true">+ Ajouter une source</LButton></template>
+        <template #action><LButton @click="startAdd">+ Ajouter une source</LButton></template>
       </LEmpty>
     </LCard>
 
-    <!-- Comptes X / Telegram / Google News -->
+    <!-- Comptes X / Telegram / Google News — chaque canal a son interrupteur -->
     <div class="grid lg:grid-cols-2 gap-4">
       <LCard title="Chaînes Telegram" description="Sans @, 1 par ligne">
-        <textarea v-model="store.sources.telegram" rows="4" class="w-full bg-bg border border-border rounded px-3 py-2 text-xs font-mono text-text-1 focus:outline-none focus:border-accent/60 focus:ring-2 focus:ring-accent/20" />
+        <template #actions>
+          <LToggle :model-value="store.sources.telegramEnabled" @update:model-value="(v: boolean) => { store.sources.telegramEnabled = v; store.markDirty() }" />
+        </template>
+        <div :class="store.sources.telegramEnabled ? '' : 'opacity-40 pointer-events-none'">
+          <textarea v-model="store.sources.telegram" rows="4" class="w-full bg-bg border border-border rounded px-3 py-2 text-xs font-mono text-text-1 focus:outline-none focus:border-accent/60 focus:ring-2 focus:ring-accent/20" />
+          <p v-if="!store.sources.telegramEnabled" class="text-[11px] text-text-3 mt-1.5">Canal coupé — le robot n'aspire plus ces chaînes.</p>
+        </div>
       </LCard>
       <LCard title="Comptes X à suivre" description="Via RSS-Bridge, handles sans @, 1 par ligne">
-        <textarea v-model="store.sources.xAccounts" rows="4" class="w-full bg-bg border border-border rounded px-3 py-2 text-xs font-mono text-text-1 focus:outline-none focus:border-accent/60 focus:ring-2 focus:ring-accent/20" />
+        <template #actions>
+          <LToggle :model-value="store.sources.xEnabled" @update:model-value="(v: boolean) => { store.sources.xEnabled = v; store.markDirty() }" />
+        </template>
+        <div :class="store.sources.xEnabled ? '' : 'opacity-40 pointer-events-none'">
+          <textarea v-model="store.sources.xAccounts" rows="4" class="w-full bg-bg border border-border rounded px-3 py-2 text-xs font-mono text-text-1 focus:outline-none focus:border-accent/60 focus:ring-2 focus:ring-accent/20" />
+          <p v-if="!store.sources.xEnabled" class="text-[11px] text-text-3 mt-1.5">Canal coupé — les comptes X ne sont plus suivis.</p>
+        </div>
       </LCard>
       <LCard title="Recherches Google News" description="Un mot-clé par ligne (optionnel)">
-        <textarea v-model="store.sources.googleNews" rows="3" placeholder="ex : climat" class="w-full bg-bg border border-border rounded px-3 py-2 text-xs font-mono text-text-1 placeholder:text-text-3 focus:outline-none focus:border-accent/60 focus:ring-2 focus:ring-accent/20" />
+        <template #actions>
+          <LToggle :model-value="store.sources.googleNewsEnabled" @update:model-value="(v: boolean) => { store.sources.googleNewsEnabled = v; store.markDirty() }" />
+        </template>
+        <div :class="store.sources.googleNewsEnabled ? '' : 'opacity-40 pointer-events-none'">
+          <textarea v-model="store.sources.googleNews" rows="3" placeholder="ex : climat" class="w-full bg-bg border border-border rounded px-3 py-2 text-xs font-mono text-text-1 placeholder:text-text-3 focus:outline-none focus:border-accent/60 focus:ring-2 focus:ring-accent/20" />
+          <p v-if="!store.sources.googleNewsEnabled" class="text-[11px] text-text-3 mt-1.5">Canal coupé — les recherches Google News sont ignorées.</p>
+        </div>
       </LCard>
       <LCard title="Serveur RSS-Bridge" description="Convertit les comptes X en flux RSS — requis si tu suis des comptes X">
-        <LInput v-model="bridgeProxy" />
-        <p class="text-[11px] text-text-3 mt-2">Par défaut sur ta machine : http://localhost:3300</p>
+        <template #actions>
+          <LToggle :model-value="store.sources.rssBridgeEnabled" @update:model-value="(v: boolean) => { store.sources.rssBridgeEnabled = v; store.markDirty() }" />
+        </template>
+        <div :class="store.sources.rssBridgeEnabled ? '' : 'opacity-40 pointer-events-none'">
+          <LInput v-model="bridgeProxy" />
+          <p class="text-[11px] text-text-3 mt-2">Par défaut sur ta machine : http://localhost:3300</p>
+        </div>
       </LCard>
     </div>
 
@@ -112,13 +164,13 @@
             <div>
               <p class="text-xs font-medium mb-1">Modèle de pré-filtre</p>
               <select v-model="store.video.prefilterModel" class="w-full h-8 bg-bg border border-border rounded px-2 text-xs focus:outline-none focus:border-accent/60">
-                <option>gemini-2.0-flash</option><option>gemini-3-flash-preview</option>
+                <option v-for="m in store.modelRegistry" :key="m.label" :value="m.label">{{ m.label }}</option>
               </select>
             </div>
             <div>
               <p class="text-xs font-medium mb-1">Modèle de transcription</p>
               <select v-model="store.video.transcribeModel" class="w-full h-8 bg-bg border border-border rounded px-2 text-xs focus:outline-none focus:border-accent/60">
-                <option>gemini-2.0-flash</option><option>gemini-3-flash-preview</option>
+                <option v-for="m in store.modelRegistry" :key="m.label" :value="m.label">{{ m.label }}</option>
               </select>
             </div>
           </div>
@@ -130,23 +182,6 @@
         </template>
       </div>
     </LCard>
-
-    <!-- Modal ajouter -->
-    <LModal :open="addOpen" title="Ajouter une source" @close="addOpen = false">
-      <div class="space-y-3">
-        <LInput label="Adresse du flux RSS" placeholder="https://exemple.com/rss" v-model="newUrl" />
-        <div v-if="newUrl.trim()" class="text-xs text-text-2 flex items-center gap-2">
-          Fiabilité détectée :
-          <span class="inline-flex items-center gap-1.5"><span class="w-2 h-2 rounded-full" :class="dotClass(detectTrust(newUrl))"></span>{{ trustLabel(detectTrust(newUrl)) }}</span>
-          <span class="text-text-3">— modifiable après</span>
-        </div>
-        <p v-if="duplicateError" class="text-xs text-danger">{{ duplicateError }}</p>
-      </div>
-      <template #footer>
-        <LButton variant="secondary" @click="addOpen = false">Annuler</LButton>
-        <LButton :disabled="!newUrl.trim() || !!duplicateError" @click="confirmAdd">Ajouter</LButton>
-      </template>
-    </LModal>
 
     <!-- Modal importer -->
     <LModal :open="importOpen" title="Importer des sources" wide @close="importOpen = false">
@@ -161,7 +196,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, nextTick } from 'vue'
 import { useConfigStore, detectTrust, hostOf, BIAS_VALUES } from '../stores/config'
 import LCard from '../components/ui/LCard.vue'
 import LButton from '../components/ui/LButton.vue'
@@ -175,10 +210,26 @@ import LEmpty from '../components/ui/LEmpty.vue'
 const store = useConfigStore()
 const search = ref('')
 const trustFilter = ref<'all' | 'high' | 'medium' | 'low'>('all')
-const addOpen = ref(false)
+const adding = ref(false)
+const addInput = ref<HTMLInputElement | null>(null)
 const importOpen = ref(false)
 const newUrl = ref('')
 const csvPaste = ref('')
+const editMode = ref(false)
+
+async function startAdd() {
+  adding.value = true
+  newUrl.value = ''
+  await nextTick()
+  addInput.value?.focus()
+}
+
+function setUrl(id: string, v: string) {
+  const s = store.sources.list.find(x => x.id === id)
+  if (!s) return
+  s.url = v
+  store.markDirty()
+}
 
 
 const filtered = computed(() =>
@@ -245,7 +296,7 @@ function confirmAdd() {
   store.sources.list.unshift({ id: Math.random().toString(36).slice(2, 9), url, trust: detectTrust(url), active: true })
   store.markDirty()
   newUrl.value = ''
-  addOpen.value = false
+  adding.value = false
 }
 function doImport() {
   const urls = csvPaste.value.split('\n').map(u => u.trim()).filter(Boolean)

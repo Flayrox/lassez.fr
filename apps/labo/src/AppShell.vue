@@ -33,6 +33,7 @@ const navGroups = [
   {
     title: '⚙️ Transforme',
     items: [
+      { to: '/pipeline', label: 'Pipeline', icon: '⇶' },
       { to: '/atelier', label: 'Atelier', icon: '⬢' },
       { to: '/ecriture', label: 'Écriture', icon: '✎' },
     ],

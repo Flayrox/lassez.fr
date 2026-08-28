@@ -14,6 +14,9 @@ Tout ce qui est décidé en session mais pas encore implémenté. Coche au fur e
 
 ## ✅ Fait récemment (mémoire)
 
+- **Clé API Gemini gérable depuis le studio** (Système) : champ mot de passe → `.secrets.yaml`, statut actif/en pause, bouton « Tester la clé » (vrai appel Google via `POST /api/gemini/test`).
+- **Les nœuds IA reçoivent enfin la matière première** : le researcher et l'éditorialiste ne voyaient que le titre du cluster (le mergedTopic persisté ne contenait ni excerpt ni source_content) — ils rédigent maintenant sur les extraits RSS + le **contenu complet** des 2 meilleures sources (go-readability), et le researcher reçoit le biais/confiance de chaque source (règle CRITICAL_CROSSCHECK opérationnelle).
+
 - Bouton « tester ce flux » ▶ par source (daemon `POST /api/sources/test` + modal de résultats dans le labo).
 
 - Autosave fiable avec indicateur visible dans la topbar (✓ Enregistré / Enregistrement… / erreur claire) + rattrapage auto quand le daemon revient.

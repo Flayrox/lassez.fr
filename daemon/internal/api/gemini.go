@@ -37,3 +37,32 @@ func (srv *Server) testGemini(w http.ResponseWriter, r *http.Request) {
 		"reply":     reply,
 	})
 }
+
+// testVertex — POST /api/vertex/test → {ok:true, latencyMs, reply, project,
+// region, model} ou {ok:false, error}. Teste le secours Vertex AI (compte de
+// service Google Cloud) sur le MÊME chemin que le pipeline, recherche web
+// comprise.
+func (srv *Server) testVertex(w http.ResponseWriter, r *http.Request) {
+	vc := nodes.VertexAIConfig(srv.Resolver)
+	if vc == nil {
+		writeJSON(w, 200, map[string]any{
+			"ok":    false,
+			"error": "Aucun compte de service Vertex AI configuré. Colle le JSON dans Système → Vertex AI (secours), puis enregistre.",
+		})
+		return
+	}
+
+	latency, reply, err := nodes.PingVertex(r.Context(), vc)
+	if err != nil {
+		writeJSON(w, 200, map[string]any{"ok": false, "error": err.Error()})
+		return
+	}
+	writeJSON(w, 200, map[string]any{
+		"ok":        true,
+		"model":     "gemini-3.5-flash-lite",
+		"latencyMs": latency,
+		"reply":     reply,
+		"project":   vc.ProjectID,
+		"region":    vc.Region,
+	})
+}

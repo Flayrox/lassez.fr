@@ -44,6 +44,7 @@ func New(client *payload.Client, cfgPath string, resolver *config.Resolver) *Ser
 	srv.Mux.HandleFunc("GET /api/sources-health", srv.listSourceHealth)
 	srv.Mux.HandleFunc("POST /api/sources/test", srv.testSource)
 	srv.Mux.HandleFunc("POST /api/gemini/test", srv.testGemini)
+	srv.Mux.HandleFunc("POST /api/vertex/test", srv.testVertex)
 	srv.Mux.HandleFunc("POST /api/scan", srv.triggerScan)
 	srv.Mux.HandleFunc("GET /api/system-health", srv.systemHealth)
 	srv.Mux.HandleFunc("GET /api/cycles", srv.listCycles)

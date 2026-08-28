@@ -16,6 +16,18 @@ Tout ce qui est décidé en session mais pas encore implémenté. Coche au fur e
 
 - [ ] **Vérifier la doc de l'opérationnel** : comptes X et chaînes Telegram nécessitent un serveur RSS-Bridge qui tourne (adresse dans Sources → Serveur RSS-Bridge, défaut `http://localhost:3300`). À documenter dans le README (comment l'installer/lancer).
 
+## 💡 Idées (brainstorm — pas encore priorisées)
+
+- **Mémoire éditoriale** : injecter dans le prompt de rédaction les titres déjà publiés des 30 derniers jours — évite les redites, permet les « suites » d'enquêtes. Aujourd'hui chaque article est écrit sans savoir ce qui a déjà été publié.
+- **Boucle de rétroaction humaine** : dans Signaux, un rejet rapide en 1 clic (« mauvais sujet / mal rédigé / doublon / hors ligne éditoriale ») qui alimente un réglage progressif des prompts.
+- **🔒 Sécurité : binder l'API du daemon sur 127.0.0.1** — `LABO_API_ADDR` par défaut `:2506` écoute sur TOUTES les interfaces (exposé en prod si pas de pare-feu).
+- **Retry intelligent JSON** : quand Gemini renvoie du JSON invalide, renvoyer le prompt avec l'erreur au lieu de laisser le sujet attendre le cycle suivant.
+- **Priorisation par format** : dans la file de rédaction, traiter ALERTE avant INFO (les sujets graves d'abord).
+- **Check des images avant publication** : HEAD request sur l'URL image pour ne pas publier d'image morte.
+- **Budget recherche web par nœud** : toggle séparé tri / rédaction / vérification (le grounding coûte, un gros backlog peut faire exploser le budget).
+- **Vue « déjà publié »** dans Signaux : filtre + lien vers l'article publié (qoe.fi).
+- **Verrou de cycle** : empêcher deux cycles simultanés (scan manuel + programmé) de se marcher dessus.
+
 ## ✅ Fait récemment (mémoire)
 
 - **Recherche web RÉELLE à chaque appel IA** : grounding Google Search natif de l'API REST Gemini (`tools:[{google_search:{}}]` — le SDK Go ne l'expose pas, on appelle l'API directement). Le Tri, la Rédaction et la Vérification cherchent maintenant sur internet à chaque sujet (vérif des faits, passif des protagonistes).

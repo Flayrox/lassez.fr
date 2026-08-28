@@ -95,8 +95,11 @@
             </td>
             <td class="py-2.5 pr-3"><LToggle :model-value="s.active" @update:model-value="(v: boolean) => setActive(s.id, v)" /></td>
             <td class="py-2.5 pl-3 pr-4">
-              <div class="flex justify-end opacity-0 group-hover:opacity-100 transition-opacity">
-                <LButton variant="ghost" @click="removeOne(s.id)" title="Supprimer">🗑</LButton>
+              <div class="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <LButton variant="ghost" size="sm" :disabled="testingId === s.id" :title="testingId === s.id ? 'Test en cours…' : 'Tester ce flux (aspiration isolée, sans lancer un cycle)'" @click="testSource(s)">
+                  {{ testingId === s.id ? '…' : '▶' }}
+                </LButton>
+                <LButton variant="ghost" size="sm" @click="removeOne(s.id)" title="Supprimer">🗑</LButton>
               </div>
             </td>
           </tr>
@@ -183,6 +186,33 @@
       </div>
     </LCard>
 
+    <!-- Modal résultat du test de flux -->
+    <LModal :open="testModal" title="Test du flux" wide @close="testModal = false">
+      <div v-if="testError" class="border border-danger/40 bg-danger/10 rounded-lg p-3 mb-3">
+        <p class="text-xs font-medium text-danger">❌ Aspiration impossible</p>
+        <p class="text-[11px] text-text-2 mt-1 font-mono break-all">{{ testError }}</p>
+        <p class="text-[11px] text-text-3 mt-2">Vérifie l'URL, que le site répond, et que RSS-Bridge tourne (comptes X / Telegram).</p>
+      </div>
+      <template v-else-if="testResult">
+        <div class="flex items-center justify-between gap-2 mb-1">
+          <p class="text-sm font-semibold truncate" :title="testResult.title">{{ testResult.title || 'Flux sans titre' }}</p>
+          <span class="text-[11px] text-text-3 whitespace-nowrap shrink-0">{{ testResult.fetchMs }} ms</span>
+        </div>
+        <p class="text-[11px] text-text-3 font-mono truncate mb-3" :title="testResult.url">{{ testResult.url }}</p>
+        <p class="text-xs text-text-2 mb-2">{{ testResult.articles.length }} article{{ testResult.articles.length > 1 ? 's' : '' }} récent{{ testResult.articles.length > 1 ? 's' : '' }}<span v-if="testResult.skipped"> · {{ testResult.skipped }} ignoré{{ testResult.skipped > 1 ? 's' : '' }} (sans titre/lien)</span></p>
+        <ul v-if="testResult.articles.length" class="space-y-2 max-h-80 overflow-y-auto pr-1">
+          <li v-for="(a, i) in testResult.articles" :key="i" class="border border-border rounded-lg p-2.5 bg-bg/40">
+            <a :href="a.link" target="_blank" rel="noopener" class="text-xs font-medium text-text-1 hover:text-info transition-colors line-clamp-2">{{ a.title }}</a>
+            <p class="text-[11px] text-text-3 mt-0.5">{{ a.publishedAt ? new Date(a.publishedAt).toLocaleString('fr-FR') : 'date inconnue' }}</p>
+          </li>
+        </ul>
+        <p v-else class="text-xs text-text-3">Le flux répond mais ne contient aucun article exploitable (titre + lien requis).</p>
+      </template>
+      <template #footer>
+        <LButton variant="secondary" @click="testModal = false">Fermer</LButton>
+      </template>
+    </LModal>
+
     <!-- Modal importer -->
     <LModal :open="importOpen" title="Importer des sources" wide @close="importOpen = false">
       <p class="text-xs text-text-2 mb-3">Colle une liste d'URLs (une par ligne). Les doublons sont ignorés, la fiabilité détectée automatiquement.</p>
@@ -216,6 +246,49 @@ const importOpen = ref(false)
 const newUrl = ref('')
 const csvPaste = ref('')
 const editMode = ref(false)
+
+// Test isolé d'un flux (bouton ▶ par ligne) — POST /api/sources/test.
+interface SourceTestArticle {
+  title: string
+  link: string
+  publishedAt?: string
+  snippet?: string
+}
+interface SourceTestResult {
+  url: string
+  title?: string
+  articles: SourceTestArticle[]
+  skipped?: number
+  fetchMs?: number
+}
+const testingId = ref<string | null>(null)
+const testModal = ref(false)
+const testResult = ref<SourceTestResult | null>(null)
+const testError = ref('')
+
+async function testSource(s: { id: string; url: string }) {
+  testingId.value = s.id
+  testError.value = ''
+  testResult.value = null
+  try {
+    const res = await fetch('/api/sources/test', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: s.url, type: 'RSS' }),
+    })
+    const data = await res.json()
+    if (data.ok && data.result) {
+      testResult.value = data.result
+    } else {
+      testError.value = data.error || 'Erreur inconnue du daemon'
+    }
+  } catch {
+    testError.value = 'Impossible de contacter le daemon (il est peut-être arrêté)'
+  } finally {
+    testingId.value = null
+    testModal.value = true
+  }
+}
 
 async function startAdd() {
   adding.value = true

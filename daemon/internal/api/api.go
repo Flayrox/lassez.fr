@@ -42,6 +42,7 @@ func New(client *payload.Client, cfgPath string, resolver *config.Resolver) *Ser
 	srv.Mux.HandleFunc("GET /api/secrets", srv.getSecrets)
 	srv.Mux.HandleFunc("PATCH /api/secrets", srv.patchSecrets)
 	srv.Mux.HandleFunc("GET /api/sources-health", srv.listSourceHealth)
+	srv.Mux.HandleFunc("POST /api/sources/test", srv.testSource)
 	srv.Mux.HandleFunc("POST /api/scan", srv.triggerScan)
 	srv.Mux.HandleFunc("GET /api/system-health", srv.systemHealth)
 	srv.Mux.HandleFunc("GET /api/cycles", srv.listCycles)
@@ -204,6 +205,32 @@ func (srv *Server) listSourceHealth(w http.ResponseWriter, _ *http.Request) {
 		return
 	}
 	writeJSON(w, 200, map[string]any{"data": health})
+}
+
+// testSource — « tester ce flux » : parse isolément une URL (ou un mot-clé
+// Google News / handle X / chaîne Telegram) et renvoie les derniers articles.
+// Aucun effet de bord (pas de santé, pas de seen URLs, pas de pipeline).
+// Retourne 200 même en cas d'échec d'aspiration, avec ok:false + error.
+func (srv *Server) testSource(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		URL  string `json:"url"`
+		Type string `json:"type"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, 400, map[string]any{"error": "corps JSON invalide : " + err.Error()})
+		return
+	}
+	req.URL = strings.TrimSpace(req.URL)
+	if req.URL == "" {
+		writeJSON(w, 400, map[string]any{"error": "url manquante"})
+		return
+	}
+	result, err := nodes.TestSource(req.URL, req.Type, srv.Resolver)
+	if err != nil {
+		writeJSON(w, 200, map[string]any{"ok": false, "url": req.URL, "error": err.Error()})
+		return
+	}
+	writeJSON(w, 200, map[string]any{"ok": true, "result": result})
 }
 
 func (srv *Server) healthz(w http.ResponseWriter, _ *http.Request) {

@@ -6,6 +6,7 @@ import Ecriture from './views/Ecriture.vue'
 import Diffusion from './views/Diffusion.vue'
 import Systeme from './views/Systeme.vue'
 import Signaux from './views/Signaux.vue'
+import Pipeline from './views/Pipeline.vue'
 
 export const router = createRouter({
   history: createWebHistory(),
@@ -15,10 +16,10 @@ export const router = createRouter({
     { path: '/atelier', component: Atelier },
     { path: '/sources', component: Sources },
     { path: '/ecriture', component: Ecriture },
+    { path: '/pipeline', component: Pipeline },
     { path: '/diffusion', component: Diffusion },
     { path: '/systeme', component: Systeme },
     // redirects anciens chemins (Filtres/Formats/Partage/Planning/Users fusionnés)
-    { path: '/pipeline', redirect: '/atelier' },
     { path: '/filtres', redirect: '/atelier' },
     { path: '/ia', redirect: '/ecriture' },
     { path: '/formats', redirect: '/ecriture' },

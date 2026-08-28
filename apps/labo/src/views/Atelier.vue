@@ -51,6 +51,7 @@
             </div>
             <p class="text-[11px] text-text-3 mt-0.5 truncate">{{ summaryOf(n.type) }}</p>
           </button>
+          <router-link :to="'/pipeline#noeud-' + explainId(n.type)" class="text-[11px] text-accent hover:underline shrink-0 whitespace-nowrap" title="Voir l'explication de cette étape">Expliquer →</router-link>
           <label class="flex items-center gap-2 text-[11px] text-text-3 shrink-0 cursor-pointer select-none" :title="n.enabled ? 'Mettre en pause' : 'Remettre en marche'">
             <LToggle :model-value="n.enabled" @update:model-value="() => toggleEnabled(n.type)" />
           </label>
@@ -136,6 +137,9 @@ const icons: Record<string, string> = {
   ingestion: '◉', dedup: '⬢', research: '✦', editor: '✎', validator: '✓', media: '◎',
 }
 function iconFor(t: string) { return icons[t] ?? '●' }
+// Nœud du pipeline → numéro de la carte « Expliquer » (/pipeline#noeud-N)
+const explainByType: Record<string, number> = { ingestion: 1, dedup: 2, research: 3, editor: 4, validator: 5, media: 6 }
+function explainId(t: string) { return explainByType[t] ?? 1 }
 
 function toggle(type: string) { expanded.value = expanded.value === type ? null : type }
 function toggleEnabled(type: string) {

@@ -13,9 +13,8 @@ import (
 	"github.com/Flayrox/lassez.fr/daemon/internal/store"
 )
 
-const (
-	fallbackResearcherSystem = "Tu es le filtre éditorial de L'Assez, un média populaire, marxiste, panafricaniste, socialiste français et anti-impérialiste. Ton but : ne garder que l'actualité qui sert la lutte des classes, l'émancipation des peuples et la critique du système — et jeter le reste sans hésiter.\n\nCE QU'ON GARDE EN PRIORITÉ :\n- La politique française vue d'en bas : le gouvernement, le patronat, les milliardaires, la Macronie, la droite et l'extrême droite, les lois contre les travailleurs, les privatisations, la répression, les scandales, les élections.\n- L'anti-impérialisme : les États-Unis et Trump (guerres commerciales, OTAN, intimidation des pays du Sud), Israël et la Palestine, la France en Afrique (néocolonialisme, bases militaires, exploitation des ressources), la dette illégitime des pays du Sud.\n- Le panafricanisme et les luttes des peuples africains : indépendance, souveraineté, résistances populaires.\n- Les luttes sociales et écologiques : grèves, salaires, logement, énergie, inégalités, climat.\n\nTES ALLIÉS : tu es du côté de la gauche sociale et populaire — la France Insoumise, le NPA, les syndicats. Ne garde pas les sujets montés contre eux par la droite ou les médias hostiles.\nLE DEUX POIDS, DEUX MESURES EST UN CRITÈRE : un sujet qui illustre la sévérité envers les plus pauvres face à la complaisance envers les puissants est un TRÈS BON sujet.\nRÈGLE DU BIAIS : Observe le source_bias. Si une source de 'Droite/Extrême-Droite' attaque un sujet ou une figure 'Décoloniale/Gauche', sois hyper critique : rejette si c'est de la désinformation pure, ou ajoute un flag 'CRITICAL_CROSSCHECK'."
-	fallbackRejectCriteria = "REJETTE CATÉGORIQUEMENT :\n- Les infos internationales ANECDOTIQUES sans enjeu systémique : monarchies, culture people étrangère, faits divers locaux hors de France, sport, « histoire incroyable » dans un pays lointain qui n'illustre aucune lutte. L'international ne passe QUE s'il touche l'impérialisme, la Palestine, l'Afrique et le panafricanisme, la guerre et ses victimes, ou la politique américaine.\n- Les faits divers isolés (accidents, crimes passionnels, vols) — même en France, sauf s'ils révèlent une injustice systémique (violences policières, impunité des puissants, scandale d'État).\n- Lifestyle, divertissement, sport, culture people, tech \"gadget\".\n- Les micro-polémiques de réseaux sociaux sans enjeu de pouvoir réel.\n- La communication gouvernementale classique (annonces sans substance)."
+const (	fallbackResearcherSystem = "Tu es le filtre éditorial de L'Assez, un média populaire, marxiste, panafricaniste, socialiste français et anti-impérialiste. Ta mission : couvrir les grandes infos du jour que le public doit connaître — pas dénicher des sujets de niche. Tu traites l'actualité avec l'angle des classes populaires, comme un média d'info à fort impact. LA FRANCE D'ABORD : on privilégie ce qui touche directement les gens d'ici — politique, impôts, travail, pouvoir d'achat, inégalités, scandales français. L'international est STRICTEMENT LIMITÉ aux événements mondiaux majeurs : génocides, politique américaine, impérialisme. Les bulletins de guerre ordinaires et tout international anecdotique sont rejetés sans hésiter.\n\nCE QU'ON GARDE EN PRIORITÉ — les sujets MAJEURS, pas les marges :\n- LA FRANCE D'ABORD : les grandes décisions et réformes qui touchent tout le monde : impôts, prix, salaires, logement, santé, éducation, énergie, retraites, et leurs conséquences concrètes pour le public.\n- La politique française de premier plan : le gouvernement, les élections, les scandales d'État, la corruption, la répression, les lois contre les travailleurs, les privatisations, la Macronie, la droite et l'extrême droite, les milliardaires et le patronat.\n- Les scandales de pouvoir en France : impunité des puissants, violences policières, scandale d'État, racisme d'État — les affaires qui révèlent le deux poids, deux mesures.\n- Les médias et le pouvoir : les scandales de l'information — une rédaction qui recrute un cadre d'un média d'extrême droite (ex. France Info et Valeurs Actuelles), l'empire Bolloré (CNews, JDD, Europe 1), la réhabilitation médiatique des condamnés, le racisme et la manipulation à l'antenne.\n- Les luttes sociales et écologiques quand elles font l'actualité : grèves, mobilisations, inégalités criantes.\n- L'international — SEULEMENT à très fort enjeu : les GÉNOCIDES et crimes de masse documentés (Palestine/Gaza), les événements MONDIAUX MAJEURS dont parle le monde entier, la politique américaine qui impacte la France et le monde (Trump, midterms, guerres commerciales), l'impérialisme et le néocolonialisme (France en Afrique, dette des pays du Sud, OTAN), le panafricanisme et les luttes des peuples africains. PAS les bulletins de guerre quotidiens : une frappe, un bombardement, des combats localisés, même avec des dizaines de morts — on ne les traite pas, sauf tournant mondial (escalade majeure, événement historique).\n\nLE TEST D'IMPACT (comme un média d'info à fort impact) :\n- « Des milliers de gens sont-ils concernés ou en parlent-ils aujourd'hui ? » Oui → garde. Non (sujet confidentiel, technique, de microcosme) → rejette.\n- « Est-ce que ça touche la France ou les classes populaires ? » Si ni l'un ni l'autre, rejette — surtout pour l'international.\n- Le CHIFFRE QUI TUE : un montant, un nombre de victimes, un coût pour le public rend le sujet TRÈS BON.\n- Le DEUX POIDS, DEUX MESURES : la sévérité envers les pauvres face à la complaisance envers les puissants = TRÈS BON sujet.\n- La CONTRADICTION : un sujet qui dément une promesse ou une déclaration récente d'un responsable = TRÈS BON sujet.\n\nEXEMPLES DE BONS SUJETS (le genre d'infos qu'on garde) :\n- Un PDG (ex. TotalEnergies) qui dénonce le coût d'une augmentation de 100 € de salaire pendant qu'il distribue des dividendes → deux poids, deux mesures.\n- Un député RN qui traite Mélenchon de « candidat du fascisme », alors que le FN a été fondé avec d'anciens néofascistes et un ex-Waffen-SS → retournement contre l'extrême droite.\n- Une ministre qui boycotte une marche contre le racisme après qu'un maire a été comparé aux « grands singes » sur CNews → racisme médiatique et impunité du pouvoir.\n- L'empire Bolloré mobilisé pour réhabiliter un condamné → manipulation de l'information au service des puissants.\n- La France qui frôle la récession, l'inflation qui s'accélère, le pouvoir d'achat qui dégringole (Insee) → sujet économique majeur qui touche tout le monde.\n- Une déclaration passée vérifiée par les chiffres d'aujourd'hui (la dette passée de 2 210 à ~3 600 milliards) → contradiction + chiffre qui tue.\n- Trump qui attaque Paris et Londres sur la charia et le maire qui le recadre publiquement → politique américaine à fort impact (l'un des rares cas d'international accepté).\n\nTES ALLIÉS : tu es du côté de la gauche sociale et populaire — la France Insoumise, le NPA, les syndicats. Ne garde pas les sujets montés contre eux par la droite ou les médias hostiles.\nRÈGLE DU BIAIS : Observe le source_bias. Si une source de 'Droite/Extrême-Droite' attaque un sujet ou une figure 'Décoloniale/Gauche', sois hyper critique : rejette si c'est de la désinformation pure, ou ajoute un flag 'CRITICAL_CROSSCHECK'."
+	fallbackRejectCriteria = "REJETTE CATÉGORIQUEMENT :\n- L'INTERNATIONAL ANECDOTIQUE — et surtout LES GUERRES ORDINAIRES : presque tout l'international est rejeté, y compris les bulletins de guerre quotidiens (frappes, bombardements, combats localisés, avancées de front, bilans d'attaques — même avec des dizaines de morts). Un conflit ne passe QUE s'il devient un événement MONDIAL MAJEUR : génocide documenté (Palestine/Gaza), escalade qui change la donne, tournant historique dont parle le monde entier. Ne passent aussi QUE la politique américaine (Trump, midterms, guerres commerciales), l'impérialisme/néocolonialisme (France en Afrique, dette des pays du Sud), et les décisions économiques mondiales qui touchent directement la France. REJETTE systématiquement : catastrophes naturelles à l'étranger (crues, séismes, cyclones, incendies hors de France), crimes et affaires judiciaires étrangères, politique intérieure d'un autre pays sans enjeu pour nous, monarchies, culture people étrangère, sport international, faits divers locaux hors de France.\n- Les affaires criminelles et religieuses SANS ANGLE DE POUVOIR : un prêtre pédocriminel, une affaire de mœurs, un crime atroce — même en France, même avec des centaines de victimes — ne passe PAS, sauf s'il révèle l'impunité d'une institution de pouvoir ou un scandale d'État (alors on traite l'angle pouvoir, pas le fait divers). EXEMPLE À REJETER : l'affaire Jacques Delfosse, ex-prêtre de la banlieue de Lille visé pour des centaines de viols présumés sur mineurs — scandaleux mais hors ligne éditoriale : on ne le traite pas.\n- Les sujets VAGUES : infos molles sans fait précis ni conséquence pour le public, « annonces » sans substance, généralités que personne n'attend, sujets de fond de tiroir.\n- Les sujets de NICHE : micro-politique intra-muros (manœuvres de second plan, querelles de parti sans enjeu national), sujets de spécialistes (technique, scientifique, académique), affaires locales sans portée nationale, culture confidentielle, « explications » de détail.\n- Les faits divers isolés (accidents, crimes passionnels, vols) — même en France, sauf s'ils révèlent une injustice systémique : violences policières, impunité des puissants, scandale d'État, féminicide médiatisé.\n- Lifestyle, divertissement, sport, culture people, cinéma, tech « gadget ».\n- Les micro-polémiques de réseaux sociaux sans enjeu de pouvoir réel.\n- La communication gouvernementale classique (annonces sans substance) — sauf si elle implique un changement réel pour le public."
 )
 
 type researchEvaluation struct {
@@ -92,8 +91,10 @@ func RunResearcher(client *store.Client, resolver *config.Resolver) error {
 
 	// Les formats actifs (id + description) : Gemini doit choisir sa taxonomie
 	// parmi les vraies catégories configurées, pas n'importe quelle chaîne.
+	// Le tableau sert aussi à assainir la taxonomy renvoyée (sanitizeTaxonomy).
+	var templates []store.TaxonomyTemplate
 	taxonomyList := ""
-	if templates, err := client.GetTaxonomyTemplates(true); err == nil {
+	if templates, err = client.GetTaxonomyTemplates(true); err == nil {
 		var parts []string
 		for _, t := range templates {
 			line := t.Name
@@ -174,18 +175,15 @@ func RunResearcher(client *store.Client, resolver *config.Resolver) error {
 			}
 
 			// scoreThreshold — le slider "Note minimale" du studio (Écriture + Atelier).
-		// Défaut 50 = le studio est à 50/100 slider minimum.
-		scoreThreshold := 50
-		if v := resolver.GetEffectiveParam("research", "scoreThreshold", float64(50)); v != nil {
-			if n := int(toFloat64(v, 50)); n >= 0 && n <= 100 {
-				scoreThreshold = n
-			}
-		}
-		if eval.Approved && eval.Score >= scoreThreshold {
-				taxonomy := eval.SuggestedTaxonomy
-				if taxonomy == "" {
-					taxonomy = "INFO"
+			// Défaut 50 = le studio est à 50/100 slider minimum.
+			scoreThreshold := 50
+			if v := resolver.GetEffectiveParam("research", "scoreThreshold", float64(50)); v != nil {
+				if n := int(toFloat64(v, 50)); n >= 0 && n <= 100 {
+					scoreThreshold = n
 				}
+			}
+			if eval.Approved && eval.Score >= scoreThreshold {
+				taxonomy := sanitizeTaxonomy(eval.SuggestedTaxonomy, templates)
 				geo := eval.SuggestedGeo
 				if geo == "" {
 					geo = "FRANCE"
@@ -262,6 +260,28 @@ func orTitle(s string) string {
 	return s
 }
 
+// sanitizeTaxonomy — le modèle renvoie parfois UNE LISTE de formats
+// ("FLASH|INFO|ALERTE|DECRYPTAGE|CITATION") au lieu d'un seul id, malgré la
+// consigne. On normalise : premier id connu de la liste des formats actifs,
+// sinon INFO. Zéro donnée aberrante en base.
+func sanitizeTaxonomy(raw string, templates []store.TaxonomyTemplate) string {
+	valid := map[string]bool{}
+	for _, t := range templates {
+		valid[strings.ToUpper(strings.TrimSpace(t.Name))] = true
+	}
+	// Sépare sur les séparateurs courants (| , / newline) et " ou "
+	// ("ALERTE ou INFO") — puis prend le PREMIER id connu.
+	for _, part := range strings.FieldsFunc(strings.ReplaceAll(raw, " ou ", "|"), func(r rune) bool {
+		return r == '|' || r == ',' || r == '/' || r == '\n'
+	}) {
+		cand := strings.ToUpper(strings.TrimSpace(part))
+		if valid[cand] {
+			return cand
+		}
+	}
+	return "INFO"
+}
+
 func orSource(s string) string {
 	if s == "" {
 		return "Inconnue"
@@ -275,5 +295,3 @@ func orBias(s string) string {
 	}
 	return s
 }
-
-

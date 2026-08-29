@@ -10,9 +10,7 @@
     "dev:all": "concurrently -n lassez,labo -c red,blue \"npm:dev\" \"npm:dev:labo\"",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
-    "deploy": "node scripts/deploy_vps_unified.cjs",
-    "deploy:vps": "node scripts/deploy_vps_unified.cjs"
+    "lint": "next lint"
   },
   "dependencies": {
     "autoprefixer": "^10.4.19",

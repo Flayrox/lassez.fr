@@ -8,11 +8,12 @@
 // SDK, plus le grounding).
 //
 // Deux fournisseurs (providers) sont supportés, testés dans l'ordre :
-//  1. AI Studio (generativelanguage.googleapis.com) avec une clé API — gratuit ;
-//  2. Vertex AI / Gemini Enterprise Agent Platform (aiplatform.googleapis.com)
-//     avec un compte de service Google Cloud — payant, « marche à coup sûr ».
-//     Utilisé automatiquement quand la clé AI Studio est absente, épuisée
-//     (crédits depleted) ou invalide : le pipeline ne s'arrête jamais.
+//  1. Vertex AI / Gemini Enterprise Agent Platform (aiplatform.googleapis.com)
+//     avec un compte de service Google Cloud — payant, « marche à coup sûr »,
+//     SOURCE PRINCIPALE quand un compte est configuré.
+//  2. AI Studio (generativelanguage.googleapis.com) avec une clé API — gratuit,
+//     utilisé en repli si Vertex est absent ou échoue : le pipeline ne s'arrête
+//     jamais.
 package nodes
 
 import (
@@ -157,34 +158,37 @@ func buildGeminiBody(p geminiParams, prov geminiProvider) map[string]any {
 // callGemini exécute un appel génération, retourne le texte produit.
 // Deux niveaux de repli pour ne JAMAIS stagner :
 //
-// Niveau 1 — le fournisseur : AI Studio d'abord (clé API, gratuit), puis
-// Vertex AI si un compte de service est configuré ET que la clé AI Studio
-// échoue pour n'importe quelle raison (quota, crédits épuisés, clé morte).
+// Niveau 1 — le fournisseur : Vertex AI d'abord (compte de service, source
+// principale) quand il est configuré, puis AI Studio si Vertex échoue pour
+// n'importe quelle raison. Sans Vertex configuré, seul AI Studio est utilisé.
 //
 // Niveau 2 — dans chaque fournisseur :
 //  1. La recherche web (grounding) échoue par quota (429) → on réessaie SANS
 //     l'outil, l'IA travaille alors sur la matière première seule.
 //  2. Le modèle est hors quota sur le compte → repli sur modelFallback.
 func callGemini(ctx context.Context, p geminiParams) (string, error) {
-	var studioErr error
-	if p.apiKey != "" {
-		text, err := callGeminiWithFallbacks(ctx, p, providerStudio)
+	var fallbackErr error
+	// Vertex AI d'abord (source principale) quand un compte de service est
+	// configuré — fiable, ne dépend pas des crédits AI Studio. AI Studio reste
+	// le repli système (gratuit) si Vertex échoue ou n'est pas configuré.
+	if p.vertex != nil {
+		text, err := callGeminiWithFallbacks(ctx, p, providerVertex)
 		if err == nil {
 			return text, nil
 		}
-		studioErr = err
-		if p.vertex == nil {
+		fallbackErr = err
+		if p.apiKey == "" {
 			return "", err
 		}
-		log.Printf("[Gemini] ⚠️ AI Studio indisponible (%v) — bascule sur Vertex AI.", err)
-	} else if p.vertex == nil {
-		return "", fmt.Errorf("aucune configuration Gemini : ni clé AI Studio ni compte de service Vertex AI")
+		log.Printf("[Gemini] ⚠️ Vertex AI indisponible (%v) — bascule sur AI Studio.", err)
+	} else if p.apiKey == "" {
+		return "", fmt.Errorf("aucune configuration Gemini : ni compte de service Vertex AI ni clé AI Studio")
 	}
 
-	text, err := callGeminiWithFallbacks(ctx, p, providerVertex)
+	text, err := callGeminiWithFallbacks(ctx, p, providerStudio)
 	if err != nil {
-		if studioErr != nil {
-			return "", fmt.Errorf("AI Studio : %v — puis Vertex AI : %v", studioErr, err)
+		if fallbackErr != nil {
+			return "", fmt.Errorf("Vertex AI : %v — puis AI Studio : %v", fallbackErr, err)
 		}
 		return "", err
 	}

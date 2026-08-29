@@ -7,17 +7,11 @@ ingestion:
     concurrency: 5 # pLimit historique du code TS
     sources:
         rss: ["https://www.france24.com/en/rss", "https://www.rfi.fr/en/rss", "https://www.lemonde.fr/rss/une.xml", "https://www.mediapart.fr/articles/feed", "https://www.francetvinfo.fr/titres.rss", "https://www.humanite.fr/rss", "https://www.la-croix.com/RSS", "http://tempsreel.nouvelobs.com/rss.xml", "https://basta.media/spip.php?page=backend", "https://reporterre.net/spip.php?page=backend"]
-        telegram: ["//"] # via RSS-Bridge local (localhost:3300) — comptes X suivis :
-        xAccounts: # x_accounts (passaient par TwitterBridge en Atom)
-            - JLMelenchon
-            - MathildePanot
-            - RimaHas
-            - Manuel_Bompard
-            - FranceInsoumise
-            - ImpactMediaFR
+        telegram: [] # via RSS-Bridge local (localhost:3300) — comptes X suivis :
+        xAccounts: []
         googleNews: []
-    "rssBridgeUrl": "http://localhost:3300"
-    "channels": {"telegram": true, "x": true, "googleNews": true, "rssBridge": true}
+    "rssBridgeUrl": "" # x_accounts (passaient par TwitterBridge en Atom)
+    "channels": {"telegram": false, "x": false, "googleNews": true, "rssBridge": false}
 dedup:
     similarityThreshold: 0.65 # dedup_similarity_threshold = 0.65
     lookbackHours: 10 # dedup_recent_hours = 10

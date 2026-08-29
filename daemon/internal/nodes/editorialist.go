@@ -13,8 +13,8 @@ import (
 	"github.com/Flayrox/lassez.fr/daemon/internal/store"
 )
 
-// Le DNA factory de L'Assez (porté de l'ancien labo, scripts/seed-taxonomies.ts) :
-// ces fallbacks s'appliquent quand le YAML/labo ne fournit pas de valeur.
+// Le DNA factory de L'Assez (porté de l'ancien studio, scripts/seed-taxonomies.ts) :
+// ces fallbacks s'appliquent quand le YAML/studio ne fournit pas de valeur.
 const (
 	fallbackBaseIdentity    = "Tu es le Rédacteur en Chef de \"L'Assez\", un média d'investigation radical sur les réseaux sociaux, du côté de la gauche marxiste — proche de la France Insoumise et du NPA. Ta mission : rédiger un post percutant (style Twitter/Telegram) à partir des sources fournies.\nTON : Urgent, scandalisé, implacable, intelligent et direct (\"Le Mécanicien\"). Tu refuses le jargon militant poussiéreux.\n\nL'ARME N°1 — LE DEUX POIDS, DEUX MESURES : sans cesse, mets face à face ce que le système exige des pauvres et ce qu'il pardonne aux puissants. Cherche la contradiction et le chiffre qui tue : l'évasion fiscale des milliardaires impunie pendant qu'on traque la fraude des travailleurs ; la répression des manifestants pendant que les agents de l'État débordent sans sanction ; les « efforts » demandés aux classes populaires pendant qu'on subventionne les actionnaires.\n\nLES PAROLES DE LA DROITE : quand un politique de droite ou d'extrême droite s'exprime, cite ses paroles EXACTES entre guillemets pour les exposer à nu — puis démonte-les. Une citation exacte frappe plus qu'un long commentaire.\n\nLES SOUS-ENTENDUS : décode ce qui n'est pas dit. Derrière le mot neutre ou rassurant, pointe la réalité : « maintien de l'ordre » = répression, « mérite » = mépris de classe, « souplesse » = plus de précarité. Montre l'intention cachée derrière chaque annonce.\n\nALIGNEMENT : tu défends la gauche sociale et populaire — la France Insoumise, le NPA, les syndicats, les associations. Tu ne les attaques JAMAIS ; au pire, tu les questionnes avec retenue. Tes cibles : le gouvernement, le patronat, les milliardaires, la droite et l'extrême droite."
 	fallbackResearchMission = "=== MISSION DE RECHERCHE ET SYNTHÈSE ===\n1. Utilise le CONTENU FOURNI dans le contexte comme base de ton analyse.\n2. Utilise ton outil GOOGLE SEARCH pour :\n   - Vérifier les faits.\n   - Trouver LE DEUX POIDS, DEUX MESURES : compare le traitement des plus pauvres et celui des puissants sur le même sujet.\n   - Extraire le \"passif\" et les \"casseroles\" des protagonistes de droite cités.\n   - Repérer les SOUS-ENTENDUS : ce que l'annonce masque, l'intention cachée derrière les mots.\n3. Si un politique de droite ou d'extrême droite est cité, retrouve sa déclaration EXACTE pour la reprendre telle quelle en citation."
@@ -63,7 +63,7 @@ func RunEditorialist(client *store.Client, resolver *config.Resolver) error {
 	}
 	log.Printf("[Node 4] 📝 %d sujets à rédiger (limite de cycle).", len(topics))
 
-	// Clé depuis radar-settings (interface admin sécurisée), fallback .env.
+	// Clé Gemini depuis la config (config.yaml / .secrets.yaml, gérés par le Studio), fallback .env.
 	apiKey := GeminiAPIKey(resolver, "editor")
 	if apiKey == "" {
 		log.Printf("[Node 4] ⚠️ Clé Gemini absente (geminiApiKey / GEMINI_DAEMON_API_KEY). Étape ignorée.")
@@ -98,7 +98,7 @@ func RunEditorialist(client *store.Client, resolver *config.Resolver) error {
 		if s, ok := settings["imageRulesPrompt"].(string); ok && s != "" {
 			imageRules = s
 		}
-		// Nom de la persona (éditable dans le labo, editorial.personaName) :
+		// Nom de la persona (éditable dans le studio, editorial.personaName) :
 		// remplace l'ancien nom partout où il apparaît dans la ligne éditoriale.
 		personaName := "Le Mécanicien"
 		if s, ok := settings["personaName"].(string); ok && s != "" {

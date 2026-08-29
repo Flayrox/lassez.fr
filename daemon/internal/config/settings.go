@@ -22,7 +22,7 @@ func LoadYAMLSettings(path string) (map[string]any, error) {
 	}
 	out := flatten(doc)
 	// Secrets locaux (daemon/config/.secrets.yaml, gitignoré) — écrits par le
-	// labo via /api/secrets. Ils écrasent l'env si présents dans le fichier.
+	// studio via /api/secrets. Ils écrasent l'env si présents dans le fichier.
 	if sec := LoadSecrets(filepath.Join(filepath.Dir(path), ".secrets.yaml")); sec != nil {
 		for k, v := range sec {
 			out[k] = v
@@ -30,7 +30,7 @@ func LoadYAMLSettings(path string) (map[string]any, error) {
 	}
 
 	// Mode qoe.fi : mock tant qu'aucune clé n'est configurée (QOE_MOCK force).
-	// Calculé APRÈS le merge des secrets pour voir une clé collée par le labo.
+	// Calculé APRÈS le merge des secrets pour voir une clé collée par le studio.
 	qoeMock := os.Getenv("QOE_MOCK")
 	qoeKey, _ := out["qoeApiKey"].(string)
 	if qoeMock == "true" {
@@ -119,7 +119,7 @@ func flatten(d map[string]any) map[string]any {
 	set("researchMissionPrompt", s("editorial", "researchMission"))
 	set("vocabularyRulesPrompt", s("editorial", "vocabularyRules"))
 	set("imageRulesPrompt", s("editorial", "imageRules"))
-	// Nom de la persona (éditable dans le labo) : remplacé dans les prompts IA.
+	// Nom de la persona (éditable dans le studio) : remplacé dans les prompts IA.
 	set("personaName", orString(s("editorial", "personaName"), "Le Mécanicien"))
 	set("customPromptModifier", s("editorial", "customModifier"))
 	set("aiPrompt", s("editorial", "aiPrompt"))
@@ -182,10 +182,10 @@ func flatten(d map[string]any) map[string]any {
 		set("daemonSchedule", "")
 	}
 
-	// Pipeline graph (nœuds actifs — le graphe visuel du labo)
+	// Pipeline graph (nœuds actifs — le graphe visuel du studio)
 	set("pipelineGraphJson", s("pipeline", "graphJson"))
 
-	// Filtres (keywords / banned — le labo les persiste dans le YAML)
+	// Filtres (keywords / banned — le studio les persiste dans le YAML)
 	if filters, ok := get("filters").(map[string]any); ok {
 		if kws, ok := filters["keywords"].([]any); ok {
 			set("keywords", kws)
@@ -215,7 +215,7 @@ func flatten(d map[string]any) map[string]any {
 	set("maintenanceMessage", s("system", "maintenanceMessage"))
 
 	// QoE — le mode mock est recalculé dans LoadYAMLSettings APRÈS le merge
-	// des secrets (une clé collée par le labo désactive le mock).
+	// des secrets (une clé collée par le studio désactive le mock).
 
 	// Secrets depuis l'env — jamais dans le YAML versionné.
 	EnvOverride(out, map[string]string{

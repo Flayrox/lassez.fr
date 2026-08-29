@@ -1,11 +1,11 @@
-// Endpoints de configuration — le labo (labo.lassez.fr) lit et écrit
+// Endpoints de configuration — le studio (studio.lassez.fr) lit et écrit
 // daemon/config/config.yaml ici :
 //
 //	GET  /api/config  → la config actuelle en JSON (structure imbriquée = le YAML)
 //	PATCH /api/config → fusionne un JSON partiel dans config.yaml et écrit
 //
 // La fusion se fait arbre YAML contre arbre YAML (yaml.v3) pour préserver
-// les sections non gérées par le labo (trustMap, elections…) et les
+// les sections non gérées par le studio (trustMap, elections…) et les
 // commentaires du fichier. Écriture atomique + backup .bak avant chaque
 // écriture. Le resolver est invalidé pour que le daemon relise le fichier.
 package api
@@ -96,7 +96,7 @@ func (srv *Server) patchConfig(w http.ResponseWriter, r *http.Request) {
 	if !mergeNode(doc, &patch) {
 		// Corps vide ou non-objet → vraie erreur. Corps valide mais rien à
 		// changer (config déjà à jour) → succès sans écriture : l'autosave du
-		// labo envoie parfois la config identique, ce n'est pas un échec.
+		// studio envoie parfois la config identique, ce n'est pas un échec.
 		if isEmptyDocument(&patch) {
 			writeJSON(w, 400, map[string]any{"error": "body vide ou non-objet"})
 			return

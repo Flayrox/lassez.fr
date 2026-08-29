@@ -1,5 +1,5 @@
 // Telemetry — état de santé temps réel de chaque brique du pipeline,
-// exposé au labo par GET /api/system-health (page Système + Dashboard).
+// exposé au studio par GET /api/system-health (page Système + Dashboard).
 //
 // Chaque nœud enregistre sa dernière exécution (durée + erreur). Règles de
 // statut : succès → "ok" (échecs consécutifs remis à zéro), échec → "warning",

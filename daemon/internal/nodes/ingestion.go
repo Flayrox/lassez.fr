@@ -41,7 +41,7 @@ type sourceToProcess struct {
 }
 
 // RunIngestion is Node 1 of the pipeline. It pulls the configured RSS
-// sources (sources collection + rss_feeds from radar-settings) over a time
+// sources (ingestion.sources.rss from config.yaml) over a time
 // window and returns the new, unseen articles.
 func RunIngestion(client *store.Client, resolver *config.Resolver) ([]IngestedArticle, error) {
 	timeWindowHours := 12.0
@@ -74,7 +74,7 @@ func RunIngestion(client *store.Client, resolver *config.Resolver) ([]IngestedAr
 		})
 	}
 
-	// 2. Flux RSS depuis radar-settings (rss_feeds).
+	// 2. Flux RSS supplémentaires depuis la config (rss_feeds).
 	for _, feedURL := range parseStringArray(settings["rss_feeds"]) {
 		if containsSource(sources, feedURL) {
 			continue
@@ -200,7 +200,7 @@ type SourceTestResult struct {
 	FetchMs  int64               `json:"fetchMs"`
 }
 
-// TestSource — « tester ce flux » du labo : parse une URL RSS avec le même
+// TestSource — « tester ce flux » du studio : parse une URL RSS avec le même
 // client timed que l'ingestion et renvoie les derniers articles. Aucun effet
 // de bord : pas de seen URLs, pas de mise à jour de santé, pas de pipeline.
 func TestSource(rawURL string) (*SourceTestResult, error) {

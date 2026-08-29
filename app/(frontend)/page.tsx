@@ -116,7 +116,7 @@ export default async function Home() {
                                         <span className="absolute w-3 h-3 bg-lassez-red rounded-full animate-ping opacity-75"></span>
                                         <span className="relative w-2 h-2 bg-lassez-red rounded-full"></span>
                                     </div>
-                                    <h3 className="font-mono font-black text-[10px] md:text-xs uppercase tracking-widest text-ink">Direct_Radar</h3>
+                                    <h3 className="font-mono font-black text-[10px] md:text-xs uppercase tracking-widest text-ink">En Direct</h3>
                                 </div>
                                 <div className="font-mono text-[7px] text-lassez-red font-black uppercase tracking-widest animate-pulse">
                                     Live

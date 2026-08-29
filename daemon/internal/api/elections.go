@@ -18,7 +18,7 @@ import (
 //
 // Depuis le refactor des bases : UN fichier SQLite par élection
 // (data/elections/{slug}.db) + un registre JSON (registry.json) qui liste les
-// scrutins affichés et la cible. Ces endpoints permettent au labo de gérer le
+// scrutins affichés et la cible. Ces endpoints permettent au studio de gérer le
 // registre sans toucher au front : lister, créer un scrutin (fichier + entrée
 // registre), changer la cible/affichage, supprimer.
 
@@ -34,8 +34,8 @@ type electionInfo struct {
 	Departments int    `json:"departments"`
 }
 
-// electionsDir — dossier des bases par élection, dérivé du dossier de radar.db
-// (data/radar.db → data/elections/). Défaut relatif si RADAR_DB_PATH absent.
+// electionsDir — dossier des bases par élection, dérivé du dossier de la base
+// pipeline (data/pipeline.db → data/elections/). Défaut relatif si PIPELINE_DB_PATH absent.
 func (srv *Server) electionsDir() string {
 	// On dérive du chemin de la base pipeline (même dossier).
 	dir := filepath.Dir(srv.Client.DBPath())

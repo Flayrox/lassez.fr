@@ -15,7 +15,7 @@ import (
 //  1. Override par nœud dans le graphe du pipeline (pipelineGraphJson) ;
 //  2. Variable d'environnement dédiée GEMINI_DAEMON_API_KEY ;
 //  3. Secrets studio (daemon/config/.secrets.yaml → champ geminiApiKey, écrit
-//     par le labo via Système → Clé API Gemini) ;
+//     par le studio via Système → Clé API Gemini) ;
 //  4. Ancienne variable GEMINI_API_KEY (repli de compatibilité).
 //
 // La clé du daemon est volontairement séparée de celle utilisée par les
@@ -33,7 +33,7 @@ func GeminiAPIKey(resolver *config.Resolver, nodeType string) string {
 	if k := os.Getenv("GEMINI_DAEMON_API_KEY"); k != "" {
 		return k
 	}
-	// 3. Champ global radar-settings (admin).
+	// 3. Clé dans la config (geminiApiKey, gérée par le Studio).
 	if settings, err := resolver.Settings(); err == nil && settings != nil {
 		if s, ok := settings["geminiApiKey"].(string); ok && s != "" {
 			return s
@@ -46,7 +46,7 @@ func GeminiAPIKey(resolver *config.Resolver, nodeType string) string {
 // VertexAIConfig résout le secours Vertex AI pour un nœud du pipeline : le
 // compte de service Google Cloud vient des secrets studio (daemon/config/
 // .secrets.yaml → champs vertexServiceAccount + vertexRegion, écrits par le
-// labo via Système → Vertex AI (secours)). Le project_id est extrait du JSON
+// studio via Système → Vertex AI (secours)). Le project_id est extrait du JSON
 // du compte de service ; la région par défaut est « global » (endpoint global).
 // Retourne nil si aucun compte de service n'est configuré (pas de secours).
 func VertexAIConfig(resolver *config.Resolver) *vertexConfig {
@@ -77,7 +77,7 @@ func VertexAIConfig(resolver *config.Resolver) *vertexConfig {
 
 // GoogleCSEConfig résout les identifiants de la recherche d'images officielle
 // Google (Custom Search JSON API) depuis les secrets studio (daemon/config/
-// .secrets.yaml → champs googleCseApiKey + googleCseId, écrits par le labo via
+// .secrets.yaml → champs googleCseApiKey + googleCseId, écrits par le studio via
 // Système → Recherche d'images). Gratuit : 100 requêtes/jour. Retourne deux
 // chaînes vides si rien n'est configuré (le nœud média retombe alors sur
 // Wikimedia Commons).
@@ -158,7 +158,7 @@ func maxItemsPerCycle(resolver *config.Resolver, nodeType string, def int) int {
 		}
 	}
 	// 2. Clé globale aplatie maxArticles (= ingestion.maxArticlesPerScan, le
-	//    "Maximum d'articles par passage" du labo — Sources/Atelier).
+	//    "Maximum d'articles par passage" du studio — Sources/Atelier).
 	if settings, err := resolver.Settings(); err == nil && settings != nil {
 		if n := int(toFloat64(settings["maxArticles"], 0)); n > 0 {
 			return n

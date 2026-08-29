@@ -1,21 +1,21 @@
-# L'Assez — Plateforme Média & Radar d'Investigation
+# L'Assez — Plateforme Média d'Investigation
 
-**L'Assez** est un média d'investigation indépendant (lassez.fr). Ce monorepo contient la plateforme complète : le site public, le cockpit de rédaction/automatisation (Studio), et le daemon Radar qui aspire, analyse, rédige et publie du contenu via IA.
+**L'Assez** est un média d'investigation indépendant (lassez.fr). Ce monorepo contient la plateforme complète : le site public, le cockpit de rédaction/automatisation (Studio), et le daemon Go qui aspire, analyse, rédige et publie du contenu via IA.
 
 ## 🏗️ Architecture
 
 ```
 ┌─────────────────────────────┐     ┌──────────────────────────────┐
-│  Front public (lassez.fr)   │     │  Studio / labo (apps/labo)   │
-│  Next.js App Router + RSC   │     │  Cockpit Vue/Vite — pilote le │
-│  contenu via lib/data.ts    │     │  daemon : sources, planning,  │
-│  (stub — provider à         │     │  modération, suivi, pub.      │
+│  Front public (lassez.fr)   │     │  Studio (apps/studio)        │
+│  Next.js App Router + RSC   │     │  Cockpit Vue/Vite — pilote le│
+│  contenu via lib/provider.ts│     │  daemon : sources, planning, │
+│  (stub — provider à         │     │  modération, suivi, pub.     │
 │  brancher plus tard)        │     │                              │
 └─────────────────────────────┘     └──────────────┬───────────────┘
                                                    │ API REST (localhost)
                                                    ▼
                                     ┌────────────────────────────────┐
-                                    │  Daemon Radar (daemon/, en Go)  │
+                                    │  Daemon (daemon/, en Go)        │
                                     │  Pipeline 6 nœuds : ingestion   │
                                     │  RSS → dedup → research →       │
                                     │  editorial → validator → media. │
@@ -23,23 +23,23 @@
                                     └──────────────┬─────────────────┘
                                                    │ SQLite + config YAML
                                                    ▼
-                                       Bases locales (data/radar.db)
+                                       Bases locales (data/pipeline.db)
 ```
 
 ### Les 4 blocs
 
-1. **Front public** (`app/(frontend)/` + `components/`) — le site éditorial : home, articles, révélations, enquêtes, comprendre (leçons), élections live, recherche, soutenir. Le contenu passe par la couche `lib/data.ts`, actuellement un **stub** (listes vides) en attendant le futur provider — les pages élections sont déjà branchées sur leurs bases SQLite locales.
+1. **Front public** (`app/(frontend)/` + `components/`) — le site éditorial : home, articles, révélations, enquêtes, comprendre (leçons), élections live, recherche, soutenir. Le contenu passe par la couche `lib/provider.ts`, actuellement un **stub** (listes vides) en attendant le futur provider — les pages élections sont déjà branchées sur leurs bases SQLite locales.
 
-2. **Studio / labo** (`apps/labo/`) — le cockpit qui pilote le daemon : sources (ingestion 100 % RSS), planning (grille 7×24), formats, prompts, modération des signaux, suivi des cycles, publication. Il parle au daemon via son API HTTP.
+2. **Studio** (`apps/studio/`) — le cockpit qui pilote le daemon : sources (ingestion 100 % RSS), planning (grille 7×24), formats, prompts, modération des signaux, suivi des cycles, publication. Il parle au daemon via son API HTTP.
 
-3. **Daemon Radar** (`daemon/`, en Go) — pipeline d'automatisation : ingestion RSS, dédoublonnage, scoring de pertinence (Gemini Flash), rédaction d'investigation (Gemini Pro), validation, enrichissement média, puis publication (qoe.fi + Discord). Tout est stocké en SQLite local (`data/radar.db`) et configuré via `daemon/config/config.yaml` (+ `.secrets.yaml` local). Deux boucles autonomes : cycle planifié + publisher.
+3. **Daemon** (`daemon/`, en Go) — pipeline d'automatisation : ingestion RSS, dédoublonnage, scoring de pertinence (Gemini Flash), rédaction d'investigation (Gemini Pro), validation, enrichissement média, puis publication (qoe.fi + Discord). Tout est stocké en SQLite local (`data/pipeline.db`) et configuré via `daemon/config/config.yaml` (+ `.secrets.yaml` local). Deux boucles autonomes : cycle planifié + publisher.
 
-4. **Bases locales** — `data/radar.db` (pipeline daemon, tables `daemon_*`) et `data/elections/` (une base par scrutin + registre). Aucune base distante : tout est local, en dev uniquement.
+4. **Bases locales** — `data/pipeline.db` (pipeline daemon, tables `daemon_*`) et `data/elections/` (une base par scrutin + registre). Aucune base distante : tout est local, en dev uniquement.
 
 ## 🧱 Stack
 
 - **Front** : Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS
-- **Studio** : Vue 3 + Vite (`apps/labo`)
+- **Studio** : Vue 3 + Vite (`apps/studio`)
 - **Daemon** : Go, Gemini (AI Studio + repli Vertex), gofeed (RSS), SQLite
 - **Publication** : qoe.fi (API REST) + Discord (webhook)
 
@@ -53,29 +53,29 @@ npm run dev            # http://localhost:2500
 
 Routes utiles en dev :
 - Site public : `http://localhost:2500`
-- Labo studio : `npm run dev:labo` (Vite)
-- Daemon : `cd daemon && go build -o bin/daemon ./cmd/daemon && ./bin/daemon` (nécessite `GEMINI_API_KEY` dans `.env` ou `daemon/config/.secrets.yaml` ; la clé Discord et la clé qoe.fi se configurent depuis le labo → `.secrets.yaml`)
+- Studio : `npm run dev:studio` (Vite)
+- Daemon : `cd daemon && go build -o bin/daemon ./cmd/daemon && ./bin/daemon` (nécessite `GEMINI_API_KEY` dans `.env` ou `daemon/config/.secrets.yaml` ; la clé Discord et la clé qoe.fi se configurent depuis le studio → `.secrets.yaml`)
 
 ### Dev tout-en-un — domaines `.test` SANS port + ports dédiés
 
 ```bash
 npm run dev:domain
-# → Studio (labo Vue, pilote le daemon) : http://studio.lassez.test   (sans port)
-# → Front site (Next.js)                : http://lassez.test          (sans port)
-# → Daemon API : 127.0.0.1:4406 · Ports directs : :4405 (labo), :2500 (front)
+# → Studio (Vue, pilote le daemon) : http://studio.lassez.test   (sans port)
+# → Front site (Next.js)           : http://lassez.test          (sans port)
+# → Daemon API : 127.0.0.1:4406 · Ports directs : :4405 (studio), :2500 (front)
 ```
 
-`scripts/dev-domain.sh` ajoute les entrées `/etc/hosts` (`127.0.0.1 studio.lassez.test lassez.test`, sudo demandé une fois), compile le daemon Go (`127.0.0.1:4406`), lance le labo Vite (`:4405`) et le front Next (`:2500`), puis recharge le `Caddyfile.dev` local (celui de qoe.fi, qui contient les blocs `lassez.test` / `studio.lassez.test`) pour servir le tout **sans port**. `Ctrl-C` arrête les trois.
+`scripts/dev-domain.sh` ajoute les entrées `/etc/hosts` (`127.0.0.1 studio.lassez.test lassez.test`, sudo demandé une fois), compile le daemon Go (`127.0.0.1:4406`), lance le studio Vite (`:4405`) et le front Next (`:2500`), puis recharge le `Caddyfile.dev` local (celui de qoe.fi, qui contient les blocs `lassez.test` / `studio.lassez.test`) pour servir le tout **sans port**. `Ctrl-C` arrête les trois.
 
-Surcharge : `LABO_HOST`, `FRONT_HOST`, `LABO_PORT`, `DAEMON_PORT`, `NEXT_PORT`, `CADDY_CONFIG` (chemin du Caddyfile à recharger). Sans Caddy lancé, les URL avec port fonctionnent quand même.
+Surcharge : `STUDIO_HOST`, `FRONT_HOST`, `STUDIO_PORT`, `DAEMON_PORT`, `NEXT_PORT`, `CADDY_CONFIG` (chemin du Caddyfile à recharger). Sans Caddy lancé, les URL avec port fonctionnent quand même.
 
-Classique sans domaine : `npm run dev:labo` (labo seul) + `cd daemon && go build -o bin/daemon ./cmd/daemon && ./bin/daemon` (daemon sur `:2506`).
+Classique sans domaine : `npm run dev:studio` (studio seul) + `cd daemon && go build -o bin/daemon ./cmd/daemon && ./bin/daemon` (daemon sur `:2506`).
 
 ## 🗄️ Bases de données
 
 | Base | Techno | Usage |
 | :--- | :--- | :--- |
-| **Pipeline (daemon)** | SQLite (`data/radar.db`) | Tables `daemon_*` uniquement : signaux, seen-urls, publications, cycles, santé des sources — écrites par le daemon Go, lues par le labo via l'API |
+| **Pipeline (daemon)** | SQLite (`data/pipeline.db`) | Tables `daemon_*` uniquement : signaux, seen-urls, publications, cycles, santé des sources — écrites par le daemon Go, lues par le studio via l'API |
 | **Élections** | SQLite, **1 fichier par scrutin** (`data/elections/{slug}.db`) | Résultats officiels, overrides manuels, statut de sync + réglages scopés — écrits par le front (`app/api/elections/results`), lus par les pages élections et le sitemap |
 | Registre élections | JSON (`data/elections/registry.json`) | Liste des scrutins affichés (`displaySlugs`) + scrutin cible (`targetSlug`) |
 
@@ -85,11 +85,11 @@ Depuis le refactor des bases, le pipeline et les élections **ne partagent plus 
 
 ```
 data/
-├── radar.db                    # PIPELINE uniquement — tables daemon_* (écrit par le daemon Go)
+├── pipeline.db                 # PIPELINE uniquement — tables daemon_* (écrit par le daemon Go)
 │   ├── daemon_signals          #   signaux du pipeline (INGESTED → … → PUBLISHED)
 │   ├── daemon_publications     #   missions de diffusion par plateforme
 │   ├── daemon_seen_urls        #   anti-doublon (URLs déjà aspirées)
-│   ├── daemon_cycles           #   historique des cycles (Suivi du labo)
+│   ├── daemon_cycles           #   historique des cycles (Suivi du studio)
 │   ├── daemon_cycle_steps      #   étapes de chaque cycle
 │   └── daemon_source_health    #   santé des sources (HEALTHY/DEGRADED/DISABLED)
 └── elections/
@@ -120,10 +120,10 @@ Références dans le code : `lib/elections-db.ts` (chemins + registre).
 ```
 app/(frontend)/        Site public (home, articles, enquêtes, élections, …)
 app/api/               Routes API (elections, posts, og, preview, proxy-image…)
-apps/labo/             Studio de pilotage du pipeline (Vue/Vite)
+apps/studio/           Studio de pilotage du pipeline (Vue/Vite)
 components/            Composants React partagés
-daemon/                Daemon d'automatisation en Go (pipeline 7 nœuds)
-data/                  Bases SQLite locales (radar.db pipeline + elections/)
+daemon/                Daemon d'automatisation en Go (pipeline 6 nœuds)
+data/                  Bases SQLite locales (pipeline.db + elections/)
 lib/                   Utilitaires partagés (API, SEO, preview, elections…)
 hooks/                 Hooks React (usePosts, useCategories…)
 scripts/               Scripts dev (migrations, utilitaires)
@@ -134,8 +134,8 @@ docs/                  Réflexions, plans, notes
 
 ```bash
 npm run dev                 # Front Next.js (port 2500)
-npm run dev:labo            # Labo studio (Vite)
+npm run dev:studio          # Studio (Vite)
 npm run dev:domain          # Tout-en-un : domaines .test sans port
-npm run dev:all             # Front + labo en parallèle
+npm run dev:all             # Front + studio en parallèle
 npm run build               # Build de production
 ```

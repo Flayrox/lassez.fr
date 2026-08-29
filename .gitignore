@@ -54,7 +54,6 @@ scripts/fr.lassez.dev-daemon.plist
 
 # Fichiers OSINT (vidéos temporaires)
 radar_lassez/tmp-videos/
-public/radar-images/
 public/uploads/
 
 # Médias locaux (exports/images de travail, non versionnés)
@@ -70,16 +69,16 @@ __MACOSX/
 .idea/
 
 # Bases SQLite lourdes (récupérables via VPS / backups locaux)
-data/radar.db*
+data/pipeline.db*
 data/*.bak
 # Bases par élection (data/elections/{slug}.db) + registre
 # (couverts par *.db ci-dessus, mais explicite pour le registre JSON)
 data/elections/
 
-# Builds labo
-apps/labo/dist/
+# Builds studio
+apps/studio/dist/
 
-# Secrets locaux du daemon (clés API plateformes — écrits par le labo via /api/secrets)
+# Secrets locaux du daemon (clés API plateformes — écrits par le studio via /api/secrets)
 daemon/config/.secrets.yaml
 daemon/config/.secrets.yaml.bak
 

@@ -1,5 +1,5 @@
 // Package scheduler computes the delay until the next pipeline scan from the
-// radar-settings global, mirroring radar_lassez/daemon.ts getDelayToNextScan:
+// config (section publisher/planning), mirroring radar_lassez/daemon.ts getDelayToNextScan:
 //   - mode "pulse": fixed interval (scrapingInterval minutes)
 //   - mode "calendar"/"hybrid": next slot from daemonSchedule (weekly grid),
 //     falling back to the interval when no schedule is configured

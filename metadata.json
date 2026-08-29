@@ -1,5 +1,5 @@
 {
   "name": "lassez",
-  "description": "L'Assez — média d'investigation indépendant. Front Next.js, cockpit labo Vue (apps/labo) et daemon d'automatisation Radar en Go (ingestion RSS, rédaction IA Gemini, publication qoe.fi/Discord, stockage SQLite local).",
+  "description": "L'Assez — média d'investigation indépendant. Front Next.js, cockpit Studio Vue (apps/studio) et daemon d'automatisation en Go (ingestion RSS, rédaction IA Gemini, publication qoe.fi/Discord, stockage SQLite local).",
   "requestFramePermissions": []
 }

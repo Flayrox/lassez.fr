@@ -1,4 +1,4 @@
-// Package api — petit serveur HTTP du daemon : le labo (labo.lassez.fr) lui parle.
+// Package api — petit serveur HTTP du daemon : le studio (studio.lassez.fr) lui parle.
 // Stdlib net/http uniquement. Routes :
 //
 //	GET  /api/healthz          → vivant
@@ -26,10 +26,10 @@ import (
 type Server struct {
 	Client     *store.Client  // daemon_signals : signaux réels du pipeline + santé
 	Mux        *http.ServeMux
-	ConfigPath string           // config/config.yaml — édité par le labo
+	ConfigPath string           // config/config.yaml — édité par le studio
 	Resolver   *config.Resolver // invalidé après chaque écriture
 	Trigger    chan struct{}    // POST /api/scan → réveille la boucle principale (nil = scan désactivé)
-	LogPath    string           // logs/daemon.log — lu pour le panneau de logs du labo
+	LogPath    string           // logs/daemon.log — lu pour le panneau de logs du studio
 }
 
 func New(client *store.Client, cfgPath string, resolver *config.Resolver) *Server {
@@ -56,7 +56,7 @@ func New(client *store.Client, cfgPath string, resolver *config.Resolver) *Serve
 	return srv
 }
 
-// listCycles — historique des cycles du pipeline (mode « Suivi » du labo).
+// listCycles — historique des cycles du pipeline (mode « Suivi » du studio).
 func (srv *Server) listCycles(w http.ResponseWriter, r *http.Request) {
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
 	cycles, err := srv.Client.ListCycles(limit)
@@ -166,7 +166,7 @@ func (srv *Server) triggerScan(w http.ResponseWriter, _ *http.Request) {
 		select {
 		case srv.Trigger <- struct{}{}:
 		default:
-			// Un scan est déjà en attente — le labo n'a pas besoin de le savoir.
+			// Un scan est déjà en attente — le studio n'a pas besoin de le savoir.
 		}
 	}
 	writeJSON(w, 200, map[string]any{"ok": true, "message": "scan déclenché"})
@@ -176,7 +176,7 @@ func (srv *Server) triggerScan(w http.ResponseWriter, _ *http.Request) {
 func (srv *Server) systemHealth(w http.ResponseWriter, _ *http.Request) {
 	bricks, info := nodes.TelemetrySnapshot()
 	// La brique API est saine par définition (la requête a abouti).
-	bricks = append(bricks, nodes.Brick{Type: "api", Label: "API labo", Status: "ok", LastRun: time.Now()})
+	bricks = append(bricks, nodes.Brick{Type: "api", Label: "API studio", Status: "ok", LastRun: time.Now()})
 
 	if srv.Resolver != nil {
 		if settings, err := srv.Resolver.Settings(); err == nil && settings != nil {
@@ -242,7 +242,8 @@ func (srv *Server) healthz(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, 200, map[string]any{"ok": true})
 }
 
-// listSignals — signaux réels du pipeline (daemon_signals), forme radar_posts.
+// listSignals — signaux réels du pipeline (daemon_signals), même forme que
+// l'ancienne table radar_posts (héritage du premier radar).
 func (srv *Server) listSignals(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	limit, _ := strconv.Atoi(q.Get("limit"))
@@ -255,7 +256,7 @@ func (srv *Server) listSignals(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, map[string]any{"data": signals, "counts": counts})
 }
 
-// patchSignals — actions de modération du labo sur daemon_signals :
+// patchSignals — actions de modération du studio sur daemon_signals :
 // {ids, status} (PENDING→APPROVED, →REJECTED…) ou {ids, delete:true}.
 func (srv *Server) patchSignals(w http.ResponseWriter, r *http.Request) {
 	var body struct {
@@ -291,7 +292,7 @@ func (srv *Server) patchSignals(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, map[string]any{"ok": true})
 }
 
-// CORS léger pour le dev (labo sur :2505 → daemon sur :2506). En prod, même domaine via reverse-proxy.
+// CORS léger pour le dev (studio sur :2505 → daemon sur :2506). En prod, même domaine via reverse-proxy.
 func CORS(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")

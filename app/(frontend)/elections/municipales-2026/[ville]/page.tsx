@@ -15,7 +15,7 @@ function formatVille(slug: string) {
 export async function generateMetadata({ params }: { params: Promise<{ ville: string }> }): Promise<Metadata> {
     const resolvedParams = await params;
     const villeName = formatVille(resolvedParams.ville);
-    const title = `Résultats Élections Municipales 2026 à ${villeName} (1er & 2nd tour) — Le Radar`;
+    const title = `Résultats Élections Municipales 2026 à ${villeName} (1er & 2nd tour) — L'Assez`;
     const description = `Consultez les résultats officiels des élections municipales 2026 à ${villeName}. Scores des candidats, nuances politiques (NFP, RN, ENS, LR) et taux de participation en direct du Ministère de l'Intérieur.`;
     
     return {
@@ -105,7 +105,7 @@ export default async function VilleElectionPage({
                                 Méthodologie
                             </h2>
                             <p className="font-mono text-[11px] leading-relaxed text-ink/70 uppercase">
-                                LES DONNÉES AFFICHÉES SONT ISSUES DU FLUX OFFICIEL DE L'ÉTAT (DATA.GOUV.FR). EN CAS DE DÉCALAGE, LE RADAR-ADMIN PERMET DES UPDATES EN TEMPS RÉEL PAR NOS ÉQUIPES TERRAIN.
+                                LES DONNÉES AFFICHÉES SONT ISSUES DU FLUX OFFICIEL DE L'ÉTAT (DATA.GOUV.FR). EN CAS DE DÉCALAGE, LE STUDIO PERMET DES UPDATES EN TEMPS RÉEL PAR NOS ÉQUIPES TERRAIN.
                             </p>
                         </div>
 

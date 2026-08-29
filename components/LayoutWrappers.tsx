@@ -41,8 +41,8 @@ export function HeaderWrapper() {
         return null;
     }
     
-    // Masquer sur les routes d'administration du Studio Radar
-    if (pathname?.startsWith('/radar-login') || pathname?.startsWith('/templates') || pathname?.startsWith('/radar')) {
+    // Masquer sur les routes d'administration
+    if (pathname?.startsWith('/templates')) {
         return null;
     }
     
@@ -71,7 +71,7 @@ export function SidebarWrapper() {
         return null;
     }
     
-    if (pathname?.startsWith('/radar-login') || pathname?.startsWith('/templates') || pathname?.startsWith('/radar')) {
+    if (pathname?.startsWith('/templates')) {
         return null;
     }
     
@@ -99,7 +99,7 @@ export function FooterWrapper() {
         return null;
     }
     
-    if (pathname?.startsWith('/radar-login') || pathname?.startsWith('/templates') || pathname?.startsWith('/radar')) {
+    if (pathname?.startsWith('/templates')) {
         return null;
     }
     

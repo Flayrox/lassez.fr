@@ -69,7 +69,7 @@ func RunValidator(client *store.Client, resolver *config.Resolver) error {
 	}
 	log.Printf("[Node 5] ⚖️ %d sujet(s) à valider (limite de cycle).", len(topics))
 
-	// Clé depuis radar-settings (interface admin sécurisée), fallback .env.
+	// Clé Gemini depuis la config (config.yaml / .secrets.yaml, gérés par le Studio), fallback .env.
 	apiKey := GeminiAPIKey(resolver, "validator")
 	if apiKey == "" {
 		log.Printf("[Node 5] ⚠️ Clé Gemini absente (geminiApiKey / GEMINI_DAEMON_API_KEY). Étape ignorée.")
@@ -97,7 +97,7 @@ func RunValidator(client *store.Client, resolver *config.Resolver) error {
 		log.Printf("[Node 5] 🔍 Recherche web désactivée : validation sans vérification en ligne.")
 	}
 
-	// Nom de la persona (éditable dans le labo) — remplacé dans le prompt si
+	// Nom de la persona (éditable dans le studio) — remplacé dans le prompt si
 	// l'utilisateur a renommé « Le Mécanicien ».
 	systemPrompt := validatorSystemPrompt
 	if settings, err := resolver.Settings(); err == nil && settings != nil {

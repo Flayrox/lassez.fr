@@ -8,9 +8,9 @@
   },
   "scripts": {
     "dev": "next dev -p 2500",
-    "dev:labo": "npm --prefix apps/labo run dev",
+    "dev:studio": "npm --prefix apps/studio run dev",
     "dev:domain": "bash scripts/dev-domain.sh",
-    "dev:all": "concurrently -n lassez,labo -c red,blue \"npm:dev\" \"npm:dev:labo\"",
+    "dev:all": "concurrently -n lassez,studio -c red,blue \"npm:dev\" \"npm:dev:studio\"",
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",

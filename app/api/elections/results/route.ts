@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic';
 const syncLocks = new Map<string, Promise<void>>();
 
 // Une base SQLite PAR élection (data/elections/{slug}.db) : la sync data.gouv
-// écrit dans le fichier du scrutin, séparé du pipeline (data/radar.db).
+// écrit dans le fichier du scrutin, séparé du pipeline (data/pipeline.db).
 function getDb(electionSlug: string) {
     const db = openElectionDb(electionSlug);
     ensureTable(db);
@@ -15,7 +15,7 @@ function getDb(electionSlug: string) {
 }
 
 function getStudioBaseUrl() {
-    const remoteUrl = process.env.RADAR_API_URL;
+    const remoteUrl = process.env.STUDIO_API_URL;
     if (!remoteUrl) return null;
     try {
         const u = new URL(remoteUrl);
@@ -59,7 +59,7 @@ function ensureTable(db: any) {
         )
     `);
 
-    // Overrides manuels du Radar-Admin
+    // Overrides manuels du Studio
     db.exec(`
         CREATE TABLE IF NOT EXISTS elections_resultats (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -356,7 +356,7 @@ export interface VilleResult {
 
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
-    const isProxied = request.headers.get('x-radar-proxy') === '1';
+    const isProxied = request.headers.get('x-studio-proxy') === '1';
 
     const studioBase = getStudioBaseUrl();
     if (studioBase && !process.env.IS_STUDIO && !isProxied) {
@@ -366,7 +366,7 @@ export async function GET(request: Request) {
                 `${studioBase}/api/elections/results${qs ? `?${qs}` : ''}`,
                 { 
                     cache: 'no-store',
-                    headers: { 'x-radar-proxy': '1' }
+                    headers: { 'x-studio-proxy': '1' }
                 },
                 1800
             );

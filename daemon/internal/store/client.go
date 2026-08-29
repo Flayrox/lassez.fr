@@ -2,7 +2,7 @@
 //
 // Anciennement un client REST vers le CMS ; depuis le pivot local, ce
 // fichier implémente l'API du pipeline avec un stockage 100% local :
-//   - signaux, seen-urls et publications → SQLite (data/radar.db, tables daemon_*)
+//   - signaux, seen-urls et publications → SQLite (data/pipeline.db, tables daemon_*)
 //   - settings → config/config.yaml aplati en map (clés historiques préservées)
 //
 // Les nœuds du pipeline ne changent pas : ils continuent d'appeler
@@ -49,9 +49,9 @@ type Signal struct {
 	CreatedAt  string          `json:"created_at"`
 }
 
-// LaboSignal — vue de daemon_signals pour la page Signaux du labo (même
+// StudioSignal — vue de daemon_signals pour la page Signaux du studio (même
 // forme que l'ancienne table radar_posts : source_title, flash_content…).
-type LaboSignal struct {
+type StudioSignal struct {
 	ID            int64  `json:"id"`
 	SourceTitle   string `json:"source_title"`
 	FlashContent  string `json:"flash_content"`
@@ -130,7 +130,7 @@ type PublicationInput struct {
 // ── Construction ────────────────────────────────────────────────────────────
 
 // NewLocal ouvre le SQLite local (tables daemon_*) et branche le provider
-// de settings (config YAML aplatie). WAL activé : lectures du labo pendant
+// de settings (config YAML aplatie). WAL activé : lectures du studio pendant
 // que le daemon écrit.
 func NewLocal(dbPath string, settingsProvider func() (map[string]any, error)) (*Client, error) {
 	db, err := sql.Open("sqlite", dbPath+"?mode=rw")
@@ -154,7 +154,7 @@ func NewLocal(dbPath string, settingsProvider func() (map[string]any, error)) (*
 }
 
 // DBPath — chemin du fichier SQLite (utilisé pour dériver le dossier des
-// bases par élection : data/radar.db → data/elections/).
+// bases par élection : data/pipeline.db → data/elections/).
 func (c *Client) DBPath() string { return c.dbPath }
 
 func (c *Client) migrate() error {
@@ -228,7 +228,7 @@ func (c *Client) migrate() error {
 
 func (c *Client) Close() error { return c.db.Close() }
 
-// ── Cycles (historique « Suivi » du labo) ──────────────────────────────────
+// ── Cycles (historique « Suivi » du studio) ──────────────────────────────────
 
 // CycleStep — une étape d'un cycle (Aspiré, Trié, Rédigé, Validé, Publié…).
 type CycleStep struct {
@@ -493,7 +493,7 @@ func (c *Client) RecordSourceHealth(url, typ, name string, ok bool, statusText, 
 	return err
 }
 
-// GetSourceHealth — toute la table, pour GET /api/sources-health du labo.
+// GetSourceHealth — toute la table, pour GET /api/sources-health du studio.
 func (c *Client) GetSourceHealth() ([]SourceHealth, error) {
 	rows, err := c.db.Query(`
 		SELECT url, type, COALESCE(source_name,''), consecutive_failures,
@@ -748,10 +748,10 @@ func stringSlice(vs ...any) []string {
 	return nil
 }
 
-// ── Signaux pour le labo (page Signaux, forme radar_posts) ────────────────
+// ── Signaux pour le studio (page Signaux, forme radar_posts) ────────────────
 
 // ListSignals — daemon_signals filtré (status/geo/q) + compteurs par statut.
-func (c *Client) ListSignals(status, geo, q string, limit int) ([]LaboSignal, error) {
+func (c *Client) ListSignals(status, geo, q string, limit int) ([]StudioSignal, error) {
 	where := []string{"1=1"}
 	args := []any{}
 	if status != "" && status != "ALL" {
@@ -779,23 +779,23 @@ func (c *Client) ListSignals(status, geo, q string, limit int) ([]LaboSignal, er
 		return nil, err
 	}
 	defer rows.Close()
-	var out []LaboSignal
+	var out []StudioSignal
 	for rows.Next() {
-		var ls LaboSignal
+		var ls StudioSignal
 		var rawData, finalDraft, tags, createdAt sql.NullString
 		if err := rows.Scan(&ls.ID, &rawData, &finalDraft, &tags, &ls.Status, &ls.Geo, &ls.TypeOuverture, &createdAt); err != nil {
 			return nil, err
 		}
-		ls = deriveLaboSignal(ls, rawData, finalDraft, tags)
+		ls = deriveStudioSignal(ls, rawData, finalDraft, tags)
 		ls.CreatedAt = fromNull(createdAt)
 		out = append(out, ls)
 	}
 	return out, rows.Err()
 }
 
-// deriveLaboSignal reconstruit source_title/url/contenu/fiabilité depuis
+// deriveStudioSignal reconstruit source_title/url/contenu/fiabilité depuis
 // raw_data (mergedTopic JSON), le brouillon final (final_draft.body) et tags.
-func deriveLaboSignal(ls LaboSignal, rawData, finalDraft, tags sql.NullString) LaboSignal {
+func deriveStudioSignal(ls StudioSignal, rawData, finalDraft, tags sql.NullString) StudioSignal {
 	var raw struct {
 		ClusterTitle string            `json:"clusterTitle"`
 		Articles     []json.RawMessage `json:"articles"`
@@ -844,7 +844,7 @@ func deriveLaboSignal(ls LaboSignal, rawData, finalDraft, tags sql.NullString) L
 	return ls
 }
 
-// CountSignals — compteurs par statut pour les tabs du labo.
+// CountSignals — compteurs par statut pour les tabs du studio.
 func (c *Client) CountSignals() (map[string]int64, error) {
 	rows, err := c.db.Query(`SELECT status, COUNT(*) FROM daemon_signals GROUP BY status`)
 	if err != nil {
@@ -863,7 +863,7 @@ func (c *Client) CountSignals() (map[string]int64, error) {
 	return out, rows.Err()
 }
 
-// DeleteSignals — suppression définitive depuis le labo.
+// DeleteSignals — suppression définitive depuis le studio.
 func (c *Client) DeleteSignals(ids []ID) error {
 	if len(ids) == 0 {
 		return nil
@@ -881,7 +881,7 @@ func (c *Client) DeleteSignals(ids []ID) error {
 
 // GetApprovableSignals — file de publication : les sujets prêts à être
 // programmés. C'est la porte de modération du pipeline.
-//   - autoApprove=false (défaut) : seul APPROVED (validation humaine dans le labo)
+//   - autoApprove=false (défaut) : seul APPROVED (validation humaine dans le studio)
 //   - autoApprove=true  (Mode Fantôme) : PENDING est considéré approuvé d'office
 func (c *Client) GetApprovableSignals(autoApprove bool) ([]Signal, error) {
 	statuses := "('APPROVED')"

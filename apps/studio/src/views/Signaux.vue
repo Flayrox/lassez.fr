@@ -14,7 +14,7 @@
 
     <!-- Erreur -->
     <div v-if="store.error" class="bg-danger/10 border border-danger/40 text-danger rounded-card px-4 py-3 text-xs">
-      Impossible de joindre le robot ({{ store.error }}). Lance le daemon : <code class="font-mono">RADAR_DB_PATH=../data/radar.db ./daemon</code>
+      Impossible de joindre le robot ({{ store.error }}). Lance le daemon : <code class="font-mono">PIPELINE_DB_PATH=../data/pipeline.db ./daemon</code>
     </div>
 
     <LCard :padding="false">

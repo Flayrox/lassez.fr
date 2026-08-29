@@ -34,13 +34,13 @@ func RunPublisher(client *store.Client, resolver *config.Resolver) error {
 	// PHASE A : CRÉATION DES MISSIONS DE PUBLICATION
 	// ========================================================
 	// Porte de modération : sans Mode Fantôme, seuls les signaux APPROVED par un
-	// humain dans le labo sont programmés. En Mode Fantôme (enableAutoApprove),
+	// humain dans le studio sont programmés. En Mode Fantôme (enableAutoApprove),
 	// les PENDING sont considérés approuvés d'office par la validation IA.
 	autoApprove := boolParam(resolver, "publisher", "enableAutoApprove", false)
 	if autoApprove {
 		log.Printf("[Node 6: Phase A] 👻 Mode Fantôme : les signaux PENDING sont auto-approuvés.")
 	} else {
-		log.Printf("[Node 6: Phase A] ⏳ Modération active : seuls les signaux APPROVED (validation labo) sont programmés.")
+		log.Printf("[Node 6: Phase A] ⏳ Modération active : seuls les signaux APPROVED (validation studio) sont programmés.")
 	}
 
 	pending, err := client.GetApprovableSignals(autoApprove)
@@ -83,7 +83,7 @@ func RunPublisher(client *store.Client, resolver *config.Resolver) error {
 		}
 
 		// Matrice format → plateforme (targetsByType). La clé est l'id du format
-		// (ex: "FLASH", "ALERTE") — le labo les écrit ainsi. Si la matrice est
+		// (ex: "FLASH", "ALERTE") — le studio les écrit ainsi. Si la matrice est
 		// absente, toutes les plateformes sont autorisées pour tous les formats.
 		allowedByType := map[string]map[string]bool{}
 		settings, _ := resolver.Settings()
@@ -193,7 +193,8 @@ func RunPublisher(client *store.Client, resolver *config.Resolver) error {
 	return nil
 }
 
-// buildRegistry instantiates the enabled channels from radar-settings. This
+// buildRegistry instantiates the enabled channels from the config (section
+// publisher, gérée par le Studio). This
 // is the modular seam: every enabled platform becomes a Channel, and Phase A
 // only schedules missions for registered platforms.
 func buildRegistry(client *store.Client, resolver *config.Resolver) *publish.Registry {
@@ -205,7 +206,7 @@ func buildRegistry(client *store.Client, resolver *config.Resolver) *publish.Reg
 		registry.Add(publish.NewDiscord(publish.DiscordConfig{
 			WebhookURL: strParam(resolver, "publisher", "discordWebhookUrl", ""),
 			ColorHex:   strParam(resolver, "publisher", "discordEmbedColor", "#DC2626"),
-			Footer:     strParam(resolver, "publisher", "discordFooterText", "Radar L'Assez • Investigation"),
+			Footer:     strParam(resolver, "publisher", "discordFooterText", "L'Assez • Investigation"),
 			HTTP:       httpClient,
 		}))
 	}
@@ -239,7 +240,7 @@ func buildRegistry(client *store.Client, resolver *config.Resolver) *publish.Reg
 		}))
 	}
 	// QOE — qoe.fi : canal de publication principal. La clé vient de
-	// .secrets.yaml (qoeApiKey/qoePublicationId) via le resolver — le labo la
+	// .secrets.yaml (qoeApiKey/qoePublicationId) via le resolver — le studio la
 	// colle dans Système. Tant qu'aucune clé n'est présente : mode test (mock).
 	if boolParam(resolver, "publisher", "enableQoe", true) {
 		registry.Add(publish.NewQoe(publish.QoeConfig{Client: qoe.New(qoe.Config{

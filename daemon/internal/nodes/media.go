@@ -237,7 +237,7 @@ func wikimediaImageSearch(ctx context.Context, query string) ([]imageResult, err
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("User-Agent", "LAssezLabo/1.0 (daemon de publication du site lassez.fr)")
+	req.Header.Set("User-Agent", "LAssezStudio/1.0 (daemon de publication du site lassez.fr)")
 
 	resp, err := mediaHTTPClient.Do(req)
 	if err != nil {

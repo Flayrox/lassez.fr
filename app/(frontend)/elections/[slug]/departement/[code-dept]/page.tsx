@@ -22,7 +22,7 @@ function getDb(slug: string) {
 }
 
 function getStudioBaseUrl() {
-    const remoteUrl = process.env.RADAR_API_URL;
+    const remoteUrl = process.env.STUDIO_API_URL;
     if (!remoteUrl) return null;
     try {
         const u = new URL(remoteUrl);

@@ -4,7 +4,7 @@ import Database from 'better-sqlite3';
 
 // ── Bases par élection ──────────────────────────────────────────────────────
 // Depuis le refactor des bases : UN fichier SQLite par élection
-// (data/elections/{slug}.db), séparé de la base du pipeline (data/radar.db).
+// (data/elections/{slug}.db), séparé de la base du pipeline (data/pipeline.db).
 // Un nouveau scrutin = un nouveau fichier, rien à mélanger avec les signaux.
 
 export function getElectionsDir(): string {

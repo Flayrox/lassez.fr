@@ -1,4 +1,4 @@
-// Endpoint de test Gemini — le labo (Système → Clé API Gemini) vérifie que la
+// Endpoint de test Gemini — le studio (Système → Clé API Gemini) vérifie que la
 // clé qu'il vient de coller est valide, avec un VRAI appel API sur le même
 // chemin que le pipeline (REST + grounding Google Search via nodes.PingGemini).
 // La clé est résolue par le même chemin que les nœuds IA (secrets studio →

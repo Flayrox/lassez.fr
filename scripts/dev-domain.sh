@@ -4,7 +4,7 @@
 # dédiés jamais utilisés.
 #
 #   http://lassez.test        → Front Next.js (site public)    [port 2500]
-#   http://studio.lassez.test → Labo Vue (pilote le daemon)    [port 4405]
+#   http://studio.lassez.test → Studio Vue (pilote le daemon)    [port 4405]
 #   Daemon Go : 127.0.0.1:4406
 #
 # Les entrées /etc/hosts sont ajoutées au premier lancement (sudo demandé une
@@ -12,23 +12,23 @@
 # qoe.fi (blocs lassez.test + studio.lassez.test) — un caddy reload est tenté
 # automatiquement. Sans Caddy, les URL avec port fonctionnent quand même.
 #
-# Surcharge : LABO_HOST, FRONT_HOST, LABO_PORT, DAEMON_PORT, NEXT_PORT,
+# Surcharge : STUDIO_HOST, FRONT_HOST, STUDIO_PORT, DAEMON_PORT, NEXT_PORT,
 # CADDY_CONFIG (chemin du Caddyfile.dev à recharger).
 # ─────────────────────────────────────────────────────────────────────────────
 set -euo pipefail
 
-LABO_HOST="${LABO_HOST:-studio.lassez.test}"
+STUDIO_HOST="${STUDIO_HOST:-studio.lassez.test}"
 FRONT_HOST="${FRONT_HOST:-lassez.test}"
-LABO_PORT="${LABO_PORT:-4405}"
+STUDIO_PORT="${STUDIO_PORT:-4405}"
 DAEMON_PORT="${DAEMON_PORT:-4406}"
 NEXT_PORT="${NEXT_PORT:-2500}"
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 # 1) Entrée /etc/hosts (idempotente)
-if ! grep -qE "[[:space:]]${LABO_HOST}([[:space:]]|$)" /etc/hosts; then
-  echo "→ Ajout de « 127.0.0.1 ${LABO_HOST} ${FRONT_HOST} » dans /etc/hosts (mot de passe admin requis)"
-  sudo sh -c "printf '%s\n' '127.0.0.1 ${LABO_HOST} ${FRONT_HOST}' >> /etc/hosts"
+if ! grep -qE "[[:space:]]${STUDIO_HOST}([[:space:]]|$)" /etc/hosts; then
+  echo "→ Ajout de « 127.0.0.1 ${STUDIO_HOST} ${FRONT_HOST} » dans /etc/hosts (mot de passe admin requis)"
+  sudo sh -c "printf '%s\n' '127.0.0.1 ${STUDIO_HOST} ${FRONT_HOST}' >> /etc/hosts"
 fi
 
 PIDS=()
@@ -38,12 +38,12 @@ trap cleanup EXIT INT TERM
 # 2) Daemon Go sur 127.0.0.1:${DAEMON_PORT}
 echo "→ Daemon : build + lancement sur 127.0.0.1:${DAEMON_PORT}"
 (cd "$ROOT/daemon" && go build -o bin/daemon ./cmd/daemon)
-(cd "$ROOT/daemon" && LABO_API_ADDR="127.0.0.1:${DAEMON_PORT}" ./bin/daemon) &
+(cd "$ROOT/daemon" && STUDIO_API_ADDR="127.0.0.1:${DAEMON_PORT}" ./bin/daemon) &
 PIDS+=($!)
 
-# 3) Labo Vite sur :${LABO_PORT} (proxy /api → daemon)
-echo "→ Labo (Vue) : http://${LABO_HOST}:${LABO_PORT}"
-LABO_PORT="$LABO_PORT" DAEMON_PORT="$DAEMON_PORT" npm --prefix "$ROOT/apps/labo" run dev &
+# 3) Studio Vite sur :${STUDIO_PORT} (proxy /api → daemon)
+echo "→ Studio (Vue) : http://${STUDIO_HOST}:${STUDIO_PORT}"
+STUDIO_PORT="$STUDIO_PORT" DAEMON_PORT="$DAEMON_PORT" npm --prefix "$ROOT/apps/studio" run dev &
 PIDS+=($!)
 
 # 4) Front Next.js sur :${NEXT_PORT}
@@ -69,9 +69,9 @@ else
 fi
 
 echo
-echo "  🟢 Studio (labo)  : http://${LABO_HOST}      (sans port, via Caddy)"
+echo "  🟢 Studio (studio)  : http://${STUDIO_HOST}      (sans port, via Caddy)"
 echo "  🟢 Front site     : http://${FRONT_HOST}"
-echo "  🔸 Direct         : http://${LABO_HOST}:${LABO_PORT} · http://${FRONT_HOST}:${NEXT_PORT}"
+echo "  🔸 Direct         : http://${STUDIO_HOST}:${STUDIO_PORT} · http://${FRONT_HOST}:${NEXT_PORT}"
 echo "  🔸 Daemon API     : 127.0.0.1:${DAEMON_PORT}/api"
 echo "  Stop : Ctrl-C"
 wait

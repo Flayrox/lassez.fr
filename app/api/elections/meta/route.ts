@@ -7,7 +7,7 @@ import Database from 'better-sqlite3';
 export const dynamic = 'force-dynamic';
 
 function getStudioBaseUrl() {
-    const remoteUrl = process.env.RADAR_API_URL;
+    const remoteUrl = process.env.STUDIO_API_URL;
     if (!remoteUrl) return null;
     try {
         const u = new URL(remoteUrl);
@@ -18,7 +18,7 @@ function getStudioBaseUrl() {
 }
 
 export async function GET(request: Request) {
-    const isProxied = request.headers.get('x-radar-proxy') === '1';
+    const isProxied = request.headers.get('x-studio-proxy') === '1';
     let db: any = null;
     try {
         const studioBase = getStudioBaseUrl();
@@ -27,7 +27,7 @@ export async function GET(request: Request) {
                 `${studioBase}/api/elections/meta?t=${Date.now()}`,
                 {
                     cache: 'no-store',
-                    headers: { 'x-radar-proxy': '1' }
+                    headers: { 'x-studio-proxy': '1' }
                 },
                 1800
             );

@@ -3,7 +3,7 @@
     <div class="flex items-center justify-between gap-3">
       <div>
         <h1 class="text-lg font-semibold">Système</h1>
-        <p class="text-xs text-text-3 mt-0.5">Le labo en coulisses — simple et lisible</p>
+        <p class="text-xs text-text-3 mt-0.5">Le studio en coulisses — simple et lisible</p>
       </div>
       <div class="flex items-center gap-2">
         <LButton variant="secondary" :disabled="system.loading" @click="refresh">↻ Rafraîchir</LButton>
@@ -210,7 +210,7 @@
     </LCard>
 
     <!-- Équipe (en attente de l'API qoe.fi pour le vrai CRUD) -->
-    <LCard title="Équipe" description="Qui peut toucher au labo (branché via qoe.fi prochainement)">
+    <LCard title="Équipe" description="Qui peut toucher au studio (branché via qoe.fi prochainement)">
       <table class="w-full text-left text-xs">
         <thead><tr class="text-[10px] uppercase tracking-wider text-text-3 border-b border-border">
           <th class="px-4 py-2 font-medium">Membre</th>
@@ -234,7 +234,7 @@
       <ul class="text-xs text-text-2 space-y-1.5 font-mono">
         <li><span class="text-text-3">Config</span> daemon/config/config.yaml</li>
         <li><span class="text-text-3">Secrets</span> daemon/config/.secrets.yaml (clés API, jamais dans git)</li>
-        <li><span class="text-text-3">Données locales</span> data/radar.db (signaux, archives, élections)</li>
+        <li><span class="text-text-3">Données locales</span> data/pipeline.db (signaux, cycles, publications)</li>
         <li><span class="text-text-3">Articles publiés</span> api.qoe.fi (qoe.fi)</li>
       </ul>
     </LCard>

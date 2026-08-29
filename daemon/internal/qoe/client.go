@@ -29,7 +29,7 @@ type CreateArticleInput struct {
 	Visibility    string `json:"visibility,omitempty"`
 }
 
-// New — client qoe.fi configuré explicitement (le labo passe la clé par
+// New — client qoe.fi configuré explicitement (le studio passe la clé par
 // .secrets.yaml via le resolver). Mode mock tant qu'aucune clé n'est présente
 // (QOE_MOCK=true force le mock, QOE_MOCK=false le désactive toujours).
 func New(cfg Config) *Client {
@@ -60,7 +60,7 @@ func NewFromEnv() *Client {
 	})
 }
 
-// Config — paramètres du client qoe.fi (le labo les fournit via .secrets.yaml).
+// Config — paramètres du client qoe.fi (le studio les fournit via .secrets.yaml).
 type Config struct {
 	BaseURL       string
 	APIKey        string

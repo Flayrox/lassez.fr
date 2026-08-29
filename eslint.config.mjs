@@ -1,6 +1,6 @@
 // ESLint 9 — flat config (remplace l'ancien `next lint`).
 // Portée : le front Next.js (app, components, hooks, lib) + scripts.
-// Le daemon (Go), le labo (Vue, apps/) et les artefacts sont ignorés.
+// Le daemon (Go), le studio (Vue, apps/) et les artefacts sont ignorés.
 import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
 import globals from 'globals';

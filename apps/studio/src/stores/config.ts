@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, watch } from 'vue'
 import { FACTORY_PROMPTS, FACTORY_FORMATS } from './factory'
 
-// Store labo — valeurs par défaut = la VRAIE config qui tournait sur le VPS
+// Store studio — valeurs par défaut = la VRAIE config qui tournait sur le VPS
 // (radar.db 04/08/2026, voir daemon/config/config.yaml)
 
 export interface WeeklySlot { day: string; time: string } // ex { day:'LUN', time:'20:08' }
@@ -128,7 +128,7 @@ export const useConfigStore = defineStore('config', () => {
     } as Record<string, string>,
     // Le grand prompt éditorial (ai_prompt) — la ligne éditoriale complète.
     // Les blocs ci-dessous portent le DNA factory de L'Assez (identité "Le
-    // Mécanicien", vocabulaire, méthode des 3 tirs…) — éditables dans le labo.
+    // Mécanicien", vocabulaire, méthode des 3 tirs…) — éditables dans le studio.
     promptEditorial: '',
     // Nom du rédacteur IA (persona) — remplacé dans les prompts, éditable.
     personaName: 'Le Mécanicien',
@@ -160,7 +160,7 @@ export const useConfigStore = defineStore('config', () => {
     return out.length ? out : modelRegistry.value
   }
 
-  // ── Formats (les "Formats de News" de l'ancien labo : instructions de
+  // ── Formats (les "Formats de News" de l'ancien studio : instructions de
   // format + exemples few-shot + schéma JSON de sortie par type d'info) ──
   const formats = ref<FormatItem[]>(FACTORY_FORMATS.map(x => ({ ...x, actif: true, exemples: [...x.exemples] })))
 
@@ -365,7 +365,7 @@ export const useConfigStore = defineStore('config', () => {
     return out
   }
 
-  // Le store → structure imbriquée de config.yaml (sections gérées par le labo)
+  // Le store → structure imbriquée de config.yaml (sections gérées par le studio)
   function toYamlConfig(): Record<string, any> {
     const targetsByType: Record<string, Record<string, boolean>> = {}
     for (const f of formats.value) {
@@ -388,7 +388,7 @@ export const useConfigStore = defineStore('config', () => {
         },
       },
       // Métadonnées par source (biais, fiabilité, images, actif) — le daemon lit
-      // ingestion.sources.rss (URLs actives) ; cette section est pour le labo.
+      // ingestion.sources.rss (URLs actives) ; cette section est pour le studio.
       sourcesMeta: sources.value.list.map(s => ({ url: s.url, trust: s.trust, bias: s.bias, allowImages: s.allowImages, active: s.active })),
       dedup: {
         similarityThreshold: round2(filtres.value.seuilRessemblance / 100),
@@ -794,7 +794,17 @@ export const useConfigStore = defineStore('config', () => {
   }
   function load() {
     hydrating.value = true
-    const raw = localStorage.getItem('labo-config-v2')
+    // Migration : l'ancienne clé « labo-config-v2 » devient « studio-config-v2 »
+    // (renommage du cockpit labo → studio) — on récupère la config locale existante.
+    let raw = localStorage.getItem('studio-config-v2')
+    if (!raw) {
+      const legacy = localStorage.getItem('labo-config-v2')
+      if (legacy) {
+        localStorage.setItem('studio-config-v2', legacy)
+        localStorage.removeItem('labo-config-v2')
+        raw = legacy
+      }
+    }
     if (raw) {
       try {
         const o = JSON.parse(raw)
@@ -823,7 +833,7 @@ export const useConfigStore = defineStore('config', () => {
 
   function persistLocal() {
     // Note : les secrets ne sont jamais écrits ici — uniquement .secrets.yaml via le daemon.
-    localStorage.setItem('labo-config-v2', JSON.stringify({
+    localStorage.setItem('studio-config-v2', JSON.stringify({
       atelier: atelier.value, positions: positions.value,
       sources: sources.value, filtres: filtres.value,
       ecriture: ecriture.value, formats: formats.value, partage: partage.value,
@@ -878,7 +888,7 @@ export const useConfigStore = defineStore('config', () => {
     } catch (e: any) {
       apiOk.value = false
       apiError.value = e?.message || String(e)
-      console.warn('[labo] config non envoyée au daemon :', apiError.value)
+      console.warn('[studio] config non envoyée au daemon :', apiError.value)
     }
   }
 
@@ -904,7 +914,7 @@ export const useConfigStore = defineStore('config', () => {
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       await res.json()
     } catch (e: any) {
-      console.warn('[labo] secrets non envoyés au daemon :', e?.message || e)
+      console.warn('[studio] secrets non envoyés au daemon :', e?.message || e)
     }
   }
 

@@ -36,7 +36,7 @@ export default function CommunicationLayer() {
     };
 
     // Ne pas afficher la maintenance sur les pages admin (pour pouvoir désactiver le mode !)
-    const isAdminPage = pathname?.startsWith('/radar') || pathname?.startsWith('/templates') || pathname?.startsWith('/admin');
+    const isAdminPage = pathname?.startsWith('/templates') || pathname?.startsWith('/admin');
 
     return (
         <>
@@ -62,7 +62,7 @@ export default function CommunicationLayer() {
                                     <div className="w-2 h-2 rounded-full bg-rose-600 animate-bounce" style={{ animationDelay: '300ms' }} />
                                 </div>
                                 <p className="text-[10px] font-black uppercase tracking-widest text-stone-300">
-                                    Radar Pilot System — Standby
+                                    Pipeline Pilot System — Standby
                                 </p>
                             </div>
                         </div>

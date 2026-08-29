@@ -93,7 +93,7 @@ const saveStatus = computed(() => {
       <button @click="collapsed = !collapsed" class="w-7 h-7 flex items-center justify-center text-text-3 hover:text-text-1 transition-colors" title="Menu">☰</button>
       <div class="flex items-center gap-2 select-none">
         <div class="w-[22px] h-[22px] rounded bg-accent text-accent-fg flex items-center justify-center font-bold text-[10px]">L</div>
-        <span class="text-sm font-semibold tracking-tight">Labo</span>
+        <span class="text-sm font-semibold tracking-tight">Studio</span>
         <span v-if="$route.path !== '/'" class="text-text-3 text-xs mx-1">/</span>
         <span v-if="$route.path !== '/'" class="text-xs text-text-2">{{ allItems.find(i => i.to === $route.path)?.label }}</span>
       </div>

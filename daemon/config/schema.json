@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "Labo Config",
+  "title": "Studio Config",
   "type": "object",
   "required": ["ingestion","dedup","research","editorial","publisher","scheduling"],
   "properties": {

@@ -1,7 +1,7 @@
-// ── Le "DNA" de L'Assez — porté depuis l'ancien labo (scripts/seed-taxonomies.ts).
+// ── Le "DNA" de L'Assez — porté depuis l'ancien studio (scripts/seed-taxonomies.ts).
 // Ces valeurs sont les défauts factory : chaque format embarque ses instructions,
 // ses exemples few-shot et son schéma de sortie, et les blocs de prompts la ligne
-// éditoriale. Tout est éditable dans le labo et persiste dans config.yaml.
+// éditoriale. Tout est éditable dans le studio et persiste dans config.yaml.
 
 export const FACTORY_PROMPTS: Record<string, string> = {
   // baseIdentityPrompt

@@ -11,8 +11,8 @@
 
 - Front Next.js clean : Payload / WordPress / Supabase / radar TS virés. Build ~835 ms, TS ~1,2 s, 18/18 pages.
 - Daemon **100 % Go**, pipeline explicite en 7 nœuds : `ingestion → dedup → research → editorial → validator → media → publisher`. Zéro charge serveur au-delà d'un binaire + du statique.
-- Labo Vue/Vite (`apps/labo`) : aussi configurable que l'ancien radar-admin, sans le jargon, design Stripe-like.
-- Bases séparées : `data/radar.db` (pipeline, tables `daemon_*`) + 1 fichier par élection (`data/elections/{slug}.db`) + registre JSON. Plus aucune contention SQLite.
+- Studio Vue/Vite (`apps/studio`) : aussi configurable que l'ancien radar-admin, sans le jargon, design Stripe-like.
+- Bases séparées : `data/pipeline.db` (pipeline, tables `daemon_*`) + 1 fichier par élection (`data/elections/{slug}.db`) + registre JSON. Plus aucune contention SQLite.
 - Recherche web **réelle** à chaque appel IA (grounding Google), replis anti-quota (AI Studio → Vertex, modèle lourd → Flash Lite), sortie JSON verrouillée.
 
 **Sur le fond (l'intelligence), on plafonne à l'instant T.** Chaque article est écrit de zéro, avec uniquement la matière du jour. C'est exactement le plafond que les paliers ci-dessous cassent.
@@ -75,7 +75,7 @@ Une fois que l'orchestrateur a la mémoire, il peut faire le travail d'un vrai d
 
 - Proposer des **rebonds** : « l'affaire X mérite un suivi la semaine prochaine ».
 - Ouvrir des **fils** : repérer les promesses non tenues, les déclarations contradictoires, les dossiers qu'on a lâchés.
-- Planifier sur le calendrier (qui existe déjà dans le labo).
+- Planifier sur le calendrier (qui existe déjà dans le studio).
 
 ---
 
@@ -114,8 +114,8 @@ Une fois que l'orchestrateur a la mémoire, il peut faire le travail d'un vrai d
 
 Pour que tout ça reste **modulable, contrôlable et testable de bout en bout**, on pose ces règles dès le départ :
 
-- **Modulable** : chaque brique (mémoire, orchestrateur, suites) activable/désactivable via `daemon/config/config.yaml` + toggle dans le labo. Zéro rupture quand on désactive un palier.
-- **Contrôlable** : pilotable depuis le labo (bouton « lancer un cycle », planification par cycle, choix des modèles par type), et pas de comportement magique — tout ce que l'orchestrateur décide doit être visible (une vue « agenda du jour »).
+- **Modulable** : chaque brique (mémoire, orchestrateur, suites) activable/désactivable via `daemon/config/config.yaml` + toggle dans le studio. Zéro rupture quand on désactive un palier.
+- **Contrôlable** : pilotable depuis le studio (bouton « lancer un cycle », planification par cycle, choix des modèles par type), et pas de comportement magique — tout ce que l'orchestrateur décide doit être visible (une vue « agenda du jour »).
 - **Testable de bout en bout** : tests Go par nœud (il y a déjà `*_test.go` sur content/researcher/gemini), fixtures déterministes pour la mémoire (injecter un passé fictif et vérifier que la contradiction ressort), et observabilité : chaque cycle journalisé (tables `daemon_cycles` / `daemon_cycle_steps` existantes) + télémétrie.
 - **Budget maîtrisé** : la mémoire ne doit pas faire exploser le quota de recherche (une seule requête de vérification ciblée par contradiction suspectée, pas une recherche par fait).
 
@@ -123,8 +123,8 @@ Pour que tout ça reste **modulable, contrôlable et testable de bout en bout**,
 
 ## 9. État du ménage (fait en parallèle)
 
-- **« ancien-labo » supprimé** : rien à supprimer, il n'existe plus dans le projet. L'ancien studio React (`app/(studio)`) et l'ancien radar TypeScript (`radar_lassez/`) ont déjà été retirés de l'arborescence ; seul `apps/labo` (Vue/Vite) subsiste, c'est le labo actuel.
-- **`.gitignore` complété** : `past_convo.json` (transcript privé, 16 Mo), `daemon/logs/`, `scripts/fr.lassez.dev-daemon.plist`, `data/elections/`, `scratch/`, `.freebuff/`, `*.tsbuildinfo`, `*.log`, `.env*` non-example, `apps/labo/dist/`, `daemon/config/.secrets.yaml`, `daemon/config/*.bak`, etc.
+- **« ancien-labo » supprimé** : rien à supprimer, il n'existe plus dans le projet. L'ancien studio React (`app/(studio)`) et l'ancien radar TypeScript (`radar_lassez/`) ont déjà été retirés de l'arborescence ; seul `apps/studio` (Vue/Vite) subsiste, c'est le studio actuel.
+- **`.gitignore` complété** : `past_convo.json` (transcript privé, 16 Mo), `daemon/logs/`, `scripts/fr.lassez.dev-daemon.plist`, `data/elections/`, `scratch/`, `.freebuff/`, `*.tsbuildinfo`, `*.log`, `.env*` non-example, `apps/studio/dist/`, `daemon/config/.secrets.yaml`, `daemon/config/*.bak`, etc.
 
 ---
 

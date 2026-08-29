@@ -101,7 +101,7 @@ func RunResearcher(client *store.Client, resolver *config.Resolver) error {
 
 	// Recherche web : le modèle fait de VRAIES recherches Google à chaque
 	// analyse (grounding natif de l'API REST) pour vérifier les faits et
-	// débusquer le passif des protagonistes. Désactivable dans le labo.
+	// débusquer le passif des protagonistes. Désactivable dans le studio.
 	searchWeb := boolParam(resolver, "research", "webSearchEnabled", true)
 	if !searchWeb {
 		log.Printf("[Node 3] 🔍 Recherche web désactivée : le tri se fait sans vérification en ligne.")
@@ -164,8 +164,8 @@ func RunResearcher(client *store.Client, resolver *config.Resolver) error {
 				title = string(topic.ID)
 			}
 
-			// scoreThreshold — le slider "Note minimale" du labo (Écriture + Atelier).
-		// Défaut 50 = le labo est à 50/100 slider minimum.
+			// scoreThreshold — le slider "Note minimale" du studio (Écriture + Atelier).
+		// Défaut 50 = le studio est à 50/100 slider minimum.
 		scoreThreshold := 50
 		if v := resolver.GetEffectiveParam("research", "scoreThreshold", float64(50)); v != nil {
 			if n := int(toFloat64(v, 50)); n >= 0 && n <= 100 {

@@ -24,7 +24,7 @@ const TacticalNewsletter: React.FC = () => {
                         <span className={`relative w-1.5 h-1.5 rounded-full ${status === 'success' ? 'bg-green-500' : 'bg-lassez-red'}`}></span>
                     </div>
                     <span className="font-mono text-[10px] md:text-xs font-black uppercase tracking-[0.2em]">
-                        {status === 'success' ? 'Access_Permanent' : 'Radar_Alert_Protocol'}
+                        {status === 'success' ? 'Access_Permanent' : 'Pipeline_Alert_Protocol'}
                     </span>
                 </div>
 

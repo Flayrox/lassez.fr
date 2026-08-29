@@ -283,7 +283,7 @@ const ElectionsSidebar: React.FC<ElectionsSidebarProps> = ({ onClose }) => {
                 {/* SEO / Structural Links */}
                 <div className="mt-auto pt-8 border-t border-ink/10">
                     <p className="text-[9px] font-mono uppercase text-ink/40 leading-relaxed">
-                        Données électorales consolidées par le Radar Lassez. 
+                        Données électorales consolidées par L'Assez. 
                         Mise à jour en temps réel des candidatures et scrutins.
                         © 2024 Lassez-Faire.
                     </p>

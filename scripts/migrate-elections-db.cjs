@@ -2,22 +2,22 @@
 /**
  * Migration des bases : UN fichier SQLite par élection.
  *
- * Avant : tout vivait dans data/radar.db (signaux daemon_* + élections +
+ * Avant : tout vivait dans data/pipeline.db (signaux daemon_* + élections +
  * réglages legacy mélangés). Après :
- *   - data/radar.db            → pipeline uniquement (tables daemon_*)
+ *   - data/pipeline.db         → pipeline uniquement (tables daemon_*)
  *   - data/elections/{slug}.db → UNE base par scrutin (officiel_cache,
  *                                resultats, sync_status + ses réglages)
  *   - data/elections/registry.json → quelles élections afficher + la cible
  *
  * Usage : node scripts/migrate-elections-db.cjs [--purge]
- *   --purge : après la copie, DROP les tables élections + legacy de radar.db.
+ *   --purge : après la copie, DROP les tables élections + legacy de pipeline.db.
  */
 const fs = require('fs');
 const path = require('path');
 const Database = require('better-sqlite3');
 
 const ROOT = path.join(__dirname, '..');
-const OLD_DB = path.join(ROOT, 'data', 'radar.db');
+const OLD_DB = path.join(ROOT, 'data', 'pipeline.db');
 const ELEC_DIR = path.join(ROOT, 'data', 'elections');
 const REGISTRY_PATH = path.join(ELEC_DIR, 'registry.json');
 
@@ -128,7 +128,7 @@ function main() {
 
         // Copie des données officielles (filtrées par élection). Le script peut
         // être relancé : on vide la destination AVANT d'insérer (idempotent).
-        // ⚠️ Si la source n'a plus la table (radar.db déjà purgée), on ne touche
+        // ⚠️ Si la source n'a plus la table (pipeline.db déjà purgée), on ne touche
         //    PAS à la destination — éviter d'écraser des données valides.
         if (tableExists(src, 'elections_officiel_cache')) {
             dst.prepare('DELETE FROM elections_officiel_cache').run();
@@ -146,7 +146,7 @@ function main() {
             console.log(`   ${slug} : ${rows.length} lignes officiel_cache`);
         }
 
-        // Overrides manuels (radar-admin) — la table peut ne pas exister côté src
+        // Overrides manuels (Studio) — la table peut ne pas exister côté src
         if (tableExists(src, 'elections_resultats')) {
             dst.prepare('DELETE FROM elections_resultats').run();
             const rows = src.prepare('SELECT * FROM elections_resultats WHERE election_slug = ?').all(slug);
@@ -195,13 +195,13 @@ function main() {
 
     src.close();
 
-    // ── 4. Purge de radar.db (optionnel) ──
+    // ── 4. Purge de pipeline.db (optionnel) ──
     if (!PURGE) {
-        console.log('\nℹ️  radar.db inchangée (lance avec --purge pour supprimer les tables élections + legacy).');
+        console.log('\nℹ️  pipeline.db inchangée (lance avec --purge pour supprimer les tables élections + legacy).');
         return;
     }
 
-    console.log('\n🧹 Purge de radar.db : suppression des tables élections + legacy...');
+    console.log('\n🧹 Purge de pipeline.db : suppression des tables élections + legacy...');
     const db = new Database(OLD_DB);
     const legacyTables = [
         // Élections (maintenant dans data/elections/)
@@ -232,7 +232,7 @@ function main() {
     compact.exec('VACUUM');
     compact.close();
     const size = fs.statSync(OLD_DB).size;
-    console.log(`✅ radar.db purgée et compactée (${(size / 1024 / 1024).toFixed(1)} Mo) — seules les tables daemon_* restent.`);
+    console.log(`✅ pipeline.db purgée et compactée (${(size / 1024 / 1024).toFixed(1)} Mo) — seules les tables daemon_* restent.`);
 }
 
 main();

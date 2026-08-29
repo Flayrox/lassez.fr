@@ -70,10 +70,10 @@ const RevelationsSidebar: React.FC<RevelationsSidebarProps> = ({ onClose }) => {
             </div>
 
             <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
-                {/* Zone Radar (Géo) */}
+                {/* Zone Géo */}
                 <div className="mb-10 lg:mb-8">
                     <h3 className="font-bold font-mono uppercase tracking-widest text-[10px] mb-4 border-b-2 border-ink/20 pb-2 text-ink/60 flex justify-between items-center">
-                        <span>Zone Radar</span>
+                        <span>Zone Géo</span>
                     </h3>
                     <ul className="space-y-2">
                         {geoFilters.map((filter) => {

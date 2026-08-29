@@ -9,7 +9,7 @@ const route = useRoute()
 const error = ref<Error | null>(null)
 
 onErrorCaptured((e: Error) => {
-  console.error('[labo] erreur capturée:', e)
+  console.error('[studio] erreur capturée:', e)
   error.value = e
   return false // on stoppe la propagation : on affiche notre fallback
 })

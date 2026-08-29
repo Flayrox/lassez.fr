@@ -1,12 +1,13 @@
-// Package pipeline — cœur de L'Assez : orchestre un cycle complet du Radar.
+// Package pipeline — cœur de L'Assez : orchestre un cycle complet du pipeline
+// d'automatisation (le daemon Go).
 //
 // Flot explicite (7 nœuds, 2 boucles) :
 //   Boucle principale (tous les X min) : ingestion → dedup → research → editor → validator → media
 //   Boucle publisher (toutes les 2 min) : diffusion qoe.fi / Discord / X / Bluesky (hors cycle)
 //
-// Le graphe est admin-configurable : app/(frontend)/radar-admin/flow édite pipelineGraphJson
-// (Vue Flow) → daemon.ts lit activeNodes → skip si nœud désactivé. C'est ce qui rend la pipeline
-// modulaire sans redéployer. Fallback = defaultActiveNodes si graph vide/corrompu.
+// Le graphe actif des nœuds est pilotable depuis config.yaml (section pipeline,
+// éditée via le Studio) : un nœud désactivé est simplement sauté. C'est ce qui
+// rend la pipeline modulaire sans redéployer. Fallback = défauts si graph vide.
 package pipeline
 
 import (
@@ -32,7 +33,7 @@ const (
 	// publisher est hors cycle (boucle séparée daemon/cmd/daemon/main.go)
 )
 
-// NodeMeta — métadonnées affichées dans le labo Vue (labo.lassez.fr)
+// NodeMeta — métadonnées affichées dans le studio Vue (studio.lassez.fr)
 type NodeMeta struct {
 	Type        string `json:"type"`
 	Label       string `json:"label"`
@@ -106,7 +107,7 @@ func ActiveNodes(resolver *config.Resolver) map[string]bool {
 }
 
 // RunCycle — exécute 1 cycle complet, nœud par nœud, en respectant activeNodes.
-// Chaque étape est loggée explicitement (Node 1..6) pour le dashboard labo.
+// Chaque étape est loggée explicitement (Node 1..6) pour le dashboard studio.
 func RunCycle(client *store.Client, resolver *config.Resolver, log *logger.Logger) error {
 	active := ActiveNodes(resolver)
 	log.Info("Daemon", "🚀 Démarrage cycle pipeline — actifs: "+strings.Join(activeList(active), ", "))
@@ -122,7 +123,7 @@ func RunCycle(client *store.Client, resolver *config.Resolver, log *logger.Logge
 
 	cycleStart := time.Now()
 	// Historique « Suivi » : chaque cycle est enregistré en SQLite avec ses
-	// étapes (aspiré → trié → rédigé → validé → publié), pour le labo.
+	// étapes (aspiré → trié → rédigé → validé → publié), pour le studio.
 	cycleID, _ := client.StartCycle("pipeline")
 
 	var articles []nodes.IngestedArticle

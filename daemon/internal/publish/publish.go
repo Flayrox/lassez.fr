@@ -2,7 +2,7 @@
 //
 // Chaque plateforme sociale (Discord, X, Bluesky, Mastodon, qoe.fi) est une
 // Channel implémentant le même contrat Publish. The publisher node builds a
-// Registry of enabled channels from radar-settings and dispatches each due
+// Registry of enabled channels from the config and dispatches each due
 // publication to the matching channel — adding a platform means writing one
 // Channel and registering it, nothing else changes.
 package publish
@@ -90,7 +90,7 @@ func BuildText(msg Message, maxLen int, includeURL bool) string {
 
 // credential résout un secret pour une channel : la valeur configurée (YAML /
 // .secrets.yaml via le resolver) prime, la variable d'environnement est le
-// repli — le labo reste la source de vérité des clés de plateformes.
+// repli — le studio reste la source de vérité des clés de plateformes.
 func credential(settingsVal, envKey string) string {
 	if v := strings.TrimSpace(settingsVal); v != "" {
 		return v

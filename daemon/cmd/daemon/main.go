@@ -1,4 +1,4 @@
-// Command daemon is the Go rewrite of the Radar automation daemon.
+// Command daemon is the Go rewrite of the pipeline automation daemon.
 //
 // It replaces radar_lassez/ (TypeScript). Two autonomous loops mirror the TS
 // daemon.ts: the main pipeline cycle runs the active nodes from the
@@ -52,10 +52,10 @@ func main() {
 	// ── Settings YAML + client local SQLite ──
 	resolver := config.NewResolverFromProvider(config.FileProvider(cfgPath))
 
-	// ── API HTTP du labo (signaux SQLite local) ──
-	dbPath := os.Getenv("RADAR_DB_PATH")
+	// ── API HTTP du studio (signaux SQLite local) ──
+	dbPath := os.Getenv("PIPELINE_DB_PATH")
 	if dbPath == "" {
-		dbPath = filepath.Join(repoRoot, "data", "radar.db")
+		dbPath = filepath.Join(repoRoot, "data", "pipeline.db")
 	}
 	localClient, err := store.NewLocal(dbPath, func() (map[string]any, error) {
 		return resolver.Settings()
@@ -65,24 +65,24 @@ func main() {
 	}
 	client := localClient // même interface que l'ancien client CMS
 
-	// Scan manuel : POST /api/scan du labo réveille la boucle principale
+	// Scan manuel : POST /api/scan du studio réveille la boucle principale
 	// (le canal est rempli par le serveur API, vidé par la boucle ci-dessous).
 	trigger := make(chan struct{}, 1)
 
 	{
-		// API HTTP du labo : signaux réels du pipeline (daemon_signals) + config.
+		// API HTTP du studio : signaux réels du pipeline (daemon_signals) + config.
 		srv := api.New(client, *configPath, resolver)
 		srv.Trigger = trigger
-		// Panneau de logs du labo : on lit la fin de daemon/logs/daemon.log.
+		// Panneau de logs du studio : on lit la fin de daemon/logs/daemon.log.
 		srv.LogPath = filepath.Join(logDir, "daemon.log")
 		go func() {
-			addr := os.Getenv("LABO_API_ADDR")
+			addr := os.Getenv("STUDIO_API_ADDR")
 			if addr == "" {
 				addr = ":2506"
 			}
-			log.Printf("[Daemon] API labo sur %s (signaux : %s)", addr, dbPath)
+			log.Printf("[Daemon] API studio sur %s (signaux : %s)", addr, dbPath)
 			if err := http.ListenAndServe(addr, api.CORS(srv.Mux)); err != nil {
-				log.Printf("[Daemon] ⚠️ API labo arrêtée : %v", err)
+				log.Printf("[Daemon] ⚠️ API studio arrêtée : %v", err)
 			}
 		}()
 	}
@@ -106,7 +106,7 @@ func main() {
 	log.SetOutput(&logRedirect{logger: loggerInstance})
 
 	loggerInstance.Info("Daemon", "==========================================")
-	loggerInstance.Info("Daemon", "   L'ASSEZ - DEMON RADAR (Go)            ")
+	loggerInstance.Info("Daemon", "   L'ASSEZ — DAEMON PIPELINE (Go)      ")
 	loggerInstance.Info("Daemon", "==========================================")
 	loggerInstance.Info("Daemon", "[Daemon] Stockage : "+client.BaseURL())
 	loggerInstance.Info("Daemon", "[Daemon] Journalisation : niveau="+logOpts.Level)
@@ -136,7 +136,7 @@ func main() {
 	}()
 
 	// 1. Boucle principale (ingestion → rédaction) avec planification.
-	//    Un scan manuel (POST /api/scan du labo) réveille l'attente immédiatement.
+	//    Un scan manuel (POST /api/scan du studio) réveille l'attente immédiatement.
 	go func() {
 		for {
 			if err := pipeline.RunCycle(client, resolver, loggerInstance); err != nil {
@@ -148,7 +148,7 @@ func main() {
 			loggerInstance.Info("Daemon", "⏳ Prochain scan programmé : "+next.Label+" ("+formatMinutes(next.Delay)+" min).")
 			select {
 			case <-trigger:
-				loggerInstance.Info("Daemon", "⚡ Scan manuel demandé par le labo — cycle immédiat.")
+				loggerInstance.Info("Daemon", "⚡ Scan manuel demandé par le studio — cycle immédiat.")
 			case <-time.After(next.Delay):
 			}
 		}
@@ -197,7 +197,7 @@ func formatMinutes(d time.Duration) string {
 }
 
 // recordPublisherRun — enregistre une diffusion publisher comme un cycle à
-// part (étape unique « Publié ») pour l'historique « Suivi » du labo.
+// part (étape unique « Publié ») pour l'historique « Suivi » du studio.
 func recordPublisherRun(client *store.Client, start time.Time) {
 	cycleID, err := client.StartCycle("publisher")
 	if err != nil {

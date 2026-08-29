@@ -112,9 +112,16 @@
 
     <!-- ════════════ MODE VUE D'ENSEMBLE ════════════ -->
     <template v-else>
-      <!-- Stat cards -->
+      <!-- Décisions d'abord : ce qui t'attend (cliquable → Signaux), puis l'état du robot -->
       <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <LCard v-for="c in cards" :key="c.label">
+        <router-link v-for="c in decisionCards" :key="c.label" :to="c.to" class="block group">
+          <LCard>
+            <p class="text-[11px] text-text-3">{{ c.label }}</p>
+            <p class="text-xl font-semibold mt-1" :class="c.class">{{ c.value }}</p>
+            <p class="text-[11px] text-text-3 mt-1 group-hover:text-accent transition-colors">{{ c.sub }}</p>
+          </LCard>
+        </router-link>
+        <LCard v-for="c in statusCards" :key="c.label">
           <p class="text-[11px] text-text-3">{{ c.label }}</p>
           <p class="text-xl font-semibold mt-1" :class="c.class">{{ c.value }}</p>
           <p class="text-[11px] text-text-3 mt-1">{{ c.sub }}</p>
@@ -177,14 +184,14 @@
         </LCard>
 
         <!-- Activité -->
-        <LCard title="Derniers signaux" description="Ce que le robot vient de ramener">
+        <LCard title="File de validation" description="Ce qui attend ton feu vert — valide ou rejette">
           <ul v-if="recentSignals.length" class="space-y-2.5">
             <li v-for="s in recentSignals" :key="s.id" class="text-xs flex items-start gap-2">
               <LBadge :variant="s.type_ouverture.includes('ALERTE') ? 'accent' : 'neutral'" class="shrink-0 mt-0.5">{{ s.type_ouverture.replace('📌 ', '') }}</LBadge>
               <span class="text-text-2 line-clamp-1">{{ s.source_title }}</span>
             </li>
           </ul>
-          <p v-else class="text-xs text-text-3">Aucun signal en attente pour l'instant.</p>
+          <p v-else class="text-xs text-text-3">Aucun signal à valider pour l'instant.</p>
           <router-link to="/signaux" class="text-[11px] text-accent hover:underline inline-block mt-3">Tous les signaux →</router-link>
         </LCard>
       </div>
@@ -263,10 +270,14 @@ const pub = computed(() => {
   }
 })
 
-const cards = computed(() => [
+// Décisions d'abord : les deux cartes humaines sont cliquables (→ Signaux),
+// l'état du robot (télémétrie) reste compact en dessous.
+const decisionCards = computed(() => [
+  { label: 'À valider', value: String(system.counts.PENDING ?? 0), sub: 'à décider — Signaux →', class: 'text-warning', to: '/signaux' },
+  { label: 'À publier', value: String(system.counts.QUEUED ?? 0), sub: 'programmés — Signaux →', class: 'text-info', to: '/signaux' },
+])
+const statusCards = computed(() => [
   { label: 'Robot', value: robot.value.value, sub: robot.value.sub, class: robot.value.class },
-  { label: 'Atelier', value: `${activeCount.value}/6`, sub: 'étapes actives', class: 'text-text-1' },
-  { label: 'En attente', value: String(system.counts.PENDING ?? 0), sub: 'signaux à valider', class: 'text-warning' },
   { label: 'Publication', value: pub.value.value, sub: pub.value.sub, class: pub.value.class },
 ])
 

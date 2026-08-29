@@ -11,6 +11,21 @@
       </LButton>
     </div>
 
+    <!-- Décisions d'abord : ce qui t'attend dans Signaux -->
+    <router-link to="/signaux" class="block">
+      <LCard :padding="false">
+        <div class="flex items-center justify-between gap-3 px-4 py-3">
+          <div class="flex items-center gap-2 text-xs flex-wrap">
+            <span v-if="(counts.PENDING ?? 0) > 0" class="font-semibold text-warning">{{ counts.PENDING ?? 0 }} sujet{{ (counts.PENDING ?? 0) > 1 ? 's' : '' }} à valider</span>
+            <span v-else class="font-semibold text-accent">✓ rien à valider</span>
+            <span class="text-text-3">·</span>
+            <span class="text-text-2">{{ counts.QUEUED ?? 0 }} à publier · {{ counts.PUBLISHED ?? 0 }} publiés</span>
+          </div>
+          <span class="text-[11px] text-accent shrink-0">Signaux →</span>
+        </div>
+      </LCard>
+    </router-link>
+
     <!-- Bandeau budget / niveau gratuit -->
     <LCard title="🎟️ Niveau gratuit — la répartition des modèles" :description="`Tes 3 nœuds IA tournent sur ${modelNames} — rien de plus cher n'est utilisé`">
       <div class="grid sm:grid-cols-3 gap-3">
@@ -298,9 +313,9 @@ const chain = computed(() => [
   {
     id: 7, type: 'publisher', icon: '📤', label: 'Diffusion',
     role: 'Envoyer sur tes plateformes (en continu, toutes les 2 min)',
-    what: 'Hors cycle principal : la boucle de diffusion tourne toutes les 2 minutes. Elle prend les sujets en attente — en Mode Fantôme ils partent seuls ; sinon tu dois cliquer « Approuvé » dans la page Signaux. Pour chaque sujet, une mission est créée par plateforme activée (qoe.fi, Discord, X, Bluesky, Mastodon), filtrée par la matrice format → plateformes, puis envoyée après un délai min/max pour étaler les publications.',
-    input: 'Les sujets en attente (PENDING), approuvés par toi (ou d’office en Mode Fantôme).',
-    output: 'Des publications envoyées (statut QUEUED → PUBLISHED) sur tes plateformes.',
+    what: 'Hors cycle principal : la boucle de diffusion tourne toutes les 2 minutes. Elle prend les sujets approuvés (QUEUED) — en Mode Fantôme les PENDING partent d’office. Pour chaque sujet, une mission est créée par plateforme activée (qoe.fi, Discord, X, Bluesky, Mastodon), filtrée par la matrice format → plateformes, puis envoyée après un délai min/max pour étaler les publications.',
+    input: 'Les sujets approuvés par toi (QUEUED) — ou les PENDING d’office en Mode Fantôme.',
+    output: 'Des publications envoyées (QUEUED → PUBLISHED) sur tes plateformes.',
     settingsTo: '/diffusion',
     settings: [
       `Plateformes : ${platformsOn.value || 'aucune'}`,
@@ -311,7 +326,7 @@ const chain = computed(() => [
     model: '— (pas d’IA ici)',
     temp: '—',
     note: 'Régler dans Diffusion (plateformes, délais, matrice).',
-    inputCount: { label: 'En attente (PENDING)', value: String(counts.value.PENDING ?? 0) },
+    inputCount: { label: 'Approuvés (QUEUED)', value: String(counts.value.QUEUED ?? 0) },
     outputCount: { label: 'Publiés (PUBLISHED)', value: String(counts.value.PUBLISHED ?? 0) },
   },
 ])

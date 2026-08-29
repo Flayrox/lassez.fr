@@ -3,8 +3,7 @@
 // It replaces radar_lassez/ (TypeScript). Two autonomous loops mirror the TS
 // daemon.ts: the main pipeline cycle runs the active nodes from the
 // pipelineGraphJson graph on a schedule (pulse / calendar / hybrid), and the
-// publisher loop checks due publications every 2 minutes while heartbeating
-// the admin dashboard through the Payload logs collection.
+// publisher loop checks due publications every 2 minutes.
 package main
 
 import (
@@ -27,7 +26,7 @@ import (
 	"github.com/Flayrox/lassez.fr/daemon/internal/config"
 	"github.com/Flayrox/lassez.fr/daemon/internal/logger"
 	"github.com/Flayrox/lassez.fr/daemon/internal/nodes"
-	"github.com/Flayrox/lassez.fr/daemon/internal/payload"
+	"github.com/Flayrox/lassez.fr/daemon/internal/store"
 	"github.com/Flayrox/lassez.fr/daemon/internal/pipeline"
 	"github.com/Flayrox/lassez.fr/daemon/internal/scheduler"
 )
@@ -39,23 +38,32 @@ func main() {
 	configPath := flag.String("config", "config/config.yaml", "chemin du fichier de configuration YAML")
 	flag.Parse()
 
-	loadEnv()
+	// Chemins canoniques : tout est résolu depuis le dossier du daemon
+	// (détecté via le binaire ou $DAEMON_ROOT), indépendant du répertoire
+	// de lancement — config, données, logs et .env pointent toujours au bon
+	// endroit, qu'on démarre de la racine du repo ou de daemon/.
+	daemonRoot := daemonDir()
+	repoRoot := filepath.Dir(daemonRoot)
+	cfgPath := resolvePath(daemonRoot, *configPath)
+	logDir := filepath.Join(daemonRoot, "logs")
 
-	// ── Settings YAML + client local SQLite (plus de Payload) ──
-	resolver := config.NewResolverFromProvider(config.FileProvider(*configPath))
+	loadEnv(repoRoot)
+
+	// ── Settings YAML + client local SQLite ──
+	resolver := config.NewResolverFromProvider(config.FileProvider(cfgPath))
 
 	// ── API HTTP du labo (signaux SQLite local) ──
 	dbPath := os.Getenv("RADAR_DB_PATH")
 	if dbPath == "" {
-		dbPath = "../data/radar.db"
+		dbPath = filepath.Join(repoRoot, "data", "radar.db")
 	}
-	localClient, err := payload.NewLocal(dbPath, func() (map[string]any, error) {
+	localClient, err := store.NewLocal(dbPath, func() (map[string]any, error) {
 		return resolver.Settings()
 	})
 	if err != nil {
 		log.Fatalf("[Daemon] 💥 SQLite indisponible (%s) : %v", dbPath, err)
 	}
-	client := localClient // même interface que l'ancien client Payload
+	client := localClient // même interface que l'ancien client CMS
 
 	// Scan manuel : POST /api/scan du labo réveille la boucle principale
 	// (le canal est rempli par le serveur API, vidé par la boucle ci-dessous).
@@ -65,8 +73,8 @@ func main() {
 		// API HTTP du labo : signaux réels du pipeline (daemon_signals) + config.
 		srv := api.New(client, *configPath, resolver)
 		srv.Trigger = trigger
-		// Panneau de logs du labo : on lit la fin de logs/daemon.log.
-		srv.LogPath = filepath.Join(".", "logs", "daemon.log")
+		// Panneau de logs du labo : on lit la fin de daemon/logs/daemon.log.
+		srv.LogPath = filepath.Join(logDir, "daemon.log")
 		go func() {
 			addr := os.Getenv("LABO_API_ADDR")
 			if addr == "" {
@@ -83,13 +91,11 @@ func main() {
 
 	settings, _ := resolver.Settings()
 	logOpts := logger.Options{
-		Level:         settingString(settings, "logLevel", "INFO"),
-		MirrorPayload: false, // plus de miroir Payload — fichier daemon.log uniquement
+		Level: settingString(settings, "logLevel", "INFO"),
 	}
 
-	// Logger : fichier logs/daemon.log (rotation 10 Mo). AppendLog du client
-	// local est un no-op conservé pour compat.
-	loggerInstance, err := logger.New(client, "", logOpts)
+	// Logger : fichier daemon/logs/daemon.log (rotation 10 Mo).
+	loggerInstance, err := logger.New(logDir, logOpts)
 	if err != nil {
 		log.Printf("[Daemon] ⚠️ Logger fichier indisponible: %v", err)
 	}
@@ -123,8 +129,8 @@ func main() {
 	go func() {
 		<-stop
 		loggerInstance.Info("Daemon", "🛑 Signal reçu, arrêt propre du démon...")
-		// os.Exit ne déroule pas les defers : on draine le logger
-		// (queue Payload + fichier) explicitement avant de sortir.
+		// os.Exit ne déroule pas les defers : on ferme le logger
+		// explicitement avant de sortir.
 		loggerInstance.Close()
 		os.Exit(0)
 	}()
@@ -159,7 +165,7 @@ func main() {
 				loggerInstance.Error("Daemon", "❌ Erreur dans la boucle Publisher : "+pubErr.Error())
 			}
 
-			// Heartbeat : rafraîchit updatedAt + log Payload (dashboard).
+			// Heartbeat : rafraîchit updatedAt.
 			if err := client.UpdateSettings(map[string]any{"updatedAt": time.Now().UTC().Format(time.RFC3339)}); err != nil {
 				loggerInstance.Warn("Daemon", "⚠️ Heartbeat updatedAt : "+err.Error())
 			}
@@ -172,7 +178,7 @@ func main() {
 }
 
 // logRedirect envoie chaque ligne du package log vers le Logger, pour que
-// les nœuds (log.Printf) alimentent aussi le fichier + Payload logs.
+// les nœuds (log.Printf) alimentent aussi le fichier.
 type logRedirect struct {
 	logger *logger.Logger
 }
@@ -192,7 +198,7 @@ func formatMinutes(d time.Duration) string {
 
 // recordPublisherRun — enregistre une diffusion publisher comme un cycle à
 // part (étape unique « Publié ») pour l'historique « Suivi » du labo.
-func recordPublisherRun(client *payload.Client, start time.Time) {
+func recordPublisherRun(client *store.Client, start time.Time) {
 	cycleID, err := client.StartCycle("publisher")
 	if err != nil {
 		return
@@ -202,10 +208,10 @@ func recordPublisherRun(client *payload.Client, start time.Time) {
 	client.EndCycle(cycleID, nil, dur)
 }
 
-// pruneLogsLoop supprime périodiquement les entrées Payload logs plus vieilles
-// que logRetentionDays (0 = jamais). Lit les réglages à chaque passage pour
+// pruneLogsLoop supprime périodiquement les vieux journaux (plus vieux que
+// logRetentionDays, 0 = jamais). Lit les réglages à chaque passage pour
 // prendre en compte un changement sans redémarrage.
-func pruneLogsLoop(client *payload.Client, resolver *config.Resolver, loggerInstance *logger.Logger) {
+func pruneLogsLoop(client *store.Client, resolver *config.Resolver, loggerInstance *logger.Logger) {
 	prune := func() {
 		settings, err := resolver.Settings()
 		if err != nil || settings == nil {
@@ -272,14 +278,44 @@ func toFloat(v any) float64 {
 	}
 }
 
-// loadEnv charges le .env à la racine du repo (le daemon TS a été supprimé,
-// ses secrets ont été fusionnés dans le .env racine).
-func loadEnv() {
-	wd, err := os.Getwd()
-	if err != nil {
-		return
+// loadEnv charge le .env à la racine du repo (les secrets y vivent :
+// GEMINI_API_KEY, DISCORD_WEBHOOK_URL…).
+func loadEnv(repoRoot string) {
+	_ = godotenv.Load(filepath.Join(repoRoot, ".env"))
+}
+
+// daemonDir retourne le dossier canonique du daemon (celui qui contient
+// config/config.yaml). Priorité : $DAEMON_ROOT, puis le dossier du binaire
+// compilé (daemon/bin/daemon → daemon/), puis le répertoire courant.
+func daemonDir() string {
+	if r := os.Getenv("DAEMON_ROOT"); r != "" {
+		return r
 	}
-	_ = godotenv.Load(filepath.Join(wd, ".env"))
+	var candidates []string
+	if exe, err := os.Executable(); err == nil {
+		d := filepath.Dir(exe)
+		candidates = append(candidates, d, filepath.Dir(d))
+	}
+	if wd, err := os.Getwd(); err == nil {
+		candidates = append(candidates, wd)
+	}
+	for _, c := range candidates {
+		if _, err := os.Stat(filepath.Join(c, "config", "config.yaml")); err == nil {
+			return c
+		}
+	}
+	if len(candidates) > 0 {
+		return candidates[len(candidates)-1]
+	}
+	return "."
+}
+
+// resolvePath rend un chemin absolu contre root quand il est relatif.
+func resolvePath(root, p string) string {
+	if filepath.IsAbs(p) {
+		return p
+	}
+	return filepath.Join(root, p)
 }
 
 var _ io.Writer = (*logRedirect)(nil)

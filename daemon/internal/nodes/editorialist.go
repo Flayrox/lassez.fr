@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/Flayrox/lassez.fr/daemon/internal/config"
-	"github.com/Flayrox/lassez.fr/daemon/internal/payload"
+	"github.com/Flayrox/lassez.fr/daemon/internal/store"
 )
 
 // Le DNA factory de L'Assez (porté de l'ancien labo, scripts/seed-taxonomies.ts) :
@@ -46,7 +46,7 @@ type draftResult struct {
 
 // RunEditorialist is Node 4 of the pipeline: it writes the investigation
 // draft (Gemini Pro) for RESEARCHED signals and moves them to DRAFTED.
-func RunEditorialist(client *payload.Client, resolver *config.Resolver) error {
+func RunEditorialist(client *store.Client, resolver *config.Resolver) error {
 	log.Printf("\n[Node 4: Editorialist] ✍️ Lancement de la rédaction IA (Modèle Pro)...")
 
 	topics, err := client.GetSignalsByStatus("RESEARCHED")
@@ -170,7 +170,7 @@ func RunEditorialist(client *payload.Client, resolver *config.Resolver) error {
 	for _, topic := range topics {
 		wg.Add(1)
 		sem <- struct{}{}
-		go func(topic payload.Signal) {
+		go func(topic store.Signal) {
 			defer wg.Done()
 			defer func() { <-sem }()
 
@@ -184,7 +184,7 @@ func RunEditorialist(client *payload.Client, resolver *config.Resolver) error {
 			if taxonomy == "" {
 				taxonomy = "INFO"
 			}
-			var template *payload.TaxonomyTemplate
+			var template *store.TaxonomyTemplate
 			for i := range templates {
 				if strings.EqualFold(templates[i].Name, taxonomy) || strings.EqualFold(templates[i].DisplayName, taxonomy) {
 					template = &templates[i]

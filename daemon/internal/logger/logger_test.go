@@ -19,7 +19,7 @@ func readLog(t *testing.T, dir string) string {
 
 func TestLevelFiltering(t *testing.T) {
 	dir := t.TempDir()
-	l, err := New(nil, dir, Options{Level: "WARN"})
+	l, err := New(dir, Options{Level: "WARN"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -44,7 +44,7 @@ func TestLevelFiltering(t *testing.T) {
 
 func TestSuccessAlwaysPersisted(t *testing.T) {
 	dir := t.TempDir()
-	l, err := New(nil, dir, Options{Level: "ERROR"})
+	l, err := New(dir, Options{Level: "ERROR"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -61,7 +61,7 @@ func TestSuccessAlwaysPersisted(t *testing.T) {
 
 func TestLevelDefaultsToInfo(t *testing.T) {
 	dir := t.TempDir()
-	l, err := New(nil, dir, Options{})
+	l, err := New(dir, Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -70,10 +70,6 @@ func TestLevelDefaultsToInfo(t *testing.T) {
 	if l.minLevel != levelRank["INFO"] {
 		t.Errorf("default level must be INFO, got rank %d", l.minLevel)
 	}
-	if l.mirror {
-		t.Error("mirror must be disabled when no client is provided")
-	}
-
 	l.Info("Daemon", "default info persists")
 	l.Close()
 

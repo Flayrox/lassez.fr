@@ -1,7 +1,7 @@
 // Package publish provides the modular publication layer of the daemon.
 //
-// Each social platform (Discord, X, Bluesky, Mastodon, Payload) is a Channel
-// implementing the same Publish contract. The publisher node builds a
+// Chaque plateforme sociale (Discord, X, Bluesky, Mastodon, qoe.fi) est une
+// Channel implémentant le même contrat Publish. The publisher node builds a
 // Registry of enabled channels from radar-settings and dispatches each due
 // publication to the matching channel — adding a platform means writing one
 // Channel and registering it, nothing else changes.
@@ -22,15 +22,14 @@ type Message struct {
 	Geo      string
 	Taxonomy string
 	ImageURL string
-	// SignalID links the published content back to its source signal so the
-	// Payload channel can store the signal → revelation relation.
+	// SignalID relie le contenu publié à son signal source.
 	SignalID string
 }
 
 // Channel publishes a Message to one platform.
 type Channel interface {
-	// Name is the platform identifier used in the publications collection
-	// (DISCORD, X, BLUESKY, MASTODON, PAYLOAD).
+	// Name est l'identifiant de plateforme utilisé dans la collection des
+	// publications (DISCORD, X, BLUESKY, MASTODON, QOE).
 	Name() string
 	// Publish sends msg and returns an error on failure.
 	Publish(msg Message) error
@@ -89,10 +88,9 @@ func BuildText(msg Message, maxLen int, includeURL bool) string {
 	return Truncate(text, maxLen)
 }
 
-// credential resolves a secret for a channel: the value configured in
-// radar-settings wins, the environment variable is the fallback. This makes
-// the Payload admin interface the source of truth for platform credentials
-// while keeping env-only deploys working.
+// credential résout un secret pour une channel : la valeur configurée (YAML /
+// .secrets.yaml via le resolver) prime, la variable d'environnement est le
+// repli — le labo reste la source de vérité des clés de plateformes.
 func credential(settingsVal, envKey string) string {
 	if v := strings.TrimSpace(settingsVal); v != "" {
 		return v

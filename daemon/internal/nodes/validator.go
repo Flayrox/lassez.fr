@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/Flayrox/lassez.fr/daemon/internal/config"
-	"github.com/Flayrox/lassez.fr/daemon/internal/payload"
+	"github.com/Flayrox/lassez.fr/daemon/internal/store"
 )
 
 const validatorSystemPrompt = `Tu es le Secrétaire de Rédaction de "L'Assez", un média d'investigation anticapitaliste. Ton rôle est de VALIDER ou CORRIGER les brouillons produits par l'IA.
@@ -36,7 +36,7 @@ type validationResult struct {
 // them (REJECTED / REJECTED_ERROR). Avec enableAutoApprove (Mode Fantôme),
 // la validation IA vaut approbation : les brouillons valides passent
 // directement PENDING (file de publication) sans modération ni enrichissement.
-func RunValidator(client *payload.Client, resolver *config.Resolver) error {
+func RunValidator(client *store.Client, resolver *config.Resolver) error {
 	log.Printf("\n[Node 5: Validator] ⚖️ Lancement de la validation éditoriale...")
 
 	// Mode Fantôme (auto_approve_enabled) : la validation IA vaut approbation.
@@ -115,7 +115,7 @@ func RunValidator(client *payload.Client, resolver *config.Resolver) error {
 	for _, topic := range topics {
 		wg.Add(1)
 		sem <- struct{}{}
-		go func(topic payload.Signal) {
+		go func(topic store.Signal) {
 			defer wg.Done()
 			defer func() { <-sem }()
 

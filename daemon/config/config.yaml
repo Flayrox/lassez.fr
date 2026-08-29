@@ -103,7 +103,7 @@ pipeline: # graphe visuel du labo (Atelier) — nœuds actifs
 publisher:
     enableDiscord: true # social_discord_enabled = true (+ test mode)
     discordTestMode: true # discord_test_mode = true
-    enableQoe: true # remplace enablePayloadCMS
+    enableQoe: true # diffusion principale (qoe.fi)
     enableX: false # social_twitter_enabled = false
     enableBluesky: false # social_bluesky_enabled = false
     enableMastodon: false # social_mastodon_enabled = false

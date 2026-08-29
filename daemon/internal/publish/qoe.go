@@ -6,7 +6,7 @@ import (
 	"github.com/Flayrox/lassez.fr/daemon/internal/qoe"
 )
 
-// QoeConfig — diffusion vers qoe.fi (remplace Payload)
+// QoeConfig — diffusion vers qoe.fi (canal de publication principal)
 type QoeConfig struct {
 	Client *qoe.Client
 }

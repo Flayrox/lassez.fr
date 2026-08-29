@@ -68,9 +68,8 @@ func (c *discordChannel) Publish(msg Message) error {
 		"footer":    map[string]any{"text": c.cfg.Footer},
 		"timestamp": time.Now().UTC().Format(time.RFC3339),
 	}
-	payload, _ := json.Marshal(map[string]any{"embeds": []map[string]any{embed}})
-
-	req, err := http.NewRequest(http.MethodPost, webhookURL, bytes.NewReader(payload))
+	reqBody, _ := json.Marshal(map[string]any{"embeds": []map[string]any{embed}})
+	req, err := http.NewRequest(http.MethodPost, webhookURL, bytes.NewReader(reqBody))
 	if err != nil {
 		return fmt.Errorf("[DISCORD] %w", err)
 	}

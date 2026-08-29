@@ -23,7 +23,7 @@ var dayMap = map[string]int{
 }
 
 // Compute returns the delay to the next scan for the given settings map
-// (the radar-settings global as returned by the Payload API).
+// (le bloc scheduling du YAML, cf. config/config.yaml).
 func Compute(settings map[string]any, now time.Time) NextScan {
 	interval := 60
 	if v, ok := settings["scrapingInterval"].(float64); ok && v > 0 {

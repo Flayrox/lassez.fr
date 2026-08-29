@@ -20,11 +20,11 @@ import (
 
 	"github.com/Flayrox/lassez.fr/daemon/internal/config"
 	"github.com/Flayrox/lassez.fr/daemon/internal/nodes"
-	"github.com/Flayrox/lassez.fr/daemon/internal/payload"
+	"github.com/Flayrox/lassez.fr/daemon/internal/store"
 )
 
 type Server struct {
-	Client     *payload.Client  // daemon_signals : signaux réels du pipeline + santé
+	Client     *store.Client  // daemon_signals : signaux réels du pipeline + santé
 	Mux        *http.ServeMux
 	ConfigPath string           // config/config.yaml — édité par le labo
 	Resolver   *config.Resolver // invalidé après chaque écriture
@@ -32,7 +32,7 @@ type Server struct {
 	LogPath    string           // logs/daemon.log — lu pour le panneau de logs du labo
 }
 
-func New(client *payload.Client, cfgPath string, resolver *config.Resolver) *Server {
+func New(client *store.Client, cfgPath string, resolver *config.Resolver) *Server {
 	srv := &Server{Client: client, Mux: http.NewServeMux(), ConfigPath: cfgPath, Resolver: resolver}
 	srv.Mux.HandleFunc("GET /api/healthz", srv.healthz)
 	srv.Mux.HandleFunc("GET /api/signals", srv.listSignals)
@@ -267,9 +267,9 @@ func (srv *Server) patchSignals(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 400, map[string]any{"error": "body invalide : {ids:[], status?|delete?}"})
 		return
 	}
-	ids := make([]payload.ID, 0, len(body.IDs))
+	ids := make([]store.ID, 0, len(body.IDs))
 	for _, n := range body.IDs {
-		ids = append(ids, payload.ID(strconv.FormatInt(n, 10)))
+		ids = append(ids, store.ID(strconv.FormatInt(n, 10)))
 	}
 	var err error
 	if body.Delete {

@@ -18,7 +18,7 @@ import (
 	"github.com/Flayrox/lassez.fr/daemon/internal/config"
 	"github.com/Flayrox/lassez.fr/daemon/internal/logger"
 	"github.com/Flayrox/lassez.fr/daemon/internal/nodes"
-	"github.com/Flayrox/lassez.fr/daemon/internal/payload"
+	"github.com/Flayrox/lassez.fr/daemon/internal/store"
 )
 
 // NodeType — identifiant explicite d'un nœud (utilisé dans pipelineGraphJson.nodes[].type)
@@ -107,7 +107,7 @@ func ActiveNodes(resolver *config.Resolver) map[string]bool {
 
 // RunCycle — exécute 1 cycle complet, nœud par nœud, en respectant activeNodes.
 // Chaque étape est loggée explicitement (Node 1..6) pour le dashboard labo.
-func RunCycle(client *payload.Client, resolver *config.Resolver, log *logger.Logger) error {
+func RunCycle(client *store.Client, resolver *config.Resolver, log *logger.Logger) error {
 	active := ActiveNodes(resolver)
 	log.Info("Daemon", "🚀 Démarrage cycle pipeline — actifs: "+strings.Join(activeList(active), ", "))
 
@@ -159,7 +159,7 @@ func RunCycle(client *payload.Client, resolver *config.Resolver, log *logger.Log
 	}
 
 	// Les nœuds suivants traitent les signals laissés en attente par les
-	// cycles précédents (statuts Payload), même sans nouveaux articles.
+	// cycles précédents (statuts du pipeline), même sans nouveaux articles.
 
 	if active["research"] {
 		log.Info("Node 3", "🤖 Lancement du Researcher (IA Flash / Scoring & Filtrage)...")

@@ -15,7 +15,7 @@ import (
 	"github.com/mmcdole/gofeed"
 
 	"github.com/Flayrox/lassez.fr/daemon/internal/config"
-	"github.com/Flayrox/lassez.fr/daemon/internal/payload"
+	"github.com/Flayrox/lassez.fr/daemon/internal/store"
 )
 
 // IngestedArticle is a freshly ingested article, ready for deduplication.
@@ -43,7 +43,7 @@ type sourceToProcess struct {
 // RunIngestion is Node 1 of the pipeline. It pulls the configured RSS
 // sources (sources collection + rss_feeds from radar-settings) over a time
 // window and returns the new, unseen articles.
-func RunIngestion(client *payload.Client, resolver *config.Resolver) ([]IngestedArticle, error) {
+func RunIngestion(client *store.Client, resolver *config.Resolver) ([]IngestedArticle, error) {
 	timeWindowHours := 12.0
 	if v := resolver.GetEffectiveParam("ingestion", "rss_lookback_hours", float64(12)); v != nil {
 		timeWindowHours = toFloat64(v, 12)
@@ -61,7 +61,7 @@ func RunIngestion(client *payload.Client, resolver *config.Resolver) ([]Ingested
 	// 1. Sources permanentes (collection sources).
 	dbSources, err := client.GetActiveSources()
 	if err != nil {
-		log.Printf("[Node 1] ❌ Lecture des sources Payload: %v", err)
+		log.Printf("[Node 1] ❌ Lecture des sources: %v", err)
 	}
 	for _, s := range dbSources {
 		sources = append(sources, sourceToProcess{

@@ -755,8 +755,24 @@ func (c *Client) ListSignals(status, geo, q string, limit int) ([]StudioSignal, 
 	where := []string{"1=1"}
 	args := []any{}
 	if status != "" && status != "ALL" {
-		where = append(where, "status = ?")
-		args = append(args, status)
+		// status accepte une liste séparée par des virgules (ex: "APPROVED,QUEUED")
+		// pour les onglets regroupés du studio.
+		statuses := []string{}
+		for _, s := range strings.Split(status, ",") {
+			if s = strings.TrimSpace(s); s != "" {
+				statuses = append(statuses, s)
+			}
+		}
+		if len(statuses) == 1 {
+			where = append(where, "status = ?")
+			args = append(args, statuses[0])
+		} else if len(statuses) > 1 {
+			ph := strings.TrimRight(strings.Repeat("?,", len(statuses)), ",")
+			where = append(where, "status IN ("+ph+")")
+			for _, s := range statuses {
+				args = append(args, s)
+			}
+		}
 	}
 	if geo != "" && geo != "all" {
 		where = append(where, "geo = ?")

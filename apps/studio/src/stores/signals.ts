@@ -61,6 +61,18 @@ export const useSignalsStore = defineStore('signals', () => {
 
 // Statuts réels du pipeline (daemon_signals) : INGESTED → RESEARCHED →
 // DRAFTED → VALIDATED → PENDING → APPROVED → QUEUED → PUBLISHED (+ REJECTED).
-function tabToStatus(tab: string): string {
-  return tab
+// Les étapes internes (INGESTED→VALIDATED) sont automatiques et fugaces : le
+// studio les regroupe en 5 onglets lisibles. Chaque onglet mappe vers un ou
+// plusieurs statuts (liste virgule acceptée par l'API du daemon).
+export const SIGNAL_TABS = [
+  { key: 'inbox', label: 'À valider', statuses: ['PENDING'] },
+  { key: 'pipeline', label: 'En cours', statuses: ['INGESTED', 'RESEARCHED', 'DRAFTED', 'VALIDATED'] },
+  { key: 'toPublish', label: 'À publier', statuses: ['APPROVED', 'QUEUED'] },
+  { key: 'published', label: 'Publiés', statuses: ['PUBLISHED'] },
+  { key: 'rejected', label: 'Rejetés', statuses: ['REJECTED', 'REJECTED_ERROR', 'IGNORED'] },
+] as const
+
+export function tabToStatus(tab: string): string {
+  const t = SIGNAL_TABS.find((t) => t.key === tab)
+  return t ? t.statuses.join(',') : tab
 }

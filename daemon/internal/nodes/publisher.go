@@ -33,14 +33,14 @@ func RunPublisher(client *store.Client, resolver *config.Resolver) error {
 	// ========================================================
 	// PHASE A : CRÉATION DES MISSIONS DE PUBLICATION
 	// ========================================================
-	// Porte de modération : sans Mode Fantôme, seuls les signaux APPROVED par un
-	// humain dans le studio sont programmés. En Mode Fantôme (enableAutoApprove),
-	// les PENDING sont considérés approuvés d'office par la validation IA.
+	// Porte de modération : sans Mode Fantôme, seuls les signaux QUEUED (approuvés
+	// par un humain dans le studio) sont programmés. En Mode Fantôme
+	// (enableAutoApprove), les PENDING sont considérés approuvés d'office.
 	autoApprove := boolParam(resolver, "publisher", "enableAutoApprove", false)
 	if autoApprove {
 		log.Printf("[Node 6: Phase A] 👻 Mode Fantôme : les signaux PENDING sont auto-approuvés.")
 	} else {
-		log.Printf("[Node 6: Phase A] ⏳ Modération active : seuls les signaux APPROVED (validation studio) sont programmés.")
+		log.Printf("[Node 6: Phase A] ⏳ Modération active : seuls les signaux QUEUED (validation studio) sont programmés.")
 	}
 
 	pending, err := client.GetApprovableSignals(autoApprove)
@@ -51,7 +51,7 @@ func RunPublisher(client *store.Client, resolver *config.Resolver) error {
 	if len(pending) > 0 {
 		log.Printf("[Node 6: Phase A] 📤 %d nouveaux articles à programmer.", len(pending))
 
-		// Bascule atomique PENDING → QUEUED.
+		// Bascule atomique vers QUEUED (déjà QUEUED pour les approuvés manuels).
 		ids := make([]store.ID, 0, len(pending))
 		for _, t := range pending {
 			ids = append(ids, t.ID)

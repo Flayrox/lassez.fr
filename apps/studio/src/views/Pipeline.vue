@@ -264,7 +264,7 @@ const chain = computed(() => [
     role: 'Relire, vérifier en ligne, corriger ou rejeter',
     what: 'L’IA relit le brouillon, vérifie les faits en ligne (recherche web), corrige ce qui doit l’être (les corrections sont fusionnées dans le texte) et rend son verdict. Un brouillon validé passe à l’étape suivante ; un brouillon douteux est rejeté avec la raison. En Mode Fantôme, la validation humaine est sautée et le sujet passe directement en attente de publication.',
     input: 'Les brouillons (max 10 par passage).',
-    output: 'Brouillons validés (statut VALIDATED) ou rejetés (REJECTED / REJECTED_ERROR).',
+    output: 'Brouillons validés (statut DRAFTED) ou rejetés (REJECTED / REJECTED_ERROR).',
     settingsTo: '/ecriture',
     settings: [
       `Modèle : ${store.ecriture.modeleVerification}`,
@@ -275,7 +275,7 @@ const chain = computed(() => [
     temp: '0.1 (strict)',
     note: 'Mode Fantôme réglable dans Atelier → Vérification ou Diffusion.',
     inputCount: { label: 'À vérifier (DRAFTED)', value: String(counts.value.DRAFTED ?? 0) },
-    outputCount: { label: 'À illustrer (VALIDATED)', value: String(counts.value.VALIDATED ?? 0) },
+    outputCount: { label: 'À illustrer (DRAFTED)', value: String(counts.value.DRAFTED ?? 0) },
   },
   {
     id: 6, type: 'media', icon: '📸', label: 'Image',
@@ -292,7 +292,7 @@ const chain = computed(() => [
     model: '— (recherche d’images, pas de génération)',
     temp: '—',
     note: 'Régler dans Atelier → Image.',
-    inputCount: { label: 'À illustrer (VALIDATED)', value: String(counts.value.VALIDATED ?? 0) },
+    inputCount: { label: 'À illustrer (DRAFTED)', value: String(counts.value.DRAFTED ?? 0) },
     outputCount: { label: 'En attente de publication (PENDING)', value: String(counts.value.PENDING ?? 0) },
   },
   {

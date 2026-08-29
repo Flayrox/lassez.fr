@@ -2,8 +2,8 @@
 // Stdlib net/http uniquement. Routes :
 //
 //	GET  /api/healthz          → vivant
-//	GET  /api/signals          → ?status=PENDING (ou liste virgule : APPROVED,QUEUED)&geo=...&q=...&limit=100
-//	PATCH /api/signals         → {"ids":[1,2],"status":"APPROVED"} ou {"ids":[..],"delete":true}
+//	GET  /api/signals          → ?status=PENDING (ou liste virgule : PENDING,QUEUED)&geo=...&q=...&limit=100
+//	PATCH /api/signals         → {"ids":[1,2],"status":"QUEUED"} ou {"ids":[..],"delete":true}
 //	POST /api/scan             → déclenche un cycle de pipeline immédiat (scan manuel)
 //	GET  /api/system-health    → télémétrie des briques + compteurs + infos daemon
 package api
@@ -257,7 +257,7 @@ func (srv *Server) listSignals(w http.ResponseWriter, r *http.Request) {
 }
 
 // patchSignals — actions de modération du studio sur daemon_signals :
-// {ids, status} (PENDING→APPROVED, →REJECTED…) ou {ids, delete:true}.
+// {ids, status} (PENDING→QUEUED, →REJECTED…) ou {ids, delete:true}.
 func (srv *Server) patchSignals(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		IDs    []int64 `json:"ids"`
@@ -278,7 +278,7 @@ func (srv *Server) patchSignals(w http.ResponseWriter, r *http.Request) {
 	} else {
 		status := strings.ToUpper(body.Status)
 		switch status {
-		case "PENDING", "APPROVED", "REJECTED", "IGNORED", "QUEUED", "PUBLISHED":
+		case "PENDING", "QUEUED", "PUBLISHED", "REJECTED", "REJECTED_ERROR":
 		default:
 			writeJSON(w, 400, map[string]any{"error": "status invalide"})
 			return

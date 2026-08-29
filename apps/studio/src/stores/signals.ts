@@ -60,16 +60,16 @@ export const useSignalsStore = defineStore('signals', () => {
 })
 
 // Statuts réels du pipeline (daemon_signals) : INGESTED → RESEARCHED →
-// DRAFTED → VALIDATED → PENDING → APPROVED → QUEUED → PUBLISHED (+ REJECTED).
-// Les étapes internes (INGESTED→VALIDATED) sont automatiques et fugaces : le
-// studio les regroupe en 5 onglets lisibles. Chaque onglet mappe vers un ou
-// plusieurs statuts (liste virgule acceptée par l'API du daemon).
+// DRAFTED → PENDING → QUEUED → PUBLISHED (+ REJECTED / REJECTED_ERROR).
+// Les étapes internes (INGESTED→DRAFTED) sont automatiques et fugaces : le
+// studio ne montre que ce qui exige une décision (À valider) et l'historique
+// (À publier / Publiés / Rejetés). Chaque onglet mappe vers un ou plusieurs
+// statuts (liste virgule acceptée par l'API du daemon).
 export const SIGNAL_TABS = [
   { key: 'inbox', label: 'À valider', statuses: ['PENDING'] },
-  { key: 'pipeline', label: 'En cours', statuses: ['INGESTED', 'RESEARCHED', 'DRAFTED', 'VALIDATED'] },
-  { key: 'toPublish', label: 'À publier', statuses: ['APPROVED', 'QUEUED'] },
+  { key: 'toPublish', label: 'À publier', statuses: ['QUEUED'] },
   { key: 'published', label: 'Publiés', statuses: ['PUBLISHED'] },
-  { key: 'rejected', label: 'Rejetés', statuses: ['REJECTED', 'REJECTED_ERROR', 'IGNORED'] },
+  { key: 'rejected', label: 'Rejetés', statuses: ['REJECTED', 'REJECTED_ERROR'] },
 ] as const
 
 export function tabToStatus(tab: string): string {

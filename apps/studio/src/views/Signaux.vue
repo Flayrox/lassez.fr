@@ -69,7 +69,7 @@
               <td class="py-2.5 pr-3 hidden sm:table-cell text-[11px] text-text-3 whitespace-nowrap">{{ timeAgo(s.created_at) }}</td>
               <td class="py-2.5 pl-3 pr-4">
                 <div class="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <LButton v-if="s.status === 'PENDING'" variant="ghost" @click.stop="bulk([s.id], 'APPROVED')" title="Valider → à publier">✓</LButton>
+                  <LButton v-if="s.status === 'PENDING'" variant="ghost" @click.stop="bulk([s.id], 'QUEUED')" title="Valider">✓</LButton>
                   <LButton v-if="canReject(s.status)" variant="ghost" @click.stop="bulk([s.id], 'REJECTED')" title="Rejeter">✕</LButton>
                   <LButton v-if="canDelete(s.status)" variant="ghost" @click.stop="delOne(s.id)" title="Supprimer">🗑</LButton>
                 </div>
@@ -83,7 +83,7 @@
                   <p class="text-xs text-text-2 leading-relaxed whitespace-pre-line">{{ s.flash_content }}</p>
                   <a :href="s.source_url" target="_blank" rel="noopener" class="text-[11px] text-info hover:underline break-all">{{ s.source_url }}</a>
                   <div class="flex gap-2 pt-1">
-                    <LButton v-if="s.status === 'PENDING'" @click="bulk([s.id], 'APPROVED')">Valider → à publier</LButton>
+                    <LButton v-if="s.status === 'PENDING'" @click="bulk([s.id], 'QUEUED')">Valider</LButton>
                     <LButton v-if="canReject(s.status)" variant="danger" @click="bulk([s.id], 'REJECTED')">Rejeter</LButton>
                   </div>
                 </div>
@@ -104,7 +104,7 @@
       <Transition name="fadeup">
         <div v-if="selected.length > 0" class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 bg-surface border border-border rounded-card shadow-2xl px-4 py-2.5">
           <span class="text-xs text-text-1 mr-1">{{ selected.length }} sélectionné{{ selected.length > 1 ? 's' : '' }}</span>
-          <LButton @click="bulk(selected, 'APPROVED')">Valider</LButton>
+          <LButton @click="bulk(selected, 'QUEUED')">Valider</LButton>
           <LButton variant="secondary" @click="bulk(selected, 'REJECTED')">Rejeter</LButton>
           <LButton variant="danger" @click="delSelected()">Supprimer</LButton>
           <button @click="selected = []" class="ml-1 text-text-3 hover:text-text-1 text-sm px-1">✕</button>
@@ -194,8 +194,8 @@ async function delSelected() {
 function refresh() { load() }
 function doScan() { scanOpen.value = false; refresh() }
 
-// Modération : on ne rejette/supprime pas un signal déjà publié, rejeté ou ignoré.
-const FINAL_STATUSES = ['PUBLISHED', 'REJECTED', 'REJECTED_ERROR', 'IGNORED']
+// Modération : on ne rejette/supprime pas un signal déjà publié ou rejeté.
+const FINAL_STATUSES = ['PUBLISHED', 'REJECTED', 'REJECTED_ERROR']
 function canReject(status: string) {
   return !FINAL_STATUSES.includes(status)
 }

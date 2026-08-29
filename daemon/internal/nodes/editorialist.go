@@ -127,9 +127,9 @@ func RunEditorialist(client *store.Client, resolver *config.Resolver) error {
 		}
 	}
 
-	// Validateur coupé dans le graphe → la rédaction écrit VALIDATED (prêt
-	// pour le média) au lieu de DRAFTED : le raisonnement fait office de
-	// vérification.
+	// La rédaction écrit DRAFTED (rédigé + validé, prêt pour le média) : le
+	// raisonnement fait office de vérification. Le nœud Validator, s'il est
+	// actif dans le graphe, reste un garde-fou optionnel.
 	validatorActive := true
 	if settings, err := resolver.Settings(); err == nil && settings != nil {
 		if gs, ok := settings["pipelineGraphJson"].(string); ok && gs != "" {
@@ -149,7 +149,7 @@ func RunEditorialist(client *store.Client, resolver *config.Resolver) error {
 		}
 	}
 	if !validatorActive {
-		log.Printf("[Node 4] 🔩 Vérification désactivée : la rédaction raisonne en un seul passage et écrit directement VALIDATED.")
+		log.Printf("[Node 4] 🔩 Vérification désactivée : la rédaction raisonne en un seul passage et livre un brouillon validé (DRAFTED).")
 	}
 
 	// Recherche web : grounding Google Search natif de l'API REST — le modèle
@@ -299,10 +299,7 @@ func RunEditorialist(client *store.Client, resolver *config.Resolver) error {
 				imageKeyword = "investigation"
 			}
 
-			targetStatus := "DRAFTED"
-			if !validatorActive {
-				targetStatus = "VALIDATED" // pas de vérification : le raisonnement vaut validation
-			}
+			targetStatus := "DRAFTED" // rédigé + validé — le média le prend en charge ensuite
 			if err := client.UpdateSignal(topic.ID, map[string]any{
 				"status":      targetStatus,
 				"final_draft": string(finalDraft),

@@ -163,10 +163,15 @@ func RunValidator(client *store.Client, resolver *config.Resolver) error {
 			}
 
 			if eval.IsValid {
-				// Mode Fantôme sans média : la validation vaut approbation → PENDING direct.
-				// Sinon (défaut) : le brouillon reste DRAFTED → le nœud Image enrichit → PENDING.
+				// Le brouillon validé doit pouvoir arriver à « À valider » (PENDING)
+				// dans le studio, quel que soit l'état du graphe :
+				//   - Mode Fantôme sans média → PENDING direct.
+				//   - Nœud Image désactivé → PENDING direct (sinon personne ne le
+				//     sortirait jamais de DRAFTED : il resterait invisible).
+				//   - Sinon (défaut) → il reste DRAFTED, le nœud Image l'enrichit
+				//     puis le fait passer PENDING.
 				target := "DRAFTED"
-				if autoApprove && !autoApproveMedia {
+				if (autoApprove && !autoApproveMedia) || !pipelineGraphNodeEnabled(resolver, "media") {
 					target = "PENDING"
 				}
 				update := map[string]any{"status": target}

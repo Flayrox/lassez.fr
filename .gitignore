@@ -57,6 +57,9 @@ radar_lassez/tmp-videos/
 public/radar-images/
 public/uploads/
 
+# Médias locaux (exports/images de travail, non versionnés)
+media/
+
 # Archives de transfert (On en a plus besoin)
 *.zip
 *.tar.gz

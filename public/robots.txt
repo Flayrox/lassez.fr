@@ -1,6 +1,0 @@
-User-agent: *
-Allow: /
-
-Sitemap: https://lassez.fr/sitemap.xml
-Sitemap: https://lassez.fr/news-sitemap.xml
-Sitemap: https://lassez.fr/rss.xml

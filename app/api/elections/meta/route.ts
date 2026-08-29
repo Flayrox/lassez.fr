@@ -1,14 +1,10 @@
 import { NextResponse } from 'next/server';
-import Database from 'better-sqlite3';
-import { formatElectionLabel, parseJsonArray } from '@/lib/elections';
+import { formatElectionLabel } from '@/lib/elections';
 import { fetchWithTimeout } from '@/lib/fetch-timeout';
-import { getRadarDbPath } from '@/lib/radar-db';
+import { getElectionDbPath, readElectionsRegistry } from '@/lib/elections-db';
+import Database from 'better-sqlite3';
 
 export const dynamic = 'force-dynamic';
-
-function getDb() {
-    return new Database(getRadarDbPath());
-}
 
 function getStudioBaseUrl() {
     const remoteUrl = process.env.RADAR_API_URL;
@@ -29,7 +25,7 @@ export async function GET(request: Request) {
         if (studioBase && !process.env.IS_STUDIO && !isProxied) {
             const res = await fetchWithTimeout(
                 `${studioBase}/api/elections/meta?t=${Date.now()}`,
-                { 
+                {
                     cache: 'no-store',
                     headers: { 'x-radar-proxy': '1' }
                 },
@@ -41,34 +37,39 @@ export async function GET(request: Request) {
             }
         }
 
-        db = getDb();
-        const rows = db.prepare('SELECT key, value FROM radar_settings WHERE key IN (?, ?)').all(
-            'election_front_display_slugs_json',
-            'election_analysis_target_slug'
-        ) as { key: string; value: string }[];
-
-        const map = Object.fromEntries(rows.map((r) => [String(r.key), String(r.value || '')]));
-        const displaySlugs = parseJsonArray(map.election_front_display_slugs_json, ['municipales-2026']);
-        const targetSlug = String(map.election_analysis_target_slug || 'municipales-2026');
+        const registry = readElectionsRegistry();
+        const displaySlugs = registry.displaySlugs;
+        const targetSlug = registry.targetSlug;
 
         const elections = displaySlugs.map((slug) => {
-            const counts = db.prepare(`
-                SELECT
-                    COUNT(DISTINCT code_insee) AS communes,
-                    COUNT(DISTINCT code_departement) AS departments
-                FROM elections_officiel_cache
-                WHERE election_slug = ?
-            `).get(slug) as { communes?: number; departments?: number } | undefined;
-
-            return {
-                slug,
-                label: formatElectionLabel(slug),
-                isTarget: slug === targetSlug,
-                counts: {
-                    communes: Number(counts?.communes || 0),
-                    departments: Number(counts?.departments || 0),
-                },
-            };
+            try {
+                db = new Database(getElectionDbPath(slug), { readonly: true });
+                const counts = db.prepare(`
+                    SELECT
+                        COUNT(DISTINCT code_insee) AS communes,
+                        COUNT(DISTINCT code_departement) AS departments
+                    FROM elections_officiel_cache
+                `).get() as { communes?: number; departments?: number } | undefined;
+                db.close();
+                db = null;
+                return {
+                    slug,
+                    label: formatElectionLabel(slug),
+                    isTarget: slug === targetSlug,
+                    counts: {
+                        communes: Number(counts?.communes || 0),
+                        departments: Number(counts?.departments || 0),
+                    },
+                };
+            } catch {
+                if (db) { try { db.close(); } catch (_) {} db = null; }
+                return {
+                    slug,
+                    label: formatElectionLabel(slug),
+                    isTarget: slug === targetSlug,
+                    counts: { communes: 0, departments: 0 },
+                };
+            }
         });
 
         return NextResponse.json({ success: true, elections, targetSlug });

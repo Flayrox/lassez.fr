@@ -82,9 +82,43 @@ Classique sans domaine : `npm run dev:labo` (labo seul) + `cd daemon && go build
 | Payload | Postgres (Supabase) via `DATABASE_URL` | Contenu éditorial, auteurs, médias, globals |
 | Radar | Payload (Postgres) via API REST | Collections `signals`, `sources`, `publications`, `seen-urls`, `taxonomy-templates`, `logs` + global `radar-settings` |
 | Site (ex `radar_settings`) | Payload global `settings` | Maintenance + popup (groupe `communication`, ex-table SQLite — migré via `scripts/migrate_radar_settings_to_payload.cjs`) |
-| Legacy front | SQLite (`data/radar.db`) | Élections, nav, archives (non versionné, poussé via `push_radar_db_to_vps.cjs`) |
+| **Pipeline (daemon)** | SQLite (`data/radar.db`) | Tables `daemon_*` uniquement : signaux, seen-urls, publications, cycles, santé des sources — écrites par le daemon Go, lues par le labo via l'API |
+| **Élections** | SQLite, **1 fichier par scrutin** (`data/elections/{slug}.db`) | Résultats officiels, overrides manuels, statut de sync + réglages scopés — écrits par le front (`app/api/elections/results`), lus par les pages élections et le sitemap |
+| Registre élections | JSON (`data/elections/registry.json`) | Liste des scrutins affichés (`displaySlugs`) + scrutin cible (`targetSlug`) |
 
 Migrations Payload : `npm run payload:migrate` · Types générés : `npm run payload:generate:types`
+
+### 🗄️ Schéma des bases locales (SQLite)
+
+Depuis le refactor des bases, le pipeline et les élections **ne partagent plus le même fichier** :
+
+```
+data/
+├── radar.db                    # PIPELINE uniquement — tables daemon_* (écrit par le daemon Go)
+│   ├── daemon_signals          #   signaux du pipeline (INGESTED → … → PUBLISHED)
+│   ├── daemon_publications     #   missions de diffusion par plateforme
+│   ├── daemon_seen_urls        #   anti-doublon (URLs déjà aspirées)
+│   ├── daemon_cycles           #   historique des cycles (Suivi du labo)
+│   ├── daemon_cycle_steps      #   étapes de chaque cycle
+│   └── daemon_source_health    #   santé des sources (HEALTHY/DEGRADED/DISABLED)
+└── elections/
+    ├── registry.json           # { displaySlugs: [...], targetSlug: "..." }
+    ├── municipales-2026.db     # 1 fichier PAR scrutin
+    └── presidentielles-2027.db #   (le prochain scrutin = un nouveau fichier)
+```
+
+Chaque base d'élection contient : `elections_officiel_cache` (résultats officiels data.gouv), `elections_resultats` (overrides manuels du studio), `elections_sync_status` (dernière sync) et `election_settings` (réglages scopés : sources data.gouv, dernière source utilisée).
+
+**Pourquoi séparer ?** SQLite n'autorise qu'un écrivain à la fois. La sync des élections (réécriture de ~54 k lignes toutes les 30 min) partageait le fichier avec les écritures du daemon (toutes les 2 min) → risque de verrou/timeout. Chaque domaine a maintenant son fichier et son écrivain : plus aucune contention, et vider le pipeline pour un test ne touche jamais les élections.
+
+#### ➕ Ajouter une nouvelle élection
+
+1. **Créer le fichier** : la route `app/api/elections/results` crée la base à la volée (`CREATE TABLE IF NOT EXISTS`) au premier appel avec `?slug=xxx` — ou lancer `node scripts/migrate-elections-db.cjs` qui génère un fichier vide par slug.
+2. **Renseigner le registre** : `data/elections/registry.json` — ajouter le slug dans `displaySlugs` (et éventuellement le mettre en `targetSlug`).
+3. **Configurer les sources** (optionnel) : dans la base de l'élection, table `election_settings`, clé `election_sources_json` (datasets data.gouv) — le studio le fera bientôt via la page Admin Élections.
+4. **Sync** : appeler `/api/elections/results?slug=xxx&forceSync=1` pour aspirer les données officielles.
+
+Références dans le code : `lib/elections-db.ts` (chemins + registre), `lib/radar-db.ts` (chemin du pipeline).
 
 ## 🚢 Déploiement
 

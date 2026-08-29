@@ -4,21 +4,21 @@ import { departments as deptNames } from '@/lib/geo-data';
 import { formatCommuneSlug } from '@/lib/seo-engine';
 import { formatElectionLabel } from '@/lib/elections';
 import Database from 'better-sqlite3';
-import { getRadarDbPath } from '@/lib/radar-db';
+import { getElectionDbPath } from '@/lib/elections-db';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import CitySearchBar from '@/components/CitySearchBar';
 import { fetchWithTimeout } from '@/lib/fetch-timeout';
 
 interface PageProps {
-    params: {
+    params: Promise<{
         slug: string;
         'code-dept': string;
-    };
+    }>;
 }
 
-function getDb() {
-    return new Database(getRadarDbPath());
+function getDb(slug: string) {
+    return new Database(getElectionDbPath(slug), { readonly: true });
 }
 
 function getStudioBaseUrl() {
@@ -49,10 +49,10 @@ async function getCommunes(electionSlug: string, codeDept: string) {
             }
         }
 
-        db = getDb();
+        db = getDb(electionSlug);
         const rows = db.prepare(
-            'SELECT DISTINCT code_insee, ville FROM elections_officiel_cache WHERE code_departement = ? AND election_slug = ? ORDER BY ville'
-        ).all(codeDept, electionSlug) as { code_insee: string; ville: string }[];
+            'SELECT DISTINCT code_insee, ville FROM elections_officiel_cache WHERE code_departement = ? ORDER BY ville'
+        ).all(codeDept) as { code_insee: string; ville: string }[];
         return rows;
     } catch {
         return [];
@@ -64,8 +64,9 @@ async function getCommunes(electionSlug: string, codeDept: string) {
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
-    const electionSlug = String(params.slug || '');
-    const codeDept = params['code-dept'];
+    const resolvedParams = await params;
+    const electionSlug = String(resolvedParams.slug || '');
+    const codeDept = resolvedParams['code-dept'];
     const deptName = deptNames[codeDept] || `Departement ${codeDept}`;
     const electionName = formatElectionLabel(electionSlug || 'elections');
 
@@ -79,8 +80,9 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 }
 
 export default async function DepartmentSlugPage({ params }: PageProps) {
-    const electionSlug = String(params.slug || '').trim();
-    const codeDept = params['code-dept'];
+    const resolvedParams = await params;
+    const electionSlug = String(resolvedParams.slug || '').trim();
+    const codeDept = resolvedParams['code-dept'];
     if (!electionSlug || !codeDept) {
         notFound();
     }

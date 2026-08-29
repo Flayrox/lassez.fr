@@ -35,6 +35,9 @@ Tout ce qui est décidé en session mais pas encore implémenté. Coche au fur e
 
 ## ✅ Fait récemment (mémoire)
 
+- **Bases séparées : un fichier par élection** (`data/elections/{slug}.db`) + registre (`registry.json`) — les élections ne vivent plus dans `data/radar.db` (qui ne contient plus que les tables `daemon_*` du pipeline). La sync data.gouv écrit dans le fichier du scrutin, plus aucun verrou partagé avec le daemon. Migration : `scripts/migrate-elections-db.cjs [--purge]` (idempotent). Au passage, fix de 2 pages département cassées par Next 16 (`params` Promise non awaitées).
+- **Studio restructuré en 3 sections** (Signaux · Front · Slide à venir) : menu latéral regroupé, nouvelle page **Élections** dans Front — CRUD complet des scrutins via le daemon (`GET/POST/PATCH/DELETE /api/elections`) : créer un scrutin (fichier `{slug}.db` + entrée registre + affichage), basculer affiché/cible, supprimer. Le registre ne se touche plus à la main.
+
 - **Nœud Média réparé** (test pipeline) : Google Images officiel (Custom Search JSON API, optionnel) → Wikimedia Commons (repli gratuit sans clé) → filtre d'extensions. Les articles reçoivent enfin de vraies images.
 - **JSON du compte de service Vertex masqué** dans Système (clé privée plus visible en clair).
 

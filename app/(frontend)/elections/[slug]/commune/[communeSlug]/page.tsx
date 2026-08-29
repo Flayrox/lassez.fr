@@ -1,7 +1,7 @@
 import { Metadata } from 'next';
 import Layout from '@/components/Layout';
 import Database from 'better-sqlite3';
-import { getRadarDbPath } from '@/lib/radar-db';
+import { getElectionDbPath } from '@/lib/elections-db';
 import path from 'path';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
@@ -18,8 +18,8 @@ interface PageProps {
     };
 }
 
-function getDb() {
-    return new Database(getRadarDbPath(), { readonly: true });
+function getDb(slug: string) {
+    return new Database(getElectionDbPath(slug), { readonly: true });
 }
 
 function getStudioBaseUrl() {
@@ -49,10 +49,10 @@ async function getCityByInsee(electionSlug: string, codeInsee: string) {
             }
         }
 
-        db = getDb();
+        db = getDb(electionSlug);
         const row = db.prepare(
-            'SELECT code_insee, ville, code_departement FROM elections_officiel_cache WHERE election_slug = ? AND code_insee = ? LIMIT 1'
-        ).get(electionSlug, codeInsee) as { code_insee: string; ville: string; code_departement: string } | undefined;
+            'SELECT code_insee, ville, code_departement FROM elections_officiel_cache WHERE code_insee = ? LIMIT 1'
+        ).get(codeInsee) as { code_insee: string; ville: string; code_departement: string } | undefined;
         return row || null;
     } catch {
         return null;

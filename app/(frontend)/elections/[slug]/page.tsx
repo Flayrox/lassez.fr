@@ -6,12 +6,12 @@ import type { Post } from '@/types';
 import type { Where } from '@/lib/payload-where';
 import { getPayloadClient } from '@/lib/payload';
 import Database from 'better-sqlite3';
-import { getRadarDbPath } from '@/lib/radar-db';
+import { getElectionDbPath } from '@/lib/elections-db';
 import { formatElectionLabel } from '@/lib/elections';
 import { fetchWithTimeout } from '@/lib/fetch-timeout';
 
-function getDb() {
-    return new Database(getRadarDbPath());
+function getDb(slug: string) {
+    return new Database(getElectionDbPath(slug), { readonly: true });
 }
 
 function getStudioBaseUrl() {
@@ -74,10 +74,10 @@ async function getDepartments(electionSlug: string): Promise<string[]> {
             }
         }
 
-        db = getDb();
+        db = getDb(electionSlug);
         const rows = db.prepare(
-            'SELECT DISTINCT code_departement FROM elections_officiel_cache WHERE election_slug = ? ORDER BY code_departement'
-        ).all(electionSlug) as { code_departement: string }[];
+            'SELECT DISTINCT code_departement FROM elections_officiel_cache ORDER BY code_departement'
+        ).all() as { code_departement: string }[];
         return rows.map(r => r.code_departement).filter(Boolean);
     } catch {
         return [];

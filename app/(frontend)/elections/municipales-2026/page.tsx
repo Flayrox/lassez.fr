@@ -6,7 +6,7 @@ import type { Where } from '@/lib/payload-where';
 import { getPayloadClient } from '@/lib/payload';
 import Script from 'next/script';
 import Database from 'better-sqlite3';
-import { getRadarDbPath } from '@/lib/radar-db';
+import { getElectionDbPath } from '@/lib/elections-db';
 import path from 'path';
 import { fetchWithTimeout } from '@/lib/fetch-timeout';
 
@@ -88,7 +88,7 @@ async function getDepartments(): Promise<string[]> {
             }
         }
 
-        db = new Database(getRadarDbPath());
+        db = new Database(getElectionDbPath(ELECTION_SLUG), { readonly: true });
 
         const tableExists = db.prepare(
             "SELECT name FROM sqlite_master WHERE type='table' AND name='elections_officiel_cache'"

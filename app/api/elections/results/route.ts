@@ -1,14 +1,17 @@
 import { NextResponse } from 'next/server';
-import Database from 'better-sqlite3';
 import { logToDaemon, errorToDaemon } from '../../logger';
 import { fetchWithTimeout } from '@/lib/fetch-timeout';
-import { getRadarDbPath } from '@/lib/radar-db';
+import { openElectionDb, readElectionsRegistry } from '@/lib/elections-db';
 
 export const dynamic = 'force-dynamic';
 const syncLocks = new Map<string, Promise<void>>();
 
-function getDb() {
-    return new Database(getRadarDbPath());
+// Une base SQLite PAR élection (data/elections/{slug}.db) : la sync data.gouv
+// écrit dans le fichier du scrutin, séparé du pipeline (data/radar.db).
+function getDb(electionSlug: string) {
+    const db = openElectionDb(electionSlug);
+    ensureTable(db);
+    return db;
 }
 
 function getStudioBaseUrl() {
@@ -48,6 +51,14 @@ function parseJsonObject(raw: string | undefined, fallback: any = {}) {
 }
 
 function ensureTable(db: any) {
+    // Réglages scopés à cette élection (sources data.gouv, dernière source utilisée)
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS election_settings (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        )
+    `);
+
     // Overrides manuels du Radar-Admin
     db.exec(`
         CREATE TABLE IF NOT EXISTS elections_resultats (
@@ -149,11 +160,11 @@ async function syncOfficialData(db: any, electionSlug: string, force: boolean = 
             return resources[0].url;
         };
 
-        const settingsRows = db.prepare('SELECT key, value FROM radar_settings').all();
+        // Réglages SCOPÉS à cette élection (migrés depuis radar_settings dans election_settings)
+    const settingsRows = db.prepare('SELECT key, value FROM election_settings').all();
         const settingsMap: Record<string, string> = {};
         for (const row of settingsRows) settingsMap[String(row.key)] = String(row.value || '');
-        const sourcesMap = parseJsonObject(settingsMap.election_sources_json, {});
-        const sourceCfg = sourcesMap[electionSlug] && typeof sourcesMap[electionSlug] === 'object' ? sourcesMap[electionSlug] : {};
+        const sourceCfg = parseJsonObject(settingsMap.election_sources_json, {});
 
         const defaultDatasets = {
             firstTour: 'elections-municipales-2026-resultats-du-premier-tour',
@@ -283,10 +294,9 @@ async function syncOfficialData(db: any, electionSlug: string, force: boolean = 
             candidatures_second_tour_url: candidatures2Url || null,
             success: true
         };
-        const lastUsedMap = parseJsonObject(settingsMap.election_last_used_source_json, {});
-        lastUsedMap[electionSlug] = usedSource;
-        db.prepare('INSERT OR REPLACE INTO radar_settings (key, value) VALUES (?, ?)')
-            .run('election_last_used_source_json', JSON.stringify(lastUsedMap));
+        // La dernière source utilisée vit dans le fichier de cette élection (scopé)
+        db.prepare('INSERT OR REPLACE INTO election_settings (key, value) VALUES (?, ?)')
+            .run('election_last_used_source_json', JSON.stringify(usedSource));
         logToDaemon(`[Élections] Double-Sync Terminé : ${totalProcessed} communes traitées.`);
         
     } catch (e) {
@@ -307,8 +317,7 @@ async function runSyncWithLock(electionSlug: string, force: boolean = false) {
     const syncPromise = (async () => {
         let syncDb: any = null;
         try {
-            syncDb = getDb();
-            ensureTable(syncDb);
+            syncDb = getDb(electionSlug);
             await syncOfficialData(syncDb, electionSlug, force);
         } finally {
             safeCloseDb(syncDb);
@@ -382,8 +391,7 @@ export async function GET(request: Request) {
 
     let db: any = null;
     try {
-        db = getDb();
-        ensureTable(db);
+        db = getDb(electionSlug);
 
         // Tâche de fond pour la sync (ou forcee)
         if (forceSync || (!all && !query && !searchParams.get('ville') && !listCities && !listDepartments && !cityByInsee)) {
@@ -653,8 +661,7 @@ export async function POST(request: Request) {
     try {
         const body = await request.json();
         const { election_slug = 'municipales-2026', ville, tour = 1, candidat, nuance, pct, voix, statut = 'elimine', active = 1 } = body;
-        db = getDb();
-        ensureTable(db);
+        db = getDb(election_slug);
         db.prepare(`
             INSERT INTO elections_resultats (election_slug, ville, tour, candidat, nuance, pct, voix, statut, active, updated_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
@@ -672,19 +679,29 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-    let db: any = null;
-    try {
-        const { searchParams } = new URL(request.url);
-        const id = searchParams.get('id');
-        db = getDb();
-        ensureTable(db);
-        db.prepare('DELETE FROM elections_resultats WHERE id = ?').run(id);
-        safeCloseDb(db);
-        db = null;
-        return NextResponse.json({ success: true });
-    } catch (error: any) {
-        return NextResponse.json({ success: false, error: error.message }, { status: 500 });
-    } finally {
-        safeCloseDb(db);
+    // L'ID d'un override n'indique pas l'élection : on cherche dans chaque base
+    // du registre (un fichier par scrutin) et on supprime où il existe.
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+    if (!id) {
+        return NextResponse.json({ success: false, error: 'id manquant' }, { status: 400 });
     }
+    const registry = readElectionsRegistry();
+    for (const slug of registry.displaySlugs) {
+        let db: any = null;
+        try {
+            db = getDb(slug);
+            const res = db.prepare('DELETE FROM elections_resultats WHERE id = ?').run(id);
+            safeCloseDb(db);
+            db = null;
+            if (res.changes > 0) {
+                return NextResponse.json({ success: true, electionSlug: slug });
+            }
+        } catch (error: any) {
+            return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+        } finally {
+            safeCloseDb(db);
+        }
+    }
+    return NextResponse.json({ success: true, deleted: 0 });
 }

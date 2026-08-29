@@ -1,14 +1,9 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import Database from 'better-sqlite3';
-import { getRadarDbPath } from '@/lib/radar-db';
 import Layout from '@/components/Layout';
-import { formatElectionLabel, parseJsonArray } from '@/lib/elections';
+import { formatElectionLabel } from '@/lib/elections';
 import { fetchWithTimeout } from '@/lib/fetch-timeout';
-
-function getDb() {
-    return new Database(getRadarDbPath());
-}
+import { readElectionsRegistry } from '@/lib/elections-db';
 
 function getStudioBaseUrl() {
     const remoteUrl = process.env.RADAR_API_URL;
@@ -24,7 +19,6 @@ function getStudioBaseUrl() {
 export const dynamic = 'force-dynamic';
 
 export default async function ElectionsHub() {
-    let db: any = null;
     try {
         let displaySlugs: string[] = [];
         let targetSlug = 'municipales-2026';
@@ -45,14 +39,9 @@ export default async function ElectionsHub() {
         }
 
         if (!displaySlugs.length) {
-            db = getDb();
-            const rows = db.prepare('SELECT key, value FROM radar_settings WHERE key IN (?, ?)').all(
-                'election_front_display_slugs_json',
-                'election_analysis_target_slug'
-            ) as { key: string; value: string }[];
-            const settingsMap = Object.fromEntries(rows.map(r => [String(r.key), String(r.value || '')]));
-            displaySlugs = parseJsonArray(settingsMap.election_front_display_slugs_json, ['municipales-2026']);
-            targetSlug = String(settingsMap.election_analysis_target_slug || 'municipales-2026');
+            const registry = readElectionsRegistry();
+            displaySlugs = registry.displaySlugs;
+            targetSlug = registry.targetSlug;
         }
 
         if (displaySlugs.length <= 1) {
@@ -99,9 +88,5 @@ export default async function ElectionsHub() {
         );
     } catch {
         redirect('/elections/municipales-2026');
-    } finally {
-        if (db) {
-            try { db.close(); } catch (_) {}
-        }
     }
 }

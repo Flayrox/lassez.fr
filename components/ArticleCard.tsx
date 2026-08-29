@@ -2,14 +2,14 @@
 import React from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { WPPost, WPTerm, WPCategory } from '../types';
+import type { Post, Tag, Category } from '../lib/types';
 import { getArticleUrl } from '../lib/getArticleUrl';
 import { sanitizeHtmlForRender } from '../lib/sanitizeHtmlForRender';
 
 const dateFormatter = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
 interface ArticleCardProps {
-    post: WPPost;
+    post: Post;
     tag?: string;
     featured?: boolean;
 }
@@ -17,7 +17,7 @@ interface ArticleCardProps {
 const ArticleCard: React.FC<ArticleCardProps> = ({ post, tag, featured = false }) => {
     const imageUrl = (typeof post.featuredImage === 'object' && post.featuredImage?.url) ? post.featuredImage.url : `https://picsum.photos/seed/${post.id}/800/600`;
     const author = (typeof post.author === 'object' && post.author?.name) ? post.author.name : "Rédaction";
-    const categories = Array.isArray(post.categories) ? post.categories.filter((cat): cat is WPCategory => typeof cat === 'object') : [];
+    const categories = Array.isArray(post.categories) ? post.categories.filter((cat): cat is Category => typeof cat === 'object') : [];
     const titleHtml = sanitizeHtmlForRender(post.title);
     const excerptHtml = sanitizeHtmlForRender(post.excerpt || '');
 

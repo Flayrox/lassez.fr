@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getPayloadClient } from '@/lib/payload';
+import { getContentClient } from '@/lib/provider';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,13 +34,13 @@ function buildPostUrl(doc: any) {
  */
 export async function GET() {
     try {
-        const payload = await getPayloadClient();
+        const content = await getContentClient();
         
         // Fenêtre temporelle stricte de 48 heures conformément aux directives Google News
         const cutoff = new Date(Date.now() - 48 * 60 * 60 * 1000);
 
         const [postsResult, revelationsResult] = await Promise.all([
-            payload.find({
+            content.find({
                 collection: 'posts',
                 where: {
                     and: [
@@ -52,7 +52,7 @@ export async function GET() {
                 depth: 2,
                 sort: '-publishedAt',
             }),
-            payload.find({
+            content.find({
                 collection: 'revelations',
                 where: {
                     and: [

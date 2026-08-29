@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { LoaderIcon, GlobeIcon, MapPinIcon, ShieldIcon } from '../icons';
-import type { Tag } from '../../types';
+import type { Tag } from '../../lib/types';
 
 interface RevelationsSidebarProps {
     onClose: () => void;
@@ -20,7 +20,7 @@ const RevelationsSidebar: React.FC<RevelationsSidebarProps> = ({ onClose }) => {
     const currentGeo = searchParams?.get('geo') || 'all';
     const currentTag = searchParams?.get('tag') || null;
 
-    // Fetch tags depuis l'API Payload native
+    // Fetch des tags depuis l'API de contenu
     useEffect(() => {
         setIsLoadingTags(true);
         fetch('/api/tags?per_page=50&orderby=name&order=asc')

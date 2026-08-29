@@ -1,5 +1,5 @@
 import useSWR from 'swr';
-import type { Post } from '../types';
+import type { Post } from '../lib/types';
 
 const fetcher = (url: string) => fetch(url).then(r => {
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -15,7 +15,7 @@ interface UsePostsOptions {
     depth?: number;
 }
 
-interface PayloadResult {
+interface ContentResult {
     docs: Post[];
     totalDocs: number;
     totalPages: number;
@@ -25,8 +25,8 @@ interface PayloadResult {
 }
 
 /**
- * Hook de récupération des articles — utilise directement l'API Payload native.
- * Les données sont des `Post` Payload pur, sans transformation WP.
+ * Hook de récupération des articles — utilise directement l'API de contenu.
+ * Les données sont des `Post` du provider, sans transformation WP.
  */
 export function usePosts(options: UsePostsOptions | null) {
     const params = options ? new URLSearchParams() : null;
@@ -42,7 +42,7 @@ export function usePosts(options: UsePostsOptions | null) {
 
     const key = params ? `/api/posts?${params.toString()}` : null;
 
-    const { data, error, isLoading } = useSWR<PayloadResult>(key, fetcher, {
+    const { data, error, isLoading } = useSWR<ContentResult>(key, fetcher, {
         revalidateOnFocus: false,
         dedupingInterval: 30_000,
         keepPreviousData: true,

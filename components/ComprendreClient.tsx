@@ -45,7 +45,7 @@ const ComprendreClient: React.FC = () => {
 
     const educationCategory = categories?.find(c => c.slug === 'comprendre' || c.name === 'Comprendre');
 
-    // Payload renvoie les catégories en objets (depth >= 1) ou en IDs bruts (depth 0).
+    // Le provider renvoie les catégories en objets (depth >= 1) ou en IDs bruts (depth 0).
     // On normalise en IDs pour comparer correctement.
     const toCategoryIds = (post: any): (string | number)[] =>
         Array.isArray(post?.categories)

@@ -1,8 +1,7 @@
-import type { Post, Category } from '../types';
+import type { Post, Category } from './types';
 
 /**
- * Chemin canonique d'un article (anciennement payload/lib/editorial.ts,
- * Payload étant déconnecté) :
+ * Chemin canonique d'un article :
  * - /revelations/[slug] pour la catégorie revelations
  * - /comprendre/[slug] pour la catégorie comprendre
  * - /[categorie]/[slug] sinon

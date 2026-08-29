@@ -8,7 +8,7 @@ import { useCategories } from '../hooks/useCategories';
 import { AlertTriangleIcon, SearchIcon, XIcon, LoaderIcon, ChevronLeftIcon } from './icons';
 import Link from 'next/link';
 import GlitchImage from './GlitchImage';
-import type { Post, Category } from '../types';
+import type { Post, Category } from '../lib/types';
 
 const enqueteDateFormatter = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit' });
 
@@ -92,7 +92,7 @@ const EnquetesClient: React.FC = () => {
     const searchParams = useSearchParams();
     const { categories } = useCategories();
 
-    // Secteur depuis l'URL (?secteur=slug), résolu en ID Payload
+    // Secteur depuis l'URL (?secteur=slug), résolu en ID de catégorie
     const secteurSlug = searchParams?.get('secteur') ?? null;
     const selectedCategoryIdFromUrl = useMemo(() => {
         if (!secteurSlug || categories.length === 0) return null;
@@ -119,7 +119,7 @@ const EnquetesClient: React.FC = () => {
     });
 
     // Catégories qui ont au moins un article publié.
-    // On charge le maximum autorisé par l'API (/api/posts cap = 100, maxLimit Payload)
+    // On charge le maximum autorisé par l'API (/api/posts cap = 100)
     // pour extraire les cat IDs actifs.
     const { data: allPostsData } = useSWR<{ docs: { categories: (Category | string | number)[] }[] }>(
         '/api/posts?per_page=100&depth=1',

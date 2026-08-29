@@ -12,7 +12,7 @@ import { usePathname, useSearchParams } from 'next/navigation';
  * Fonction utilitaire de détection du mode de prévisualisation (Preview / Live Preview)
  * 
  * Détermine si la page actuelle est affichée à l'intérieur de l'iframe de prévisualisation
- * du CMS Payload ou via une URL de brouillon.
+ * du provider ou via une URL de brouillon.
  */
 function checkIsPreview(pathname: string | null, searchParams: ReturnType<typeof useSearchParams>) {
     if (!pathname) return false;

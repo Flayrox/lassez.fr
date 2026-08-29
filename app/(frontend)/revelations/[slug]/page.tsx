@@ -1,9 +1,9 @@
 import { Metadata, ResolvingMetadata } from 'next';
 import { notFound } from 'next/navigation';
-import { getPayloadClient } from '@/lib/payload';
+import { getContentClient } from '@/lib/provider';
 import { getApiOrigin, getPublicSiteOrigin } from '@/lib/host-urls';
 import { getPreviewContext } from '@/lib/wp-preview';
-import { WPPost } from '@/types';
+import type { Post } from '@/lib/types';
 import ArticleClient from '@/components/ArticleClient';
 import Layout from '@/components/Layout';
 import PreviewShell from '@/components/PreviewShell';
@@ -14,12 +14,12 @@ type Props = {
     searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
 
-async function getPost(id: string, previewContext: ReturnType<typeof getPreviewContext> extends Promise<infer T> ? T : never): Promise<WPPost | null> {
-    const payload = await getPayloadClient();
+async function getPost(id: string, previewContext: ReturnType<typeof getPreviewContext> extends Promise<infer T> ? T : never): Promise<Post | null> {
+    const content = await getContentClient();
     try {
         let doc: any = null;
 
-        const slugMatch = await payload.find({
+        const slugMatch = await content.find({
             collection: 'revelations',
             where: { slug: { equals: id } },
             limit: 1,
@@ -30,7 +30,7 @@ async function getPost(id: string, previewContext: ReturnType<typeof getPreviewC
         doc = slugMatch.docs?.[0] || null;
 
         if (!doc && /^\d+$/.test(id)) {
-            doc = await payload.findByID({
+            doc = await content.findByID({
                 collection: 'revelations',
                 id,
                 draft: !!previewContext,
@@ -62,8 +62,8 @@ async function getPost(id: string, previewContext: ReturnType<typeof getPreviewC
     }
 }
 
-async function getRelatedPosts(id: string): Promise<WPPost[]> {
-    // Currently no related posts for specific payload revelation
+async function getRelatedPosts(id: string): Promise<Post[]> {
+    // Pas encore de posts liés pour une révélation du provider
     return [];
 }
 

@@ -1,5 +1,5 @@
 import { unstable_cache } from 'next/cache';
-import type { About, Legal } from '@/types';
+import type { About, Legal } from '@/lib/types';
 
 const FALLBACK_ABOUT: About = {
   id: 'fallback',

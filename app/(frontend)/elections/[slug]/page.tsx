@@ -2,9 +2,9 @@ import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import Layout from '@/components/Layout';
 import ElectionsClient from '@/components/ElectionsClient';
-import type { Post } from '@/types';
-import type { Where } from '@/lib/payload-where';
-import { getPayloadClient } from '@/lib/payload';
+import type { Post } from '@/lib/types';
+import type { Where } from '@/lib/provider';
+import { getContentClient } from '@/lib/provider';
 import Database from 'better-sqlite3';
 import { getElectionDbPath } from '@/lib/elections-db';
 import { formatElectionLabel } from '@/lib/elections';
@@ -27,7 +27,7 @@ function getStudioBaseUrl() {
 
 async function getElectionArticles(slug: string): Promise<Post[]> {
     try {
-        const payload = await getPayloadClient();
+        const content = await getContentClient();
         const keyword = slug.replace(/-/g, ' ').trim();
 
         const where: Where = {
@@ -43,7 +43,7 @@ async function getElectionArticles(slug: string): Promise<Post[]> {
             ],
         };
 
-        const result = await payload.find({
+        const result = await content.find({
             collection: 'posts',
             where,
             limit: 6,

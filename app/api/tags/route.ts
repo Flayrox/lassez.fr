@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { getPayloadClient } from '@/lib/payload';
-import type { Where } from '@/lib/payload-where';
+import { getContentClient } from '@/lib/provider';
+import type { Where } from '@/lib/provider';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,7 +15,7 @@ export async function GET(request: Request) {
     const order = String(searchParams.get('order') || 'asc').toLowerCase();
 
     try {
-        const payload = await getPayloadClient();
+        const content = await getContentClient();
 
         const where: Where = {};
         if (slug) where.slug = { equals: slug };
@@ -24,7 +24,7 @@ export async function GET(request: Request) {
         const sortField = orderby === 'createdAt' ? 'createdAt' : 'name';
         const sort = order === 'desc' ? `-${sortField}` : sortField;
 
-        const result = await payload.find({
+        const result = await content.find({
             collection: 'tags',
             where,
             limit,

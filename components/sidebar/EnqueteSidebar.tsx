@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { LoaderIcon } from '../icons';
 import useSWR from 'swr';
-import type { Category } from '../../types';
+import type { Category } from '../../lib/types';
 
 interface EnqueteSidebarProps {
     onClose: () => void;
@@ -20,7 +20,7 @@ const EnqueteSidebar: React.FC<EnqueteSidebarProps> = ({ onClose }) => {
     const pathname     = usePathname();
     const searchParams = useSearchParams();
 
-    // Catégories depuis Payload
+    // Catégories depuis le provider
     const { data: catsData, isLoading: isCatsLoading } = useSWR<any>(
         '/api/categories?per_page=100',
         fetcher,
@@ -28,7 +28,7 @@ const EnqueteSidebar: React.FC<EnqueteSidebarProps> = ({ onClose }) => {
     );
 
     // Tous les articles (léger, depth:0) pour savoir quelles catégories ont des articles
-    // per_page=100 : maximum autorisé par /api/posts (maxLimit Payload).
+    // per_page=100 : maximum autorisé par /api/posts.
     const { data: postsData } = useSWR<{ docs: any[] }>(
         '/api/posts?per_page=100&depth=1',
         fetcher,

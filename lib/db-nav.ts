@@ -1,1 +1,0 @@
-export { getNavItems } from './data';

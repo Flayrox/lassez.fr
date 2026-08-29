@@ -10,8 +10,8 @@ interface RichTextRendererProps {
 }
 
 /**
- * Rendu autonome des nœuds Lexical (format Payload) en HTML — sans dépendance
- * à @payloadcms/richtext-lexical, Payload étant déconnecté. Reprend le style
+ * Rendu autonome des nœuds Lexical en HTML — sans dépendance au CMS
+ * (déconnecté). Reprend le style
  * des anciens converters (upload, citation, lien, titres, listes, paragraphes).
  */
 

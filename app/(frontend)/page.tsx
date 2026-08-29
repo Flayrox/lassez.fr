@@ -4,11 +4,11 @@ import ArticleCard from '@/components/ArticleCard';
 import HeroCarousel from '@/components/HeroCarousel';
 import JoinUsBlock from '@/components/JoinUsBlock';
 import { Metadata } from 'next';
-import { WPPost, WPCategory } from '@/types';
+import type { Post, Category } from '@/lib/types';
 import Layout from '@/components/Layout';
 import TacticalNewsletter from '@/components/TacticalNewsletter';
 import { getArticleUrl } from '@/lib/getArticleUrl';
-import { getPayloadClient } from '@/lib/payload';
+import { getContentClient } from '@/lib/provider';
 import { FlashInfoTicker } from '@/components/FlashInfoTicker';
 
 export const metadata: Metadata = {
@@ -31,20 +31,20 @@ export const metadata: Metadata = {
 };
 
 export default async function Home() {
-    const payload = await getPayloadClient();
+    const content = await getContentClient();
 
     // 1. Fetch main posts (Enquêtes & Dossiers - which are now strictly in the 'posts' collection)
-    const postsRes = await payload.find({
+    const postsRes = await content.find({
         collection: 'posts',
         where: { _status: { equals: 'published' } },
         limit: 14,
         depth: 1,
         sort: '-publishedAt',
     });
-    const filteredPosts = postsRes.docs as WPPost[];
+    const filteredPosts = postsRes.docs as Post[];
 
     // 2. Fetch revelations from the new dedicated 'revelations' collection
-    const revRes = await payload.find({
+    const revRes = await content.find({
         collection: 'revelations',
         where: { _status: { equals: 'published' } },
         limit: 5,

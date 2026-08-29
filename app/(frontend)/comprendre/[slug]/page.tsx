@@ -1,9 +1,9 @@
 import { Metadata, ResolvingMetadata } from 'next';
 import { notFound } from 'next/navigation';
-import { getPayloadClient } from '@/lib/payload';
+import { getContentClient } from '@/lib/provider';
 import { getApiOrigin, getPublicSiteOrigin } from '@/lib/host-urls';
 import { getPreviewContext } from '@/lib/wp-preview';
-import { WPPost } from '@/types';
+import type { Post } from '@/lib/types';
 import ComprendreLessonClient from '@/components/ComprendreLessonClient';
 import PreviewShell from '@/components/PreviewShell';
 
@@ -12,9 +12,9 @@ type Props = {
     searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
 
-async function getPost(slug: string, previewContext: any): Promise<WPPost | null> {
-    const payload = await getPayloadClient();
-    const res = await payload.find({
+async function getPost(slug: string, previewContext: any): Promise<Post | null> {
+    const content = await getContentClient();
+    const res = await content.find({
         collection: 'lessons',
         where: { slug: { equals: slug } },
         limit: 1,

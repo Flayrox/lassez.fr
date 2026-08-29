@@ -1,7 +1,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { WPPost, WPTerm, WPCategory } from '../types';
+import type { Post, Tag, Category } from '../lib/types';
 import GlitchImage from './GlitchImage';
 import { getArticleUrl } from '../lib/getArticleUrl';
 import { sanitizeHtmlForRender } from '../lib/sanitizeHtmlForRender';
@@ -9,13 +9,13 @@ import { sanitizeHtmlForRender } from '../lib/sanitizeHtmlForRender';
 const listDateFormatter = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit' });
 
 interface ArticleListItemProps {
-    post: WPPost;
+    post: Post;
 }
 
 const ArticleListItem: React.FC<ArticleListItemProps> = ({ post }) => {
     const imageUrl = (typeof post.featuredImage === 'object' && post.featuredImage?.url) ? post.featuredImage.url : `https://picsum.photos/seed/${post.id}/400/300`;
     const author = (typeof post.author === 'object' && post.author?.name) ? post.author.name : "Rédaction";
-    const categories = Array.isArray(post.categories) ? post.categories.filter((cat): cat is WPCategory => typeof cat === 'object') : [];
+    const categories = Array.isArray(post.categories) ? post.categories.filter((cat): cat is Category => typeof cat === 'object') : [];
     const titleHtml = sanitizeHtmlForRender(post.title);
     const excerptHtml = sanitizeHtmlForRender(post.excerpt || '');
 

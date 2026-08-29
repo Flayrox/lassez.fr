@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getPayloadClient } from '@/lib/payload';
+import { getContentClient } from '@/lib/provider';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,17 +18,17 @@ function stripHtml(value: string) {
 
 export async function GET() {
     try {
-        const payload = await getPayloadClient();
+        const content = await getContentClient();
 
         const [postsResult, revelationsResult] = await Promise.all([
-            payload.find({
+            content.find({
                 collection: 'posts',
                 where: { _status: { equals: 'published' } },
                 limit: 20,
                 depth: 1,
                 sort: '-publishedAt',
             }),
-            payload.find({
+            content.find({
                 collection: 'revelations',
                 where: { _status: { equals: 'published' } },
                 limit: 20,

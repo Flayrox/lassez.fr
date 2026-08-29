@@ -1,12 +1,12 @@
 
 import useSWRInfinite from 'swr/infinite';
-import { WPPost } from '../types';
+import type { Post } from '../lib/types';
 import { fetcher } from '../lib/api';
 
 const PER_PAGE = 10;
 
 type PostsPage = {
-  docs: WPPost[];
+  docs: Post[];
   totalDocs?: number;
   hasNextPage?: boolean;
 };

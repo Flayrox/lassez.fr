@@ -1,23 +1,23 @@
 import { redirect } from 'next/navigation';
 import { applyPreviewParams, getPreviewContextFromRecord, withPreviewQuery } from '@/lib/wp-preview';
-import { WPPost, WPCategory } from '@/types';
-import { getPayloadClient } from '@/lib/payload';
+import type { Post, Category } from '@/lib/types';
+import { getContentClient } from '@/lib/provider';
 
 type Props = {
     params: Promise<{ slug: string }>;
     searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
 
-async function getPost(slug: string, previewContext: ReturnType<typeof getPreviewContextFromRecord>): Promise<WPPost | null> {
-    const payload = await getPayloadClient();
-    const res = await payload.find({
+async function getPost(slug: string, previewContext: ReturnType<typeof getPreviewContextFromRecord>): Promise<Post | null> {
+    const content = await getContentClient();
+    const res = await content.find({
         collection: 'posts',
         where: { slug: { equals: slug } },
         limit: 1,
         depth: 1,
         overrideAccess: previewContext !== null,
     });
-    return (res.docs[0] as WPPost) || null;
+    return (res.docs[0] as Post) || null;
 }
 
 /**
@@ -36,7 +36,7 @@ export default async function ArticleLegacyRedirect({ params, searchParams }: Pr
         return null;
     }
 
-    const categories = Array.isArray(post.categories) ? post.categories.filter((cat): cat is WPCategory => typeof cat === 'object') : [];
+    const categories = Array.isArray(post.categories) ? post.categories.filter((cat): cat is Category => typeof cat === 'object') : [];
 
     // Cas spéciaux déjà existants
     const isRevelation = categories.some(cat => cat.slug === 'revelations');

@@ -82,8 +82,6 @@ func flatten(d map[string]any) map[string]any {
 	set("rssLookbackHours", f("ingestion", "rssLookbackHours"))
 	set("maxArticles", f("ingestion", "maxArticlesPerScan"))
 	set("ingestion.concurrency", f("ingestion", "concurrency"))
-	// URL de base du RSS-Bridge (comptes X → flux Atom TwitterBridge)
-	set("rssBridgeUrl", s("ingestion", "rssBridgeUrl"))
 	// Bloc brut préservé : GetActiveSources() lit les listes d'URLs dedans
 	if ing := get("ingestion"); ing != nil {
 		out["ingestion"] = ing
@@ -203,14 +201,6 @@ func flatten(d map[string]any) map[string]any {
 	set("imageOverlayOpacity", f("media", "overlayOpacity"))
 	set("imageBoxScale169", f("media", "boxScale169"))
 	set("imageBoxScale11", f("media", "boxScale11"))
-
-	// Video
-	set("videoIngestEnabled", get("video", "ingestEnabled"))
-	set("videoPrefilterModel", s("video", "prefilterModel"))
-	set("videoTranscribeModel", s("video", "transcribeModel"))
-	set("videoPrefilterPrompt", s("video", "prefilterPrompt"))
-	set("videoPrefilterMinChars", f("video", "prefilterMinChars"))
-	set("videoMaxAudioMb", f("video", "maxAudioMb"))
 
 	// Formats (taxonomy templates pour l'éditorialiste)
 	if formats, ok := get("formats").([]any); ok {

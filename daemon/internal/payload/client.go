@@ -391,11 +391,6 @@ func (c *Client) GetActiveSources() ([]Source, error) {
 	if ing, ok := settings["ingestion"].(map[string]any); ok {
 		if src, ok := ing["sources"].(map[string]any); ok {
 			appendURLs(src["rss"], "RSS")
-			appendURLs(src["googleNews"], "GOOGLE_NEWS")
-			appendURLs(src["telegram"], "TELEGRAM")
-			// Handles X (sans @) — convertis en flux Atom TwitterBridge par le
-			// nœud d'ingestion, via rssBridgeUrl (cf. ingestion.go).
-			appendURLs(src["xAccounts"], "X")
 		}
 	}
 	return out, nil

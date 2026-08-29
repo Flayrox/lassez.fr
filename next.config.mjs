@@ -28,7 +28,7 @@ const nextConfig = {
     // standalone pour VPS (docker-lite)
     output: 'standalone',
     // elections utilisent encore better-sqlite3 (sera refacto après)
-    serverExternalPackages: ['better-sqlite3', 'sharp', '@google/generative-ai'],
+    serverExternalPackages: ['better-sqlite3', 'sharp'],
     images: {
         remotePatterns: [
             { protocol: 'https', hostname: 'lassez.fr' },

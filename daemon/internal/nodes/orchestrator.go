@@ -70,7 +70,9 @@ func RunOrchestrator(client *store.Client, resolver *config.Resolver, cycleID in
 	}
 	// Les formats actifs (id + description) : l'IA doit choisir sa taxonomie
 	// parmi les vraies catégories configurées, pas n'importe quelle chaîne.
-	if templates, err := client.GetTaxonomyTemplates(true); err == nil {
+	// Le tableau sert aussi à assainir la taxonomy renvoyée (sanitizeTaxonomy).
+	var templates []store.TaxonomyTemplate
+	if templates, err = client.GetTaxonomyTemplates(true); err == nil {
 		var parts []string
 		for _, t := range templates {
 			line := t.Name
@@ -161,10 +163,7 @@ func RunOrchestrator(client *store.Client, resolver *config.Resolver, cycleID in
 			Reason:   d.Reason,
 		}
 		if strings.EqualFold(d.Decision, "keep") {
-			taxonomy := strings.TrimSpace(d.Taxonomy)
-			if taxonomy == "" {
-				taxonomy = "INFO"
-			}
+			taxonomy := sanitizeTaxonomy(d.Taxonomy, templates)
 			geo := strings.ToLower(strings.TrimSpace(d.Geo))
 			if geo != "france" && geo != "international" {
 				geo = "france"
@@ -208,7 +207,7 @@ func buildOrchestratorPrompt(system, reject, taxonomyList string, topics []store
 	sb.WriteString("\n\nCRITÈRES DE REJET :\n")
 	sb.WriteString(reject)
 	sb.WriteString(taxonomyList)
-	sb.WriteString("\n\nTU ES LE CHEF DE DESK : lis la liste COMPLÈTE des sujets du jour ci-dessous et décide pour CHACUN : à traiter (keep) ou à écarter (drop). Pour chaque sujet gardé, choisis le format le plus percutant (taxonomy), la zone (geo) et donne l'angle à prendre (angle, une phrase). Choisis avec soin : on ne rédige QUE ce qui mérite vraiment d'être publié.")
+	sb.WriteString("\n\nTU ES LE CHEF DE DESK : lis la liste COMPLÈTE des sujets du jour ci-dessous et décide pour CHACUN : à traiter (keep) ou à écarter (drop). Pour chaque sujet gardé, choisis le format le plus percutant (taxonomy), la zone (geo) et donne l'angle à prendre (angle, une phrase). Choisis avec soin : on ne rédige QUE ce qui mérite vraiment d'être publié. Tu couvres les GRANDES infos que le public doit connaître — comme un média d'info à fort impact. JAMAIS de sujets vagues, de niche ou confidentiels : si un sujet est flou, sans enjeu clair ou ne concerne qu'un microcosme, écarte-le (drop).")
 	// Mémoire éditoriale : les titres publiés récents pour repérer les
 	// contradictions, les redites et les suites (le cas Retailleau).
 	if len(memory) > 0 {

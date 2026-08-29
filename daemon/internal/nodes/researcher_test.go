@@ -3,6 +3,8 @@ package nodes
 import (
 	"strings"
 	"testing"
+
+	"github.com/Flayrox/lassez.fr/daemon/internal/store"
 )
 
 // TestBuildResearchPromptBiais — le prompt du researcher doit contenir les
@@ -28,6 +30,31 @@ func TestBuildResearchPromptBiais(t *testing.T) {
 	} {
 		if !strings.Contains(prompt, want) {
 			t.Errorf("prompt sans « %s » :\n%s", want, prompt)
+		}
+	}
+}
+
+// TestSanitizeTaxonomy — le modèle renvoie parfois une liste de formats au
+// lieu d'un seul id : on ne garde que le premier id connu, sinon INFO.
+func TestSanitizeTaxonomy(t *testing.T) {
+	templates := []store.TaxonomyTemplate{
+		{Name: "FLASH"}, {Name: "CITATION"}, {Name: "ALERTE"}, {Name: "DECRYPTAGE"}, {Name: "INFO"},
+	}
+	cases := []struct {
+		raw, want string
+	}{
+		{"FLASH|INFO|ALERTE|DECRYPTAGE|CITATION", "FLASH"}, // liste complète → premier id valide
+		{"ALERTE ou INFO", "ALERTE"},                        // " ou " séparateur
+		{"decryptage", "DECRYPTAGE"},                        // minuscules → normalisé
+		{" FLASH ", "FLASH"},                                // espaces
+		{"INFO", "INFO"},                                    // id seul
+		{"", "INFO"},                                        // vide → INFO
+		{"QUELQUE CHOSE", "INFO"},                           // inconnu → INFO
+		{"ALERTE,\nINFO", "ALERTE"},                         // virgule + newline
+	}
+	for _, c := range cases {
+		if got := sanitizeTaxonomy(c.raw, templates); got != c.want {
+			t.Errorf("sanitizeTaxonomy(%q) = %q, attendu %q", c.raw, got, c.want)
 		}
 	}
 }

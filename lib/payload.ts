@@ -1,6 +1,5 @@
 /**
- * Compat shim — Payload débranché
- * @deprecated utiliser lib/data.ts
+ * Compat shim — la couche données réelle est lib/data.ts (Payload débranché).
  */
 export { find, findGlobal, findByID } from './data';
 

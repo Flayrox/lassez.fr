@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Image from 'next/image';
-import { WPPost } from '../types';
+import type { Post } from '../lib/types';
 import Link from 'next/link';
 import { ChevronLeftIcon } from './icons';
 import { getArticleUrl } from '../lib/getArticleUrl';
@@ -10,7 +10,7 @@ import { getArticleUrl } from '../lib/getArticleUrl';
 const heroDateFormatter = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
 interface HeroCarouselProps {
-    posts: WPPost[];
+    posts: Post[];
 }
 
 export default function HeroCarousel({ posts }: HeroCarouselProps) {

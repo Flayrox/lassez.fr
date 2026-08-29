@@ -40,8 +40,8 @@ export function getPublicSiteOrigin(req?: any) {
     }
 
     // 4. Utilisation de la variable d'environnement publique si configurée
-    if (process.env.PAYLOAD_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_SITE_URL) {
-        const envUrl = process.env.PAYLOAD_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_SITE_URL;
+    if (process.env.NEXT_PUBLIC_SITE_URL) {
+        const envUrl = process.env.NEXT_PUBLIC_SITE_URL;
         if (envUrl && !envUrl.includes('localhost')) {
             return envUrl.replace(/\/$/, '');
         }
@@ -52,13 +52,9 @@ export function getPublicSiteOrigin(req?: any) {
 }
 
 /**
- * Résolveur d'origine pour l'API Payload CMS (https://api.lassez.fr)
- * 
- * Utilisé par Payload pour configurer serverURL, les autorisations CORS et CSRF.
+ * Origine de l'API de contenu — réutilise l'origine publique tant qu'il
+ * n'existe pas d'API dédiée.
  */
 export function getApiOrigin() {
-    if (process.env.NODE_ENV === 'production') {
-        return 'https://api.lassez.fr';
-    }
-    return 'https://api.lassez.fr';
+    return getPublicSiteOrigin();
 }

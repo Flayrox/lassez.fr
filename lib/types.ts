@@ -1,6 +1,5 @@
 /**
- * Types domaine — front L'Assez (clean, sans Payload/WordPress)
- * Remplace payload-types.ts + alias WP*.
+ * Types domaine — front L'Assez.
  * Le futur provider implémentera ces interfaces.
  */
 
@@ -83,7 +82,7 @@ export interface Post {
   createdAt: string;
   _status?: 'draft' | 'published' | null;
   meta?: { title?: string | null; description?: string | null; image?: (number | string | null) | Media } | null;
-  // legacy Payload acf
+  // champ legacy (acf)
   acf?: Record<string, any> | null;
 }
 
@@ -113,13 +112,6 @@ export interface Lesson {
   updatedAt: string;
   createdAt: string;
 }
-
-// Aliases compat (à retirer après migration front)
-export type WPPost = Post;
-export type WPCategory = Category;
-export type WPTerm = Tag;
-export type WPAuthor = Author;
-export type WPMedia = Media;
 
 export interface NavItem {
   slug: string;

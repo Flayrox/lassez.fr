@@ -1,14 +1,14 @@
 'use client';
 
 import React, { useRef, useState, useEffect } from 'react';
-import { WPPost, WPTerm } from '../types';
+import type { Post, Tag } from '../lib/types';
 import Link from 'next/link';
 import ReadingProgress from './ReadingProgress';
 import { useProgress } from '../hooks/useProgress';
 import { SaveIcon } from './icons';
 
 interface Props {
-    post: WPPost;
+    post: Post;
     livePreviewServerURL?: string;
     isPreview?: boolean;
 }
@@ -26,13 +26,13 @@ const ComprendreLessonClient: React.FC<Props> = ({ post: initialPost, livePrevie
     const articleRef = useRef<HTMLElement>(null);
     const progress = useProgress();
 
-    const [post, setPost] = useState<WPPost>(initialPost as any);
+    const [post, setPost] = useState<Post>(initialPost as any);
 
     useEffect(() => {
         if (!isPreview) return;
 
         const handleMessage = (event: MessageEvent) => {
-            if (event.data && event.data.type === 'payload-live-preview') {
+            if (event.data && event.data.type === 'content-live-preview') {
                 if (event.data.data) {
                     setPost((prev) => ({ ...prev, ...event.data.data }));
                 }
@@ -43,14 +43,14 @@ const ComprendreLessonClient: React.FC<Props> = ({ post: initialPost, livePrevie
 
         const parent = window.opener || window.parent;
         if (parent && parent !== window) {
-            parent.postMessage({ type: 'payload-live-preview', ready: true }, '*');
+            parent.postMessage({ type: 'content-live-preview', ready: true }, '*');
         }
 
         return () => window.removeEventListener('message', handleMessage);
     }, [isPreview]);
 
     // Safety check just in case
-    const categories: WPTerm[] = (post as any)?._embedded?.['wp:term']?.[0] || [];
+    const categories: Tag[] = (post as any)?._embedded?.['wp:term']?.[0] || [];
     const isCompleted = progress.isCompleted(post.id);
     const titleHtml = getRenderedField((post as any).title);
     const excerptHtml = getRenderedField((post as any).excerpt);

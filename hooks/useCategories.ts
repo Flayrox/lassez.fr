@@ -1,5 +1,5 @@
 import useSWR from 'swr';
-import type { Category } from '../types';
+import type { Category } from '../lib/types';
 
 const fetcher = (url: string) => fetch(url).then(r => {
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -7,7 +7,7 @@ const fetcher = (url: string) => fetch(url).then(r => {
 });
 
 /**
- * Hook de récupération des catégories Payload.
+ * Hook de récupération des catégories du provider.
  */
 export function useCategories() {
     const { data, error, isLoading } = useSWR<{ docs: Category[] }>(

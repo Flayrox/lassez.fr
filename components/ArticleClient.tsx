@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState, useRef } from 'react';
-import { WPPost, WPTerm } from '../types';
+import type { Post, Tag } from '../lib/types';
 import Link from 'next/link';
 import { ShareIcon, SaveIcon, LoaderIcon, EyeIcon, UsersIcon } from './icons';
 import ArticleCard from './ArticleCard';
@@ -17,8 +17,8 @@ import Image from 'next/image';
 const articleDateFormatter = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
 interface ArticleClientProps {
-    post: WPPost;
-    relatedPosts: WPPost[];
+    post: Post;
+    relatedPosts: Post[];
     slug: string;
     isPreview?: boolean;
     livePreviewServerURL: string;
@@ -26,12 +26,12 @@ interface ArticleClientProps {
 }
 
 const ArticleClient: React.FC<ArticleClientProps> = ({ post: initialPost, relatedPosts, slug, isPreview = false, livePreviewServerURL, variant = 'full' }) => {
-    const [post, setPost] = useState<WPPost>(initialPost as any);
+    const [post, setPost] = useState<Post>(initialPost as any);
     const [isLoading, setIsLoading] = useState(false);
 
     useEffect(() => {
         const handleMessage = (event: MessageEvent) => {
-            if (event.data && event.data.type === 'payload-live-preview') {
+            if (event.data && event.data.type === 'content-live-preview') {
                 if (event.data.data) {
                     setPost((prev) => ({ ...prev, ...event.data.data }));
                 }
@@ -42,7 +42,7 @@ const ArticleClient: React.FC<ArticleClientProps> = ({ post: initialPost, relate
 
         const parent = window.opener || window.parent;
         if (parent && parent !== window) {
-            parent.postMessage({ type: 'payload-live-preview', ready: true }, '*');
+            parent.postMessage({ type: 'content-live-preview', ready: true }, '*');
         }
 
         return () => window.removeEventListener('message', handleMessage);
@@ -68,7 +68,7 @@ const ArticleClient: React.FC<ArticleClientProps> = ({ post: initialPost, relate
 
     const imageUrl = (typeof post.featuredImage === 'object' && post.featuredImage?.url) ? post.featuredImage.url : `https://picsum.photos/seed/${post.id}/1200/600`;
     const author = (typeof post.author === 'object' && post.author?.name) ? post.author.name : "Rédaction";
-    const categories = Array.isArray(post.categories) ? post.categories.filter((cat): cat is typeof post.categories[0] & object => typeof cat === 'object') as WPTerm[] : [];
+    const categories = Array.isArray(post.categories) ? post.categories.filter((cat): cat is typeof post.categories[0] & object => typeof cat === 'object')        as Tag[] : [];
     const titleHtml = sanitizeHtmlForRender(post.title);
     const bodyHtml = sanitizeHtmlForRender(post.content_html || post.excerpt || '');
 

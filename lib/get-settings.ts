@@ -1,5 +1,5 @@
 import { unstable_cache } from 'next/cache';
-import type { Setting } from '@/types';
+import type { Setting } from '@/lib/types';
 
 const FALLBACK_SETTINGS: Setting = {
   id: 'fallback',

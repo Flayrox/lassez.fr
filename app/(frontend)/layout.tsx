@@ -3,7 +3,7 @@ import { Suspense } from 'react';
 import Script from 'next/script';
 import './globals.css';
 import { Inter, Playfair_Display } from 'next/font/google';
-import { getNavItems } from '@/lib/db-nav';
+import { getNavItems } from '@/lib/provider';
 import ThemeInitializer from '@/components/ThemeInitializer';
 import { getSettings } from '@/lib/get-settings';
 import Footer from '@/components/Footer';

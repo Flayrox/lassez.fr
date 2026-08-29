@@ -3,11 +3,11 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { AlertTriangleIcon, LoaderIcon, ChevronUpIcon } from './icons';
-import type { Revelation, Tag } from '../types';
+import type { Revelation, Tag } from '../lib/types';
 
 const revDateFormatter = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 
-interface PayloadResult { docs: Revelation[]; totalDocs: number; hasNextPage: boolean; }
+interface ContentResult { docs: Revelation[]; totalDocs: number; hasNextPage: boolean; }
 type GeoFilter = 'all' | 'france' | 'international';
 
 function safeDate(raw?: string | null): Date | null {
@@ -260,7 +260,7 @@ const RevelationsClient: React.FC = () => {
 
         fetch(`/api/revelations?${params}`)
             .then(r => r.json())
-            .then((data: PayloadResult) => {
+            .then((data: ContentResult) => {
                 if (cancelled) return;
                 setRevs(prev => page === 1 ? data.docs : [...prev, ...data.docs]);
                 setTotalDocs(data.totalDocs);

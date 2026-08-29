@@ -13,13 +13,13 @@ function cleanString(value: unknown) {
 }
 
 function getPreviewSecret() {
-    return cleanString(process.env.PAYLOAD_PREVIEW_SECRET || process.env.PAYLOAD_SECRET);
+    return cleanString(process.env.PREVIEW_SECRET);
 }
 
-function signEncodedPayload(encodedPayload: string) {
+function signToken(encodedToken: string) {
     const secret = getPreviewSecret();
     if (!secret) return '';
-    return createHmac('sha256', secret).update(encodedPayload).digest('base64url');
+    return createHmac('sha256', secret).update(encodedToken).digest('base64url');
 }
 
 function safeEqual(a: string, b: string) {
@@ -45,17 +45,17 @@ export function createPostPreviewToken(args: { postId: string | number; slug: st
     const tokenBucketMs = 60 * 1000;
     const bucketStart = Math.floor(now / tokenBucketMs) * tokenBucketMs;
 
-    const payload: PostPreviewTokenData = {
+    const tokenData: PostPreviewTokenData = {
         postId,
         slug,
         exp: bucketStart + ttl * 1000,
     };
 
-    const encodedPayload = Buffer.from(JSON.stringify(payload), 'utf-8').toString('base64url');
-    const signature = signEncodedPayload(encodedPayload);
+    const encodedToken = Buffer.from(JSON.stringify(tokenData), 'utf-8').toString('base64url');
+    const signature = signToken(encodedToken);
 
     if (!signature) return '';
-    return `${encodedPayload}.${signature}`;
+    return `${encodedToken}.${signature}`;
 }
 
 export function verifyPostPreviewToken(args: { token: string; postId?: string | number; slug?: string }) {
@@ -65,16 +65,16 @@ export function verifyPostPreviewToken(args: { token: string; postId?: string | 
     const secret = getPreviewSecret();
     if (!secret) return { valid: false as const };
 
-    const [encodedPayload, signature] = token.split('.');
-    if (!encodedPayload || !signature) return { valid: false as const };
+    const [encodedToken, signature] = token.split('.');
+    if (!encodedToken || !signature) return { valid: false as const };
 
-    const expectedSignature = signEncodedPayload(encodedPayload);
+    const expectedSignature = signToken(encodedToken);
     if (!expectedSignature || !safeEqual(signature, expectedSignature)) {
         return { valid: false as const };
     }
 
     try {
-        const parsed = JSON.parse(Buffer.from(encodedPayload, 'base64url').toString('utf-8')) as PostPreviewTokenData;
+        const parsed = JSON.parse(Buffer.from(encodedToken, 'base64url').toString('utf-8')) as PostPreviewTokenData;
         const postId = cleanString(parsed.postId);
         const slug = cleanString(parsed.slug);
         const exp = Number(parsed.exp || 0);

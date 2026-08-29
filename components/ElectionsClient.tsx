@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import ElectionResultsLive from './ElectionResultsLive';
 import Link from 'next/link';
 import Image from 'next/image';
-import type { Post } from '../types';
+import type { Post } from '../lib/types';
 import { getArticleUrl } from '../lib/getArticleUrl';
 import { regions, departments as deptNames } from '../lib/geo-data';
 import { formatCommuneSlug } from '../lib/seo-engine';

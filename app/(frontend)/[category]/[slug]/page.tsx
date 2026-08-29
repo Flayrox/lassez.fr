@@ -1,29 +1,29 @@
 import { Metadata, ResolvingMetadata } from 'next';
 import { notFound } from 'next/navigation';
-import { getPayloadClient } from '@/lib/payload';
+import { getContentClient } from '@/lib/provider';
 import { getPreviewContext } from '@/lib/wp-preview';
 import { getApiOrigin, getPublicSiteOrigin } from '@/lib/host-urls';
 import ArticleClient from '@/components/ArticleClient';
 import Layout from '@/components/Layout';
 import PreviewShell from '@/components/PreviewShell';
 import JsonLd from '@/components/JsonLd';
-import type { Post, Category } from '@/types';
+import type { Post, Category } from '@/lib/types';
 
 type Props = {
     params: Promise<{ category: string; slug: string }>;
     searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
 
-/** Récupère un article depuis Payload (avec fallback sur revelations si besoin). */
+/** Récupère un article depuis le provider (avec fallback sur revelations si besoin). */
 async function fetchPost(slug: string, previewContext: any) {
-    const payload = await getPayloadClient();
+    const content = await getContentClient();
 
     const whereObj: any = { slug: { equals: slug } };
     if (!previewContext) {
         whereObj._status = { equals: 'published' };
     }
 
-    const res = await payload.find({
+    const res = await content.find({
         collection: 'posts',
         where:  whereObj,
         limit:  1,
@@ -38,12 +38,12 @@ async function fetchPost(slug: string, previewContext: any) {
 /** Récupère les articles liés (même catégorie primaire, exclut l'article courant). */
 async function fetchRelated(post: Post) {
     try {
-        const payload = await getPayloadClient();
+        const content = await getContentClient();
         const cats = (post.categories ?? []) as (Category | string | number)[];
         const catIds = cats.map(c => (typeof c === 'object' ? c.id : c));
         if (!catIds.length) return [];
 
-        const res = await payload.find({
+        const res = await content.find({
             collection: 'posts',
             where: {
                 and: [

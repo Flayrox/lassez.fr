@@ -6,12 +6,12 @@ import { useInfinitePosts } from '../hooks/useInfinitePosts';
 import ArticleListItem from './ArticleListItem';
 import Breadcrumb from './Breadcrumb';
 import { AlertTriangleIcon } from './icons';
-import { WPPost, WPCategory } from '../types';
+import type { Post, Category } from '../lib/types';
 
 interface CategoryClientProps {
     slug: string;
-    initialCategory: WPCategory | null;
-    initialPosts: WPPost[];
+    initialCategory: Category | null;
+    initialPosts: Post[];
 }
 
 const CategoryClient: React.FC<CategoryClientProps> = ({ slug, initialCategory, initialPosts }) => {
@@ -20,7 +20,7 @@ const CategoryClient: React.FC<CategoryClientProps> = ({ slug, initialCategory, 
     const category = categories.find(c => c.slug === slug) || initialCategory;
     const id = category?.id;
 
-    const { posts, error, isLoading, isLoadingMore, isReachingEnd, setSize, size } = useInfinitePosts(id ? `categories=${id}` : null);
+    const { posts, error, isLoading, isLoadingMore, isReachingEnd, setSize, size } = useInfinitePosts(id ? `categories=${id}` : undefined);
 
     const displayPosts = posts && posts.length > 0 ? posts : initialPosts;
     const categoryName = category?.name || 'Dossiers';

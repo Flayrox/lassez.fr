@@ -1,7 +1,7 @@
 import { MetadataRoute } from 'next';
-import { getPayloadClient } from '@/lib/payload';
+import { getContentClient } from '@/lib/provider';
 import { formatCommuneSlug } from '../lib/seo-engine';
-import type { Post, Category, Lesson, Revelation } from '@/types';
+import type { Post, Category, Lesson, Revelation } from '@/lib/types';
 
 const BASE_URL = 'https://lassez.fr';
 
@@ -12,10 +12,10 @@ function toDate(value: unknown) {
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     try {
-        const payload = await getPayloadClient();
+        const content = await getContentClient();
 
         const [postsResult, lessonsResult, revelationsResult, categoriesResult] = await Promise.all([
-            payload.find({
+            content.find({
                 collection: 'posts',
                 where: { _status: { equals: 'published' } },
                 limit: 200,
@@ -23,7 +23,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
                 depth: 1,
                 sort: '-publishedAt',
             }),
-            payload.find({
+            content.find({
                 collection: 'lessons',
                 where: { _status: { equals: 'published' } },
                 limit: 200,
@@ -31,7 +31,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
                 depth: 1,
                 sort: '-createdAt',
             }),
-            payload.find({
+            content.find({
                 collection: 'revelations',
                 where: { _status: { equals: 'published' } },
                 limit: 200,
@@ -39,7 +39,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
                 depth: 1,
                 sort: '-createdAt',
             }),
-            payload.find({
+            content.find({
                 collection: 'categories',
                 limit: 100,
                 page: 1,

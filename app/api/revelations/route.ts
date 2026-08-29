@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { getPayloadClient } from '@/lib/payload';
-import type { Where } from '@/lib/payload-where';
+import { getContentClient } from '@/lib/provider';
+import type { Where } from '@/lib/provider';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,14 +23,14 @@ export async function GET(request: Request) {
     const search  = searchParams.get('search')   || null;
 
     try {
-        const payload = await getPayloadClient();
+        const content = await getContentClient();
         const where: Where = { _status: { equals: 'published' } };
 
         if (zoneGeo) where.zone_geo = { equals: zoneGeo };
 
         if (tagSlug) {
             // Résolution du slug tag → id
-            const tagRes = await payload.find({
+            const tagRes = await content.find({
                 collection: 'tags',
                 where: { slug: { equals: tagSlug } },
                 limit: 1,
@@ -42,7 +42,7 @@ export async function GET(request: Request) {
 
         if (search) where.titre = { contains: search };
 
-        const result = await payload.find({
+        const result = await content.find({
             collection: 'revelations',
             where,
             limit,

@@ -1,9 +1,9 @@
 import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import { getPayloadClient } from '@/lib/payload';
+import { getContentClient } from '@/lib/provider';
 import CategoryClient from '@/components/CategoryClient';
 import Layout from '@/components/Layout';
-import type { Category, Post } from '@/types';
+import type { Category, Post } from '@/lib/types';
 
 type Props = {
     params: Promise<{ category: string }>;
@@ -28,9 +28,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
  */
 export default async function CategoryPage({ params }: Props) {
     const { category } = await params;
-    const payload = await getPayloadClient();
+    const content = await getContentClient();
 
-    const catRes = await payload.find({
+    const catRes = await content.find({
         collection: 'categories',
         where: { slug: { equals: category } },
         limit: 1,
@@ -39,7 +39,7 @@ export default async function CategoryPage({ params }: Props) {
 
     if (!initialCategory) notFound();
 
-    const postsRes = await payload.find({
+    const postsRes = await content.find({
         collection: 'posts',
         where: {
             and: [

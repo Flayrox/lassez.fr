@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, ReactNode } from 'react';
-import { NavItem } from '@/types';
+import type { NavItem } from '@/lib/types';
 
 interface NavContextType {
   navItems: NavItem[];

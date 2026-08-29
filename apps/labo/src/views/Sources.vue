@@ -112,86 +112,12 @@
       </LEmpty>
     </LCard>
 
-    <!-- Comptes X / Telegram / Google News — chaque canal a son interrupteur -->
-    <div class="grid lg:grid-cols-2 gap-4">
-      <LCard title="Chaînes Telegram" description="Sans @, 1 par ligne">
-        <template #actions>
-          <LToggle :model-value="store.sources.telegramEnabled" @update:model-value="(v: boolean) => { store.sources.telegramEnabled = v; store.markDirty() }" />
-        </template>
-        <div :class="store.sources.telegramEnabled ? '' : 'opacity-40 pointer-events-none'">
-          <textarea v-model="store.sources.telegram" rows="4" class="w-full bg-bg border border-border rounded px-3 py-2 text-xs font-mono text-text-1 focus:outline-none focus:border-accent/60 focus:ring-2 focus:ring-accent/20" />
-          <p v-if="!store.sources.telegramEnabled" class="text-[11px] text-text-3 mt-1.5">Canal coupé — le robot n'aspire plus ces chaînes.</p>
-        </div>
-      </LCard>
-      <LCard title="Comptes X à suivre" description="Via RSS-Bridge, handles sans @, 1 par ligne">
-        <template #actions>
-          <LToggle :model-value="store.sources.xEnabled" @update:model-value="(v: boolean) => { store.sources.xEnabled = v; store.markDirty() }" />
-        </template>
-        <div :class="store.sources.xEnabled ? '' : 'opacity-40 pointer-events-none'">
-          <textarea v-model="store.sources.xAccounts" rows="4" class="w-full bg-bg border border-border rounded px-3 py-2 text-xs font-mono text-text-1 focus:outline-none focus:border-accent/60 focus:ring-2 focus:ring-accent/20" />
-          <p v-if="!store.sources.xEnabled" class="text-[11px] text-text-3 mt-1.5">Canal coupé — les comptes X ne sont plus suivis.</p>
-        </div>
-      </LCard>
-      <LCard title="Recherches Google News" description="Un mot-clé par ligne (optionnel)">
-        <template #actions>
-          <LToggle :model-value="store.sources.googleNewsEnabled" @update:model-value="(v: boolean) => { store.sources.googleNewsEnabled = v; store.markDirty() }" />
-        </template>
-        <div :class="store.sources.googleNewsEnabled ? '' : 'opacity-40 pointer-events-none'">
-          <textarea v-model="store.sources.googleNews" rows="3" placeholder="ex : climat" class="w-full bg-bg border border-border rounded px-3 py-2 text-xs font-mono text-text-1 placeholder:text-text-3 focus:outline-none focus:border-accent/60 focus:ring-2 focus:ring-accent/20" />
-          <p v-if="!store.sources.googleNewsEnabled" class="text-[11px] text-text-3 mt-1.5">Canal coupé — les recherches Google News sont ignorées.</p>
-        </div>
-      </LCard>
-      <LCard title="Serveur RSS-Bridge" description="Convertit les comptes X en flux RSS — requis si tu suis des comptes X">
-        <template #actions>
-          <LToggle :model-value="store.sources.rssBridgeEnabled" @update:model-value="(v: boolean) => { store.sources.rssBridgeEnabled = v; store.markDirty() }" />
-        </template>
-        <div :class="store.sources.rssBridgeEnabled ? '' : 'opacity-40 pointer-events-none'">
-          <LInput v-model="bridgeProxy" />
-          <p class="text-[11px] text-text-3 mt-2">Par défaut sur ta machine : http://localhost:3300</p>
-        </div>
-      </LCard>
-    </div>
-
-    <!-- Vidéos Telegram -->
-    <LCard title="Vidéos Telegram" description="Transcription automatique des vidéos publiées dans les chaînes suivies">
-      <div class="space-y-3">
-        <div class="flex items-center justify-between">
-          <div>
-            <p class="text-sm font-medium">Activer l'ingestion vidéo</p>
-            <p class="text-[11px] text-text-3">Plus lourd — à activer seulement si besoin</p>
-          </div>
-          <LToggle :model-value="store.video.ingestEnabled" @update:model-value="(v: boolean) => { store.video.ingestEnabled = v; store.markDirty() }" />
-        </div>
-        <template v-if="store.video.ingestEnabled">
-          <div class="grid md:grid-cols-2 gap-3">
-            <div>
-              <p class="text-xs font-medium mb-1">Modèle de pré-filtre</p>
-              <select v-model="store.video.prefilterModel" class="w-full h-8 bg-bg border border-border rounded px-2 text-xs focus:outline-none focus:border-accent/60">
-                <option v-for="m in store.modelRegistry" :key="m.label" :value="m.label">{{ m.label }}</option>
-              </select>
-            </div>
-            <div>
-              <p class="text-xs font-medium mb-1">Modèle de transcription</p>
-              <select v-model="store.video.transcribeModel" class="w-full h-8 bg-bg border border-border rounded px-2 text-xs focus:outline-none focus:border-accent/60">
-                <option v-for="m in store.modelRegistry" :key="m.label" :value="m.label">{{ m.label }}</option>
-              </select>
-            </div>
-          </div>
-          <LTextarea label="Question de pré-filtre" help="L'IA répond OUI ou NON — OUI = la vidéo est transcrite" :rows="2" v-model="videoPromptProxy" />
-          <div class="grid md:grid-cols-2 gap-3">
-            <LInput label="Longueur min. du message (caractères)" help="En dessous, le message est ignoré — video_prefilter_min_chars" type="number" v-model.number="store.video.prefilterMinChars" />
-            <LInput label="Taille audio maximum (Mo)" type="number" v-model.number="store.video.maxAudioMb" />
-          </div>
-        </template>
-      </div>
-    </LCard>
-
     <!-- Modal résultat du test de flux -->
     <LModal :open="testModal" title="Test du flux" wide @close="testModal = false">
       <div v-if="testError" class="border border-danger/40 bg-danger/10 rounded-lg p-3 mb-3">
         <p class="text-xs font-medium text-danger">❌ Aspiration impossible</p>
         <p class="text-[11px] text-text-2 mt-1 font-mono break-all">{{ testError }}</p>
-        <p class="text-[11px] text-text-3 mt-2">Vérifie l'URL, que le site répond, et que RSS-Bridge tourne (comptes X / Telegram).</p>
+        <p class="text-[11px] text-text-3 mt-2">Vérifie l'URL et que le site répond.</p>
       </div>
       <template v-else-if="testResult">
         <div class="flex items-center justify-between gap-2 mb-1">
@@ -232,7 +158,6 @@ import LCard from '../components/ui/LCard.vue'
 import LButton from '../components/ui/LButton.vue'
 import LBadge from '../components/ui/LBadge.vue'
 import LToggle from '../components/ui/LToggle.vue'
-import LInput from '../components/ui/LInput.vue'
 import LTextarea from '../components/ui/LTextarea.vue'
 import LModal from '../components/ui/LModal.vue'
 import LEmpty from '../components/ui/LEmpty.vue'
@@ -321,15 +246,6 @@ const duplicateError = computed(() => {
   const u = newUrl.value.trim().toLowerCase()
   if (!u) return ''
   return store.sources.list.some(s => s.url.toLowerCase() === u) ? 'Cette source existe déjà.' : ''
-})
-
-const bridgeProxy = computed({
-  get: () => store.sources.bridgeUrl,
-  set: (v: string) => { store.sources.bridgeUrl = v; store.markDirty() },
-})
-const videoPromptProxy = computed({
-  get: () => store.video.prefilterPrompt,
-  set: (v: string) => { store.video.prefilterPrompt = v; store.markDirty() },
 })
 
 const trustFilters = [

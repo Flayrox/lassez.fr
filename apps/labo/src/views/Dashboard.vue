@@ -136,7 +136,7 @@
             <div class="space-y-1 min-w-0">
               <p class="text-sm font-medium">{{ nextLabel }}</p>
               <p class="text-[11px] text-text-3">
-                {{ lastCycleLabel }} · intervalle {{ store.planning.intervalleMinutes }} min · {{ rssCount }} sources RSS · {{ tgCount }} Telegram
+                {{ lastCycleLabel }} · intervalle {{ store.planning.intervalleMinutes }} min · {{ rssCount }} sources RSS
               </p>
               <router-link to="/planning" class="text-[11px] text-accent hover:underline inline-block">Modifier le planning →</router-link>
             </div>
@@ -247,7 +247,6 @@ onUnmounted(() => { if (suiviTimer) clearInterval(suiviTimer) })
 
 const activeCount = computed(() => store.atelier.filter(p => p.enabled).length)
 const rssCount = computed(() => store.sources.list.filter(s => s.active).length)
-const tgCount = computed(() => store.sources.telegram.split('\n').filter(s => s.trim()).length)
 
 // ── Robot / Publication : état réel du daemon ──
 const robotDown = computed(() => !!system.error || !system.daemon)

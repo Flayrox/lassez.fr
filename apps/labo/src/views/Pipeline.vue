@@ -172,14 +172,7 @@ const modelNames = computed(() => {
 })
 
 // Canaux d'ingestion actifs
-const channelsOn = computed(() => {
-  const c: string[] = ['RSS']
-  if (store.sources.xEnabled) c.push('X')
-  if (store.sources.telegramEnabled) c.push('Telegram')
-  if (store.sources.googleNewsEnabled) c.push('Google News')
-  if (store.sources.rssBridgeEnabled) c.push('RSS-Bridge')
-  return c.join(' + ')
-})
+const channelsOn = computed(() => 'RSS')
 const platformsOn = computed(() => {
   const p: string[] = []
   if (store.partage.qoe) p.push('qoe.fi')
@@ -195,8 +188,8 @@ const chain = computed(() => [
   {
     id: 1, type: 'ingestion', icon: '📡', label: 'Collecte',
     role: 'Aspirer les nouveaux articles de toutes tes sources',
-    what: 'Le robot parcourt tes sources en parallèle : flux RSS directs, mots-clés Google News (converti en flux officiel), comptes X et chaînes Telegram via RSS-Bridge. Il ne garde que les articles de la fenêtre (les dernières heures) et ignore ceux déjà vus (mémoire seen_urls). Chaque source est surveillée : échecs répétés → quarantaine automatique.',
-    input: 'Tes sources actives : RSS, X, Telegram, Google News, RSS-Bridge.',
+    what: 'Le robot parcourt tes flux RSS en parallèle. Il ne garde que les articles de la fenêtre (les dernières heures) et ignore ceux déjà vus (mémoire seen_urls). Chaque source est surveillée : échecs répétés → quarantaine automatique.',
+    input: 'Tes sources actives : les flux RSS.',
     output: 'Des articles bruts en mémoire : titre, lien, extrait, date, source, biais, fiabilité — et bientôt le contenu complet.',
     settingsTo: '/sources',
     settings: [

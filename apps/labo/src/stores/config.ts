@@ -83,19 +83,9 @@ export const useConfigStore = defineStore('config', () => {
   // ── Sources structurées (trust par source, comme l'ancien admin mais mieux) ──
   const sources = ref({
     list: defaultSources(),
-    telegram: '',
-    xAccounts: ['JLMelenchon', 'MathildePanot', 'RimaHas', 'Manuel_Bompard', 'FranceInsoumise', 'ImpactMediaFR'].join('\n'),
-    googleNews: '',
     lookbackHours: 10,
     maxArticlesPerScan: 20,
     concurrency: 5,
-    bridgeUrl: 'http://localhost:3300', // RSS-Bridge pour les comptes X
-    // Canaux d'ingestion activables/désactivables un par un (le daemon reçoit
-    // une liste vide quand un canal est coupé).
-    telegramEnabled: true,
-    xEnabled: true,
-    googleNewsEnabled: true,
-    rssBridgeEnabled: true,
   })
 
   // ── Filtres ──
@@ -235,16 +225,6 @@ export const useConfigStore = defineStore('config', () => {
     boxScale11: 78,            // image_box_scale_11
   })
 
-  // ── Vidéo Telegram (video_*) ──
-  const video = ref({
-    ingestEnabled: false,
-    prefilterModel: 'gemini-2.0-flash',
-    transcribeModel: 'gemini-2.0-flash',
-    prefilterPrompt: 'Ce message Telegram parle-t-il de politique, de mouvements sociaux, de justice ou d un evenement d interet public ? Reponds uniquement par OUI ou NON.',
-    prefilterMinChars: 20,     // video_prefilter_min_chars
-    maxAudioMb: 20,
-  })
-
   // ── Système + communication (maintenance + popup don) ──
   const systeme = ref({
     niveauLogs: 'INFO',
@@ -297,8 +277,6 @@ export const useConfigStore = defineStore('config', () => {
     const mbf: Record<string, string> = {}
     for (const k of Object.keys(ecriture.value.modeleParFormat)) mbf[k] = ensure(ecriture.value.modeleParFormat[k])
     ecriture.value.modeleParFormat = mbf
-    video.value.prefilterModel = ensure(video.value.prefilterModel)
-    video.value.transcribeModel = ensure(video.value.transcribeModel)
   }
 
   // Garde-fous de l'autosave : pendant qu'on hydrate (localStorage / daemon),
@@ -308,7 +286,7 @@ export const useConfigStore = defineStore('config', () => {
   function stateSnapshot() {
     return JSON.stringify([
       atelier.value, positions.value, sources.value, filtres.value, ecriture.value,
-      formats.value, partage.value, planning.value, media.value, video.value,
+      formats.value, partage.value, planning.value, media.value,
       systeme.value, matrix.value, modelRegistry.value,
     ])
   }
@@ -405,23 +383,8 @@ export const useConfigStore = defineStore('config', () => {
         timeWindowHours: sources.value.lookbackHours,
         maxArticlesPerScan: sources.value.maxArticlesPerScan,
         concurrency: sources.value.concurrency,
-        // Un canal coupé dans le labo → liste vide côté daemon (il n'aspire rien).
         sources: {
           rss: sources.value.list.filter(s => s.active).map(s => s.url),
-          telegram: sources.value.telegramEnabled ? lines(sources.value.telegram) : [],
-          xAccounts: sources.value.xEnabled ? lines(sources.value.xAccounts) : [],
-          googleNews: sources.value.googleNewsEnabled ? lines(sources.value.googleNews) : [],
-        },
-        // RSS-Bridge : l'URL de base sert au daemon pour convertir les comptes X
-        // en flux Atom (TwitterBridge). Vide si le canal est coupé → le daemon
-        // ignore les comptes X (il ne peut pas les convertir).
-        rssBridgeUrl: sources.value.rssBridgeEnabled ? sources.value.bridgeUrl : '',
-        // État des canaux (section labo — le daemon l'ignore).
-        channels: {
-          telegram: sources.value.telegramEnabled,
-          x: sources.value.xEnabled,
-          googleNews: sources.value.googleNewsEnabled,
-          rssBridge: sources.value.rssBridgeEnabled,
         },
       },
       // Métadonnées par source (biais, fiabilité, images, actif) — le daemon lit
@@ -511,14 +474,6 @@ export const useConfigStore = defineStore('config', () => {
         boxScale169: round2(media.value.boxScale169 / 100),
         boxScale11: round2(media.value.boxScale11 / 100),
       },
-      video: {
-        ingestEnabled: video.value.ingestEnabled,
-        prefilterModel: modelValueOf(video.value.prefilterModel),
-        transcribeModel: modelValueOf(video.value.transcribeModel),
-        prefilterPrompt: video.value.prefilterPrompt,
-        prefilterMinChars: video.value.prefilterMinChars,
-        maxAudioMb: video.value.maxAudioMb,
-      },
       system: {
         logLevel: systeme.value.niveauLogs,
         logRetentionDays: systeme.value.garderLogsJours,
@@ -566,28 +521,9 @@ export const useConfigStore = defineStore('config', () => {
       }
     }
     if (list.length > 0) sources.value.list = list
-    sources.value.telegram = Array.isArray(src.telegram) ? src.telegram.join('\n') : sources.value.telegram
-    sources.value.xAccounts = Array.isArray(src.xAccounts) ? src.xAccounts.join('\n') : sources.value.xAccounts
-    sources.value.googleNews = Array.isArray(src.googleNews) ? src.googleNews.join('\n') : sources.value.googleNews
     sources.value.lookbackHours = numOr(ing.timeWindowHours, sources.value.lookbackHours)
     sources.value.maxArticlesPerScan = numOr(ing.maxArticlesPerScan, sources.value.maxArticlesPerScan)
     sources.value.concurrency = numOr(ing.concurrency, sources.value.concurrency)
-    if (typeof ing.rssBridgeUrl === 'string' && ing.rssBridgeUrl) sources.value.bridgeUrl = ing.rssBridgeUrl
-    if (isObj(ing.channels)) {
-      // Le bloc channels fait foi quand il existe.
-      sources.value.telegramEnabled = boolOr(ing.channels.telegram, true)
-      sources.value.xEnabled = boolOr(ing.channels.x, true)
-      sources.value.googleNewsEnabled = boolOr(ing.channels.googleNews, true)
-      sources.value.rssBridgeEnabled = boolOr(ing.channels.rssBridge, true)
-    } else {
-      // Ancienne config sans bloc channels → tous les canaux sont activés.
-      // Évite qu'un localStorage périmé (daemon éteint) désactive tout et vide
-      // les listes (comptes X…) au prochain enregistrement.
-      sources.value.telegramEnabled = true
-      sources.value.xEnabled = true
-      sources.value.googleNewsEnabled = true
-      sources.value.rssBridgeEnabled = true
-    }
 
     // Filtres
     const dedup = isObj(y.dedup) ? y.dedup : {}
@@ -692,16 +628,6 @@ export const useConfigStore = defineStore('config', () => {
       overlayOpacity: pctOf(med.overlayOpacity, media.value.overlayOpacity),
       boxScale169: pctOf(med.boxScale169, media.value.boxScale169),
       boxScale11: pctOf(med.boxScale11, media.value.boxScale11),
-    }
-    const vid = isObj(y.video) ? y.video : {}
-    video.value = {
-      ...video.value,
-      ingestEnabled: boolOr(vid.ingestEnabled, video.value.ingestEnabled),
-      prefilterModel: sOr(vid.prefilterModel, video.value.prefilterModel),
-      transcribeModel: sOr(vid.transcribeModel, video.value.transcribeModel),
-      prefilterPrompt: sOr(vid.prefilterPrompt, video.value.prefilterPrompt),
-      prefilterMinChars: numOr(vid.prefilterMinChars, video.value.prefilterMinChars),
-      maxAudioMb: numOr(vid.maxAudioMb, video.value.maxAudioMb),
     }
     const sys = isObj(y.system) ? y.system : {}
     systeme.value = {
@@ -823,7 +749,7 @@ export const useConfigStore = defineStore('config', () => {
     const def = sources.value
     const out: any = { ...def }
     if (isObj(saved)) {
-      for (const k of ['telegram', 'xAccounts', 'googleNews', 'lookbackHours', 'maxArticlesPerScan', 'concurrency', 'bridgeUrl', 'telegramEnabled', 'xEnabled', 'googleNewsEnabled', 'rssBridgeEnabled'])
+      for (const k of ['lookbackHours', 'maxArticlesPerScan', 'concurrency'])
         if (saved[k] !== undefined) out[k] = saved[k]
       if (Array.isArray(saved.list) && saved.list.length > 0) {
         out.list = saved.list
@@ -882,7 +808,6 @@ export const useConfigStore = defineStore('config', () => {
           partage.value = pick(partage.value, o.partage)
           planning.value = normalizePlanning(o.planning)
           media.value = pick(media.value, o.media)
-          video.value = pick(video.value, o.video)
           systeme.value = pick(systeme.value, o.systeme)
           matrix.value = normalizeMatrix(o.matrix)
           modelRegistry.value = normalizeRegistry(o.modelRegistry)
@@ -902,7 +827,7 @@ export const useConfigStore = defineStore('config', () => {
       atelier: atelier.value, positions: positions.value,
       sources: sources.value, filtres: filtres.value,
       ecriture: ecriture.value, formats: formats.value, partage: partage.value,
-      planning: planning.value, media: media.value, video: video.value,
+      planning: planning.value, media: media.value,
       systeme: systeme.value, matrix: matrix.value, modelRegistry: modelRegistry.value,
     }))
   }
@@ -1018,7 +943,7 @@ export const useConfigStore = defineStore('config', () => {
   // Watcher profond : rattrape les v-model directs qui n'appellent pas
   // markDirty() — TOUT changement d'état est détecté et marqué à sauver,
   // donc rien ne se perd même sans bouton « Enregistrer ».
-  watch([atelier, positions, sources, filtres, ecriture, formats, partage, planning, media, video, systeme, matrix, modelRegistry], () => {
+  watch([atelier, positions, sources, filtres, ecriture, formats, partage, planning, media, systeme, matrix, modelRegistry], () => {
     if (hydrating.value) return
     const s = stateSnapshot()
     if (s !== baseline) {
@@ -1030,7 +955,7 @@ export const useConfigStore = defineStore('config', () => {
 
   return {
     atelier, positions, sources, filtres, ecriture, formats,
-    partage, planning, media, video, systeme, matrix, modelRegistry, secrets,
+    partage, planning, media, systeme, matrix, modelRegistry, secrets,
     sourceHealth, dirty, markDirty, save, saveState, lastSavedAt, apiOk, apiError, loadFromDaemon,
     pushSecretsToDaemon, loadSourceHealth, configPending,
   }

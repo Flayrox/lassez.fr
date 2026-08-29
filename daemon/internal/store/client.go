@@ -217,6 +217,34 @@ func (c *Client) migrate() error {
 			detail TEXT
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_dcsteps_cycle ON daemon_cycle_steps(cycle_id)`,
+		// Mémoire éditoriale : ce qu'on a publié les N derniers jours (injecté
+		// dans l'orchestrateur et la rédaction pour les contradictions/suites).
+		`CREATE TABLE IF NOT EXISTS daemon_memoire (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			signal_id INTEGER NOT NULL,
+			headline TEXT,
+			body TEXT,
+			tags TEXT DEFAULT '[]',
+			geo TEXT,
+			taxonomy TEXT,
+			published_at TEXT,
+			created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_memoire_pub ON daemon_memoire(published_at)`,
+		// Agenda du jour : les décisions de l'orchestrateur à chaque cycle
+		// (visibles et contrôlables dans le studio).
+		`CREATE TABLE IF NOT EXISTS daemon_orchestration (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			cycle_id INTEGER NOT NULL DEFAULT 0,
+			signal_id INTEGER NOT NULL,
+			decision TEXT NOT NULL,
+			taxonomy TEXT,
+			geo TEXT,
+			angle TEXT,
+			reason TEXT,
+			created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_orchestration_cycle ON daemon_orchestration(cycle_id)`,
 	}
 	for _, s := range stmts {
 		if _, err := c.db.Exec(s); err != nil {
@@ -903,6 +931,107 @@ func (c *Client) DeleteSignals(ids []ID) error {
 	}
 	_, err := c.db.Exec(`DELETE FROM daemon_signals WHERE id IN (`+ph+`)`, args...)
 	return err
+}
+
+// ── Mémoire éditoriale (Palier 1) ─────────────────────────────────────────
+
+// MemoryEntry — une publication archivée dans la mémoire éditoriale.
+type MemoryEntry struct {
+	ID          int64  `json:"id"`
+	SignalID    int64  `json:"signal_id"`
+	Headline    string `json:"headline"`
+	Body        string `json:"body"`
+	Tags        string `json:"tags"`
+	Geo         string `json:"geo"`
+	Taxonomy    string `json:"taxonomy"`
+	PublishedAt string `json:"published_at"`
+}
+
+// AddMemoryEntry — archive une publication dans la mémoire éditoriale.
+func (c *Client) AddMemoryEntry(e MemoryEntry) error {
+	_, err := c.db.Exec(`INSERT INTO daemon_memoire(signal_id, headline, body, tags, geo, taxonomy, published_at) VALUES(?,?,?,?,?,?,?)`,
+		e.SignalID, e.Headline, e.Body, e.Tags, e.Geo, e.Taxonomy, e.PublishedAt)
+	return err
+}
+
+// GetMemory — les entrées de mémoire des N derniers jours (les plus récentes
+// d'abord, plafonnées à 100 pour borner le prompt).
+func (c *Client) GetMemory(windowDays int) ([]MemoryEntry, error) {
+	if windowDays <= 0 {
+		windowDays = 30
+	}
+	cutoff := time.Now().AddDate(0, 0, -windowDays).UTC().Format(time.RFC3339)
+	rows, err := c.db.Query(`SELECT id, signal_id, COALESCE(headline,''), COALESCE(body,''),
+		COALESCE(tags,'[]'), COALESCE(geo,''), COALESCE(taxonomy,''), COALESCE(published_at,'')
+		FROM daemon_memoire WHERE published_at >= ? ORDER BY published_at DESC LIMIT 100`, cutoff)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []MemoryEntry
+	for rows.Next() {
+		var e MemoryEntry
+		if err := rows.Scan(&e.ID, &e.SignalID, &e.Headline, &e.Body, &e.Tags, &e.Geo, &e.Taxonomy, &e.PublishedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, e)
+	}
+	return out, rows.Err()
+}
+
+// ── Agenda du jour (décisions de l'orchestrateur) ─────────────────────────
+
+// OrchestrationDecision — une décision du chef de desk à un cycle donné.
+type OrchestrationDecision struct {
+	ID          int64  `json:"id"`
+	CycleID     int64  `json:"cycle_id"`
+	SignalID    int64  `json:"signal_id"`
+	SourceTitle string `json:"source_title"`
+	Decision    string `json:"decision"`
+	Taxonomy    string `json:"taxonomy"`
+	Geo         string `json:"geo"`
+	Angle       string `json:"angle"`
+	Reason      string `json:"reason"`
+	CreatedAt   string `json:"created_at"`
+}
+
+// RecordOrchestration — enregistre une décision de l'orchestrateur.
+func (c *Client) RecordOrchestration(d OrchestrationDecision) error {
+	_, err := c.db.Exec(`INSERT INTO daemon_orchestration(cycle_id, signal_id, decision, taxonomy, geo, angle, reason) VALUES(?,?,?,?,?,?,?)`,
+		d.CycleID, d.SignalID, d.Decision, d.Taxonomy, d.Geo, d.Angle, d.Reason)
+	return err
+}
+
+// GetOrchestration — les dernières décisions de l'orchestrateur, avec le
+// titre du sujet (jointure daemon_signals) pour l'Agenda du jour du studio.
+func (c *Client) GetOrchestration(limit int) ([]OrchestrationDecision, error) {
+	if limit <= 0 || limit > 200 {
+		limit = 50
+	}
+	rows, err := c.db.Query(`SELECT o.id, o.cycle_id, o.signal_id, o.decision,
+		COALESCE(o.taxonomy,''), COALESCE(o.geo,''), COALESCE(o.angle,''), COALESCE(o.reason,''),
+		o.created_at, COALESCE(s.raw_data,'')
+		FROM daemon_orchestration o LEFT JOIN daemon_signals s ON s.id = o.signal_id
+		ORDER BY o.id DESC LIMIT ?`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []OrchestrationDecision
+	for rows.Next() {
+		var d OrchestrationDecision
+		var raw string
+		if err := rows.Scan(&d.ID, &d.CycleID, &d.SignalID, &d.Decision, &d.Taxonomy, &d.Geo, &d.Angle, &d.Reason, &d.CreatedAt, &raw); err != nil {
+			return nil, err
+		}
+		var r struct {
+			ClusterTitle string `json:"clusterTitle"`
+		}
+		_ = json.Unmarshal([]byte(raw), &r)
+		d.SourceTitle = r.ClusterTitle
+		out = append(out, d)
+	}
+	return out, rows.Err()
 }
 
 // ── Publications (file de diffusion locale) ─────────────────────────────────

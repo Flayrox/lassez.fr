@@ -184,7 +184,7 @@ func RunPublisher(client *store.Client, resolver *config.Resolver) error {
 	log.Printf("[Node 6: Phase B] ⚡ %d publications prêtes à être expédiées.", len(due))
 
 	for _, pub := range due {
-		if err := dispatchPublication(client, registry, pub); err != nil {
+		if err := dispatchPublication(client, resolver, registry, pub); err != nil {
 			log.Printf("[Node 6: Phase B] ❌ Erreur lors de la diffusion de la publication %s : %v", pub.ID, err)
 		}
 		// Pause anti-rate-limit entre les envois.
@@ -255,7 +255,7 @@ func buildRegistry(client *store.Client, resolver *config.Resolver) *publish.Reg
 
 // dispatchPublication sends one due publication to its platform through the
 // registry and updates the mission + signal statuses.
-func dispatchPublication(client *store.Client, registry *publish.Registry, pub store.Publication) error {
+func dispatchPublication(client *store.Client, resolver *config.Resolver, registry *publish.Registry, pub store.Publication) error {
 	markFailed := func() {
 		_ = client.UpdatePublication(pub.ID, map[string]any{"status": "FAILED"})
 	}
@@ -341,6 +341,22 @@ func dispatchPublication(client *store.Client, registry *publish.Registry, pub s
 		if remaining == 0 {
 			if err := client.UpdateSignal(topicID, map[string]any{"status": "PUBLISHED", "publishedAt": now}); err != nil {
 				log.Printf("[Node 6: Phase B] ⚠️ Update signal %s : %v", topicID, err)
+			}
+			// Mémoire éditoriale : archive la publication (titre + corps) pour
+			// que l'orchestrateur et la rédaction repèrent les contradictions
+			// et les suites dans les 30 prochains jours.
+			if memEnabled(resolver) {
+				if err := client.AddMemoryEntry(store.MemoryEntry{
+					SignalID:    topicID.Number(),
+					Headline:    draft.Headline,
+					Body:        draft.Body,
+					Tags:        string(topic.Tags),
+					Geo:         topic.Geo,
+					Taxonomy:    topic.Taxonomy,
+					PublishedAt: now.UTC().Format(time.RFC3339),
+				}); err != nil {
+					log.Printf("[Node 6: Phase B] ⚠️ Mémoire éditoriale : %v", err)
+				}
 			}
 		}
 	}

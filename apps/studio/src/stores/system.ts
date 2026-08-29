@@ -51,6 +51,19 @@ export interface LogEntry {
   message: string
 }
 
+export interface OrchestrationDecision {
+  id: number
+  cycle_id: number
+  signal_id: number
+  source_title: string
+  decision: 'keep' | 'drop'
+  taxonomy: string
+  geo: string
+  angle: string
+  reason: string
+  created_at: string
+}
+
 export const useSystemStore = defineStore('system', () => {
   const bricks = ref<Brick[]>([])
   const daemon = ref<DaemonInfo | null>(null)
@@ -59,9 +72,11 @@ export const useSystemStore = defineStore('system', () => {
   const error = ref<string | null>(null)
   const scanning = ref(false)
   const scanDone = ref(false)
-  // Historique des cycles (mode « Suivi ») + journal du daemon (panneau logs).
+  // Historique des cycles (mode « Suivi ») + journal du daemon (panneau logs)
+  // + Agenda du jour (décisions de l'orchestrateur).
   const cycles = ref<Cycle[]>([])
   const logs = ref<LogEntry[]>([])
+  const orchestration = ref<OrchestrationDecision[]>([])
 
   async function fetchHealth() {
     loading.value = true
@@ -114,5 +129,14 @@ export const useSystemStore = defineStore('system', () => {
     } catch { /* daemon down → journal vide */ }
   }
 
-  return { bricks, daemon, counts, loading, error, scanning, scanDone, cycles, logs, fetchHealth, triggerScan, fetchCycles, fetchLogs }
+  async function fetchOrchestration() {
+    try {
+      const res = await fetch('/api/orchestration?limit=50')
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const y = await res.json()
+      orchestration.value = y?.data ?? []
+    } catch { /* daemon down → agenda vide */ }
+  }
+
+  return { bricks, daemon, counts, loading, error, scanning, scanDone, cycles, logs, orchestration, fetchHealth, triggerScan, fetchCycles, fetchLogs, fetchOrchestration }
 })

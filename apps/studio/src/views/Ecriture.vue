@@ -104,6 +104,30 @@
                   </div>
                 </div>
               </LCard>
+
+              <!-- ── Mémoire éditoriale (Palier 1) ── -->
+              <LCard title="🧠 Mémoire éditoriale" description="L'IA se souvient de ce que tu as publié — contradictions, suites, redites">
+                <div class="space-y-2">
+                  <div class="flex items-center justify-between gap-2 border border-border/50 rounded px-3 py-2">
+                    <div>
+                      <p class="text-xs text-text-1">Activer la mémoire</p>
+                      <p class="text-[11px] text-text-3">Injecte les titres publiés récents dans l'orchestrateur et la rédaction</p>
+                    </div>
+                    <LToggle :model-value="store.ecriture.memoireActivee" @update:model-value="(v: boolean) => { store.ecriture.memoireActivee = v; store.markDirty() }" />
+                  </div>
+                  <div class="flex items-center justify-between gap-2 border border-border/50 rounded px-3 py-2">
+                    <div>
+                      <p class="text-xs text-text-1">Fenêtre de mémoire</p>
+                      <p class="text-[11px] text-text-3">Combien de jours de publications à rappeler</p>
+                    </div>
+                    <select v-model.number="store.ecriture.memoireJours" @change="store.markDirty()" class="h-8 bg-bg border border-border rounded px-2 text-xs focus:outline-none focus:border-accent/60">
+                      <option :value="7">7 jours</option>
+                      <option :value="30">30 jours</option>
+                      <option :value="90">90 jours</option>
+                    </select>
+                  </div>
+                </div>
+              </LCard>
             </div>
 
             <!-- ── Ligne éditoriale ── -->

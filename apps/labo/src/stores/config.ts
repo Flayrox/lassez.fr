@@ -125,6 +125,8 @@ export const useConfigStore = defineStore('config', () => {
     // Modèle par format (modeleParFormat : id du format → modèle). Les valeurs
     // ci-dessous = le mapping réel du VPS (ai_model_breaking/standard/decrypt),
     // transposé sur les formats actuels. Un format sans entrée utilise modeleRedaction.
+    // Typé Record : les formats sont dynamiques (clés libres, ajoutables dans
+    // Formats) — les clés littérales FLASH/CITATION… ne sont que les défauts.
     modeleParFormat: {
       // La rédaction passe par le Flash (gemini-3.7-flash) quel que soit le
       // format — pas de Pro (hors budget du niveau gratuit).
@@ -133,7 +135,7 @@ export const useConfigStore = defineStore('config', () => {
       ALERTE: 'Gemini 3.7 Flash',
       DECRYPTAGE: 'Gemini 3.7 Flash',
       INFO: 'Gemini 3.7 Flash',
-    },
+    } as Record<string, string>,
     // Le grand prompt éditorial (ai_prompt) — la ligne éditoriale complète.
     // Les blocs ci-dessous portent le DNA factory de L'Assez (identité "Le
     // Mécanicien", vocabulaire, méthode des 3 tirs…) — éditables dans le labo.
@@ -746,16 +748,16 @@ export const useConfigStore = defineStore('config', () => {
   // « vide = texte par défaut du code » (c'était le comportement de l'ancienne
   // DB, où tous les ai_prompt_* étaient vides). Une vieille config ne peut
   // donc plus vider les blocs par accident.
-  function pickEcriture(def: any, saved: unknown) {
+  function pickEcriture<T extends Record<string, any>>(def: T, saved: unknown): T {
     const out: Record<string, any> = { ...def }
-    if (!isObj(saved)) return out
+    if (!isObj(saved)) return out as T
     for (const k of Object.keys(def)) {
       const v = saved[k]
       if (v === undefined) continue
       if (typeof v === 'string' && v.trim() === '') continue
       out[k] = v
     }
-    return out
+    return out as T
   }
   function normalizeAtelier(saved: unknown) {
     const def = atelier.value

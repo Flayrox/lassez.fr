@@ -49,7 +49,7 @@ const ElectionsSidebar: React.FC<ElectionsSidebarProps> = ({ onClose }) => {
     const pathname = usePathname();
 
     const electionSlug = useMemo(() => {
-        const match = String(pathname || '').match(/^\/elections\/([^\/]+)/);
+        const match = String(pathname || '').match(/^\/elections\/([^/]+)/);
         return match?.[1] || 'municipales-2026';
     }, [pathname]);
 

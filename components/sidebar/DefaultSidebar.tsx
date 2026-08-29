@@ -6,7 +6,7 @@ interface DefaultSidebarProps {
     onClose: () => void;
 }
 
-const DefaultSidebar: React.FC<DefaultSidebarProps> = ({ onClose }) => {
+const DefaultSidebar: React.FC<DefaultSidebarProps> = () => {
     return (
         <>
             <div className="hidden lg:flex p-6 border-b-4 border-ink bg-ink/5 items-center justify-between">

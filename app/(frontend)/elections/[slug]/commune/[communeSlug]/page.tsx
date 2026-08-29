@@ -2,7 +2,6 @@ import { Metadata } from 'next';
 import Layout from '@/components/Layout';
 import Database from 'better-sqlite3';
 import { getElectionDbPath } from '@/lib/elections-db';
-import path from 'path';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import ElectionResultsLive from '@/components/ElectionResultsLive';

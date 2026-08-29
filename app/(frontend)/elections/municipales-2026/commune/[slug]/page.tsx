@@ -3,13 +3,11 @@ import { generateSeoMetadata, generateSemanticSummary, formatCommuneSlug } from 
 import { getDepartmentName } from '@/lib/geo-data';
 import Database from 'better-sqlite3';
 import { getElectionDbPath } from '@/lib/elections-db';
-import path from 'path';
 import Layout from '@/components/Layout';
 import { notFound, redirect } from 'next/navigation';
 import { getNuanceConfig, STATUT_CONFIG } from '@/lib/election-colors';
 import CitySearchBar from '@/components/CitySearchBar';
 import Link from 'next/link';
-import Script from 'next/script';
 import { fetchWithTimeout } from '@/lib/fetch-timeout';
 
 export const dynamicParams = true;
@@ -105,7 +103,7 @@ type Props = {
 
 export async function generateMetadata(
   { params }: Props,
-  parent: ResolvingMetadata
+  _parent: ResolvingMetadata
 ): Promise<Metadata> {
   const resolvedParams = await params;
   const slug = String(resolvedParams?.slug || '').trim();
@@ -136,7 +134,7 @@ export async function generateMetadata(
     if (!localCityData) return { title: 'Ville non trouvée' };
 
     return generateSeoMetadata(localCityData);
-  } catch (e) {
+  } catch {
     return { title: 'Résultats Municipales 2026' };
   } finally {
     if (db) db.close();
@@ -192,7 +190,7 @@ export default async function CommunePage({ params }: Props) {
         `).all(cityData.code_departement) as { code_insee: string, ville: string }[];
       }
     }
-  } catch (e) {
+  } catch {
     // On reader/ env, local sqlite may be unavailable; fallback routing below handles this.
   } finally {
     if (db) db.close();

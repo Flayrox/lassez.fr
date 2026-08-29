@@ -18,7 +18,7 @@ function getRenderedField(value: unknown): string {
 const ComprendreClient: React.FC = () => {
     const { posts, isLoading } = usePosts({ perPage: 20, depth: 1 });
     const { categories } = useCategories();
-    const [filter, setFilter] = useState('all');
+    const [filter] = useState('all');
     const [isLoaded, setIsLoaded] = useState(false);
     const [showIntroModal, setShowIntroModal] = useState(false);
     const progress = useProgress();
@@ -59,10 +59,6 @@ const ComprendreClient: React.FC = () => {
     const activePosts = filter === 'all'
         ? educationPosts
         : educationPosts.filter(p => toCategoryIds(p).includes(Number(filter)));
-
-    const usedCategories = Array.from(new Set(educationPosts.flatMap(p => p.categories)))
-        .map(id => categories?.find(c => c.id === id))
-        .filter(Boolean);
 
     // Grouping logic based on ACF fields
     const groupedPosts = activePosts.reduce((acc, post) => {

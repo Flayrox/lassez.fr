@@ -109,7 +109,7 @@ function ensureTable(db: any) {
     // Migration logic for existing installations
     try {
         db.prepare('SELECT ville_norm FROM elections_officiel_cache LIMIT 1').get();
-    } catch (e) {
+    } catch {
         logToDaemon('[Élections] Migration : Ajout de la colonne ville_norm');
         db.exec('ALTER TABLE elections_officiel_cache ADD COLUMN ville_norm TEXT');
         db.exec('CREATE INDEX IF NOT EXISTS idx_ville_norm ON elections_officiel_cache(ville_norm)');
@@ -249,7 +249,7 @@ async function syncOfficialData(db: any, electionSlug: string, force: boolean = 
                     const listKey = listeRes.trim().toUpperCase();
                     const mapInfo = candidatesMap[`${villeKey}|${listKey}`];
                     
-                    let candidatFinal = '';
+                    let candidatFinal: string;
                     if (mapInfo && mapInfo.tete) {
                         candidatFinal = `${mapInfo.tete} (${listeRes})`;
                     } else if (nomRes) {

@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import useSWR from 'swr';
+import { useRouter } from 'next/navigation';
 import { getNuanceConfig, STATUT_CONFIG, StatutType } from '../lib/election-colors';
 import { formatCommuneSlug } from '../lib/seo-engine';
 
@@ -213,9 +214,9 @@ export default function ElectionResultsLive({
     initialDep?: string;
 }) {
     const [search, setSearch] = useState(initialVille);
-    const [debouncedSearch, setDebouncedSearch] = useState('');
+    const [, setDebouncedSearch] = useState('');
     const [showSuggestions, setShowSuggestions] = useState(false);
-    const router = (typeof window !== 'undefined') ? require('next/navigation').useRouter() : null;
+    const router = useRouter();
 
     // Debounce pour l'autocomplete
     React.useEffect(() => {

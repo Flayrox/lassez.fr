@@ -1,7 +1,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import type { Post, Tag, Category } from '../lib/types';
+import type { Post, Category } from '../lib/types';
 import GlitchImage from './GlitchImage';
 import { getArticleUrl } from '../lib/getArticleUrl';
 import { sanitizeHtmlForRender } from '../lib/sanitizeHtmlForRender';

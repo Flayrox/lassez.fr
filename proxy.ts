@@ -6,7 +6,7 @@ import type { NextRequest } from 'next/server';
  * Garde le rate limiting léger pour les APIs publiques si besoin
  * TODO: ajouter auth du futur provider si nécessaire
  */
-export async function proxy(req: NextRequest) {
+export async function proxy(_req: NextRequest) {
   // Pas de logique Radar/Studio — on laisse passer
   return NextResponse.next();
 }

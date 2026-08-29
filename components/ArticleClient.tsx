@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import type { Post, Tag } from '../lib/types';
 import Link from 'next/link';
-import { ShareIcon, SaveIcon, LoaderIcon, EyeIcon, UsersIcon } from './icons';
+import { ShareIcon, SaveIcon, EyeIcon, UsersIcon } from './icons';
 import ArticleCard from './ArticleCard';
 import KeyPoints from './KeyPoints';
 import CallToActionBlock from './CallToActionBlock';
@@ -12,7 +12,6 @@ import GlitchImage from './GlitchImage';
 import Breadcrumb from './Breadcrumb';
 import RichTextRenderer from './RichTextRenderer';
 import { sanitizeHtmlForRender } from '../lib/sanitizeHtmlForRender';
-import Image from 'next/image';
 
 const articleDateFormatter = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
@@ -25,9 +24,8 @@ interface ArticleClientProps {
     variant?: 'full' | 'editorial';
 }
 
-const ArticleClient: React.FC<ArticleClientProps> = ({ post: initialPost, relatedPosts, slug, isPreview = false, livePreviewServerURL, variant = 'full' }) => {
+const ArticleClient: React.FC<ArticleClientProps> = ({ post: initialPost, relatedPosts, slug, isPreview = false, variant = 'full' }) => {
     const [post, setPost] = useState<Post>(initialPost as any);
-    const [isLoading, setIsLoading] = useState(false);
 
     useEffect(() => {
         const handleMessage = (event: MessageEvent) => {
@@ -88,7 +86,7 @@ const ArticleClient: React.FC<ArticleClientProps> = ({ post: initialPost, relate
                 setShareFeedback('COPIÉ');
                 setTimeout(() => setShareFeedback(''), 2000);
             }
-        } catch (e) { }
+        } catch { }
     };
 
     const handleSaveAsPdf = async () => {

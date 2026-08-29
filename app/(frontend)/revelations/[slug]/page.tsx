@@ -62,14 +62,14 @@ async function getPost(id: string, previewContext: ReturnType<typeof getPreviewC
     }
 }
 
-async function getRelatedPosts(id: string): Promise<Post[]> {
+async function getRelatedPosts(_id: string): Promise<Post[]> {
     // Pas encore de posts liés pour une révélation du provider
     return [];
 }
 
 export async function generateMetadata(
     { params, searchParams }: Props,
-    parent: ResolvingMetadata
+    _parent: ResolvingMetadata
 ): Promise<Metadata> {
     const { slug } = await params;
     const previewContext = await getPreviewContext(searchParams);

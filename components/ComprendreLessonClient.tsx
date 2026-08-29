@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useRef, useState, useEffect } from 'react';
-import type { Post, Tag } from '../lib/types';
+import type { Post } from '../lib/types';
 import Link from 'next/link';
 import ReadingProgress from './ReadingProgress';
 import { useProgress } from '../hooks/useProgress';
@@ -22,7 +22,7 @@ function getRenderedField(value: unknown): string {
     return '';
 }
 
-const ComprendreLessonClient: React.FC<Props> = ({ post: initialPost, livePreviewServerURL, isPreview = false }) => {
+const ComprendreLessonClient: React.FC<Props> = ({ post: initialPost, isPreview = false }) => {
     const articleRef = useRef<HTMLElement>(null);
     const progress = useProgress();
 
@@ -49,8 +49,6 @@ const ComprendreLessonClient: React.FC<Props> = ({ post: initialPost, livePrevie
         return () => window.removeEventListener('message', handleMessage);
     }, [isPreview]);
 
-    // Safety check just in case
-    const categories: Tag[] = (post as any)?._embedded?.['wp:term']?.[0] || [];
     const isCompleted = progress.isCompleted(post.id);
     const titleHtml = getRenderedField((post as any).title);
     const excerptHtml = getRenderedField((post as any).excerpt);

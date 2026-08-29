@@ -4,10 +4,9 @@ import ArticleCard from '@/components/ArticleCard';
 import HeroCarousel from '@/components/HeroCarousel';
 import JoinUsBlock from '@/components/JoinUsBlock';
 import { Metadata } from 'next';
-import type { Post, Category } from '@/lib/types';
+import type { Post } from '@/lib/types';
 import Layout from '@/components/Layout';
 import TacticalNewsletter from '@/components/TacticalNewsletter';
-import { getArticleUrl } from '@/lib/getArticleUrl';
 import { getContentClient } from '@/lib/provider';
 import { FlashInfoTicker } from '@/components/FlashInfoTicker';
 

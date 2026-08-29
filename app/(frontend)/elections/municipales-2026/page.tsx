@@ -4,10 +4,8 @@ import ElectionsClient from '@/components/ElectionsClient';
 import type { Post } from '@/lib/types';
 import type { Where } from '@/lib/provider';
 import { getContentClient } from '@/lib/provider';
-import Script from 'next/script';
 import Database from 'better-sqlite3';
 import { getElectionDbPath } from '@/lib/elections-db';
-import path from 'path';
 import { fetchWithTimeout } from '@/lib/fetch-timeout';
 
 const ELECTION_SLUG = 'municipales-2026';

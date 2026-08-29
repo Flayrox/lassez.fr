@@ -480,7 +480,7 @@ export async function GET(request: Request) {
             db = null;
             return withCache({
                 success: true,
-                suggestions: suggestions.map(s => ({
+                suggestions: suggestions.map((s: any) => ({
                     name: `${s.ville} (${s.code_departement})`,
                     slug: s.ville.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, '-').replace(/[^\w-]/g, ''),
                     ville: s.ville,

@@ -61,7 +61,7 @@ const Footer: React.FC = () => {
                 {socialLinks.map((social) => (
                   <a
                     key={social.name}
-                    href={social.url}
+                    href={social.url ?? undefined}
                     target="_blank"
                     rel={social.rel ? `${social.rel} noopener noreferrer` : "noopener noreferrer"}
                     className="flex items-center justify-center text-ink hover:text-paper hover:bg-ink transition-all bg-paper-bright border-2 border-lassez-border p-2 shadow-hard-sm hover:shadow-none hover:translate-x-[2px] hover:translate-y-[2px]"

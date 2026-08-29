@@ -355,7 +355,7 @@ export default async function CommunePage({ params }: Props) {
                 <div className="p-6">
                   {tour.candidats.map((c, idx) => {
                     const nuance = getNuanceConfig(c.nuance);
-                    const statut = STATUT_CONFIG[c.statut as any] || STATUT_CONFIG.elimine;
+                    const statut = STATUT_CONFIG[c.statut as keyof typeof STATUT_CONFIG] || STATUT_CONFIG.elimine;
                     const maxPct = Math.max(...tour.candidats.map(can => can.pct || 0)) || 100;
                     const barWidth = maxPct > 0 ? ((c.pct || 0) / maxPct) * 100 : 0;
                     const isEliminated = c.statut === 'elimine' || c.statut === 'retrait';

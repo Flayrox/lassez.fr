@@ -32,18 +32,19 @@ type validationResult struct {
 }
 
 // RunValidator is Node 5 of the pipeline: it re-reads DRAFTED drafts for
-// factual and editorial compliance, then moves them to VALIDATED or rejects
-// them (REJECTED / REJECTED_ERROR). Avec enableAutoApprove (Mode Fantôme),
-// la validation IA vaut approbation : les brouillons valides passent
-// directement PENDING (file de publication) sans modération ni enrichissement.
+// factual and editorial compliance, then rejects them (REJECTED /
+// REJECTED_ERROR) or leaves them DRAFTED (prêt pour le média). Avec
+// enableAutoApprove (Mode Fantôme), la validation IA vaut approbation : les
+// brouillons valides passent directement PENDING (file de publication) sans
+// modération ni enrichissement.
 func RunValidator(client *store.Client, resolver *config.Resolver) error {
 	log.Printf("\n[Node 5: Validator] ⚖️ Lancement de la validation éditoriale...")
 
 	// Mode Fantôme (auto_approve_enabled) : la validation IA vaut approbation.
 	// Par défaut l'enrichissement média est conservé (enableAutoApproveMedia=true) :
-	// le brouillon passe VALIDATED → nœud Image → PENDING → auto-approuvé à la
-	// programmation. Avec enableAutoApproveMedia=false il saute VALIDATED/Image
-	// et va directement PENDING.
+	// le brouillon reste DRAFTED → nœud Image → PENDING → auto-approuvé à la
+	// programmation. Avec enableAutoApproveMedia=false il saute Image et va
+	// directement PENDING.
 	autoApprove := boolParam(resolver, "publisher", "enableAutoApprove", false)
 	autoApproveMedia := boolParam(resolver, "publisher", "enableAutoApproveMedia", true)
 	if autoApprove {
@@ -163,8 +164,8 @@ func RunValidator(client *store.Client, resolver *config.Resolver) error {
 
 			if eval.IsValid {
 				// Mode Fantôme sans média : la validation vaut approbation → PENDING direct.
-				// Sinon (défaut) : VALIDATED → le nœud Image enrichit → PENDING.
-				target := "VALIDATED"
+				// Sinon (défaut) : le brouillon reste DRAFTED → le nœud Image enrichit → PENDING.
+				target := "DRAFTED"
 				if autoApprove && !autoApproveMedia {
 					target = "PENDING"
 				}

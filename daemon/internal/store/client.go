@@ -223,6 +223,18 @@ func (c *Client) migrate() error {
 			return err
 		}
 	}
+	// Fusion des statuts (9 → 5) : VALIDATED est absorbé par DRAFTED, APPROVED
+	// par QUEUED, IGNORED rejoint REJECTED. Idempotent (plus de lignes
+	// concernées après la première passe).
+	for _, s := range []string{
+		`UPDATE daemon_signals SET status='DRAFTED' WHERE status='VALIDATED'`,
+		`UPDATE daemon_signals SET status='QUEUED' WHERE status='APPROVED'`,
+		`UPDATE daemon_signals SET status='REJECTED' WHERE status='IGNORED'`,
+	} {
+		if _, err := c.db.Exec(s); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -755,7 +767,7 @@ func (c *Client) ListSignals(status, geo, q string, limit int) ([]StudioSignal, 
 	where := []string{"1=1"}
 	args := []any{}
 	if status != "" && status != "ALL" {
-		// status accepte une liste séparée par des virgules (ex: "APPROVED,QUEUED")
+		// status accepte une liste séparée par des virgules (ex: "PENDING,QUEUED")
 		// pour les onglets regroupés du studio.
 		statuses := []string{}
 		for _, s := range strings.Split(status, ",") {
@@ -897,12 +909,12 @@ func (c *Client) DeleteSignals(ids []ID) error {
 
 // GetApprovableSignals — file de publication : les sujets prêts à être
 // programmés. C'est la porte de modération du pipeline.
-//   - autoApprove=false (défaut) : seul APPROVED (validation humaine dans le studio)
+//   - autoApprove=false (défaut) : seul QUEUED (approuvé dans le studio)
 //   - autoApprove=true  (Mode Fantôme) : PENDING est considéré approuvé d'office
 func (c *Client) GetApprovableSignals(autoApprove bool) ([]Signal, error) {
-	statuses := "('APPROVED')"
+	statuses := "('QUEUED')"
 	if autoApprove {
-		statuses = "('PENDING','APPROVED')"
+		statuses = "('PENDING','QUEUED')"
 	}
 	rows, err := c.db.Query(signalSelect + ` WHERE status IN ` + statuses + `
 		AND id NOT IN (SELECT topic_id FROM daemon_publications)

@@ -33,16 +33,16 @@ type imageResult struct {
 }
 
 // RunMedia is Node 6 of the pipeline: it assigns a royalty-free illustration
-// to VALIDATED signals, then moves them to PENDING.
+// to DRAFTED signals, then moves them to PENDING.
 func RunMedia(client *store.Client, resolver *config.Resolver) error {
 	log.Printf("\n📸 [Node 6: Media] Démarrage de la recherche d'images (OSINT / Google Images)")
 
-	topics, err := client.GetSignalsByStatus("VALIDATED")
+	topics, err := client.GetSignalsByStatus("DRAFTED")
 	if err != nil {
 		return err
 	}
 	if len(topics) == 0 {
-		log.Printf("📸 [Node 6: Media] ℹ️ Aucun topic en statut VALIDATED à traiter.")
+		log.Printf("📸 [Node 6: Media] ℹ️ Aucun topic en statut DRAFTED à traiter.")
 		return nil
 	}
 

@@ -20,20 +20,7 @@
     <LCard :padding="false">
       <!-- Toolbar -->
       <div class="px-4 pt-3 space-y-3">
-        <LTabs
-          v-model="tab"
-          :tabs="[
-            { key: 'INGESTED', label: 'Aspirés', count: store.counts.INGESTED ?? 0 },
-            { key: 'RESEARCHED', label: 'Triés', count: store.counts.RESEARCHED ?? 0 },
-            { key: 'DRAFTED', label: 'Rédigés', count: store.counts.DRAFTED ?? 0 },
-            { key: 'VALIDATED', label: 'Validés', count: store.counts.VALIDATED ?? 0 },
-            { key: 'PENDING', label: 'À valider', count: store.counts.PENDING ?? 0 },
-            { key: 'APPROVED', label: 'À publier', count: store.counts.APPROVED ?? 0 },
-            { key: 'QUEUED', label: 'Programmés', count: store.counts.QUEUED ?? 0 },
-            { key: 'PUBLISHED', label: 'Publiés', count: store.counts.PUBLISHED ?? 0 },
-            { key: 'REJECTED', label: 'Rejetés', count: (store.counts.REJECTED ?? 0) + (store.counts.REJECTED_ERROR ?? 0) },
-          ]"
-        />
+        <LTabs v-model="tab" :tabs="tabs" />
         <div class="flex items-center gap-2 pb-3">
           <div class="flex items-center gap-2 h-8 px-2.5 rounded border border-border bg-bg flex-1 max-w-xs">
             <span class="text-text-3 text-xs">⌕</span>
@@ -118,7 +105,7 @@
         <div v-if="selected.length > 0" class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 bg-surface border border-border rounded-card shadow-2xl px-4 py-2.5">
           <span class="text-xs text-text-1 mr-1">{{ selected.length }} sélectionné{{ selected.length > 1 ? 's' : '' }}</span>
           <LButton @click="bulk(selected, 'APPROVED')">Valider</LButton>
-          <LButton variant="secondary" @click="bulk(selected, 'IGNORED')">Rejeter</LButton>
+          <LButton variant="secondary" @click="bulk(selected, 'REJECTED')">Rejeter</LButton>
           <LButton variant="danger" @click="delSelected()">Supprimer</LButton>
           <button @click="selected = []" class="ml-1 text-text-3 hover:text-text-1 text-sm px-1">✕</button>
         </div>
@@ -138,7 +125,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
-import { useSignalsStore } from '../stores/signals'
+import { useSignalsStore, SIGNAL_TABS, tabToStatus } from '../stores/signals'
 import LButton from '../components/ui/LButton.vue'
 import LCard from '../components/ui/LCard.vue'
 import LBadge from '../components/ui/LBadge.vue'
@@ -147,7 +134,18 @@ import LModal from '../components/ui/LModal.vue'
 import LEmpty from '../components/ui/LEmpty.vue'
 
 const store = useSignalsStore()
-const tab = ref('PENDING')
+const tab = ref('inbox')
+
+// Onglets lisibles : les étapes internes automatiques sont regroupées, seuls
+// les 4 vrais états (à valider / à publier / publiés / rejetés) comptent pour
+// l'utilisateur.
+const tabs = computed(() =>
+  SIGNAL_TABS.map((t) => ({
+    key: t.key,
+    label: t.label,
+    count: t.statuses.reduce((n, s) => n + (store.counts[s] ?? 0), 0),
+  })),
+)
 const geo = ref('all')
 const search = ref('')
 const selected = ref<number[]>([])
@@ -155,7 +153,7 @@ const expanded = ref<number | null>(null)
 const scanOpen = ref(false)
 
 function load() {
-  store.fetchSignals(tab.value, geo.value, search.value)
+  store.fetchSignals(tabToStatus(tab.value), geo.value, search.value)
 }
 onMounted(load)
 
@@ -196,12 +194,13 @@ async function delSelected() {
 function refresh() { load() }
 function doScan() { scanOpen.value = false; refresh() }
 
-// Modération : on ne rejette/supprime pas un signal déjà publié ou rejeté.
+// Modération : on ne rejette/supprime pas un signal déjà publié, rejeté ou ignoré.
+const FINAL_STATUSES = ['PUBLISHED', 'REJECTED', 'REJECTED_ERROR', 'IGNORED']
 function canReject(status: string) {
-  return status !== 'PUBLISHED' && status !== 'REJECTED' && status !== 'REJECTED_ERROR'
+  return !FINAL_STATUSES.includes(status)
 }
 function canDelete(status: string) {
-  return status !== 'PUBLISHED' && status !== 'REJECTED' && status !== 'REJECTED_ERROR'
+  return !FINAL_STATUSES.includes(status)
 }
 
 function formatVariant(t: string): 'accent' | 'info' | 'warning' | 'neutral' {

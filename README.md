@@ -44,20 +44,19 @@
 - **Front** : Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS
 - **CMS** : Payload 3.82 (Postgres / Supabase), Rich Text Lexical
 - **Daemon** : Go, client Payload REST, Gemini (Flash/Pro), gofeed (RSS)
-- **Ops** : PM2 (4 processus), GitHub Actions, VPS nginx, Matomo
+- **Ops** : Matomo
 
 ## 🚀 Démarrage en local
 
 ```bash
 npm install
 cp .env.example .env   # puis remplir les valeurs
-npm run dev            # http://localhost:5173
+npm run dev            # http://localhost:2500
 ```
 
 Routes utiles en dev :
-- Site public : `http://localhost:5173`
-- Admin Payload + Cockpit Radar : `http://localhost:5173/admin` (ou via `PAYLOAD_SERVER_URL`)
-- Studio de templates : `http://localhost:5173/templates`
+- Site public : `http://localhost:2500`
+- Labo studio : `npm run dev:labo` (Vite)
 - Daemon : `cd daemon && go build -o bin/daemon ./cmd/daemon && ./bin/daemon` (nécessite `PAYLOAD_API_URL` + identifiants bot dans `.env`)
 
 ### Dev tout-en-un — domaines `.test` SANS port + ports dédiés
@@ -85,8 +84,6 @@ Classique sans domaine : `npm run dev:labo` (labo seul) + `cd daemon && go build
 | **Pipeline (daemon)** | SQLite (`data/radar.db`) | Tables `daemon_*` uniquement : signaux, seen-urls, publications, cycles, santé des sources — écrites par le daemon Go, lues par le labo via l'API |
 | **Élections** | SQLite, **1 fichier par scrutin** (`data/elections/{slug}.db`) | Résultats officiels, overrides manuels, statut de sync + réglages scopés — écrits par le front (`app/api/elections/results`), lus par les pages élections et le sitemap |
 | Registre élections | JSON (`data/elections/registry.json`) | Liste des scrutins affichés (`displaySlugs`) + scrutin cible (`targetSlug`) |
-
-Migrations Payload : `npm run payload:migrate` · Types générés : `npm run payload:generate:types`
 
 ### 🗄️ Schéma des bases locales (SQLite)
 
@@ -118,38 +115,33 @@ Chaque base d'élection contient : `elections_officiel_cache` (résultats offici
 3. **Configurer les sources** (optionnel) : dans la base de l'élection, table `election_settings`, clé `election_sources_json` (datasets data.gouv) — le studio le fera bientôt via la page Admin Élections.
 4. **Sync** : appeler `/api/elections/results?slug=xxx&forceSync=1` pour aspirer les données officielles.
 
-Références dans le code : `lib/elections-db.ts` (chemins + registre), `lib/radar-db.ts` (chemin du pipeline).
+Références dans le code : `lib/elections-db.ts` (chemins + registre).
 
 ## 🚢 Déploiement
 
-**Un seul pipeline** : push sur `main` → GitHub Actions → VPS → PM2. Voir [`docs/deployment_guide.md`](docs/deployment_guide.md).
-
-- 4 processus PM2 : `lassez-front` (3000), `lassez-api` (3001), `lassez-studio` (3002), `lassez-daemon` (3005)
-- Fallback manuel : `npm run deploy:vps` (nécessite `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY`)
+> ❌ Aucun déploiement — projet en dev uniquement. Les artefacts de déploiement (workflow GitHub Actions, PM2, VPS, scripts deploy) ont été retirés.
 
 ## 📁 Structure
 
 ```
 app/(frontend)/        Site public (home, articles, enquêtes, élections, …)
-app/(studio)/          Studio de templates (FFmpeg.wasm)
-app/api/               Routes API (radar, posts, og, preview, elections, cache-sync…)
+app/api/               Routes API (elections, posts, og, preview, proxy-image…)
+apps/labo/             Studio de pilotage du pipeline (Vue/Vite)
 components/            Composants React partagés
-payload/               Config Payload : collections, globals, hooks, migrations, vues du cockpit
-daemon/                Daemon d'automatisation en Go (pipeline 7 nœuds, client Payload)
-data/                  Base SQLite legacy du front (élections, config, nav)
-lib/                   Utilitaires partagés (API, SEO, preview, radar-config…)
+daemon/                Daemon d'automatisation en Go (pipeline 7 nœuds)
+data/                  Bases SQLite locales (radar.db pipeline + elections/)
+lib/                   Utilitaires partagés (API, SEO, preview, elections…)
 hooks/                 Hooks React (usePosts, useCategories…)
-scripts/               Scripts dev/ops (deploy, migration Radar → Payload, utilitaires)
-docs/                  Guides (déploiement, nginx, plans)
+scripts/               Scripts dev (migrations, utilitaires)
+docs/                  Réflexions, plans, notes
 ```
 
 ## ✅ Scripts npm utiles
 
 ```bash
-npm run dev                 # Dev server (port 5173)
+npm run dev                 # Front Next.js (port 2500)
+npm run dev:labo            # Labo studio (Vite)
+npm run dev:domain          # Tout-en-un : domaines .test sans port
+npm run dev:all             # Front + labo en parallèle
 npm run build               # Build de production
-npm run payload:seed        # Seed du CMS
-npm run payload:migrate     # Migrations Payload
-npm run deploy:vps          # Déploiement manuel vers le VPS
-npm run test:payload:api    # Validation du bridge Payload
 ```

@@ -3,7 +3,7 @@ import { ref, watch } from 'vue'
 import { FACTORY_PROMPTS, FACTORY_FORMATS } from './factory'
 
 // Store labo — valeurs par défaut = la VRAIE config qui tournait sur le VPS
-// (radar.db 04/08/2026, voir docs/labo-bases-saines.md + daemon/config/config.yaml)
+// (radar.db 04/08/2026, voir daemon/config/config.yaml)
 
 export interface WeeklySlot { day: string; time: string } // ex { day:'LUN', time:'20:08' }
 export interface FormatItem {

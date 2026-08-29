@@ -6,45 +6,42 @@
 
 ```
 ┌─────────────────────────────┐     ┌──────────────────────────────┐
-│  Front public (lassez.fr)   │     │  Studio (studio.lassez.fr)   │
-│  Next.js App Router + RSC   │     │  Éditeur de templates        │
-│  composants "papier"        │     │  (FFmpeg.wasm)               │
-└──────────┬──────────────────┘     └──────────────┬───────────────┘
-           │                                       │
-           ▼                                       ▼
-┌────────────────────────────────────────────────────────────────────┐
-│                    Payload CMS (api.lassez.fr)                     │
-│  admin + Cockpit Radar (single login) : collections signals,       │
-│  sources, publications, logs, taxonomy-templates, posts,           │
-│  revelations, categories, tags, authors + globals radar-settings   │
-│  (Postgres / Supabase)                                             │
-└──────────────────────────────────────┬─────────────────────────────┘
-                                       │ API REST + logs (heartbeat)
-                                       ▼
-┌────────────────────────────────────────────────────────────────────┐
-│                    Daemon Radar (daemon/, en Go)                    │
-│  Pipeline 7 nœuds : ingestion → dedup → research → editorial →      │
-│  validator → media → publisher. Deux boucles autonomes : cycle      │
-│  planifié (pulse/calendrier) + publisher toutes les 2 min.          │
-└────────────────────────────────────────────────────────────────────┘
+│  Front public (lassez.fr)   │     │  Studio / labo (apps/labo)   │
+│  Next.js App Router + RSC   │     │  Cockpit Vue/Vite — pilote le │
+│  contenu via lib/data.ts    │     │  daemon : sources, planning,  │
+│  (stub — provider à         │     │  modération, suivi, pub.      │
+│  brancher plus tard)        │     │                              │
+└─────────────────────────────┘     └──────────────┬───────────────┘
+                                                   │ API REST (localhost)
+                                                   ▼
+                                    ┌────────────────────────────────┐
+                                    │  Daemon Radar (daemon/, en Go)  │
+                                    │  Pipeline 6 nœuds : ingestion   │
+                                    │  RSS → dedup → research →       │
+                                    │  editorial → validator → media. │
+                                    │  Publisher : qoe.fi + Discord.  │
+                                    └──────────────┬─────────────────┘
+                                                   │ SQLite + config YAML
+                                                   ▼
+                                       Bases locales (data/radar.db)
 ```
 
 ### Les 4 blocs
 
-1. **Front public** (`app/(frontend)/` + `components/`) — le site éditorial : home, articles, révélations, enquêtes, podcasts, comprendre (leçons), élections live, recherche, soutenir. Pages RSC servies par Payload, ISR avec revalidation instantanée, SEO auto-généré (Gemini).
+1. **Front public** (`app/(frontend)/` + `components/`) — le site éditorial : home, articles, révélations, enquêtes, comprendre (leçons), élections live, recherche, soutenir. Le contenu passe par la couche `lib/data.ts`, actuellement un **stub** (listes vides) en attendant le futur provider — les pages élections sont déjà branchées sur leurs bases SQLite locales.
 
-2. **Cockpit Radar** (`payload/`) — intégré à l'admin Payload (`/admin`, single login) : dashboard du pipeline, collections `signals`/`sources`/`publications`/`logs`/`taxonomy-templates`, global `radar-settings`. L'éditeur de templates de visualisation (FFmpeg.wasm) reste dans `app/(studio)/templates` (studio.lassez.fr).
+2. **Studio / labo** (`apps/labo/`) — le cockpit qui pilote le daemon : sources (ingestion 100 % RSS), planning (grille 7×24), formats, prompts, modération des signaux, suivi des cycles, publication. Il parle au daemon via son API HTTP.
 
-3. **Payload CMS** (`payload/`) — back-office éditorial : collections `posts`, `revelations`, `lessons` (+ `categories`, `tags`, `authors`, `media`), globals `settings`/`about`/`legal`, versions/drafts, live preview avec jetons signés, hooks SEO Gemini et revalidation de cache. Admin sur `api.lassez.fr/admin`.
+3. **Daemon Radar** (`daemon/`, en Go) — pipeline d'automatisation : ingestion RSS, dédoublonnage, scoring de pertinence (Gemini Flash), rédaction d'investigation (Gemini Pro), validation, enrichissement média, puis publication (qoe.fi + Discord). Tout est stocké en SQLite local (`data/radar.db`) et configuré via `daemon/config/config.yaml` (+ `.secrets.yaml` local). Deux boucles autonomes : cycle planifié + publisher.
 
-4. **Daemon Radar** (`daemon/`, en Go) — pipeline d'automatisation : ingestion multi-sources (RSS, Google News), dédoublonnage, scoring de pertinence (Gemini Flash), rédaction d'investigation (Gemini Pro), validation, enrichissement média, puis publication (Payload CMS + Discord). Il lit/écrit dans Payload via l'API REST et heartbeats l'admin (collection `logs`). Deux boucles autonomes : cycle planifié (pulse/calendrier via `radar-settings`) + publisher toutes les 2 min. Le graphe actif des nœuds est pilotable depuis l'admin (`pipelineGraphJson`).
+4. **Bases locales** — `data/radar.db` (pipeline daemon, tables `daemon_*`) et `data/elections/` (une base par scrutin + registre). Aucune base distante : tout est local, en dev uniquement.
 
 ## 🧱 Stack
 
 - **Front** : Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS
-- **CMS** : Payload 3.82 (Postgres / Supabase), Rich Text Lexical
-- **Daemon** : Go, client Payload REST, Gemini (Flash/Pro), gofeed (RSS)
-- **Ops** : Matomo
+- **Studio** : Vue 3 + Vite (`apps/labo`)
+- **Daemon** : Go, Gemini (AI Studio + repli Vertex), gofeed (RSS), SQLite
+- **Publication** : qoe.fi (API REST) + Discord (webhook)
 
 ## 🚀 Démarrage en local
 
@@ -57,7 +54,7 @@ npm run dev            # http://localhost:2500
 Routes utiles en dev :
 - Site public : `http://localhost:2500`
 - Labo studio : `npm run dev:labo` (Vite)
-- Daemon : `cd daemon && go build -o bin/daemon ./cmd/daemon && ./bin/daemon` (nécessite `PAYLOAD_API_URL` + identifiants bot dans `.env`)
+- Daemon : `cd daemon && go build -o bin/daemon ./cmd/daemon && ./bin/daemon` (nécessite `GEMINI_API_KEY` dans `.env` ou `daemon/config/.secrets.yaml` ; la clé Discord et la clé qoe.fi se configurent depuis le labo → `.secrets.yaml`)
 
 ### Dev tout-en-un — domaines `.test` SANS port + ports dédiés
 
@@ -78,9 +75,6 @@ Classique sans domaine : `npm run dev:labo` (labo seul) + `cd daemon && go build
 
 | Base | Techno | Usage |
 | :--- | :--- | :--- |
-| Payload | Postgres (Supabase) via `DATABASE_URL` | Contenu éditorial, auteurs, médias, globals |
-| Radar | Payload (Postgres) via API REST | Collections `signals`, `sources`, `publications`, `seen-urls`, `taxonomy-templates`, `logs` + global `radar-settings` |
-| Site (ex `radar_settings`) | Payload global `settings` | Maintenance + popup (groupe `communication`, ex-table SQLite — migré via `scripts/migrate_radar_settings_to_payload.cjs`) |
 | **Pipeline (daemon)** | SQLite (`data/radar.db`) | Tables `daemon_*` uniquement : signaux, seen-urls, publications, cycles, santé des sources — écrites par le daemon Go, lues par le labo via l'API |
 | **Élections** | SQLite, **1 fichier par scrutin** (`data/elections/{slug}.db`) | Résultats officiels, overrides manuels, statut de sync + réglages scopés — écrits par le front (`app/api/elections/results`), lus par les pages élections et le sitemap |
 | Registre élections | JSON (`data/elections/registry.json`) | Liste des scrutins affichés (`displaySlugs`) + scrutin cible (`targetSlug`) |

@@ -76,13 +76,23 @@ func main() {
 		// Panneau de logs du studio : on lit la fin de daemon/logs/daemon.log.
 		srv.LogPath = filepath.Join(logDir, "daemon.log")
 		go func() {
+			// Port canonique de l'API studio : :4406 par défaut, LA valeur que
+			// le proxy dev (vite) et dev-domain.sh attendent partout. Résolu dans
+			// l'ordre : STUDIO_API_ADDR (si précisé) → DAEMON_PORT (alias dev-conjugué
+			// avec vite.config) → 4406. Le daemon ne doit plus JAMAIS se retrouver
+			// sur un autre port que celui que le studio attend, quelle que soit la
+			// façon dont il est lancé (screen, PM2, dev-domain, ./bin/daemon nu).
 			addr := os.Getenv("STUDIO_API_ADDR")
 			if addr == "" {
-				addr = ":2506"
+				if p := os.Getenv("DAEMON_PORT"); p != "" {
+					addr = ":" + p
+				} else {
+					addr = ":4406"
+				}
 			}
 			log.Printf("[Daemon] API studio sur %s (signaux : %s)", addr, dbPath)
 			if err := http.ListenAndServe(addr, api.CORS(srv.Mux)); err != nil {
-				log.Printf("[Daemon] ⚠️ API studio arrêtée : %v", err)
+				log.Fatalf("[Daemon] 💥 Impossible de joindre le studio : écoute sur %s échouée (%v).", addr, err)
 			}
 		}()
 	}

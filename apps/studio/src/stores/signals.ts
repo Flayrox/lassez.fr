@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 
-// Signaux — données réelles depuis l'API du daemon Go (:2506, proxifiée en dev).
+// Signaux — données réelles depuis l'API du daemon Go (:4406, proxifiée en dev via vite).
 export interface Signal {
   id: number
   source_title: string

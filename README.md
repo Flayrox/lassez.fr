@@ -69,7 +69,7 @@ npm run dev:domain
 
 Surcharge : `STUDIO_HOST`, `FRONT_HOST`, `STUDIO_PORT`, `DAEMON_PORT`, `NEXT_PORT`, `CADDY_CONFIG` (chemin du Caddyfile à recharger). Sans Caddy lancé, les URL avec port fonctionnent quand même.
 
-Classique sans domaine : `npm run dev:studio` (studio seul) + `cd daemon && go build -o bin/daemon ./cmd/daemon && ./bin/daemon` (daemon sur `:2506`).
+Classique sans domaine : `npm run dev:studio` (studio seul) + `cd daemon && go build -o bin/daemon ./cmd/daemon && ./bin/daemon` (daemon sur `:4406` par défaut — le même port que le proxy dev attend).
 
 ## 🗄️ Bases de données
 

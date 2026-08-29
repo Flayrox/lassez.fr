@@ -305,7 +305,7 @@ func (srv *Server) patchSignals(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, map[string]any{"ok": true})
 }
 
-// CORS léger pour le dev (studio sur :2505 → daemon sur :2506). En prod, même domaine via reverse-proxy.
+// CORS léger pour le dev (studio sur :4405 → daemon sur :4406). En prod, même domaine via reverse-proxy.
 func CORS(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")

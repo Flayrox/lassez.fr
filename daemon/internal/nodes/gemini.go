@@ -75,6 +75,40 @@ func VertexAIConfig(resolver *config.Resolver) *vertexConfig {
 	return &vertexConfig{ProjectID: project, Region: region, ServiceAccountJSON: sa}
 }
 
+// pipelineGraphNodeEnabled indique si un nœud du graphe (config.yaml, section
+// pipeline → graphJson, éditée via l'Atelier) est actif. Un nœud absent du
+// graphe ou sans champ "enabled" est considéré actif (défaut graph). Sert à
+// savoir si un nœud aval prendra le relais (ex: le Média sort les brouillons
+// de DRAFTED → PENDING) et à router les statuts en conséquence.
+func pipelineGraphNodeEnabled(resolver *config.Resolver, nodeType string) bool {
+	if resolver == nil {
+		return true
+	}
+	settings, err := resolver.Settings()
+	if err != nil || settings == nil {
+		return true
+	}
+	graphStr, _ := settings["pipelineGraphJson"].(string)
+	if strings.TrimSpace(graphStr) == "" || graphStr == "{}" || graphStr == "[]" {
+		return true
+	}
+	var graph struct {
+		Nodes []struct {
+			Type    string `json:"type"`
+			Enabled *bool  `json:"enabled"`
+		} `json:"nodes"`
+	}
+	if err := json.Unmarshal([]byte(graphStr), &graph); err != nil || len(graph.Nodes) == 0 {
+		return true
+	}
+	for _, n := range graph.Nodes {
+		if n.Type == nodeType {
+			return n.Enabled == nil || *n.Enabled
+		}
+	}
+	return true
+}
+
 // GoogleCSEConfig résout les identifiants de la recherche d'images officielle
 // Google (Custom Search JSON API) depuis les secrets studio (daemon/config/
 // .secrets.yaml → champs googleCseApiKey + googleCseId, écrits par le studio via

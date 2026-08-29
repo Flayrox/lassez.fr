@@ -7,11 +7,6 @@ ingestion:
     concurrency: 5 # pLimit historique du code TS
     sources:
         rss: ["https://www.france24.com/en/rss", "https://www.rfi.fr/en/rss", "https://www.lemonde.fr/rss/une.xml", "https://www.mediapart.fr/articles/feed", "https://www.francetvinfo.fr/titres.rss", "https://www.humanite.fr/rss", "https://www.la-croix.com/RSS", "http://tempsreel.nouvelobs.com/rss.xml", "https://basta.media/spip.php?page=backend", "https://reporterre.net/spip.php?page=backend"]
-        telegram: [] # via RSS-Bridge local (localhost:3300) — comptes X suivis :
-        xAccounts: []
-        googleNews: []
-    "rssBridgeUrl": "" # x_accounts (passaient par TwitterBridge en Atom)
-    "channels": {"telegram": false, "x": false, "googleNews": true, "rssBridge": false}
 dedup:
     similarityThreshold: 0.65 # dedup_similarity_threshold = 0.65
     lookbackHours: 10 # dedup_recent_hours = 10
@@ -140,13 +135,6 @@ media:
     overlayOpacity: 0.5 # image_overlay_opacity
     boxScale169: 0.78 # image_box_scale_169
     boxScale11: 0.78 # image_box_scale_1x1
-video:
-    ingestEnabled: false # video_ingest_enabled
-    prefilterModel: gemini-2.0-flash
-    transcribeModel: gemini-2.0-flash
-    prefilterPrompt: "Ce message Telegram parle-t-il de politique, de mouvements sociaux, de justice ou d un evenement d interet public ? Reponds uniquement par OUI ou NON."
-    prefilterMinChars: 20 # video_prefilter_min_chars
-    maxAudioMb: 20
 trustMap: # source_trust_map — 🟢 haute / 🟡 moyenne / 🔴 faible
     high: [mediapart, humanite, humanité, blast, reporterre, basta, politis, arretsurimages, "arrêt sur images", 972mag, amnesty, hrw, btselem, fidh, phr, palestinechronicle, wafa, palinfo, maannews, franceinsoumise, jlmelenchon, mathildepanot, rimahas, manuel_bompard, impactmediafr]
     medium: [france24, rfi, francetvinfo, lemonde, leparisien, lacroix, la-croix, rtl, nouvelobs, globalvoices, thenewhumanitarian, theconversation, chathamhouse, haaretz, un.org, brevesdepresse, alertesinfos, mediavenir]

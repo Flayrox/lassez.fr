@@ -127,7 +127,7 @@
 
     <!-- Scan modal -->
     <LModal :open="scanOpen" title="Lancer un scan maintenant" @close="scanOpen = false">
-      <p class="text-xs text-text-2 leading-relaxed">Le robot va parcourir tes sources (RSS, Telegram…) et ramener les nouveaux articles. Ça prend quelques secondes.</p>
+      <p class="text-xs text-text-2 leading-relaxed">Le robot va parcourir tes sources RSS et ramener les nouveaux articles. Ça prend quelques secondes.</p>
       <template #footer>
         <LButton variant="secondary" @click="scanOpen = false">Annuler</LButton>
         <LButton @click="doScan">▶ Lancer</LButton>

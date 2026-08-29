@@ -7,7 +7,7 @@ const TacticalNewsletter: React.FC = () => {
     const [status, setStatus] = useState<'idle' | 'submitting' | 'success'>('idle');
     const [email, setEmail] = useState('');
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = () => {
         setStatus('submitting');
         // The actual form submit happens via the iframe target in the background
         // We just simulate the success UI after a delay

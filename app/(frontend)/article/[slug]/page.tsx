@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { applyPreviewParams, getPreviewContextFromRecord, withPreviewQuery } from '@/lib/wp-preview';
+import { getPreviewContextFromRecord, withPreviewQuery } from '@/lib/wp-preview';
 import type { Post, Category } from '@/lib/types';
 import { getContentClient } from '@/lib/provider';
 

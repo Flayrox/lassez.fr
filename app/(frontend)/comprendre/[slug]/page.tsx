@@ -51,7 +51,7 @@ async function getPost(slug: string, previewContext: any): Promise<Post | null> 
 
 export async function generateMetadata(
     { params, searchParams }: Props,
-    parent: ResolvingMetadata
+    _parent: ResolvingMetadata
 ): Promise<Metadata> {
     const { slug } = await params;
     const previewContext = await getPreviewContext(searchParams);

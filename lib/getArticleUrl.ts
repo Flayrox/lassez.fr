@@ -1,4 +1,4 @@
-import type { Post, Category } from './types';
+import type { Post } from './types';
 
 /**
  * Chemin canonique d'un article :

@@ -4,7 +4,6 @@ import { departments as deptNames } from '@/lib/geo-data';
 import { formatCommuneSlug } from '@/lib/seo-engine';
 import Database from 'better-sqlite3';
 import { getElectionDbPath } from '@/lib/elections-db';
-import path from 'path';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import CitySearchBar from '@/components/CitySearchBar';

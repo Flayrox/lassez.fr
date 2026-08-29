@@ -5,7 +5,7 @@ import useSWR from 'swr';
 import { useSearchParams } from 'next/navigation';
 import { usePosts } from '../hooks/usePosts';
 import { useCategories } from '../hooks/useCategories';
-import { AlertTriangleIcon, SearchIcon, XIcon, LoaderIcon, ChevronLeftIcon } from './icons';
+import { AlertTriangleIcon, SearchIcon, XIcon, ChevronLeftIcon } from './icons';
 import Link from 'next/link';
 import GlitchImage from './GlitchImage';
 import type { Post, Category } from '../lib/types';
@@ -30,7 +30,7 @@ function getArticleUrl(post: Post): string {
 }
 
 // ─── Carte Article ─────────────────────────────────────────────────────────────────
-function PostCard({ post, index, page }: { post: Post; index: number; page: number }) {
+function PostCard({ post }: { post: Post; index: number; page: number }) {
     const cats = (post.categories as Category[] | null) ?? [];
     const typedCats = cats.filter((c): c is Category => typeof c === 'object');
     const cover  = typeof post.featuredImage === 'object' && post.featuredImage?.url

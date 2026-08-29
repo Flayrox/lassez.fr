@@ -6,9 +6,6 @@ import { Inter, Playfair_Display } from 'next/font/google';
 import { getNavItems } from '@/lib/provider';
 import ThemeInitializer from '@/components/ThemeInitializer';
 import { getSettings } from '@/lib/get-settings';
-import Footer from '@/components/Footer';
-import Header from '@/components/Header';
-import Sidebar from '@/components/Sidebar';
 import { SettingsProvider } from '@/components/SettingsProvider';
 import { UIProvider } from '@/components/UIProvider';
 
@@ -106,7 +103,7 @@ export const metadata: Metadata = {
 
 import { NavProvider } from '@/components/NavProvider';
 import CommunicationLayer from '@/components/CommunicationLayer';
-import { HeaderWrapper, SidebarWrapper, FooterWrapper } from '@/components/LayoutWrappers';
+import { HeaderWrapper, FooterWrapper } from '@/components/LayoutWrappers';
 
 export default async function RootLayout({
     children,

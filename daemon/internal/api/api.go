@@ -213,14 +213,13 @@ func (srv *Server) listSourceHealth(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, 200, map[string]any{"data": health})
 }
 
-// testSource — « tester ce flux » : parse isolément une URL (ou un mot-clé
-// Google News / handle X / chaîne Telegram) et renvoie les derniers articles.
-// Aucun effet de bord (pas de santé, pas de seen URLs, pas de pipeline).
-// Retourne 200 même en cas d'échec d'aspiration, avec ok:false + error.
+// testSource — « tester ce flux » : parse isolément une URL RSS et renvoie
+// les derniers articles. Aucun effet de bord (pas de santé, pas de seen
+// URLs, pas de pipeline). Retourne 200 même en cas d'échec d'aspiration,
+// avec ok:false + error.
 func (srv *Server) testSource(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		URL  string `json:"url"`
-		Type string `json:"type"`
+		URL string `json:"url"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSON(w, 400, map[string]any{"error": "corps JSON invalide : " + err.Error()})
@@ -231,7 +230,7 @@ func (srv *Server) testSource(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 400, map[string]any{"error": "url manquante"})
 		return
 	}
-	result, err := nodes.TestSource(req.URL, req.Type, srv.Resolver)
+	result, err := nodes.TestSource(req.URL)
 	if err != nil {
 		writeJSON(w, 200, map[string]any{"ok": false, "url": req.URL, "error": err.Error()})
 		return

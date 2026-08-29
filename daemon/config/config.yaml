@@ -135,10 +135,10 @@ media:
     overlayOpacity: 0.5 # image_overlay_opacity
     boxScale169: 0.78 # image_box_scale_169
     boxScale11: 0.78 # image_box_scale_1x1
-trustMap: # source_trust_map — 🟢 haute / 🟡 moyenne / 🔴 faible
-    high: [mediapart, humanite, humanité, blast, reporterre, basta, politis, arretsurimages, "arrêt sur images", 972mag, amnesty, hrw, btselem, fidh, phr, palestinechronicle, wafa, palinfo, maannews, franceinsoumise, jlmelenchon, mathildepanot, rimahas, manuel_bompard, impactmediafr]
-    medium: [france24, rfi, francetvinfo, lemonde, leparisien, lacroix, la-croix, rtl, nouvelobs, globalvoices, thenewhumanitarian, theconversation, chathamhouse, haaretz, un.org, brevesdepresse, alertesinfos, mediavenir]
-    low: [lefigaro, figaro, cnews, cnews_fr, bfmtv, bfm, bfmtv_fr, freedomhouse]
+trustMap: # source_trust_map — 🟢 haute / 🟡 moyenne / 🔴 faible (sources RSS uniquement — comptes X et chaînes Telegram supprimés)
+    high: [mediapart, humanite, humanité, blast, reporterre, basta, politis, arretsurimages, "arrêt sur images", 972mag, amnesty, hrw, btselem, fidh, phr, palestinechronicle, wafa, palinfo, maannews]
+    medium: [france24, rfi, francetvinfo, lemonde, leparisien, lacroix, la-croix, rtl, nouvelobs, globalvoices, thenewhumanitarian, theconversation, chathamhouse, haaretz, un.org]
+    low: [lefigaro, figaro, cnews, bfmtv, bfm, freedomhouse]
 system:
     logLevel: INFO
     logRetentionDays: 7

@@ -41,7 +41,7 @@ type NodeMeta struct {
 }
 
 var NodeCatalog = []NodeMeta{
-	{Type: NodeIngestion, Label: "Ingestion", Description: "RSS / Google News / Telegram → SeenUrl", Order: 1},
+	{Type: NodeIngestion, Label: "Ingestion", Description: "RSS → SeenUrl", Order: 1},
 	{Type: NodeDedup, Label: "Dédoublonnage", Description: "string-similarity 0.45, 48h lookback", Order: 2},
 	{Type: NodeResearch, Label: "Researcher", Description: "Gemini Flash scoring 0-100, triage", Order: 3},
 	{Type: NodeEditor, Label: "Editorialist", Description: "Gemini Pro rédaction investigation", Order: 4},

@@ -1,5 +1,5 @@
 // Package nodes contains the pipeline nodes. Node 1 (ingestion) pulls
-// configured RSS / Google News feeds and returns the new articles.
+// configured RSS feeds and returns the new articles.
 package nodes
 
 import (
@@ -40,9 +40,9 @@ type sourceToProcess struct {
 	AllowSourceImages bool
 }
 
-// RunIngestion is Node 1 of the pipeline. It pulls the configured sources
-// (sources collection + rss_feeds + google_news_queries from radar-settings)
-// over a time window and returns the new, unseen articles.
+// RunIngestion is Node 1 of the pipeline. It pulls the configured RSS
+// sources (sources collection + rss_feeds from radar-settings) over a time
+// window and returns the new, unseen articles.
 func RunIngestion(client *payload.Client, resolver *config.Resolver) ([]IngestedArticle, error) {
 	timeWindowHours := 12.0
 	if v := resolver.GetEffectiveParam("ingestion", "rss_lookback_hours", float64(12)); v != nil {
@@ -92,36 +92,6 @@ func RunIngestion(client *payload.Client, resolver *config.Resolver) ([]Ingested
 			AllowSourceImages: true,
 		})
 	}
-
-	// 3. Requêtes Google News (google_news_queries).
-	for _, query := range parseStringArray(settings["google_news_queries"]) {
-		feedURL := "https://news.google.com/rss/search?q=" + url.QueryEscape(query) + "&hl=fr&gl=FR&ceid=FR:fr"
-		sources = append(sources, sourceToProcess{
-			URL:               feedURL,
-			Type:              "GOOGLE_NEWS",
-			SourceName:        "GNews: " + query,
-			SourceBias:        "Multiple",
-			TrustScore:        7,
-			AllowSourceImages: false,
-		})
-	}
-
-	// 4. Normalisation des canaux de type « mot-clé » (Google News, X,
-	//    Telegram) — voir normalizeSource. Sans RSS-Bridge, les comptes X et
-	//    les chaînes Telegram sont ignorés avec un log clair.
-	bridge := ""
-	if b, ok := settings["rssBridgeUrl"].(string); ok {
-		bridge = strings.TrimRight(b, "/")
-	}
-	normalized := make([]sourceToProcess, 0, len(sources))
-	for _, src := range sources {
-		if norm, ok := normalizeSource(src, bridge); ok {
-			normalized = append(normalized, norm)
-		} else {
-			log.Printf("[Node 1] ⚠️ %s « %s » ignoré : RSS-Bridge non configuré (rssBridgeUrl).", src.Type, src.URL)
-		}
-	}
-	sources = normalized
 
 	if len(sources) == 0 {
 		log.Printf("[Node 1: Ingestion] ⚠️ Aucune source configurée.")
@@ -213,46 +183,6 @@ func RunIngestion(client *payload.Client, resolver *config.Resolver) ([]Ingested
 	return articles, nil
 }
 
-// normalizeSource applique les conversions « mot-clé » de l'ingestion :
-//   - GOOGLE_NEWS : un mot-clé (ex « climat ») devient l'URL de recherche RSS
-//     officielle de Google News — sinon gofeed tenterait de parser « climat »
-//     comme une URL et échouerait.
-//   - X : un handle (ex « JLMelenchon ») devient un flux Atom via le
-//     RSS-Bridge (TwitterBridge), comme le faisait l'ancien daemon TS.
-//   - TELEGRAM : une chaîne (sans @) devient un flux Atom via le RSS-Bridge
-//     (TelegramBridge).
-//   Un flux RSS déjà complet (URL http…) est laissé tel quel.
-// Retourne ok=false quand la source doit être ignorée (RSS-Bridge absent).
-func normalizeSource(src sourceToProcess, bridge string) (sourceToProcess, bool) {
-	if strings.HasPrefix(src.URL, "http") {
-		return src, true // flux RSS déjà complet
-	}
-	switch src.Type {
-	case "GOOGLE_NEWS":
-		src.URL = "https://news.google.com/rss/search?q=" + url.QueryEscape(src.URL) + "&hl=fr&gl=FR&ceid=FR:fr"
-		src.SourceName = "GNews: " + src.SourceName
-		return src, true
-	case "X":
-		if bridge == "" {
-			return src, false
-		}
-		src.URL = bridge + "/?action=display&bridge=TwitterBridge&context=By+username&u=" +
-			url.QueryEscape(src.URL) + "&format=Atom"
-		return src, true
-	case "TELEGRAM":
-		if bridge == "" {
-			return src, false
-		}
-		// Sans @ — même passerelle que l'ancien daemon TS : le flux public de la
-		// chaîne via RSS-Bridge (TelegramBridge, paramètre c).
-		src.URL = bridge + "/?action=display&bridge=TelegramBridge&context=Channel&c=" +
-			url.QueryEscape(src.URL) + "&format=Atom"
-		return src, true
-	default:
-		return src, true
-	}
-}
-
 // SourceTestArticle — un article renvoyé par le test isolé d'un flux.
 type SourceTestArticle struct {
 	Title       string `json:"title"`
@@ -270,39 +200,24 @@ type SourceTestResult struct {
 	FetchMs  int64               `json:"fetchMs"`
 }
 
-// TestSource — « tester ce flux » du labo : normalise l'entrée (Google News /
-// X / Telegram via RSS-Bridge), la parse avec le même client timed que
-// l'ingestion, et renvoie les derniers articles. Aucun effet de bord : pas de
-// seen URLs, pas de mise à jour de santé, pas de pipeline.
-func TestSource(rawURL, sourceType string, resolver *config.Resolver) (*SourceTestResult, error) {
+// TestSource — « tester ce flux » du labo : parse une URL RSS avec le même
+// client timed que l'ingestion et renvoie les derniers articles. Aucun effet
+// de bord : pas de seen URLs, pas de mise à jour de santé, pas de pipeline.
+func TestSource(rawURL string) (*SourceTestResult, error) {
 	if strings.TrimSpace(rawURL) == "" {
 		return nil, fmt.Errorf("URL vide")
 	}
 	rawURL = strings.TrimSpace(rawURL)
-	if sourceType == "" {
-		sourceType = "RSS"
-	}
-
-	bridge := ""
-	if settings, err := resolver.Settings(); err == nil {
-		if b, ok := settings["rssBridgeUrl"].(string); ok {
-			bridge = strings.TrimRight(b, "/")
-		}
-	}
-	src, ok := normalizeSource(sourceToProcess{URL: rawURL, Type: sourceType, SourceName: rawURL}, bridge)
-	if !ok {
-		return nil, fmt.Errorf("RSS-Bridge non configuré (rssBridgeUrl) — impossible de tester « %s »", rawURL)
-	}
 
 	start := time.Now()
 	parser := gofeed.NewParser()
 	parser.Client = &http.Client{Timeout: 30 * time.Second}
-	feed, err := parser.ParseURL(src.URL)
+	feed, err := parser.ParseURL(rawURL)
 	if err != nil {
 		return nil, err
 	}
 
-	out := &SourceTestResult{URL: src.URL, Title: feed.Title, FetchMs: time.Since(start).Milliseconds()}
+	out := &SourceTestResult{URL: rawURL, Title: feed.Title, FetchMs: time.Since(start).Milliseconds()}
 	for _, item := range feed.Items {
 		if item.Link == "" || item.Title == "" {
 			out.Skipped++

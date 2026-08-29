@@ -77,41 +77,8 @@
         help="Par défaut https://api.qoe.fi/v1 — laisse tel quel sauf si tu sais" />
     </LCard>
 
-    <!-- Clé API Gemini — les nœuds IA du pipeline (Tri / Rédaction / Vérification) -->
-    <LCard title="Clé API Gemini" description="La clé qui fait tourner les nœuds IA du pipeline (Tri, Rédaction, Vérification)">
-      <div class="flex items-center justify-between gap-3 mb-4">
-        <div class="flex items-center gap-3">
-          <span class="w-2 h-2 rounded-full" :class="geminiConfigured ? 'bg-accent' : 'bg-warning'"></span>
-          <div>
-            <p class="text-sm font-medium">{{ geminiConfigured ? 'Clé configurée' : 'Aucune clé' }}</p>
-            <p class="text-[11px] text-text-3">
-              {{ geminiConfigured
-                ? 'Les nœuds IA peuvent tourner. Sans clé valide, le Tri, la Rédaction et la Vérification sont ignorés.'
-                : 'Sans clé, le pipeline s\'arrête après la collecte (rien n\'est trié ni rédigé). Colle ta clé ci-dessous.' }}
-            </p>
-          </div>
-        </div>
-        <div class="flex items-center gap-2">
-          <LButton variant="secondary" size="sm" :disabled="geminiTesting || !geminiConfigured" @click="testGeminiKey">
-            {{ geminiTesting ? 'Test…' : 'Tester la clé' }}
-          </LButton>
-          <LBadge :variant="geminiConfigured ? 'success' : 'warning'">{{ geminiConfigured ? 'active' : 'en pause' }}</LBadge>
-        </div>
-      </div>
-      <div class="space-y-3">
-        <LInput label="Clé API Gemini" type="password" :model-value="store.secrets.geminiApiKey"
-          @update:model-value="(v: string) => { store.secrets.geminiApiKey = v.trim(); store.markDirty() }"
-          placeholder="AIza…"
-          help="Stockée dans .secrets.yaml (jamais dans git). Vide = pipeline sans IA." />
-        <p v-if="geminiResult" class="text-xs" :class="geminiResult.ok ? 'text-accent' : 'text-danger'">
-          {{ geminiResult.ok ? '✓ Clé valide' : '✗ ' + geminiResult.error }}
-          <span v-if="geminiResult.ok" class="text-text-3">· {{ geminiResult.latencyMs }} ms · {{ geminiResult.model }} · réponse : « {{ geminiResult.reply }} »</span>
-        </p>
-      </div>
-    </LCard>
-
-    <!-- Vertex AI (secours) — compte de service Google Cloud : le chemin fiable quand la clé AI Studio est épuisée -->
-    <LCard title="Vertex AI (secours)" description="Compte de service Google Cloud — utilisé automatiquement quand la clé AI Studio échoue (quota, crédits épuisés, clé invalide)">
+    <!-- Vertex AI (source principale) — compte de service Google Cloud : le chemin fiable qui fait tourner les nœuds IA -->
+    <LCard title="Vertex AI (source principale)" description="Compte de service Google Cloud — SOURCE PRINCIPALE des nœuds IA du pipeline (Tri, Orchestrateur, Rédaction, Vérification)">
       <div class="flex items-center justify-between gap-3 mb-4">
         <div class="flex items-center gap-3">
           <span class="w-2 h-2 rounded-full" :class="vertexConfigured ? 'bg-accent' : 'bg-border'"></span>
@@ -119,8 +86,8 @@
             <p class="text-sm font-medium">{{ vertexConfigured ? 'Compte de service configuré' : 'Non configuré' }}</p>
             <p class="text-[11px] text-text-3">
               {{ vertexConfigured
-                ? 'Le pipeline bascule automatiquement sur Vertex AI si la clé AI Studio échoue — la recherche web continue de fonctionner.'
-                : 'Sans compte de service, le pipeline dépend uniquement de la clé AI Studio. Colle le JSON ci-dessous pour activer le secours.' }}
+                ? 'Vertex AI est utilisé en premier pour chaque appel IA — la recherche web continue de fonctionner. AI Studio ne prend le relais que si Vertex échoue.'
+                : 'Non configuré : le pipeline dépend de la clé AI Studio en repli. Colle le JSON ci-dessous pour faire de Vertex AI ta source principale (fiable, sans crédits AI Studio).' }}
             </p>
           </div>
         </div>
@@ -145,6 +112,39 @@
         <p v-if="vertexResult" class="text-xs" :class="vertexResult.ok ? 'text-accent' : 'text-danger'">
           {{ vertexResult.ok ? '✓ Vertex AI fonctionne' : '✗ ' + vertexResult.error }}
           <span v-if="vertexResult.ok" class="text-text-3">· {{ vertexResult.latencyMs }} ms · {{ vertexResult.model }} · {{ vertexResult.project }}@{{ vertexResult.region }} · « {{ vertexResult.reply }} »</span>
+        </p>
+      </div>
+    </LCard>
+
+    <!-- Clé API Gemini (repli) — utilisée si Vertex AI est absent ou échoue -->
+    <LCard title="Clé API Gemini (repli)" description="Repli gratuit si Vertex AI est absent ou échoue (quota, erreur réseau)">
+      <div class="flex items-center justify-between gap-3 mb-4">
+        <div class="flex items-center gap-3">
+          <span class="w-2 h-2 rounded-full" :class="geminiConfigured ? 'bg-warning' : 'bg-border'"></span>
+          <div>
+            <p class="text-sm font-medium">{{ geminiConfigured ? 'Clé configurée' : 'Aucune clé' }}</p>
+            <p class="text-[11px] text-text-3">
+              {{ geminiConfigured
+                ? 'Utilisée en repli quand Vertex AI échoue. Sans Vertex configuré, c\'est elle qui fait tourner les nœuds IA.'
+                : 'Aucune clé de repli. Tant que Vertex AI (ci-dessus) est configuré, le pipeline tourne grâce à lui.' }}
+            </p>
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          <LButton variant="secondary" size="sm" :disabled="geminiTesting || !geminiConfigured" @click="testGeminiKey">
+            {{ geminiTesting ? 'Test…' : 'Tester la clé' }}
+          </LButton>
+          <LBadge :variant="geminiConfigured ? 'warning' : 'border'">{{ geminiConfigured ? 'repli' : 'inactive' }}</LBadge>
+        </div>
+      </div>
+      <div class="space-y-3">
+        <LInput label="Clé API Gemini" type="password" :model-value="store.secrets.geminiApiKey"
+          @update:model-value="(v: string) => { store.secrets.geminiApiKey = v.trim(); store.markDirty() }"
+          placeholder="AIza…"
+          help="Stockée dans .secrets.yaml (jamais dans git). Utilisée seulement si Vertex AI est absent ou échoue." />
+        <p v-if="geminiResult" class="text-xs" :class="geminiResult.ok ? 'text-accent' : 'text-danger'">
+          {{ geminiResult.ok ? '✓ Clé valide' : '✗ ' + geminiResult.error }}
+          <span v-if="geminiResult.ok" class="text-text-3">· {{ geminiResult.latencyMs }} ms · {{ geminiResult.model }} · réponse : « {{ geminiResult.reply }} »</span>
         </p>
       </div>
     </LCard>

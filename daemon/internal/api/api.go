@@ -53,7 +53,20 @@ func New(client *store.Client, cfgPath string, resolver *config.Resolver) *Serve
 	srv.Mux.HandleFunc("GET /api/system-health", srv.systemHealth)
 	srv.Mux.HandleFunc("GET /api/cycles", srv.listCycles)
 	srv.Mux.HandleFunc("GET /api/logs", srv.listLogs)
+	srv.Mux.HandleFunc("GET /api/orchestration", srv.listOrchestration)
 	return srv
+}
+
+// listOrchestration — l'Agenda du jour : les dernières décisions de
+// l'orchestrateur (gardés / écartés avec format, zone, angle et raison).
+func (srv *Server) listOrchestration(w http.ResponseWriter, r *http.Request) {
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	decisions, err := srv.Client.GetOrchestration(limit)
+	if err != nil {
+		writeJSON(w, 500, map[string]any{"error": err.Error()})
+		return
+	}
+	writeJSON(w, 200, map[string]any{"data": decisions})
 }
 
 // listCycles — historique des cycles du pipeline (mode « Suivi » du studio).

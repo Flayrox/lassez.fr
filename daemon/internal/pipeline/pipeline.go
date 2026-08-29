@@ -171,7 +171,7 @@ func RunCycle(client *store.Client, resolver *config.Resolver, log *logger.Logge
 	if active["orchestrator"] {
 		log.Info("Node 3", "🧭 Lancement de l'Orchestrateur (chef de desk — agenda + aiguillage)...")
 		start := time.Now()
-		err := nodes.RunOrchestrator(client, resolver)
+		err := nodes.RunOrchestrator(client, resolver, cycleID)
 		nodes.RecordBrickRun(NodeOrchestrator, "Orchestrateur", err, time.Since(start))
 		client.RecordCycleStep(cycleID, NodeOrchestrator, "Aiguillé", stepStatus(err), time.Since(start), errMsg(err), "agenda du cycle planifié")
 		if err != nil {

@@ -202,6 +202,10 @@ func flatten(d map[string]any) map[string]any {
 		set("allowSourceImages", filters["allowSourceImages"])
 	}
 
+	// Mémoire éditoriale (Palier 1) — injectée dans l'orchestrateur et la rédaction
+	set("memory.enabled", get("memory", "enabled"))
+	set("memory.windowDays", f("memory", "windowDays"))
+
 	// Media
 	set("imageOverlayEnabled", get("media", "overlayEnabled"))
 	set("imageOverlayOpacity", f("media", "overlayOpacity"))

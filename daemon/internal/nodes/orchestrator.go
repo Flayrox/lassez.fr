@@ -21,7 +21,7 @@ import (
 // autres sont rejetés. Le Tri reste un repli automatique : si l'orchestration
 // échoue (quota, clé, JSON invalide), les sujets restent INGESTED et le Tri
 // les reprend tel quel au même cycle.
-func RunOrchestrator(client *store.Client, resolver *config.Resolver) error {
+func RunOrchestrator(client *store.Client, resolver *config.Resolver, cycleID int64) error {
 	log.Printf("\n[Node 3: Orchestrateur] 🧭 Chef de desk — planification du cycle (1 appel IA)...")
 
 	topics, err := client.GetSignalsByStatus("INGESTED")
@@ -84,7 +84,20 @@ func RunOrchestrator(client *store.Client, resolver *config.Resolver) error {
 		}
 	}
 
-	prompt := buildOrchestratorPrompt(researcherSystem, rejectCriteria, taxonomyList, topics)
+	// Mémoire éditoriale (Palier 1) : ce qu'on a publié les N derniers jours —
+	// l'IA repère les contradictions, les redites et les suites à donner.
+	var memory []store.MemoryEntry
+	if memEnabled(resolver) {
+		memory, err = client.GetMemory(memWindowDays(resolver))
+		if err != nil {
+			log.Printf("[Node 3: Orchestrateur] ⚠️ Mémoire illisible : %v", err)
+		}
+	}
+
+	prompt := buildOrchestratorPrompt(researcherSystem, rejectCriteria, taxonomyList, topics, memory)
+	// Observabilité : le prompt complet est journalisé pour vérifier ce que
+	// l'IA reçoit réellement (aucune boîte noire).
+	log.Printf("[Node 3: Orchestrateur] 📋 Prompt du cycle :\n%s", prompt)
 
 	callCtx, cancel := context.WithTimeout(context.Background(), 180*time.Second)
 	defer cancel()
@@ -138,6 +151,15 @@ func RunOrchestrator(client *store.Client, resolver *config.Resolver) error {
 		if !ok {
 			continue // décision sur un id inconnu : on ignore
 		}
+		record := store.OrchestrationDecision{
+			CycleID:  cycleID,
+			SignalID: topic.ID.Number(),
+			Decision: "drop",
+			Taxonomy: d.Taxonomy,
+			Geo:      d.Geo,
+			Angle:    d.Angle,
+			Reason:   d.Reason,
+		}
 		if strings.EqualFold(d.Decision, "keep") {
 			taxonomy := strings.TrimSpace(d.Taxonomy)
 			if taxonomy == "" {
@@ -155,8 +177,11 @@ func RunOrchestrator(client *store.Client, resolver *config.Resolver) error {
 				log.Printf("[Node 3: Orchestrateur] ❌ Update %s: %v", topic.ID, err)
 				continue
 			}
+			record.Decision = "keep"
+			record.Taxonomy = taxonomy
+			record.Geo = geo
 			kept++
-			log.Printf("[Node 3: Orchestrateur] ✅ Aiguillé %s → %s (%s)", topic.ID, taxonomy, geo)
+			log.Printf("[Node 3: Orchestrateur] ✅ Aiguillé %s → %s (%s) : %s", topic.ID, taxonomy, geo, d.Angle)
 		} else {
 			if err := client.UpdateSignal(topic.ID, map[string]any{"status": "REJECTED"}); err != nil {
 				log.Printf("[Node 3: Orchestrateur] ❌ Update %s: %v", topic.ID, err)
@@ -165,20 +190,34 @@ func RunOrchestrator(client *store.Client, resolver *config.Resolver) error {
 			dropped++
 			log.Printf("[Node 3: Orchestrateur] ❌ Écarté (%s) : %s", d.Reason, topic.ID)
 		}
+		// Agenda du jour : chaque décision est enregistrée et visible dans le studio.
+		if err := client.RecordOrchestration(record); err != nil {
+			log.Printf("[Node 3: Orchestrateur] ⚠️ Agenda %s : %v", topic.ID, err)
+		}
 	}
 	log.Printf("[Node 3: Orchestrateur] 🧭 Cycle planifié : %d à traiter, %d écartés.", kept, dropped)
 	return nil
 }
 
-// buildOrchestratorPrompt — un seul prompt listant tous les sujets du cycle :
-// l'IA rend UNE décision par sujet (keep/drop + format + zone + angle).
-func buildOrchestratorPrompt(system, reject, taxonomyList string, topics []store.Signal) string {
+// buildOrchestratorPrompt — un seul prompt listant tous les sujets du cycle +
+// la mémoire éditoriale : l'IA rend UNE décision par sujet (keep/drop +
+// format + zone + angle) en tenant compte de ce qu'on a déjà publié.
+func buildOrchestratorPrompt(system, reject, taxonomyList string, topics []store.Signal, memory []store.MemoryEntry) string {
 	var sb strings.Builder
 	sb.WriteString(system)
 	sb.WriteString("\n\nCRITÈRES DE REJET :\n")
 	sb.WriteString(reject)
 	sb.WriteString(taxonomyList)
-	sb.WriteString("\n\nTU ES LE CHEF DE DESK : lis la liste COMPLÈTE des sujets du jour ci-dessous et décide pour CHACUN : à traiter (keep) ou à écarter (drop). Pour chaque sujet gardé, choisis le format le plus percutant (taxonomy), la zone (geo) et donne l'angle à prendre (angle, une phrase). Choisis avec soin : on ne rédige QUE ce qui mérite vraiment d'être publié.\n\n")
+	sb.WriteString("\n\nTU ES LE CHEF DE DESK : lis la liste COMPLÈTE des sujets du jour ci-dessous et décide pour CHACUN : à traiter (keep) ou à écarter (drop). Pour chaque sujet gardé, choisis le format le plus percutant (taxonomy), la zone (geo) et donne l'angle à prendre (angle, une phrase). Choisis avec soin : on ne rédige QUE ce qui mérite vraiment d'être publié.")
+	// Mémoire éditoriale : les titres publiés récents pour repérer les
+	// contradictions, les redites et les suites (le cas Retailleau).
+	if len(memory) > 0 {
+		sb.WriteString("\n\nMÉMOIRE ÉDITORIALE (ce que tu as déjà publié les derniers jours — si un sujet du jour contredit ou prolonge une de ces publications, sors-le en priorité avec l'angle de la contradiction/suite) :\n")
+		for _, m := range memory {
+			sb.WriteString(fmt.Sprintf("- %s [%s] (publié %s)\n", orTitle(m.Headline), orTitle(m.Taxonomy), dateOnly(m.PublishedAt)))
+		}
+	}
+	sb.WriteString("\n\n")
 	for i, t := range topics {
 		var raw struct {
 			ClusterTitle string            `json:"clusterTitle"`
@@ -202,4 +241,40 @@ func buildOrchestratorPrompt(system, reject, taxonomyList string, topics []store
 	}
 	sb.WriteString("RENDS TA RÉPONSE en JSON : { \"decisions\": [ { \"id\": \"<id du sujet>\", \"decision\": \"keep|drop\", \"taxonomy\": \"<id de catégorie>\", \"geo\": \"france|international\", \"angle\": \"<phrase>\", \"reason\": \"<justification>\" } ] } — UNE entrée par sujet de la liste, sans en omettre ni en inventer.\n")
 	return sb.String()
+}
+
+// memEnabled — interrupteur global de la mémoire éditoriale (config memory.enabled).
+func memEnabled(resolver *config.Resolver) bool {
+	if resolver == nil {
+		return true
+	}
+	settings, err := resolver.Settings()
+	if err != nil || settings == nil {
+		return true
+	}
+	if b, ok := settings["memory.enabled"].(bool); ok {
+		return b
+	}
+	return true
+}
+
+// memWindowDays — fenêtre de la mémoire (config memory.windowDays, défaut 30).
+func memWindowDays(resolver *config.Resolver) int {
+	days := 30
+	if resolver != nil {
+		if settings, err := resolver.Settings(); err == nil && settings != nil {
+			if n := int(toFloat64(settings["memory.windowDays"], float64(days))); n > 0 && n <= 365 {
+				days = n
+			}
+		}
+	}
+	return days
+}
+
+// dateOnly — "2026-08-29T12:00:00Z" → "2026-08-29".
+func dateOnly(iso string) string {
+	if len(iso) >= 10 {
+		return iso[:10]
+	}
+	return iso
 }

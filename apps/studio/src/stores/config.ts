@@ -146,6 +146,10 @@ export const useConfigStore = defineStore('config', () => {
     // Raisonnement de la rédaction (thinking tokens) : très élevé pour rédiger
     // ET vérifier en un seul passage. 0 = réponse directe sans raisonnement.
     thinkingBudget: 16384,
+    // Mémoire éditoriale : ce qu'on a publié les N derniers jours, injecté
+    // dans l'orchestrateur et la rédaction (contradictions, suites, redites).
+    memoireActivee: true,
+    memoireJours: 30,
     consigneGlobale: '',
   })
 
@@ -473,6 +477,10 @@ export const useConfigStore = defineStore('config', () => {
         enableAutoApproveMedia: partage.value.autoApproveMedia, // média en mode fantôme
         targetsByType,
       },
+      memory: {
+        enabled: ecriture.value.memoireActivee,
+        windowDays: ecriture.value.memoireJours,
+      },
       scheduling: {
         mode: planning.value.mode,
         scrapingIntervalMinutes: planning.value.intervalleMinutes,
@@ -578,6 +586,9 @@ export const useConfigStore = defineStore('config', () => {
       webSearchEnabled: boolOr(research.webSearchEnabled, boolOr(research.googleSearchBreaking, boolOr(research.googleSearchStandard, boolOr(research.googleSearchDecrypt, ecriture.value.webSearchEnabled)))),
       modeleParFormat: normalizeModelByFormat(editorial.modelByFormat, legacyModels(editorial), ecriture.value.modeleParFormat),
       promptEditorial: sOr(editorial.aiPrompt, ecriture.value.promptEditorial),
+      // Mémoire éditoriale (Palier 1)
+      memoireActivee: boolOr(isObj(y.memory) ? y.memory.enabled : undefined, ecriture.value.memoireActivee),
+      memoireJours: numOr(isObj(y.memory) ? y.memory.windowDays : undefined, ecriture.value.memoireJours),
     }
     if (Array.isArray(y.modelRegistry) && y.modelRegistry.length > 0) {
       modelRegistry.value = normalizeRegistry(y.modelRegistry)

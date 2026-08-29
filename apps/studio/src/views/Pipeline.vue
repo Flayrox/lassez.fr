@@ -26,6 +26,23 @@
       </LCard>
     </router-link>
 
+    <!-- Agenda du jour : les décisions de l'orchestrateur, visibles et contrôlables -->
+    <LCard title="🧭 Agenda du jour" description="Ce que l'orchestrateur a décidé au dernier cycle">
+      <div v-if="system.orchestration.length === 0" class="text-xs text-text-3">
+        Aucune décision enregistrée — active l'orchestrateur dans l'Atelier puis lance un scan.
+      </div>
+      <ul v-else class="space-y-2">
+        <li v-for="d in system.orchestration" :key="d.id" class="text-xs flex items-start gap-2 border-b border-border/50 last:border-b-0 pb-2 last:pb-0">
+          <LBadge :variant="d.decision === 'keep' ? 'accent' : 'danger'" class="shrink-0 mt-0.5">{{ d.decision === 'keep' ? 'À traiter' : 'Écarté' }}</LBadge>
+          <div class="min-w-0">
+            <p class="text-text-1 font-medium line-clamp-1">{{ d.source_title || 'Sujet #' + d.signal_id }}</p>
+            <p v-if="d.decision === 'keep' && d.angle" class="text-text-3 mt-0.5 line-clamp-2">{{ d.taxonomy }} · {{ d.geo }} — {{ d.angle }}</p>
+            <p v-else-if="d.decision === 'drop' && d.reason" class="text-text-3 mt-0.5 line-clamp-2">{{ d.reason }}</p>
+          </div>
+        </li>
+      </ul>
+    </LCard>
+
     <!-- Bandeau budget / niveau gratuit -->
     <LCard title="🎟️ Niveau gratuit — la répartition des modèles" :description="`Tes 3 nœuds IA tournent sur ${modelNames} — rien de plus cher n'est utilisé`">
       <div class="grid sm:grid-cols-3 gap-3">
@@ -160,13 +177,14 @@ const system = useSystemStore()
 onMounted(() => {
   system.fetchHealth()
   system.fetchCycles()
+  system.fetchOrchestration()
   const t = setInterval(() => { system.fetchHealth(); system.fetchCycles() }, 30_000)
   onUnmounted(() => clearInterval(t))
 })
 
 function runScan() {
   system.triggerScan()
-  setTimeout(() => { system.fetchHealth(); system.fetchCycles() }, 6000)
+  setTimeout(() => { system.fetchHealth(); system.fetchCycles(); system.fetchOrchestration() }, 6000)
 }
 
 // ── Live : nœud actif + statut du dernier cycle ──

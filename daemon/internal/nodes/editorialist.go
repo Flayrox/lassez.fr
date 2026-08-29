@@ -161,6 +161,18 @@ func RunEditorialist(client *store.Client, resolver *config.Resolver) error {
 		log.Printf("[Node 4] 🔍 Recherche web désactivée : l'IA rédige sans vérification en ligne.")
 	}
 
+	// Mémoire éditoriale (Palier 1) : ce qu'on a publié les N derniers jours —
+	// la rédaction évite les redites, reprend les fils et sort les
+	// contradictions (le cas Retailleau). Injectée dans le prompt de chaque
+	// brouillon.
+	var memory []store.MemoryEntry
+	if memEnabled(resolver) {
+		memory, err = client.GetMemory(memWindowDays(resolver))
+		if err != nil {
+			log.Printf("[Node 4] ⚠️ Mémoire illisible : %v", err)
+		}
+	}
+
 	var (
 		wg  sync.WaitGroup
 		sem = make(chan struct{}, concurrency)
@@ -229,9 +241,19 @@ func RunEditorialist(client *store.Client, resolver *config.Resolver) error {
 			// modèle ne recevait que le titre du cluster.
 			material := buildSourceMaterial(raw.Articles)
 
+			memoryBlock := ""
+			if len(memory) > 0 {
+				var sbMem strings.Builder
+				sbMem.WriteString("\n\nMÉMOIRE ÉDITORIALE (ce que tu as déjà publié les derniers jours — si le sujet du jour contredit, prolonge ou répète une de ces publications, sors la contradiction ou l'angle de suite explicitement) :\n")
+				for _, m := range memory {
+					sbMem.WriteString(fmt.Sprintf("- %s [%s] (publié %s)\n", orTitle(m.Headline), orTitle(m.Taxonomy), dateOnly(m.PublishedAt)))
+				}
+				memoryBlock = sbMem.String()
+			}
+
 			userPrompt := fmt.Sprintf(
-				"REDACTION DU DOSSIER :\nTitre source : %s\nCatégorie : %s\nZone Geo : %s%s\n\nRédige l'article en t'appuyant UNIQUEMENT sur la matière première ci-dessus (contenu complet des articles, extraits, biais des sources). Ne jamais inventer de faits absents de cette matière.",
-				orTitle(raw.ClusterTitle), taxonomy, geo, material,
+				"REDACTION DU DOSSIER :\nTitre source : %s\nCatégorie : %s\nZone Geo : %s%s%s\n\nRédige l'article en t'appuyant UNIQUEMENT sur la matière première ci-dessus (contenu complet des articles, extraits, biais des sources). Ne jamais inventer de faits absents de cette matière.",
+				orTitle(raw.ClusterTitle), taxonomy, geo, material, memoryBlock,
 			)
 
 			// Modèle par format : modelByFormat (id du format → modèle) prime sur

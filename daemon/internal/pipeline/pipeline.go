@@ -24,12 +24,13 @@ import (
 
 // NodeType — identifiant explicite d'un nœud (utilisé dans pipelineGraphJson.nodes[].type)
 const (
-	NodeIngestion = "ingestion"
-	NodeDedup     = "dedup"
-	NodeResearch  = "research"
-	NodeEditor    = "editor"
-	NodeValidator = "validator"
-	NodeMedia     = "media"
+	NodeIngestion    = "ingestion"
+	NodeDedup        = "dedup"
+	NodeOrchestrator = "orchestrator"
+	NodeResearch     = "research"
+	NodeEditor       = "editor"
+	NodeValidator    = "validator"
+	NodeMedia        = "media"
 	// publisher est hors cycle (boucle séparée daemon/cmd/daemon/main.go)
 )
 
@@ -44,20 +45,22 @@ type NodeMeta struct {
 var NodeCatalog = []NodeMeta{
 	{Type: NodeIngestion, Label: "Ingestion", Description: "RSS → SeenUrl", Order: 1},
 	{Type: NodeDedup, Label: "Dédoublonnage", Description: "string-similarity 0.45, 48h lookback", Order: 2},
-	{Type: NodeResearch, Label: "Researcher", Description: "Gemini Flash scoring 0-100, triage", Order: 3},
-	{Type: NodeEditor, Label: "Editorialist", Description: "Gemini Pro rédaction investigation", Order: 4},
-	{Type: NodeValidator, Label: "Validator", Description: "Vérif faits + conformité", Order: 5},
-	{Type: NodeMedia, Label: "Media", Description: "Enrichissement image (Unsplash/keywords)", Order: 6},
+	{Type: NodeOrchestrator, Label: "Orchestrateur", Description: "Chef de desk — 1 appel IA/cycle, agenda + aiguillage", Order: 3},
+	{Type: NodeResearch, Label: "Researcher", Description: "Gemini Flash scoring 0-100, triage (repli)", Order: 4},
+	{Type: NodeEditor, Label: "Editorialist", Description: "Gemini Pro rédaction investigation", Order: 5},
+	{Type: NodeValidator, Label: "Validator", Description: "Vérif faits + conformité", Order: 6},
+	{Type: NodeMedia, Label: "Media", Description: "Enrichissement image (Unsplash/keywords)", Order: 7},
 }
 
 // defaultActiveNodes = graphe par défaut si aucun JSON en DB
 var defaultActiveNodes = map[string]bool{
-	NodeIngestion: true,
-	NodeDedup:     true,
-	NodeResearch:  true,
-	NodeEditor:    true,
-	NodeValidator: true,
-	NodeMedia:     true,
+	NodeIngestion:    true,
+	NodeDedup:        true,
+	NodeOrchestrator: false, // opt-in : remplace le Tri quand il est activé
+	NodeResearch:     true,  // repli automatique si l'orchestrateur est désactivé/échoue
+	NodeEditor:       true,
+	NodeValidator:    true,
+	NodeMedia:        true,
 }
 
 // ActiveNodes reads the pipelineGraphJson setting and returns the set of
@@ -162,8 +165,22 @@ func RunCycle(client *store.Client, resolver *config.Resolver, log *logger.Logge
 	// Les nœuds suivants traitent les signals laissés en attente par les
 	// cycles précédents (statuts du pipeline), même sans nouveaux articles.
 
+	// Orchestrateur (chef de desk) : 1 appel IA/cycle, aiguille tous les
+	// sujets ingérés (format + zone) ou les écarte. Quand il est actif, il
+	// remplace le Tri ; le Tri ci-dessous reste un repli automatique.
+	if active["orchestrator"] {
+		log.Info("Node 3", "🧭 Lancement de l'Orchestrateur (chef de desk — agenda + aiguillage)...")
+		start := time.Now()
+		err := nodes.RunOrchestrator(client, resolver)
+		nodes.RecordBrickRun(NodeOrchestrator, "Orchestrateur", err, time.Since(start))
+		client.RecordCycleStep(cycleID, NodeOrchestrator, "Aiguillé", stepStatus(err), time.Since(start), errMsg(err), "agenda du cycle planifié")
+		if err != nil {
+			log.Error("Node 3", "❌ Erreur orchestrateur: "+err.Error())
+		}
+	}
+
 	if active["research"] {
-		log.Info("Node 3", "🤖 Lancement du Researcher (IA Flash / Scoring & Filtrage)...")
+		log.Info("Node 3", "🤖 Lancement du Researcher (IA Flash / Scoring & Filtrage — repli du Tri)...")
 		start := time.Now()
 		err := nodes.RunResearcher(client, resolver)
 		nodes.RecordBrickRun(NodeResearch, "Researcher", err, time.Since(start))
@@ -242,7 +259,7 @@ func strVal(v any, def string) string {
 
 // activeList — liste ordonnée des nœuds actifs pour le log
 func activeList(active map[string]bool) []string {
-	order := []string{NodeIngestion, NodeDedup, NodeResearch, NodeEditor, NodeValidator, NodeMedia}
+	order := []string{NodeIngestion, NodeDedup, NodeOrchestrator, NodeResearch, NodeEditor, NodeValidator, NodeMedia}
 	var out []string
 	for _, n := range order {
 		if active[n] {

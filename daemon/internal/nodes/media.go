@@ -14,7 +14,7 @@ import (
 	"sync"
 
 	"github.com/Flayrox/lassez.fr/daemon/internal/config"
-	"github.com/Flayrox/lassez.fr/daemon/internal/payload"
+	"github.com/Flayrox/lassez.fr/daemon/internal/store"
 )
 
 // bannedDomains mirrors the TS media node's blocked image sources. Matching
@@ -34,7 +34,7 @@ type imageResult struct {
 
 // RunMedia is Node 6 of the pipeline: it assigns a royalty-free illustration
 // to VALIDATED signals, then moves them to PENDING.
-func RunMedia(client *payload.Client, resolver *config.Resolver) error {
+func RunMedia(client *store.Client, resolver *config.Resolver) error {
 	log.Printf("\n📸 [Node 6: Media] Démarrage de la recherche d'images (OSINT / Google Images)")
 
 	topics, err := client.GetSignalsByStatus("VALIDATED")
@@ -68,7 +68,7 @@ func RunMedia(client *payload.Client, resolver *config.Resolver) error {
 	for _, topic := range topics {
 		wg.Add(1)
 		sem <- struct{}{}
-		go func(topic payload.Signal) {
+		go func(topic store.Signal) {
 			defer wg.Done()
 			defer func() { <-sem }()
 

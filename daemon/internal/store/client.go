@@ -1,14 +1,13 @@
-// Package payload — COMPAT SHIP LOCAL.
+// Package store — stockage local du pipeline (SQLite + settings YAML).
 //
-// Anciennement un client REST vers Payload CMS ; depuis le pivot qoe.fi,
-// ce fichier implémente exactement la même API Go mais tout est stocké
-// localement :
+// Anciennement un client REST vers le CMS ; depuis le pivot local, ce
+// fichier implémente l'API du pipeline avec un stockage 100% local :
 //   - signaux, seen-urls et publications → SQLite (data/radar.db, tables daemon_*)
 //   - settings → config/config.yaml aplati en map (clés historiques préservées)
 //
 // Les nœuds du pipeline ne changent pas : ils continuent d'appeler
 // client.GetSignalsByStatus / UpdateSignal / CreateSignals / etc.
-package payload
+package store
 
 import (
 	"database/sql"
@@ -37,7 +36,7 @@ func (id ID) Number() int64 {
 	return n
 }
 
-// Signal — document du pipeline (miroir de l'ancienne collection Payload).
+// Signal — document du pipeline (miroir de l'ancienne collection CMS).
 type Signal struct {
 	ID         ID              `json:"id"`
 	RawData    json.RawMessage `json:"raw_data"`
@@ -144,7 +143,7 @@ func NewLocal(dbPath string, settingsProvider func() (map[string]any, error)) (*
 		"PRAGMA busy_timeout=5000",
 	} {
 		if _, err := db.Exec(pragma); err != nil {
-			log.Printf("[payload-local] pragma %q : %v", pragma, err)
+			log.Printf("[store-local] pragma %q : %v", pragma, err)
 		}
 	}
 	c := &Client{db: db, settings: settingsProvider, dbPath: dbPath}
@@ -361,7 +360,7 @@ func (c *Client) EnsureSettings() error { return nil } // plus de global à cré
 
 func (c *Client) UpdateSettings(map[string]any) error { return nil } // heartbeat = no-op
 
-// AppendLog — le miroir Payload est débranché ; le fichier daemon.log suffit.
+// AppendLog — no-op conservé pour compat ; le fichier daemon.log suffit.
 func (c *Client) AppendLog(string, string, string) {}
 
 func (c *Client) PruneLogs(time.Time) error { return nil }

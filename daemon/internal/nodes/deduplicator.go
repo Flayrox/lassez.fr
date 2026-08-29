@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/Flayrox/lassez.fr/daemon/internal/config"
-	"github.com/Flayrox/lassez.fr/daemon/internal/payload"
+	"github.com/Flayrox/lassez.fr/daemon/internal/store"
 )
 
 // mergedTopic mirrors the TS MergedTopic persisted in raw_data.
@@ -21,7 +21,7 @@ type mergedTopic struct {
 // RunDeduplicator is Node 2 of the pipeline: clusters the ingested articles
 // by title similarity, drops historical duplicates and persists the new
 // topics as INGESTED signals.
-func RunDeduplicator(client *payload.Client, resolver *config.Resolver, articles []IngestedArticle) error {
+func RunDeduplicator(client *store.Client, resolver *config.Resolver, articles []IngestedArticle) error {
 	log.Printf("[Node 2: Deduplicator] 🧩 Tamisage sur %d articles bruts.", len(articles))
 	if len(articles) == 0 {
 		return nil
@@ -118,7 +118,7 @@ func RunDeduplicator(client *payload.Client, resolver *config.Resolver, articles
 
 	if len(toCreate) > 0 {
 		if err := client.CreateSignals(toCreate); err != nil {
-			log.Printf("[Node 2] ❌ Insertion Payload: %v", err)
+			log.Printf("[Node 2] ❌ Insertion: %v", err)
 		}
 	}
 

@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/Flayrox/lassez.fr/daemon/internal/config"
-	"github.com/Flayrox/lassez.fr/daemon/internal/payload"
+	"github.com/Flayrox/lassez.fr/daemon/internal/store"
 	"github.com/Flayrox/lassez.fr/daemon/internal/publish"
 	"github.com/Flayrox/lassez.fr/daemon/internal/qoe"
 )
@@ -25,7 +25,7 @@ type publisherPlatform struct {
 // Phase A (scheduling) : PENDING → QUEUED + crée Publication par plateforme activée
 // Phase B (dispatch) : due PENDING → appel Channel.Publish (Discord/QOE/X/Bluesky) → PUBLISHED
 // Le registry est modulaire : chaque plateforme = Channel, ajouté seulement si enableXXX=true.
-func RunPublisher(client *payload.Client, resolver *config.Resolver) error {
+func RunPublisher(client *store.Client, resolver *config.Resolver) error {
 	log.Printf("\n[Node 6: Publisher] 🚀 Tour de contrôle — QOE (qoe.fi) + Discord/X/Bluesky")
 
 	registry := buildRegistry(client, resolver)
@@ -52,7 +52,7 @@ func RunPublisher(client *payload.Client, resolver *config.Resolver) error {
 		log.Printf("[Node 6: Phase A] 📤 %d nouveaux articles à programmer.", len(pending))
 
 		// Bascule atomique PENDING → QUEUED.
-		ids := make([]payload.ID, 0, len(pending))
+		ids := make([]store.ID, 0, len(pending))
 		for _, t := range pending {
 			ids = append(ids, t.ID)
 		}
@@ -78,8 +78,6 @@ func RunPublisher(client *payload.Client, resolver *config.Resolver) error {
 				mode = strParam(resolver, "publisher", "blueskyPublishMode", "SCHEDULED")
 			case "MASTODON":
 				mode = strParam(resolver, "publisher", "mastodonPublishMode", "SCHEDULED")
-			case "PAYLOAD":
-				mode = strParam(resolver, "publisher", "payloadPublishMode", "DIRECT")
 			}
 			platforms = append(platforms, publisherPlatform{Name: name, Mode: mode})
 		}
@@ -131,7 +129,7 @@ func RunPublisher(client *payload.Client, resolver *config.Resolver) error {
 			}
 		}
 
-		var missions []payload.PublicationInput
+		var missions []store.PublicationInput
 		for _, topic := range pending {
 			// La matrice filtre les plateformes autorisées pour ce signal.
 			// topicsWithAllowed := resolveAllowed(topic.Taxonomy)
@@ -147,7 +145,7 @@ func RunPublisher(client *payload.Client, resolver *config.Resolver) error {
 					finalScheduledAt = base.Add(time.Duration(delayMinutes) * time.Minute)
 					lastScheduled[platform.Name] = finalScheduledAt
 				}
-				missions = append(missions, payload.PublicationInput{
+				missions = append(missions, store.PublicationInput{
 					TopicID:     topic.ID,
 					Platform:    platform.Name,
 					Status:      "PENDING",
@@ -160,7 +158,7 @@ func RunPublisher(client *payload.Client, resolver *config.Resolver) error {
 			if err := client.CreatePublications(missions); err != nil {
 				log.Printf("[Node 6: Phase A] ⚠️ Création des missions : %v", err)
 			} else {
-				log.Printf("[Node 6: Phase A] ✅ %d missions créées dans Payload.", len(missions))
+				log.Printf("[Node 6: Phase A] ✅ %d missions de publication créées.", len(missions))
 			}
 		}
 	}
@@ -198,7 +196,7 @@ func RunPublisher(client *payload.Client, resolver *config.Resolver) error {
 // buildRegistry instantiates the enabled channels from radar-settings. This
 // is the modular seam: every enabled platform becomes a Channel, and Phase A
 // only schedules missions for registered platforms.
-func buildRegistry(client *payload.Client, resolver *config.Resolver) *publish.Registry {
+func buildRegistry(client *store.Client, resolver *config.Resolver) *publish.Registry {
 	registry := publish.NewRegistry()
 
 	httpClient := &http.Client{Timeout: 30 * time.Second}
@@ -240,7 +238,7 @@ func buildRegistry(client *payload.Client, resolver *config.Resolver) *publish.R
 			HTTP:             httpClient,
 		}))
 	}
-	// QOE — qoe.fi : remplace définitivement Payload. La clé vient de
+	// QOE — qoe.fi : canal de publication principal. La clé vient de
 	// .secrets.yaml (qoeApiKey/qoePublicationId) via le resolver — le labo la
 	// colle dans Système. Tant qu'aucune clé n'est présente : mode test (mock).
 	if boolParam(resolver, "publisher", "enableQoe", true) {
@@ -256,12 +254,12 @@ func buildRegistry(client *payload.Client, resolver *config.Resolver) *publish.R
 
 // dispatchPublication sends one due publication to its platform through the
 // registry and updates the mission + signal statuses.
-func dispatchPublication(client *payload.Client, registry *publish.Registry, pub payload.Publication) error {
+func dispatchPublication(client *store.Client, registry *publish.Registry, pub store.Publication) error {
 	markFailed := func() {
 		_ = client.UpdatePublication(pub.ID, map[string]any{"status": "FAILED"})
 	}
 
-	topic := (*payload.Signal)(nil)
+	topic := (*store.Signal)(nil)
 	if t, ok := pub.Topic(); ok {
 		topic = t
 	} else if topicID, ok := pub.TopicID(); ok {

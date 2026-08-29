@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/Flayrox/lassez.fr/daemon/internal/config"
-	"github.com/Flayrox/lassez.fr/daemon/internal/payload"
+	"github.com/Flayrox/lassez.fr/daemon/internal/store"
 )
 
 const (
@@ -29,7 +29,7 @@ type researchEvaluation struct {
 // RunResearcher is Node 3 of the pipeline: it scores INGESTED signals via
 // Gemini Flash and either approves them (RESEARCHED + taxonomy/geo) or
 // rejects them.
-func RunResearcher(client *payload.Client, resolver *config.Resolver) error {
+func RunResearcher(client *store.Client, resolver *config.Resolver) error {
 	log.Printf("\n[Node 3: Researcher] 🧠 Lancement du filtrage IA...")
 
 	topics, err := client.GetSignalsByStatus("INGESTED")
@@ -116,7 +116,7 @@ func RunResearcher(client *payload.Client, resolver *config.Resolver) error {
 	for _, topic := range topics {
 		wg.Add(1)
 		sem <- struct{}{}
-		go func(topic payload.Signal) {
+		go func(topic store.Signal) {
 			defer wg.Done()
 			defer func() { <-sem }()
 

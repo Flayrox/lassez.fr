@@ -1,7 +1,7 @@
 // Package config — résolution des paramètres du daemon.
 //
 // Depuis le pivot qoe.fi, les settings viennent de config/config.yaml
-// (aplati en map avec les clés historiques) au lieu du global Payload.
+// (aplati en map avec les clés historiques) au lieu du global du CMS.
 // La cascade reste identique :
 //  1. override du nœud dans pipelineGraphJson
 //  2. clé préfixée par le nœud ("research.maxConcurrentTasks")

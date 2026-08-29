@@ -151,7 +151,7 @@
         </LCard>
 
         <!-- Chaîne -->
-        <LCard title="Chaîne de fabrication" :description="`${activeCount} étapes sur 6 actives`">
+        <LCard title="Chaîne de fabrication" :description="`${activeCount} étapes sur 7 actives`">
           <div class="flex flex-wrap items-center gap-1">
             <template v-for="(n, i) in store.atelier" :key="n.type">
               <div class="flex items-center gap-1">

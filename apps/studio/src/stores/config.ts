@@ -71,10 +71,11 @@ export const useConfigStore = defineStore('config', () => {
   const atelier = ref([
     { type: 'ingestion', label: 'Collecte', enabled: true, desc: 'On récupère les nouveaux articles', order: 1 },
     { type: 'dedup', label: 'Anti-doublons', enabled: true, desc: 'Similarité 65%, fenêtre 10 h', order: 2 },
-    { type: 'research', label: 'Tri', enabled: true, desc: 'Gemini Flash note 0–100', order: 3 },
-    { type: 'editor', label: 'Rédaction', enabled: true, desc: 'Gemini Pro écrit l’enquête', order: 4 },
-    { type: 'validator', label: 'Vérification', enabled: true, desc: 'Auto-pilote désactivé pour l’instant', order: 5 },
-    { type: 'media', label: 'Image', enabled: true, desc: 'Overlay 50%, box 78%', order: 6 },
+    { type: 'orchestrator', label: 'Orchestrateur', enabled: false, desc: 'Chef de desk — 1 appel IA/cycle, agenda + aiguillage (remplace le Tri)', order: 3 },
+    { type: 'research', label: 'Tri', enabled: true, desc: 'Gemini 3.7 Flash — note 0–100 (repli)', order: 4 },
+    { type: 'editor', label: 'Rédaction', enabled: true, desc: 'Gemini 3.7 Flash écrit l’enquête', order: 5 },
+    { type: 'validator', label: 'Vérification', enabled: true, desc: 'Auto-pilote désactivé pour l’instant', order: 6 },
+    { type: 'media', label: 'Image', enabled: true, desc: 'Overlay 50%, box 78%', order: 7 },
   ])
 
   // Positions sauvegardées du graphe (type → x/y) — sinon reposition auto
@@ -99,12 +100,16 @@ export const useConfigStore = defineStore('config', () => {
 
   // ── Écriture ──
   const ecriture = ref({
-    // Répartition niveau gratuit : le Tri et la Vérification sur Flash Lite
-    // (volume, léger), la Rédaction sur Flash (gemini-3.7-flash, le meilleur
-    // rapport qualité/coût de la série Gemini 3).
-    modeleRapide: 'Gemini 3.5 Flash Lite',
+    // Les deux nœuds IA (Tri/Orchestrateur + Rédaction) sur Gemini 3.7 Flash :
+    // le Tri/Orchestrateur raisonne MOYEN (2048), la Rédaction TRÈS ÉLEVÉ
+    // (16384 — elle rédige ET vérifie en un seul passage).
+    modeleRapide: 'Gemini 3.7 Flash',
     modeleRedaction: 'Gemini 3.7 Flash',
     modeleVerification: 'Gemini 3.5 Flash Lite',
+    modeleOrchestrateur: 'Gemini 3.7 Flash',
+    thinkingRapide: 2048,
+    thinkingOrchestrateur: 2048,
+    maxSujetsOrchestrateur: 50,
     tachesEnMemeTempsRapide: 5,
     tachesEnMemeTempsRedaction: 3,
     scoreMini: 50,
@@ -138,9 +143,9 @@ export const useConfigStore = defineStore('config', () => {
     mission: FACTORY_PROMPTS.mission,
     vocabulaire: FACTORY_PROMPTS.vocabulaire,
     consignesImages: FACTORY_PROMPTS.consignesImages,
-    // Raisonnement de la rédaction (thinking tokens) : élevé pour rédiger ET
-    // vérifier en un seul passage. 0 = réponse directe sans raisonnement.
-    thinkingBudget: 8192,
+    // Raisonnement de la rédaction (thinking tokens) : très élevé pour rédiger
+    // ET vérifier en un seul passage. 0 = réponse directe sans raisonnement.
+    thinkingBudget: 16384,
     consigneGlobale: '',
   })
 
@@ -399,9 +404,15 @@ export const useConfigStore = defineStore('config', () => {
         bannedKeywords: lines(filtres.value.motsInterdits),
         allowSourceImages: filtres.value.imagesAutorisees,
       },
+      orchestrator: {
+        aiModel: modelValueOf(ecriture.value.modeleOrchestrateur),
+        thinkingBudget: ecriture.value.thinkingOrchestrateur,
+        maxItemsPerCycle: ecriture.value.maxSujetsOrchestrateur,
+      },
       research: {
         aiModelFlash: modelValueOf(ecriture.value.modeleRapide),
         aiModelDecrypt: modelValueOf(ecriture.value.modeleRedaction),
+        thinkingBudget: ecriture.value.thinkingRapide,
         maxConcurrentTasks: ecriture.value.tachesEnMemeTempsRapide,
         scoreThreshold: ecriture.value.scoreMini,
         // Un seul interrupteur global ; les anciennes clés par type restent
@@ -540,12 +551,17 @@ export const useConfigStore = defineStore('config', () => {
 
     // Écriture
     const research = isObj(y.research) ? y.research : {}
+    const orchestrator = isObj(y.orchestrator) ? y.orchestrator : {}
     const editorial = isObj(y.editorial) ? y.editorial : {}
     ecriture.value = {
       ...ecriture.value,
       modeleRapide: sOr(research.aiModelFlash, ecriture.value.modeleRapide),
       modeleRedaction: sOr(editorial.aiModelPro, sOr(research.aiModelDecrypt, ecriture.value.modeleRedaction)),
       modeleVerification: sOr(editorial.aiModelVerification, ecriture.value.modeleVerification),
+      modeleOrchestrateur: sOr(orchestrator.aiModel, ecriture.value.modeleOrchestrateur),
+      thinkingRapide: numOr(research.thinkingBudget, ecriture.value.thinkingRapide),
+      thinkingOrchestrateur: numOr(orchestrator.thinkingBudget, ecriture.value.thinkingOrchestrateur),
+      maxSujetsOrchestrateur: numOr(orchestrator.maxItemsPerCycle, ecriture.value.maxSujetsOrchestrateur),
       tachesEnMemeTempsRapide: numOr(research.maxConcurrentTasks, ecriture.value.tachesEnMemeTempsRapide),
       tachesEnMemeTempsRedaction: numOr(editorial.maxConcurrentTasks, ecriture.value.tachesEnMemeTempsRedaction),
       scoreMini: numOr(research.scoreThreshold, ecriture.value.scoreMini),

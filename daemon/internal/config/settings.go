@@ -92,8 +92,14 @@ func flatten(d map[string]any) map[string]any {
 	set("dedupLookbackHours", f("dedup", "lookbackHours"))
 	set("dedup.recentHours", f("dedup", "lookbackHours"))
 
+	// Orchestrateur (chef de desk — remplace le Tri quand il est activé)
+	set("orchestrator.aiModel", s("orchestrator", "aiModel"))
+	set("orchestrator.thinkingBudget", f("orchestrator", "thinkingBudget"))
+	set("orchestrator.maxItemsPerCycle", f("orchestrator", "maxItemsPerCycle"))
+
 	// Research
 	set("research.aiModelFlash", s("research", "aiModelFlash"))
+	set("research.thinkingBudget", f("research", "thinkingBudget"))
 	set("research.maxConcurrentTasks", f("research", "maxConcurrentTasks"))
 	set("research.customModifier", s("research", "customPromptModifier"))
 	set("aiModelFlash", orString(s("research", "aiModelFlash"), "gemini-3.5-flash-lite"))

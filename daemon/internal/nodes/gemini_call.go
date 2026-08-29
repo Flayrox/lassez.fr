@@ -55,10 +55,17 @@ const (
 	editorTopP   = float32(0.95)
 	editorTokens = int32(8192)
 	// editorThinking : budget de « raisonnement » (thinking tokens) de la
-	// rédaction. Élevé : l'IA raisonne longuement (avec Google Search) avant
-	// d'écrire, ce qui remplace l'ancien nœud de validation — un seul passage
-	// fait à la fois rédiger ET contrôler. Facturé en tokens de sortie.
-	editorThinking = int32(8192)
+	// rédaction. Très élevé : l'IA raisonne longuement (avec Google Search)
+	// avant d'écrire, ce qui remplace l'ancien nœud de validation — un seul
+	// passage fait à la fois rédiger ET contrôler. Facturé en tokens de sortie.
+	editorThinking = int32(16384)
+
+	// Orchestrateur (chef de desk) : 1 appel/cycle, strict, thinking MOYEN —
+	// il planifie et aiguille, la rédaction rédige (très élevé).
+	orchestratorTemp      = float32(0.1)
+	orchestratorTopP      = float32(0.9)
+	orchestratorTokens    = int32(8192)
+	orchestratorThinking  = int32(2048)
 
 	validatorTemp   = float32(0.1)
 	validatorTopP   = float32(0.9)
@@ -526,4 +533,20 @@ func schemaValidator() map[string]any {
 		"corrections": jsonStr("Le texte corrigé si nécessaire"),
 		"reason":      jsonStr("Justification du verdict de validation"),
 	}, []string{"isValid", "reason"})
+}
+
+// schemaOrchestrator — Chef de desk : une décision par sujet de la liste
+// (keep/drop + aiguillage format/zone/angle).
+func schemaOrchestrator() map[string]any {
+	item := jsonObj(map[string]any{
+		"id":       jsonStr("L'id du sujet, exactement tel que fourni dans la liste"),
+		"decision": jsonStr("keep (à traiter) ou drop (à écarter)"),
+		"taxonomy": jsonStr("Un des ids de CATÉGORIES DISPONIBLES (obligatoire si keep)"),
+		"geo":      jsonStr("france ou international (obligatoire si keep)"),
+		"angle":    jsonStr("L'angle à prendre, une phrase (obligatoire si keep)"),
+		"reason":   jsonStr("Justification du choix"),
+	}, []string{"id", "decision"})
+	return jsonObj(map[string]any{
+		"decisions": map[string]any{"type": "array", "description": "Une entrée par sujet de la liste, sans omission ni invention", "items": item},
+	}, []string{"decisions"})
 }

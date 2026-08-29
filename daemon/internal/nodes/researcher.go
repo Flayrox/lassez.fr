@@ -53,10 +53,18 @@ func RunResearcher(client *store.Client, resolver *config.Resolver) error {
 		return nil
 	}
 
-	modelName := "gemini-3.5-flash-lite"
+	modelName := "gemini-3.7-flash"
 	if v := resolver.GetEffectiveParam("research", "aiModelFlash", modelName); v != nil {
 		if s, ok := v.(string); ok && s != "" {
 			modelName = s
+		}
+	}
+	// Thinking MOYEN (repli de l'orchestrateur) : le tri raisonne un peu, la
+	// rédaction rédige (très élevé). 0 = réponse directe sans raisonnement.
+	thinking := int32(2048)
+	if v := resolver.GetEffectiveParam("research", "thinkingBudget", float64(thinking)); v != nil {
+		if n := int32(toFloat64(v, float64(thinking))); n > 0 {
+			thinking = n
 		}
 	}
 	customPrompt := ""
@@ -140,6 +148,7 @@ func RunResearcher(client *store.Client, resolver *config.Resolver) error {
 				temperature:    researchTemp,
 				topP:           researchTopP,
 				maxTokens:      researchTokens,
+				thinkingBudget: thinking,
 				search:         searchWeb,
 				responseSchema: schemaResearcher(),
 				vertex:         VertexAIConfig(resolver),

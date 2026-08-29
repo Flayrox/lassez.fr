@@ -134,11 +134,11 @@ interface Field {
 }
 
 const icons: Record<string, string> = {
-  ingestion: '◉', dedup: '⬢', research: '✦', editor: '✎', validator: '✓', media: '◎',
+  ingestion: '◉', dedup: '⬢', orchestrator: '✸', research: '✦', editor: '✎', validator: '✓', media: '◎',
 }
 function iconFor(t: string) { return icons[t] ?? '●' }
 // Nœud du pipeline → numéro de la carte « Expliquer » (/pipeline#noeud-N)
-const explainByType: Record<string, number> = { ingestion: 1, dedup: 2, research: 3, editor: 4, validator: 5, media: 6 }
+const explainByType: Record<string, number> = { ingestion: 1, dedup: 2, orchestrator: 3, research: 4, editor: 5, validator: 6, media: 7 }
 function explainId(t: string) { return explainByType[t] ?? 1 }
 
 function toggle(type: string) { expanded.value = expanded.value === type ? null : type }
@@ -154,8 +154,10 @@ const summaryOf = (t: string) => {
       return `Fenêtre ${store.sources.lookbackHours} h · ${store.sources.maxArticlesPerScan} articles/passage · ${store.sources.concurrency} en parallèle`
     case 'dedup':
       return `Ressemblance max ${store.filtres.seuilRessemblance}% · mémoire ${store.filtres.fenetreDoublonsHeures} h`
+    case 'orchestrator':
+      return `${store.ecriture.modeleOrchestrateur} · thinking ${store.ecriture.thinkingOrchestrateur} tokens · 1 appel/cycle · remplace le Tri`
     case 'research':
-      return `${store.ecriture.modeleRapide} · ${store.ecriture.tachesEnMemeTempsRapide} en parallèle${store.ecriture.webSearchEnabled ? ' · recherche web' : ''}`
+      return `${store.ecriture.modeleRapide} · thinking ${store.ecriture.thinkingRapide} tokens · ${store.ecriture.tachesEnMemeTempsRapide} en parallèle (repli)`
     case 'editor':
       return `${store.ecriture.modeleRedaction} · ${store.ecriture.tachesEnMemeTempsRedaction} en parallèle`
     case 'validator':
@@ -181,9 +183,16 @@ const fieldsFor = (type: string): Field[] => {
         { key: 'threshold', label: 'Ressemblance maximum', unit: '%', help: 'Au-delà, l’article est un doublon', type: 'slider', min: 10, max: 90, value: store.filtres.seuilRessemblance, apply: (v: number) => (store.filtres.seuilRessemblance = v) },
         { key: 'window', label: 'Mémoire anti-doublons', unit: ' h', help: 'On compare avec cette fenêtre', type: 'slider', min: 1, max: 72, value: store.filtres.fenetreDoublonsHeures, apply: (v: number) => (store.filtres.fenetreDoublonsHeures = v) },
       ]
+    case 'orchestrator':
+      return [
+        { key: 'aiModelOrchestrator', label: 'Modèle de l’orchestrateur', help: 'Chef de desk — 1 appel IA par cycle', type: 'select', options: store.modelRegistry.map(m => m.label), value: store.ecriture.modeleOrchestrateur, apply: (v: string) => (store.ecriture.modeleOrchestrateur = v) },
+        { key: 'thinkingOrchestrator', label: 'Raisonnement (thinking)', help: 'Moyen par défaut : il planifie, la rédaction rédige', type: 'select', options: ['2048 — moyen', '8192 — élevé', '16384 — très élevé'], value: String(store.ecriture.thinkingOrchestrateur), apply: (v: string) => (store.ecriture.thinkingOrchestrateur = parseInt(v)) },
+        { key: 'maxTopics', label: 'Sujets lus par cycle', help: 'La liste complète du jour (borne du prompt)', type: 'slider', min: 10, max: 100, value: store.ecriture.maxSujetsOrchestrateur, apply: (v: number) => (store.ecriture.maxSujetsOrchestrateur = v) },
+      ]
     case 'research':
       return [
-        { key: 'aiModelFlash', label: 'Modèle de tri', help: 'Le plus rapide pour noter 0–100', type: 'select', options: store.modelRegistry.map(m => m.label), value: store.ecriture.modeleRapide, apply: (v: string) => (store.ecriture.modeleRapide = v) },
+        { key: 'aiModelFlash', label: 'Modèle de tri', help: 'Repli de l’orchestrateur — note 0–100', type: 'select', options: store.modelRegistry.map(m => m.label), value: store.ecriture.modeleRapide, apply: (v: string) => (store.ecriture.modeleRapide = v) },
+        { key: 'thinkingRapide', label: 'Raisonnement (thinking)', help: 'Moyen par défaut — 0 = réponse directe', type: 'select', options: ['0 — rapide', '2048 — moyen', '8192 — élevé'], value: String(store.ecriture.thinkingRapide), apply: (v: string) => (store.ecriture.thinkingRapide = parseInt(v)) },
         { key: 'concurrency', label: 'Traiter combien à la fois', help: 'En parallèle', type: 'slider', min: 1, max: 10, value: store.ecriture.tachesEnMemeTempsRapide, apply: (v: number) => (store.ecriture.tachesEnMemeTempsRapide = v) },
         { key: 'webSearch', label: 'Recherche web', help: "Gemini vérifie sur le web avant de rédiger — pour tous les types d'articles (réglable dans Écriture)", type: 'toggle-row', value: store.ecriture.webSearchEnabled, apply: (v: boolean) => (store.ecriture.webSearchEnabled = v) },
       ]

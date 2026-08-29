@@ -25,6 +25,7 @@ import (
 type Client struct {
 	db       *sql.DB
 	settings func() (map[string]any, error)
+	dbPath   string
 }
 
 // ID — identifiant de signal/publication (entier sérialisé en chaîne).
@@ -146,12 +147,16 @@ func NewLocal(dbPath string, settingsProvider func() (map[string]any, error)) (*
 			log.Printf("[payload-local] pragma %q : %v", pragma, err)
 		}
 	}
-	c := &Client{db: db, settings: settingsProvider}
+	c := &Client{db: db, settings: settingsProvider, dbPath: dbPath}
 	if err := c.migrate(); err != nil {
 		return nil, fmt.Errorf("migration daemon_* : %w", err)
 	}
 	return c, nil
 }
+
+// DBPath — chemin du fichier SQLite (utilisé pour dériver le dossier des
+// bases par élection : data/radar.db → data/elections/).
+func (c *Client) DBPath() string { return c.dbPath }
 
 func (c *Client) migrate() error {
 	stmts := []string{

@@ -3,22 +3,22 @@ import Layout from '@/components/Layout';
 import { departments as deptNames } from '@/lib/geo-data';
 import { formatCommuneSlug } from '@/lib/seo-engine';
 import Database from 'better-sqlite3';
-import { getRadarDbPath } from '@/lib/radar-db';
+import { getElectionDbPath } from '@/lib/elections-db';
 import path from 'path';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import CitySearchBar from '@/components/CitySearchBar';
 
 interface PageProps {
-    params: {
+    params: Promise<{
         'code-dept': string;
-    };
+    }>;
 }
 
 async function getCommunes(codeDept: string) {
     try {
-        const db = new Database(getRadarDbPath());
-        const rows = db.prepare('SELECT DISTINCT code_insee, ville FROM elections_officiel_cache WHERE code_departement = ? AND election_slug = "municipales-2026" ORDER BY ville').all(codeDept) as { code_insee: string, ville: string }[];
+        const db = new Database(getElectionDbPath('municipales-2026'), { readonly: true });
+        const rows = db.prepare('SELECT DISTINCT code_insee, ville FROM elections_officiel_cache WHERE code_departement = ? ORDER BY ville').all(codeDept) as { code_insee: string, ville: string }[];
         db.close();
         return rows;
     } catch (error) {
@@ -28,7 +28,8 @@ async function getCommunes(codeDept: string) {
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
-    const codeDept = params['code-dept'];
+    const resolvedParams = await params;
+    const codeDept = resolvedParams['code-dept'];
     const deptName = deptNames[codeDept];
 
     if (!deptName) {
@@ -50,7 +51,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 }
 
 export default async function DepartmentHub({ params }: PageProps) {
-    const codeDept = params['code-dept'];
+    const resolvedParams = await params;
+    const codeDept = resolvedParams['code-dept'];
     const deptName = deptNames[codeDept];
 
     if (!deptName) {

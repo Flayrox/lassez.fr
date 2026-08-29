@@ -2,7 +2,7 @@ import { Metadata, ResolvingMetadata } from 'next';
 import { generateSeoMetadata, generateSemanticSummary, formatCommuneSlug } from '@/lib/seo-engine';
 import { getDepartmentName } from '@/lib/geo-data';
 import Database from 'better-sqlite3';
-import { getRadarDbPath } from '@/lib/radar-db';
+import { getElectionDbPath } from '@/lib/elections-db';
 import path from 'path';
 import Layout from '@/components/Layout';
 import { notFound, redirect } from 'next/navigation';
@@ -16,7 +16,7 @@ export const dynamicParams = true;
 export const dynamic = 'force-dynamic';
 
 function getDb() {
-  return new Database(getRadarDbPath(), { readonly: true });
+  return new Database(getElectionDbPath('municipales-2026'), { readonly: true });
 }
 
 function getStudioBaseUrl() {
@@ -129,7 +129,7 @@ export async function generateMetadata(
     const localCityData = db.prepare(`
       SELECT code_insee as codeInsee, ville as nom, code_departement as departement
       FROM elections_officiel_cache 
-      WHERE code_insee = ? AND election_slug = 'municipales-2026'
+      WHERE code_insee = ?
       LIMIT 1
     `).get(codeInsee) as any;
 
@@ -176,7 +176,7 @@ export default async function CommunePage({ params }: Props) {
       allRows = db.prepare(`
         SELECT * 
         FROM elections_officiel_cache 
-        WHERE code_insee = ? AND election_slug = 'municipales-2026'
+        WHERE code_insee = ?
         ORDER BY tour, pct DESC
       `).all(codeInsee);
 
@@ -187,7 +187,7 @@ export default async function CommunePage({ params }: Props) {
         deptCommunes = db.prepare(`
           SELECT DISTINCT code_insee, ville 
           FROM elections_officiel_cache 
-          WHERE code_departement = ? AND election_slug = 'municipales-2026'
+          WHERE code_departement = ?
           ORDER BY ville
         `).all(cityData.code_departement) as { code_insee: string, ville: string }[];
       }

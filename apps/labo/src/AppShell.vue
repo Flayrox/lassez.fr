@@ -22,36 +22,32 @@ let heartbeat: ReturnType<typeof setInterval> | null = null
 onMounted(() => { heartbeat = setInterval(() => system.fetchHealth(), 30_000) })
 onUnmounted(() => { if (heartbeat) clearInterval(heartbeat) })
 
-// ── 4 blocs de navigation (la chaîne du pipeline) ──
+// ── 3 sections du studio : Signaux (le pipeline) · Front (le site public) · Slide (à venir) ──
 const navGroups = [
   {
-    title: '📥 Entre',
-    items: [
-      { to: '/sources', label: 'Sources', icon: '◎' },
-    ],
-  },
-  {
-    title: '⚙️ Transforme',
-    items: [
-      { to: '/pipeline', label: 'Pipeline', icon: '⇶' },
-      { to: '/atelier', label: 'Atelier', icon: '⬢' },
-      { to: '/ecriture', label: 'Écriture', icon: '✎' },
-    ],
-  },
-  {
-    title: '📤 Sort',
-    items: [
-      { to: '/diffusion', label: 'Diffusion', icon: '↗' },
-    ],
-  },
-  {
-    title: '🎛️ Pilote',
+    title: '📡 Signaux',
     items: [
       { to: '/', label: 'Vue d\'ensemble', icon: '◉' },
       { to: '/signaux', label: 'Signaux', icon: '▤' },
-      { to: '/systeme', label: 'Système', icon: '⬡' },
+      { to: '/sources', label: 'Sources', icon: '◎' },
+      { to: '/pipeline', label: 'Pipeline', icon: '⇶' },
+      { to: '/atelier', label: 'Atelier', icon: '⬢' },
+      { to: '/ecriture', label: 'Écriture', icon: '✎' },
+      { to: '/diffusion', label: 'Diffusion', icon: '↗' },
       { action: 'scan', label: 'Lancer un scan maintenant', icon: '▶' },
     ],
+  },
+  {
+    title: '🌐 Front',
+    items: [
+      { to: '/elections', label: 'Élections', icon: '🗳' },
+      { to: '/systeme', label: 'Système', icon: '⬡' },
+    ],
+  },
+  {
+    title: '🎞️ Slide',
+    items: [],
+    hint: 'bientôt',
   },
 ]
 
@@ -136,7 +132,7 @@ const saveStatus = computed(() => {
       >
         <nav class="flex-1 overflow-y-auto py-2 px-2 space-y-4">
           <div v-for="g in navGroups" :key="g.title">
-            <p v-if="!collapsed" class="px-2 pb-1 text-[10px] font-medium uppercase tracking-wider text-text-3">{{ g.title }}</p>
+            <p v-if="!collapsed" class="px-2 pb-1 text-[10px] font-medium uppercase tracking-wider text-text-3">{{ g.title }}<span v-if="g.hint" class="normal-case font-normal text-text-3/60"> · {{ g.hint }}</span></p>
             <template v-for="item in g.items" :key="item.to ?? item.action">
               <button
                 v-if="!item.to"

@@ -8,11 +8,17 @@ build/
 .env
 .env.local
 .env.test
+.env.development
+.env.production
+.env.staging
 .env.development.local
 .env.test.local
 .env.production.local
 *.db
 *.sqlite
+
+# Les .env.example sont volontairement versionnés (modèles publics)
+!.env*.example
 
 # Caches de build
 *.tsbuildinfo
@@ -37,6 +43,15 @@ data/db-export*/
 # État interne de l'app Freebuff
 .freebuff/
 
+# Transcript de la session Codebuff (privé, trop lourd)
+past_convo.json
+
+# Logs et données locales du daemon Go (écrits à l'exécution)
+daemon/logs/
+
+# Personnalisation locale du daemon (plist de dev Mac, hors VPS)
+scripts/fr.lassez.dev-daemon.plist
+
 # Fichiers OSINT (vidéos temporaires)
 radar_lassez/tmp-videos/
 public/radar-images/
@@ -54,6 +69,9 @@ __MACOSX/
 # Bases SQLite lourdes (récupérables via VPS / backups locaux)
 data/radar.db*
 data/*.bak
+# Bases par élection (data/elections/{slug}.db) + registre
+# (couverts par *.db ci-dessus, mais explicite pour le registre JSON)
+data/elections/
 
 # Builds labo
 apps/labo/dist/

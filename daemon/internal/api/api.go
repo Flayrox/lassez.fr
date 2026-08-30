@@ -61,8 +61,48 @@ func New(client *store.Client, cfgPath string, resolver *config.Resolver) *Serve
 	srv.Mux.HandleFunc("GET /api/publications", srv.listPublications)
 	srv.Mux.HandleFunc("PATCH /api/publications", srv.patchPublications)
 	srv.Mux.HandleFunc("POST /api/assistant/chat", srv.assistantChat)
+	srv.Mux.HandleFunc("GET /api/assistant/sessions", srv.listAssistantSessions)
+	srv.Mux.HandleFunc("GET /api/assistant/history", srv.getAssistantHistory)
+	srv.Mux.HandleFunc("DELETE /api/assistant/sessions", srv.deleteAssistantSession)
 	srv.Mux.HandleFunc("POST /api/signals/route", srv.routeSignal)
 	return srv
+}
+
+func (srv *Server) listAssistantSessions(w http.ResponseWriter, r *http.Request) {
+	pid := r.URL.Query().Get("pipeline_id")
+	sessions, err := srv.Client.ListChatSessions(pid)
+	if err != nil {
+		writeJSON(w, 500, map[string]any{"error": err.Error()})
+		return
+	}
+	writeJSON(w, 200, map[string]any{"data": sessions})
+}
+
+func (srv *Server) getAssistantHistory(w http.ResponseWriter, r *http.Request) {
+	sid := r.URL.Query().Get("session_id")
+	if sid == "" {
+		writeJSON(w, 400, map[string]any{"error": "session_id requis"})
+		return
+	}
+	msgs, err := srv.Client.GetChatMessages(sid)
+	if err != nil {
+		writeJSON(w, 500, map[string]any{"error": err.Error()})
+		return
+	}
+	writeJSON(w, 200, map[string]any{"data": msgs})
+}
+
+func (srv *Server) deleteAssistantSession(w http.ResponseWriter, r *http.Request) {
+	sid := r.URL.Query().Get("session_id")
+	if sid == "" {
+		writeJSON(w, 400, map[string]any{"error": "session_id requis"})
+		return
+	}
+	if err := srv.Client.DeleteChatSession(sid); err != nil {
+		writeJSON(w, 500, map[string]any{"error": err.Error()})
+		return
+	}
+	writeJSON(w, 200, map[string]any{"ok": true})
 }
 
 func (srv *Server) assistantChat(w http.ResponseWriter, r *http.Request) {

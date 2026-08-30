@@ -171,7 +171,10 @@ func (e *AssistantEngine) ProcessChat(ctx context.Context, req ChatRequest) (*Ch
 	// Parsing et exécution des actions JSON contenues dans la réponse
 	actionsExecuted, cleanReply := e.extractAndExecuteActions(aiReply, req.ActivePipelineID)
 
-	// Sauvegarde en mémoire
+	// Sauvegarde en mémoire & en base SQLite
+	_ = e.client.SaveChatMessage(sessID, "user", req.Message, "", req.ActivePipelineID)
+	_ = e.client.SaveChatMessage(sessID, "model", cleanReply, strings.Join(actionsExecuted, ", "), req.ActivePipelineID)
+
 	e.mu.Lock()
 	e.history[sessID] = append(e.history[sessID],
 		ChatMessage{Role: "user", Content: req.Message, Timestamp: time.Now()},

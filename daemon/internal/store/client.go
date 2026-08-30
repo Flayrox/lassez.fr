@@ -250,6 +250,23 @@ func (c *Client) migrate() error {
 			created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_orchestration_cycle ON daemon_orchestration(cycle_id)`,
+		// Conversations IA persistantes en base (multi-conversations + historique)
+		`CREATE TABLE IF NOT EXISTS daemon_chat_sessions (
+			id TEXT PRIMARY KEY,
+			title TEXT NOT NULL DEFAULT 'Nouvelle discussion',
+			pipeline_id TEXT NOT NULL DEFAULT 'principal',
+			created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+			updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+		)`,
+		`CREATE TABLE IF NOT EXISTS daemon_chat_messages (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			session_id TEXT NOT NULL,
+			role TEXT NOT NULL,
+			content TEXT NOT NULL,
+			action TEXT,
+			created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_chat_msgs_session ON daemon_chat_messages(session_id, id ASC)`,
 	}
 	for _, s := range stmts {
 		if _, err := c.db.Exec(s); err != nil {
@@ -1297,4 +1314,94 @@ func boolVal(vs ...any) bool {
 		}
 	}
 	return false
+}
+
+// ── Chat IA & Conversations persistantes ──────────────────────────────────────
+
+type ChatSession struct {
+	ID         string `json:"id"`
+	Title      string `json:"title"`
+	PipelineID string `json:"pipeline_id"`
+	CreatedAt  string `json:"created_at"`
+	UpdatedAt  string `json:"updated_at"`
+}
+
+type ChatMessageRecord struct {
+	ID        int64  `json:"id"`
+	SessionID string `json:"session_id"`
+	Role      string `json:"role"`
+	Content   string `json:"content"`
+	Action    string `json:"action"`
+	CreatedAt string `json:"created_at"`
+}
+
+func (c *Client) ListChatSessions(pipelineID string) ([]ChatSession, error) {
+	query := `SELECT id, title, pipeline_id, created_at, updated_at FROM daemon_chat_sessions`
+	var args []any
+	if pipelineID != "" && pipelineID != "ALL" {
+		query += ` WHERE pipeline_id = ?`
+		args = append(args, pipelineID)
+	}
+	query += ` ORDER BY updated_at DESC LIMIT 50`
+
+	rows, err := c.db.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var list []ChatSession
+	for rows.Next() {
+		var cs ChatSession
+		if err := rows.Scan(&cs.ID, &cs.Title, &cs.PipelineID, &cs.CreatedAt, &cs.UpdatedAt); err != nil {
+			return nil, err
+		}
+		list = append(list, cs)
+	}
+	return list, rows.Err()
+}
+
+func (c *Client) GetChatMessages(sessionID string) ([]ChatMessageRecord, error) {
+	rows, err := c.db.Query(`SELECT id, session_id, role, content, COALESCE(action, ''), created_at FROM daemon_chat_messages WHERE session_id = ? ORDER BY id ASC`, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var msgs []ChatMessageRecord
+	for rows.Next() {
+		var m ChatMessageRecord
+		if err := rows.Scan(&m.ID, &m.SessionID, &m.Role, &m.Content, &m.Action, &m.CreatedAt); err != nil {
+			return nil, err
+		}
+		msgs = append(msgs, m)
+	}
+	return msgs, rows.Err()
+}
+
+func (c *Client) SaveChatMessage(sessionID, role, content, action, pipelineID string) error {
+	now := time.Now().UTC().Format(time.RFC3339)
+	title := content
+	r := []rune(content)
+	if len(r) > 40 {
+		title = string(r[:40]) + "…"
+	}
+
+	_, err := c.db.Exec(`INSERT INTO daemon_chat_sessions (id, title, pipeline_id, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?)
+		ON CONFLICT(id) DO UPDATE SET updated_at = excluded.updated_at`,
+		sessionID, title, pipelineID, now, now)
+	if err != nil {
+		return err
+	}
+
+	_, err = c.db.Exec(`INSERT INTO daemon_chat_messages (session_id, role, content, action, created_at) VALUES (?, ?, ?, ?, ?)`,
+		sessionID, role, content, action, now)
+	return err
+}
+
+func (c *Client) DeleteChatSession(sessionID string) error {
+	_, _ = c.db.Exec(`DELETE FROM daemon_chat_messages WHERE session_id = ?`, sessionID)
+	_, err := c.db.Exec(`DELETE FROM daemon_chat_sessions WHERE id = ?`, sessionID)
+	return err
 }

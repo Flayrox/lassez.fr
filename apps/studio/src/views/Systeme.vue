@@ -245,6 +245,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useConfigStore } from '../stores/config'
 import { useSystemStore } from '../stores/system'
+import { api } from '../lib/api'
 import LCard from '../components/ui/LCard.vue'
 import LToggle from '../components/ui/LToggle.vue'
 import LButton from '../components/ui/LButton.vue'
@@ -290,7 +291,7 @@ async function testGeminiKey() {
   geminiTesting.value = true
   geminiResult.value = null
   try {
-    const res = await fetch('/api/gemini/test', { method: 'POST' })
+    const res = await api('/api/gemini/test', { method: 'POST' })
     geminiResult.value = await res.json()
   } catch (e: any) {
     geminiResult.value = { ok: false, error: e?.message || String(e) }
@@ -310,7 +311,7 @@ async function testVertex() {
   vertexTesting.value = true
   vertexResult.value = null
   try {
-    const res = await fetch('/api/vertex/test', { method: 'POST' })
+    const res = await api('/api/vertex/test', { method: 'POST' })
     vertexResult.value = await res.json()
   } catch (e: any) {
     vertexResult.value = { ok: false, error: e?.message || String(e) }

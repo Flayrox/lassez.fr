@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
-import { ref, watch } from 'vue'
+import { ref, computed, watch } from 'vue'
+import { api, setApiBase, pipelineApiBase } from '../lib/api'
 import { FACTORY_PROMPTS, FACTORY_FORMATS } from './factory'
 
 // Store studio — valeurs par défaut = la VRAIE config qui tournait sur le VPS
@@ -23,6 +24,18 @@ export interface SourceItem {
   bias: string
   allowImages: boolean
   active: boolean
+}
+
+// Une instance du registre daemon/config/pipelines.yaml.
+export interface PipelineInfo {
+  id: string
+  name: string
+  description: string
+  enabled: boolean
+  configPath: string
+  dbPath: string
+  port: number
+  color: string
 }
 
 // Les 9 biais de l'ancienne table sources (source_bias)
@@ -67,6 +80,40 @@ function defaultSources(): SourceItem[] {
 }
 
 export const useConfigStore = defineStore('config', () => {
+  // ── Pipelines (registre multi-instances) ──
+  const pipelines = ref<PipelineInfo[]>([])
+  // Le pipeline actif est mémorisé : on retombe dessus au rechargement de page.
+  const activePipelineId = ref(localStorage.getItem('studio-active-pipeline') ?? 'principal')
+  const activePipeline = computed(() => pipelines.value.find(p => p.id === activePipelineId.value) ?? pipelines.value[0] ?? null)
+
+  // Charge le registre (chaque instance répond avec la même liste).
+  async function loadPipelines() {
+    try {
+      const res = await api('/api/pipelines')
+      if (!res.ok) return
+      const y = await res.json()
+      if (!Array.isArray(y?.data)) return
+      pipelines.value = y.data.filter((p: any) => p && typeof p.id === 'string')
+      if (pipelines.value.length && !pipelines.value.some(p => p.id === activePipelineId.value)) {
+        activePipelineId.value = pipelines.value[0].id
+      }
+      const active = pipelines.value.find(p => p.id === activePipelineId.value)
+      if (active) setApiBase(pipelineApiBase(active.port))
+    } catch { /* daemon down → registre vide */ }
+  }
+
+  // Bascule de pipeline : on pointe l'API sur l'instance choisie puis on
+  // recharge la config, les secrets et la santé des sources.
+  async function switchPipeline(id: string) {
+    const p = pipelines.value.find(x => x.id === id)
+    if (!p || p.id === activePipelineId.value) return
+    activePipelineId.value = p.id
+    localStorage.setItem('studio-active-pipeline', p.id)
+    setApiBase(pipelineApiBase(p.port))
+    await loadFromDaemon()
+    await loadSourceHealth()
+  }
+
   // ── Atelier ──
   const atelier = ref([
     { type: 'ingestion', label: 'Collecte', enabled: true, desc: 'On récupère les nouveaux articles', order: 1 },
@@ -317,7 +364,7 @@ export const useConfigStore = defineStore('config', () => {
 
   async function loadSourceHealth() {
     try {
-      const res = await fetch('/api/sources-health')
+      const res = await api('/api/sources-health')
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const y = await res.json()
       const out: typeof sourceHealth.value = {}
@@ -903,7 +950,7 @@ export const useConfigStore = defineStore('config', () => {
   // Pousse la config vers le daemon → écrit daemon/config/config.yaml.
   async function pushToDaemon() {
     try {
-      const res = await fetch('/api/config', {
+      const res = await api('/api/config', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(toYamlConfig()),
@@ -922,7 +969,7 @@ export const useConfigStore = defineStore('config', () => {
   // ── Secrets plateformes → daemon/config/.secrets.yaml (jamais dans git) ──
   async function loadSecretsFromDaemon() {
     try {
-      const res = await fetch('/api/secrets')
+      const res = await api('/api/secrets')
       if (!res.ok) return
       const y = await res.json()
       if (isObj(y) && isObj(y.publisher)) {
@@ -933,7 +980,7 @@ export const useConfigStore = defineStore('config', () => {
   }
   async function pushSecretsToDaemon() {
     try {
-      const res = await fetch('/api/secrets', {
+      const res = await api('/api/secrets', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ publisher: secrets.value }),
@@ -948,8 +995,9 @@ export const useConfigStore = defineStore('config', () => {
   // Au démarrage : si le daemon répond, sa config.yaml fait foi sur le localStorage.
   async function loadFromDaemon() {
     hydrating.value = true
+    await loadPipelines()
     try {
-      const res = await fetch('/api/config')
+      const res = await api('/api/config')
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const y = await res.json()
       applyFromYaml(y)
@@ -995,6 +1043,7 @@ export const useConfigStore = defineStore('config', () => {
     partage, planning, media, systeme, matrix, modelRegistry, secrets,
     sourceHealth, dirty, markDirty, save, saveState, lastSavedAt, apiOk, apiError, loadFromDaemon,
     pushSecretsToDaemon, loadSourceHealth, configPending,
+    pipelines, activePipelineId, activePipeline, switchPipeline, loadPipelines,
   }
 })
 

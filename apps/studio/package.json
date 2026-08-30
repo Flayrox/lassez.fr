@@ -9,6 +9,10 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@svar-ui/calendar-locales": "^2.6.0",
+    "@svar-ui/core-locales": "^2.6.0",
+    "@svar-ui/vue-calendar": "^2.6.0",
+    "@svar-ui/vue-core": "^2.6.0",
     "pinia": "^2.1.0",
     "vue": "^3.4.0",
     "vue-router": "^4.3.0"

@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
+import { api } from '../lib/api'
 
 // Santé du système — télémétrie réelle du daemon (GET /api/system-health) :
 // état de chaque brique du pipeline + infos daemon + compteurs réels.
@@ -81,7 +82,7 @@ export const useSystemStore = defineStore('system', () => {
   async function fetchHealth() {
     loading.value = true
     try {
-      const res = await fetch('/api/system-health')
+      const res = await api('/api/system-health')
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const y = await res.json()
       bricks.value = y?.data?.bricks ?? []
@@ -101,7 +102,7 @@ export const useSystemStore = defineStore('system', () => {
     scanning.value = true
     scanDone.value = false
     try {
-      const res = await fetch('/api/scan', { method: 'POST' })
+      const res = await api('/api/scan', { method: 'POST' })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       scanDone.value = true
     } catch (e: any) {
@@ -113,7 +114,7 @@ export const useSystemStore = defineStore('system', () => {
 
   async function fetchCycles() {
     try {
-      const res = await fetch('/api/cycles?limit=12')
+      const res = await api('/api/cycles?limit=12')
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const y = await res.json()
       cycles.value = y?.data ?? []
@@ -122,7 +123,7 @@ export const useSystemStore = defineStore('system', () => {
 
   async function fetchLogs() {
     try {
-      const res = await fetch('/api/logs?limit=150')
+      const res = await api('/api/logs?limit=150')
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const y = await res.json()
       logs.value = y?.data ?? []
@@ -131,7 +132,7 @@ export const useSystemStore = defineStore('system', () => {
 
   async function fetchOrchestration() {
     try {
-      const res = await fetch('/api/orchestration?limit=50')
+      const res = await api('/api/orchestration?limit=50')
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const y = await res.json()
       orchestration.value = y?.data ?? []

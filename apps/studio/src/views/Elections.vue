@@ -1,82 +1,105 @@
 <template>
-  <div class="space-y-5">
+  <div class="space-y-6">
     <div class="flex items-center justify-between gap-3">
       <div>
         <h1 class="text-lg font-semibold">Élections</h1>
-        <p class="text-xs text-text-3 mt-0.5">Le front des résultats électoraux — un fichier SQLite par scrutin</p>
+        <p class="text-muted-foreground mt-0.5 text-xs">Le front des résultats électoraux — un fichier SQLite par scrutin</p>
       </div>
-      <LButton variant="secondary" :disabled="loading" @click="refresh">↻ Rafraîchir</LButton>
+      <Button variant="outline" :disabled="loading" @click="refresh">
+        <RefreshCwIcon data-icon="inline-start" />
+        Rafraîchir
+      </Button>
     </div>
 
-    <div v-if="error" class="rounded-card border border-danger/40 bg-danger/10 text-xs text-danger px-3 py-2">
+    <div v-if="error" class="border-destructive/40 bg-destructive/10 text-destructive rounded-md border px-3 py-2 text-xs">
       daemon injoignable — impossible de lire le registre ({{ error }})
     </div>
 
-    <LCard title="Scrutins" description="Chaque scrutin = data/elections/{slug}.db + une entrée du registre (registry.json). « Affiché » le rend visible sur le site, « Cible » = la page d'accueil des élections.">
-      <div v-if="loading" class="text-xs text-text-3 py-4">Chargement…</div>
-      <table v-else class="w-full text-left text-xs">
-        <thead>
-          <tr class="text-[10px] uppercase tracking-wider text-text-3 border-b border-border">
-            <th class="py-2 pr-3 font-medium">Scrutin</th>
-            <th class="py-2 pr-3 font-medium">Communes</th>
-            <th class="py-2 pr-3 font-medium">Départements</th>
-            <th class="py-2 pr-3 font-medium">Fichier</th>
-            <th class="py-2 pr-3 font-medium">Affiché</th>
-            <th class="py-2 pr-3 font-medium">Cible</th>
-            <th class="py-2 pr-3 font-medium text-right">Action</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="e in elections" :key="e.slug" class="border-b border-border/50">
-            <td class="py-2.5 pr-3">
-              <p class="font-medium text-text-1">{{ e.slug }}</p>
-              <p v-if="!e.fileExists" class="text-[10px] text-warning">fichier absent — à créer</p>
-            </td>
-            <td class="py-2.5 pr-3 text-text-2">{{ e.communes > 0 ? e.communes.toLocaleString('fr-FR') : '—' }}</td>
-            <td class="py-2.5 pr-3 text-text-2">{{ e.departments > 0 ? e.departments : '—' }}</td>
-            <td class="py-2.5 pr-3 text-text-2">{{ e.fileExists ? (e.fileSizeKb / 1024).toFixed(1) + ' Mo' : '—' }}</td>
-            <td class="py-2.5 pr-3">
-              <LToggle :model-value="e.displayed" :disabled="busy" @update:model-value="(v: boolean) => setDisplay(e, v)" />
-            </td>
-            <td class="py-2.5 pr-3">
-              <LBadge v-if="e.isTarget" variant="accent">Cible</LBadge>
-              <LButton v-else variant="secondary" size="sm" :disabled="busy" @click="setTarget(e)">Définir</LButton>
-            </td>
-            <td class="py-2.5 pr-3 text-right">
-              <LButton variant="danger" size="sm" :disabled="busy" @click="remove(e)">Supprimer</LButton>
-            </td>
-          </tr>
-          <tr v-if="!elections.length">
-            <td colspan="7" class="py-4 text-text-3">Aucun scrutin — crée le premier ci-dessous (il deviendra la cible).</td>
-          </tr>
-        </tbody>
-      </table>
-    </LCard>
+    <Card>
+      <CardHeader class="border-b">
+        <div>
+          <CardTitle>Scrutins</CardTitle>
+          <CardDescription>Chaque scrutin = data/elections/{slug}.db + une entrée du registre (registry.json). « Affiché » le rend visible sur le site, « Cible » = la page d'accueil des élections.</CardDescription>
+        </div>
+      </CardHeader>
+      <CardContent class="pt-4">
+        <div v-if="loading" class="text-muted-foreground py-4 text-xs">Chargement…</div>
+        <Table v-else>
+          <TableHeader>
+            <TableRow class="hover:bg-transparent">
+              <TableHead>Scrutin</TableHead>
+              <TableHead>Communes</TableHead>
+              <TableHead>Départements</TableHead>
+              <TableHead>Fichier</TableHead>
+              <TableHead>Affiché</TableHead>
+              <TableHead>Cible</TableHead>
+              <TableHead class="text-right">Action</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            <TableRow v-for="e in elections" :key="e.slug">
+              <TableCell>
+                <p class="font-medium">{{ e.slug }}</p>
+                <p v-if="!e.fileExists" class="text-warning text-[10px]">fichier absent — à créer</p>
+              </TableCell>
+              <TableCell class="text-muted-foreground">{{ e.communes > 0 ? e.communes.toLocaleString('fr-FR') : '—' }}</TableCell>
+              <TableCell class="text-muted-foreground">{{ e.departments > 0 ? e.departments : '—' }}</TableCell>
+              <TableCell class="text-muted-foreground">{{ e.fileExists ? (e.fileSizeKb / 1024).toFixed(1) + ' Mo' : '—' }}</TableCell>
+              <TableCell>
+                <Switch :model-value="e.displayed" :disabled="busy" @update:model-value="(v: boolean) => setDisplay(e, v)" />
+              </TableCell>
+              <TableCell>
+                <Badge v-if="e.isTarget" class="border-emerald-500/40 bg-emerald-500/10 text-emerald-400">Cible</Badge>
+                <Button v-else variant="outline" size="sm" :disabled="busy" @click="setTarget(e)">Définir</Button>
+              </TableCell>
+              <TableCell class="text-right">
+                <Button variant="destructive" size="sm" :disabled="busy" @click="remove(e)">Supprimer</Button>
+              </TableCell>
+            </TableRow>
+            <TableRow v-if="!elections.length">
+              <TableCell colspan="7" class="text-muted-foreground py-4 text-center">Aucun scrutin — crée le premier ci-dessous (il deviendra la cible).</TableCell>
+            </TableRow>
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
 
-    <LCard title="Ajouter un scrutin" description="Crée le fichier {slug}.db (schéma élection vide) + l'affiche sur le site. Les résultats officiels seront synchronisés depuis data.gouv.fr.">
-      <div class="flex flex-wrap items-end gap-3">
-        <LInput
-          label="Identifiant (slug)"
-          placeholder="presidentielles-2027"
-          class="flex-1 min-w-[240px]"
-          :model-value="newSlug"
-          @update:model-value="newSlug = $event.toLowerCase().replace(/[^a-z0-9-]/g, '')"
-          help="Lettres, chiffres et tirets — il devient l'URL /elections/{slug}"
-        />
-        <LButton :disabled="!canCreate || busy" @click="create">＋ Créer le scrutin</LButton>
-      </div>
-      <p v-if="createMsg" class="text-xs mt-2" :class="createMsg.ok ? 'text-accent' : 'text-danger'">{{ createMsg.ok ? '✓ ' + createMsg.text : '✗ ' + createMsg.text }}</p>
-    </LCard>
+    <Card>
+      <CardHeader class="border-b">
+        <div>
+          <CardTitle>Ajouter un scrutin</CardTitle>
+          <CardDescription>Crée le fichier {slug}.db (schéma élection vide) + l'affiche sur le site. Les résultats officiels seront synchronisés depuis data.gouv.fr.</CardDescription>
+        </div>
+      </CardHeader>
+      <CardContent class="flex flex-wrap items-end gap-3 pt-4">
+        <div class="min-w-[240px] flex-1 space-y-1.5">
+          <Label class="text-xs">Identifiant (slug)</Label>
+          <Input
+            placeholder="presidentielles-2027"
+            :model-value="newSlug"
+            @update:model-value="newSlug = $event.toLowerCase().replace(/[^a-z0-9-]/g, '')"
+          />
+          <p class="text-muted-foreground text-[11px]">Lettres, chiffres et tirets — il devient l'URL /elections/{slug}</p>
+        </div>
+        <Button :disabled="!canCreate || busy" @click="create">＋ Créer le scrutin</Button>
+      </CardContent>
+      <p v-if="createMsg" class="px-4 pb-4 text-xs" :class="createMsg.ok ? 'text-emerald-400' : 'text-destructive'">
+        {{ createMsg.ok ? '✓ ' + createMsg.text : '✗ ' + createMsg.text }}
+      </p>
+    </Card>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import LCard from '../components/ui/LCard.vue'
-import LButton from '../components/ui/LButton.vue'
-import LBadge from '../components/ui/LBadge.vue'
-import LInput from '../components/ui/LInput.vue'
-import LToggle from '../components/ui/LToggle.vue'
+import { RefreshCwIcon } from '@lucide/vue'
+import { Badge } from '../components/ui/badge'
+import { Button } from '../components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
+import { Input } from '../components/ui/input'
+import { Label } from '../components/ui/label'
+import { Switch } from '../components/ui/switch'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table'
 
 interface Election {
   slug: string
@@ -86,10 +109,6 @@ interface Election {
   fileSizeKb: number
   communes: number
   departments: number
-}
-interface Registry {
-  displaySlugs: string[]
-  targetSlug: string
 }
 
 const loading = ref(false)

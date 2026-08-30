@@ -1,5 +1,7 @@
+import { fileURLToPath, URL } from 'node:url'
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
+import tailwindcss from '@tailwindcss/vite'
 
 // Ports dédiés « jamais utilisés » : studio 4405, daemon 4406 (surchargeables
 // via STUDIO_PORT / DAEMON_PORT). Domaine dev : http://studio.lassez.test:4405 —
@@ -9,7 +11,12 @@ const studioPort = Number(process.env.STUDIO_PORT ?? 4405)
 const daemonPort = Number(process.env.DAEMON_PORT ?? 4406)
 
 export default defineConfig({
-  plugins: [vue()],
+  plugins: [vue(), tailwindcss()],
+  resolve: {
+    alias: {
+      '@': fileURLToPath(new URL('./src', import.meta.url)),
+    },
+  },
   server: {
     host: '127.0.0.1',
     port: studioPort,

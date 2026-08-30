@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "shadcn": {
+      "command": "bash",
+      "args": ["-lc", "cd /Users/ephe/Desktop/projects_transfer/lassez/apps/studio && npx shadcn-vue@latest mcp"]
+    }
+  }
+}

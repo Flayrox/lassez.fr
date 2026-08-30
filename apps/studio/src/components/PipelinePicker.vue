@@ -1,61 +1,60 @@
-<!-- PipelinePicker — le sélecteur de pipelines façon GCP (projet actif en topbar).
-     Panneau déroulant : une carte par pipeline (couleur, description, port,
-     prochain passage), ▶ scan par instance, clic = bascule du pipeline actif. -->
+<!-- PipelinePicker — le sélecteur de pipelines façon GCP (projet actif en topbar),
+     refait avec shadcn-vue (DropdownMenu). Une entrée par pipeline : couleur,
+     description, port, prochain passage, ▶ scan par instance, clic = bascule. -->
 <template>
-  <div class="relative">
-    <button
-      @click="toggle"
-      class="h-7 flex items-center gap-1.5 pl-2 pr-1.5 rounded border transition-colors"
-      :class="open ? 'border-accent/60 bg-accent-muted' : 'border-border bg-bg hover:border-text-3/50'"
-      title="Changer de pipeline (instance)"
-    >
-      <span class="w-2 h-2 rounded-full shrink-0" :style="{ background: active?.color ?? 'var(--border)' }"></span>
-      <span class="text-[11px] font-medium text-text-2">{{ active?.name ?? 'Pipeline' }}</span>
-      <span class="text-[9px] text-text-3">▾</span>
-    </button>
+  <DropdownMenu>
+    <DropdownMenuTrigger as-child>
+      <Button variant="outline" size="sm" class="gap-1.5 pl-2 pr-1.5">
+        <span class="size-2 shrink-0 rounded-full" :style="{ background: active?.color ?? 'var(--border)' }"></span>
+        <span class="text-xs font-medium">{{ active?.name ?? 'Pipeline' }}</span>
+        <ChevronsUpDownIcon class="text-muted-foreground size-3.5" />
+      </Button>
+    </DropdownMenuTrigger>
 
-    <Teleport to="body">
-      <div v-if="open" class="fixed inset-0 z-[70]" @click="open = false" @keydown.esc="open = false">
-        <div
-          class="absolute top-12 right-3 w-[340px] max-w-[calc(100vw-24px)] rounded-lg border border-border bg-surface shadow-2xl overflow-hidden"
-          @click.stop
-        >
-          <div class="px-3 py-2 flex items-center gap-2 border-b border-border">
-            <p class="text-[10px] uppercase tracking-wider text-text-3">Pipelines</p>
-            <button @click="pl.refresh(true)" class="ml-auto text-[10px] text-text-3 hover:text-accent" title="Rafraîchir">↻</button>
-          </div>
-          <div
-            v-for="p in cfg.pipelines"
-            :key="p.id"
-            class="px-3 py-2.5 flex items-center gap-2.5 border-b border-border/50 last:border-0 cursor-pointer transition-colors"
-            :class="p.id === cfg.activePipelineId ? 'bg-accent-muted/40' : 'hover:bg-surface-hover'"
-            @click="select(p)"
-          >
-            <span class="w-2.5 h-2.5 rounded-full shrink-0" :style="{ background: p.color }"></span>
-            <div class="min-w-0 flex-1">
-              <p class="text-xs font-medium text-text-1 flex items-center gap-1.5">
-                {{ p.name }}
-                <span v-if="p.id === cfg.activePipelineId" class="text-[9px] font-normal text-accent">actif</span>
-                <span v-if="p.enabled === false" class="text-[9px] font-normal text-text-3">off</span>
-              </p>
-              <p class="text-[10px] text-text-3 truncate">{{ p.description }}</p>
-              <p class="text-[10px] text-text-3">:{{ p.port }} · {{ pl.nextRunLabel(p) }}</p>
-            </div>
-            <button
-              @click.stop="scan(p)"
-              :disabled="scanningId === p.id"
-              class="w-7 h-7 shrink-0 rounded-full border border-border text-[10px] text-text-2 hover:text-accent hover:border-accent/50 disabled:opacity-40 transition-colors"
-              :title="`Scanner ${p.name} maintenant`"
-            >▶</button>
-          </div>
+    <DropdownMenuContent align="end" class="w-80">
+      <DropdownMenuLabel class="flex items-center justify-between">
+        <span class="text-xs font-medium uppercase tracking-wider text-muted-foreground">Pipelines</span>
+        <Button variant="ghost" size="icon-xs" title="Rafraîchir" @click.stop="pl.refresh(true)">
+          <RefreshCwIcon />
+        </Button>
+      </DropdownMenuLabel>
+      <DropdownMenuSeparator />
+      <DropdownMenuItem
+        v-for="p in cfg.pipelines"
+        :key="p.id"
+        class="items-center gap-2.5 py-2"
+        @select="select(p)"
+      >
+        <span class="size-2.5 shrink-0 rounded-full" :style="{ background: p.color }"></span>
+        <div class="min-w-0 flex-1">
+          <p class="flex items-center gap-1.5 text-sm font-medium">
+            {{ p.name }}
+            <Badge v-if="p.id === cfg.activePipelineId" variant="secondary" class="h-4 px-1 text-[9px] font-medium">actif</Badge>
+            <Badge v-else-if="p.enabled === false" variant="outline" class="h-4 px-1 text-[9px] font-medium text-muted-foreground">off</Badge>
+          </p>
+          <p class="truncate text-xs text-muted-foreground">{{ p.description }}</p>
+          <p class="text-xs text-muted-foreground">:{{ p.port }} · {{ pl.nextRunLabel(p) }}</p>
         </div>
-      </div>
-    </Teleport>
-  </div>
+        <Button
+          variant="ghost"
+          size="icon-xs"
+          :disabled="scanningId === p.id"
+          :title="`Scanner ${p.name} maintenant`"
+          @click.stop="scan(p)"
+        >
+          <PlayIcon />
+        </Button>
+      </DropdownMenuItem>
+    </DropdownMenuContent>
+  </DropdownMenu>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed } from 'vue'
+import { ChevronsUpDownIcon, PlayIcon, RefreshCwIcon } from '@lucide/vue'
+import { Badge } from './ui/badge'
+import { Button } from './ui/button'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from './ui/dropdown-menu'
 import { useConfigStore, type PipelineInfo } from '../stores/config'
 import { useSystemStore } from '../stores/system'
 import { usePipelinesStore } from '../stores/pipelines'
@@ -64,17 +63,10 @@ const cfg = useConfigStore()
 const system = useSystemStore()
 const pl = usePipelinesStore()
 
-const open = ref(false)
 const scanningId = ref<string | null>(null)
 const active = computed(() => cfg.activePipeline)
 
-function toggle() {
-  open.value = !open.value
-  if (open.value) pl.refresh()
-}
-
 async function select(p: PipelineInfo) {
-  open.value = false
   if (p.id === cfg.activePipelineId) return
   await cfg.switchPipeline(p.id)
   await Promise.all([system.fetchHealth(), pl.refresh(true)])
@@ -88,10 +80,4 @@ async function scan(p: PipelineInfo) {
     scanningId.value = null
   }
 }
-
-function onKey(e: KeyboardEvent) {
-  if (open.value && e.key === 'Escape') open.value = false
-}
-onMounted(() => window.addEventListener('keydown', onKey))
-onUnmounted(() => window.removeEventListener('keydown', onKey))
 </script>

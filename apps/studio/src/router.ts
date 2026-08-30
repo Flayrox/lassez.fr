@@ -1,9 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import EmploiDuTemps from './views/EmploiDuTemps.vue' // Calendrier — accueil du produit Signaux
+import EmploiDuTemps from './views/EmploiDuTemps.vue' // Hub Signaux — calendrier + onglets par composant de la chaîne
 import Signaux from './views/Signaux.vue'
 import Sources from './views/Sources.vue'
-import Atelier from './views/Atelier.vue' // page « Pipeline » du produit Signaux
-import Ecriture from './views/Ecriture.vue'
 import Diffusion from './views/Diffusion.vue'
 import Elections from './views/Elections.vue'
 import Slide from './views/Slide.vue'
@@ -16,9 +14,10 @@ export const router = createRouter({
     { path: '/', component: EmploiDuTemps },
     { path: '/signaux', component: Signaux },
     { path: '/sources', component: Sources },
-    { path: '/pipeline', component: Atelier },
-    { path: '/ecriture', component: Ecriture },
     { path: '/diffusion', component: Diffusion },
+    // Pipeline + Écriture sont fusionnés dans le hub (onglets de l'Emploi du temps)
+    { path: '/pipeline', redirect: '/' },
+    { path: '/ecriture', redirect: '/' },
     // ── Autres produits ──
     { path: '/elections', component: Elections },
     { path: '/slide', component: Slide },

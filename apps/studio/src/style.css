@@ -1,56 +1,154 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
 
-/* ── Thème — 100% tokenisé, zéro hex dans les .vue ──
-   Esthétique Vercel/Supabase : fond sombre neutre, bordures fines,
-   accent vert. On affiche l'identité de L'Assez par le contenu, pas par le chrome. */
+@import url('https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap');
+
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn-vue/tailwind.css";
+
+/* Dark mode : le studio est sombre par défaut via data-theme="dark" sur <html>. */
+@custom-variant dark (&:is([data-theme="dark"] *));
+
+/* ── Tokens shadcn — l'app est dark-only pour l'instant, on pose donc les
+     valeurs sombres en référence. Le light mode sera branché plus tard. ── */
 :root,
 :root[data-theme='dark'] {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.922 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --destructive-foreground: oklch(0.985 0 0);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --radius: 8px;
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.556 0 0);
+
+  /* Tokens custom historiques du studio — conservés pour que les .vue
+     existants (bg-surface, text-text-1, accent…) continuent de tourner pendant
+     la bascule vers shadcn. Seront remplacés par l'identité shadcn. */
   --bg: #0a0a0a;
   --surface: #111111;
   --surface-hover: #1a1a1a;
   --surface-2: #161616;
-  --border: #262626;
   --border-strong: #3f3f46;
   --text-1: #ededed;
   --text-2: #a1a1aa;
   --text-3: #71717a;
-  --accent: #3ecf8e;
   --accent-hover: #35b87d;
   --accent-fg: #052e1b;
   --accent-muted: rgba(62, 207, 142, 0.12);
   --danger: #f87171;
   --warning: #fbbf24;
   --info: #60a5fa;
-  --radius: 8px;
+
   color-scheme: dark;
 }
 
 :root[data-theme='light'] {
   color-scheme: light;
-
-  /* À remplir pour le light mode (fin de projet) */
 }
 
-html,
+/* ── Exposition Tailwind v4 (@theme inline) : tokens shadcn + tokens custom. ── */
+@theme inline {
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-hover: var(--surface-hover);
+  --color-border-strong: var(--border-strong);
+  --color-text-1: var(--text-1);
+  --color-text-2: var(--text-2);
+  --color-text-3: var(--text-3);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-fg: var(--accent-fg);
+  --color-accent-muted: var(--accent-muted);
+  --color-danger: var(--danger);
+  --color-warning: var(--warning);
+  --color-info: var(--info);
+  --font-heading: var(--font-sans);
+}
+
+/* ── Base ── */
+* {
+  @apply border-border outline-ring/50;
+}
+
+html {
+  color-scheme: dark;
+}
+
 body {
-  background: var(--bg);
-  color: var(--text-1);
+  @apply bg-background text-foreground;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
 
-/* Focus visible partout — accessibilité + cohérence (anneau accent, pas de flou) */
+/* Focus visible partout — accessibilité + cohérence (anneau accent) */
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
   border-radius: 4px;
 }
 
-/* Sélection lisible sur fond sombre */
 ::selection {
-  background: rgba(62, 207, 142, 0.3);
+  background: var(--accent-muted);
   color: var(--text-1);
 }
 
@@ -80,5 +178,14 @@ body {
   *::after {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
   }
 }

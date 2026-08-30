@@ -15,6 +15,8 @@ build/
 .env.test.local
 .env.production.local
 *.db
+*.db-shm
+*.db-wal
 *.sqlite
 
 # Les .env.example sont volontairement versionnés (modèles publics)
@@ -25,6 +27,9 @@ build/
 
 # Binaire du daemon Go (compilé sur le VPS au déploiement)
 daemon/bin/
+
+# Docs locales / exports de contexte (hors du repo)
+docs/
 
 # Logs et Fichiers Temporaires
 *.log

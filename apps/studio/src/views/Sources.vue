@@ -3,209 +3,229 @@
     <div class="flex items-center justify-between">
       <div>
         <h1 class="text-lg font-semibold">Sources</h1>
-        <p class="text-xs text-text-3 mt-0.5">D'où viennent les infos — clique le point de fiabilité pour la changer</p>
+        <p class="text-muted-foreground mt-0.5 text-xs">D'où viennent les infos — clique le point de fiabilité pour la changer</p>
       </div>
-      <div class="flex gap-2">
-        <LButton variant="secondary" @click="importOpen = true">⤓ Importer</LButton>
-        <LButton variant="secondary" @click="editMode = !editMode" :class="editMode ? '!border-accent !text-accent' : ''" :title="editMode ? 'Fermer le mode édition' : 'Débloquer les textes pour les modifier directement'">
-          ✎ {{ editMode ? 'Terminer' : 'Éditer' }}
-        </LButton>
-        <LButton variant="secondary" :disabled="testingAll" :title="testingAll ? 'Test en cours…' : 'Tester tous les flux — indique lesquels répondent et lesquels échouent (isolé, sans effet sur le pipeline)'" @click="testAllSources">
-          📡 {{ testingAll ? `Test… (${bulkTest?.done ?? 0}/${bulkTest?.total ?? 0})` : 'Tester les flux' }}
-        </LButton>
-        <LButton @click="startAdd">+ Ajouter</LButton>
+      <div class="flex flex-wrap gap-2">
+        <Button variant="outline" size="sm" @click="importOpen = true"><DownloadIcon data-icon="inline-start" /> Importer</Button>
+        <Button variant="outline" size="sm" :class="editMode ? 'border-accent text-accent' : ''" :title="editMode ? 'Fermer le mode édition' : 'Débloquer les textes pour les modifier directement'" @click="editMode = !editMode">
+          <PencilIcon data-icon="inline-start" /> {{ editMode ? 'Terminer' : 'Éditer' }}
+        </Button>
+        <Button variant="outline" size="sm" :disabled="testingAll" :title="testingAll ? 'Test en cours…' : 'Tester tous les flux — indique lesquels répondent et lesquels échouent (isolé, sans effet sur le pipeline)'" @click="testAllSources">
+          <RadioIcon data-icon="inline-start" /> {{ testingAll ? `Test… (${bulkTest?.done ?? 0}/${bulkTest?.total ?? 0})` : 'Tester les flux' }}
+        </Button>
+        <Button size="sm" @click="startAdd">+ Ajouter</Button>
       </div>
     </div>
 
-    <LCard :padding="false">
+    <Card class="gap-0 overflow-hidden py-0">
       <!-- Toolbar -->
-      <div class="px-4 pt-3 pb-3 flex flex-wrap items-center gap-2">
-        <div class="flex items-center gap-2 h-8 px-2.5 rounded border border-border bg-bg flex-1 max-w-xs">
-          <span class="text-text-3 text-xs">⌕</span>
-          <input v-model="search" placeholder="Rechercher une source…" class="bg-transparent outline-none text-xs text-text-1 placeholder:text-text-3 w-full" />
+      <div class="flex flex-wrap items-center gap-2 px-4 py-3">
+        <div class="border-input bg-input/30 flex h-8 max-w-xs flex-1 items-center gap-2 rounded-lg border px-2.5">
+          <SearchIcon class="text-muted-foreground size-3.5" />
+          <input v-model="search" placeholder="Rechercher une source…" class="placeholder:text-muted-foreground w-full bg-transparent text-xs outline-none" />
         </div>
-        <!-- Filtro fiabilité -->
-        <div class="flex bg-bg border border-border rounded overflow-hidden">
+        <div class="bg-input/30 border-input flex overflow-hidden rounded-lg border">
           <button v-for="f in trustFilters" :key="f.key" @click="trustFilter = f.key"
-            class="px-2.5 h-8 text-[11px] font-medium transition-colors inline-flex items-center gap-1.5"
-            :class="trustFilter === f.key ? 'bg-surface-hover text-text-1' : 'text-text-3 hover:text-text-2'">
-            <span v-if="f.key !== 'all'" class="w-1.5 h-1.5 rounded-full" :class="dotClass(f.key)"></span>{{ f.label }}
+            class="inline-flex h-8 items-center gap-1.5 px-2.5 text-[11px] font-medium transition-colors"
+            :class="trustFilter === f.key ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground'">
+            <span v-if="f.key !== 'all'" class="size-1.5 rounded-full" :class="dotClass(f.key)"></span>{{ f.label }}
           </button>
         </div>
-        <span class="ml-auto text-[11px] text-text-3">{{ filtered.length }}/{{ store.sources.list.length }} sources · {{ activeCount }} actives</span>
+        <span class="text-muted-foreground ml-auto text-[11px]">{{ filtered.length }}/{{ store.sources.list.length }} sources · {{ activeCount }} actives</span>
       </div>
 
       <!-- Table -->
-      <table class="w-full text-left border-collapse">
+      <table class="w-full border-collapse text-left">
         <thead>
-          <tr class="border-y border-border text-[10px] uppercase tracking-wider text-text-3">
-            <th class="pl-4 pr-3 py-2 font-medium w-24">Fiabilité</th>
+          <tr class="text-muted-foreground border-y border-border text-[10px] tracking-wider uppercase">
+            <th class="w-24 py-2 pl-4 pr-3 font-medium">Fiabilité</th>
             <th class="py-2 pr-3 font-medium">Source</th>
-            <th class="py-2 pr-3 font-medium hidden lg:table-cell">Biais</th>
-            <th class="py-2 pr-3 font-medium hidden md:table-cell">Santé</th>
+            <th class="hidden py-2 pr-3 font-medium lg:table-cell">Biais</th>
+            <th class="hidden py-2 pr-3 font-medium md:table-cell">Santé</th>
             <th class="py-2 pr-3 font-medium">Active</th>
             <th class="py-2 pl-3 pr-4"></th>
           </tr>
         </thead>
         <tbody>
           <!-- Ligne d'ajout inline : Entrée = valider, Échap = annuler -->
-          <tr v-if="adding" class="border-b border-accent/40 bg-accent-muted/10">
-            <td colspan="6" class="pl-4 pr-4 py-2">
+          <tr v-if="adding" class="border-accent/40 bg-accent/10 border-b">
+            <td colspan="6" class="py-2 pl-4 pr-4">
               <div class="flex items-center gap-2">
                 <input ref="addInput" v-model="newUrl" placeholder="https://exemple.com/rss — Entrée pour valider"
-                  class="flex-1 min-w-0 h-8 bg-bg border border-accent/50 rounded px-2.5 text-xs font-mono text-text-1 placeholder:text-text-3 focus:outline-none focus:border-accent"
+                  class="border-input placeholder:text-muted-foreground h-8 flex-1 min-w-0 rounded-lg border bg-transparent px-2.5 font-mono text-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
                   @keydown.enter="confirmAdd" @keydown.esc="adding = false" />
-                <span v-if="newUrl.trim() && !duplicateError" class="text-[11px] text-text-3 whitespace-nowrap shrink-0">
-                  <span class="w-2 h-2 rounded-full inline-block align-middle" :class="dotClass(detectTrust(newUrl))"></span>
-                  <span class="capitalize align-middle">{{ trustLabel(detectTrust(newUrl)) }}</span>
+                <span v-if="newUrl.trim() && !duplicateError" class="text-muted-foreground shrink-0 whitespace-nowrap text-[11px]">
+                  <span class="inline-block size-2 rounded-full align-middle" :class="dotClass(detectTrust(newUrl))"></span>
+                  <span class="align-middle capitalize">{{ trustLabel(detectTrust(newUrl)) }}</span>
                 </span>
-                <LButton size="sm" :disabled="!newUrl.trim() || !!duplicateError" @click="confirmAdd" title="Ajouter">✓</LButton>
-                <LButton size="sm" variant="ghost" @click="adding = false" title="Annuler">✕</LButton>
+                <Button size="sm" :disabled="!newUrl.trim() || !!duplicateError" @click="confirmAdd" title="Ajouter"><CheckIcon /></Button>
+                <Button size="sm" variant="ghost" @click="adding = false" title="Annuler"><XIcon /></Button>
               </div>
-              <p v-if="duplicateError" class="text-[11px] text-danger mt-1">{{ duplicateError }}</p>
+              <p v-if="duplicateError" class="text-destructive mt-1 text-[11px]">{{ duplicateError }}</p>
             </td>
           </tr>
-          <tr v-for="s in filtered" :key="s.id" class="border-b border-border/50 hover:bg-surface-hover/50 transition-colors group" :class="editMode ? 'bg-accent-muted/10' : ''">
+          <tr v-for="s in filtered" :key="s.id" class="hover:bg-muted/50 group border-b border-border/50 transition-colors" :class="editMode ? 'bg-accent/10' : ''">
             <!-- Trust dot : clic pour cycler -->
-            <td class="pl-4 py-2">
+            <td class="py-2 pl-4">
               <button @click="cycleTrust(s.id)" :title="`Fiabilité ${trustLabel(s.trust)} — cliquer pour changer`"
-                class="inline-flex items-center gap-1.5 px-1.5 py-0.5 rounded hover:bg-surface-hover transition-colors">
-                <span class="w-2 h-2 rounded-full" :class="dotClass(s.trust)"></span>
-                <span class="text-[11px] capitalize text-text-2">{{ trustLabel(s.trust) }}</span>
+                class="hover:bg-muted inline-flex items-center gap-1.5 rounded px-1.5 py-0.5 transition-colors">
+                <span class="size-2 rounded-full" :class="dotClass(s.trust)"></span>
+                <span class="text-muted-foreground text-[11px] capitalize">{{ trustLabel(s.trust) }}</span>
               </button>
             </td>
-            <td class="py-2.5 pr-3 min-w-0">
+            <td class="min-w-0 py-2.5 pr-3">
               <input
                 v-if="editMode"
                 :value="s.url"
                 @input="setUrl(s.id, ($event.target as HTMLInputElement).value)"
                 placeholder="https://…"
-                class="w-full h-7 bg-bg border border-accent/50 rounded px-2 text-xs font-mono text-text-1 placeholder:text-text-3 focus:outline-none focus:border-accent transition-colors"
+                class="border-input placeholder:text-muted-foreground h-7 w-full rounded-lg border bg-transparent px-2 font-mono text-xs outline-none focus-visible:border-ring"
               />
               <template v-else>
-                <p class="text-xs font-medium truncate" :title="hostOf(s.url)">{{ hostOf(s.url) }}</p>
-                <a :href="s.url" target="_blank" rel="noopener" class="text-[11px] text-text-3 hover:text-info transition-colors line-clamp-1">{{ s.url }}</a>
+                <p class="truncate text-xs font-medium" :title="hostOf(s.url)">{{ hostOf(s.url) }}</p>
+                <a :href="s.url" target="_blank" rel="noopener" class="text-muted-foreground hover:text-info line-clamp-1 text-[11px]">{{ s.url }}</a>
               </template>
             </td>
-            <td class="py-2.5 pr-3 hidden lg:table-cell">
-              <select :value="s.bias" @change="setBias(s.id, ($event.target as HTMLSelectElement).value)"
-                class="h-7 bg-bg border border-border rounded px-1.5 text-[11px] text-text-2 focus:outline-none focus:border-accent/60 max-w-[140px]">
-                <option v-for="b in BIAS_VALUES" :key="b" :value="b">{{ b }}</option>
-              </select>
+            <td class="hidden py-2.5 pr-3 lg:table-cell">
+              <Select :model-value="s.bias" @update:model-value="(v: string) => setBias(s.id, v)">
+                <SelectTrigger size="sm" class="max-w-[150px]"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem v-for="b in BIAS_VALUES" :key="b" :value="b">{{ b }}</SelectItem>
+                </SelectContent>
+              </Select>
             </td>
-            <td class="py-2.5 pr-3 hidden md:table-cell">
-              <LBadge :variant="healthOf(s.url).variant" :title="healthTitle(s.url)">{{ healthOf(s.url).label }}</LBadge>
+            <td class="hidden py-2.5 pr-3 md:table-cell">
+              <Badge :class="healthOf(s.url).cls" :title="healthTitle(s.url)" class="border">{{ healthOf(s.url).label }}</Badge>
             </td>
-            <td class="py-2.5 pr-3"><LToggle :model-value="s.active" @update:model-value="(v: boolean) => setActive(s.id, v)" /></td>
+            <td class="py-2.5 pr-3"><Switch :model-value="s.active" @update:model-value="(v: boolean) => setActive(s.id, v)" /></td>
             <td class="py-2.5 pl-3 pr-4">
-              <div class="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                <LButton variant="ghost" size="sm" :disabled="testingId === s.id" :title="testingId === s.id ? 'Test en cours…' : 'Tester ce flux (aspiration isolée, sans lancer un cycle)'" @click="testSource(s)">
-                  {{ testingId === s.id ? '…' : '▶' }}
-                </LButton>
-                <LButton variant="ghost" size="sm" @click="removeOne(s.id)" title="Supprimer">🗑</LButton>
+              <div class="group-hover:opacity-100 flex justify-end gap-1 opacity-0 transition-opacity">
+                <Button variant="ghost" size="icon-xs" :disabled="testingId === s.id" :title="testingId === s.id ? 'Test en cours…' : 'Tester ce flux (aspiration isolée, sans lancer un cycle)'" @click="testSource(s)">
+                  <RadioIcon v-if="testingId !== s.id" />
+                  <span v-else>…</span>
+                </Button>
+                <Button variant="ghost" size="icon-xs" class="hover:text-destructive" @click="removeOne(s.id)" title="Supprimer"><Trash2Icon /></Button>
               </div>
             </td>
           </tr>
         </tbody>
       </table>
 
-      <LEmpty v-if="filtered.length === 0 && !store.loading" icon="◎" title="Aucune source"
-        description="Ajoute des flux RSS ou importe une liste d'un coup.">
-        <template #action><LButton @click="startAdd">+ Ajouter une source</LButton></template>
-      </LEmpty>
-    </LCard>
+      <div v-if="filtered.length === 0 && !store.loading" class="border-dashed rounded-lg border py-16 text-center">
+        <div class="bg-muted text-muted-foreground mx-auto mb-3 flex size-10 items-center justify-center rounded-full">◎</div>
+        <p class="text-sm font-medium">Aucune source</p>
+        <p class="text-muted-foreground mt-1 text-xs">Ajoute des flux RSS ou importe une liste d'un coup.</p>
+        <Button class="mt-4" @click="startAdd">+ Ajouter une source</Button>
+      </div>
+    </Card>
 
     <!-- Modal résultat du test de flux -->
-    <LModal :open="testModal" title="Test du flux" wide @close="testModal = false">
-      <div v-if="testError" class="border border-danger/40 bg-danger/10 rounded-lg p-3 mb-3">
-        <p class="text-xs font-medium text-danger">❌ Aspiration impossible</p>
-        <p class="text-[11px] text-text-2 mt-1 font-mono break-all">{{ testError }}</p>
-        <p class="text-[11px] text-text-3 mt-2">Vérifie l'URL et que le site répond.</p>
-      </div>
-      <template v-else-if="testResult">
-        <div class="flex items-center justify-between gap-2 mb-1">
-          <p class="text-sm font-semibold truncate" :title="testResult.title">{{ testResult.title || 'Flux sans titre' }}</p>
-          <span class="text-[11px] text-text-3 whitespace-nowrap shrink-0">{{ testResult.fetchMs }} ms</span>
+    <Dialog v-model:open="testModal">
+      <DialogContent class="sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Test du flux</DialogTitle>
+        </DialogHeader>
+        <div v-if="testError" class="border-destructive/40 bg-destructive/10 mb-3 rounded-lg border p-3">
+          <p class="text-destructive text-xs font-medium">❌ Aspiration impossible</p>
+          <p class="text-muted-foreground mt-1 break-all font-mono text-[11px]">{{ testError }}</p>
+          <p class="text-muted-foreground mt-2 text-[11px]">Vérifie l'URL et que le site répond.</p>
         </div>
-        <p class="text-[11px] text-text-3 font-mono truncate mb-3" :title="testResult.url">{{ testResult.url }}</p>
-        <p class="text-xs text-text-2 mb-2">{{ testResult.articles.length }} article{{ testResult.articles.length > 1 ? 's' : '' }} récent{{ testResult.articles.length > 1 ? 's' : '' }}<span v-if="testResult.skipped"> · {{ testResult.skipped }} ignoré{{ testResult.skipped > 1 ? 's' : '' }} (sans titre/lien)</span></p>
-        <ul v-if="testResult.articles.length" class="space-y-2 max-h-80 overflow-y-auto pr-1">
-          <li v-for="(a, i) in testResult.articles" :key="i" class="border border-border rounded-lg p-2.5 bg-bg/40">
-            <a :href="a.link" target="_blank" rel="noopener" class="text-xs font-medium text-text-1 hover:text-info transition-colors line-clamp-2">{{ a.title }}</a>
-            <p class="text-[11px] text-text-3 mt-0.5">{{ a.publishedAt ? new Date(a.publishedAt).toLocaleString('fr-FR') : 'date inconnue' }}</p>
-          </li>
-        </ul>
-        <p v-else class="text-xs text-text-3">Le flux répond mais ne contient aucun article exploitable (titre + lien requis).</p>
-      </template>
-      <template #footer>
-        <LButton variant="secondary" @click="testModal = false">Fermer</LButton>
-      </template>
-    </LModal>
+        <template v-else-if="testResult">
+          <div class="mb-1 flex items-center justify-between gap-2">
+            <p class="truncate text-sm font-semibold" :title="testResult.title">{{ testResult.title || 'Flux sans titre' }}</p>
+            <span class="text-muted-foreground shrink-0 whitespace-nowrap text-[11px]">{{ testResult.fetchMs }} ms</span>
+          </div>
+          <p class="text-muted-foreground mb-3 truncate font-mono text-[11px]" :title="testResult.url">{{ testResult.url }}</p>
+          <p class="text-muted-foreground mb-2 text-xs">{{ testResult.articles.length }} article{{ testResult.articles.length > 1 ? 's' : '' }} récent{{ testResult.articles.length > 1 ? 's' : '' }}<span v-if="testResult.skipped"> · {{ testResult.skipped }} ignoré{{ testResult.skipped > 1 ? 's' : '' }} (sans titre/lien)</span></p>
+          <ul v-if="testResult.articles.length" class="max-h-80 space-y-2 overflow-y-auto pr-1">
+            <li v-for="(a, i) in testResult.articles" :key="i" class="border-border bg-input/30 rounded-lg border p-2.5">
+              <a :href="a.link" target="_blank" rel="noopener" class="line-clamp-2 text-xs font-medium hover:text-info">{{ a.title }}</a>
+              <p class="text-muted-foreground mt-0.5 text-[11px]">{{ a.publishedAt ? new Date(a.publishedAt).toLocaleString('fr-FR') : 'date inconnue' }}</p>
+            </li>
+          </ul>
+          <p v-else class="text-muted-foreground text-xs">Le flux répond mais ne contient aucun article exploitable (titre + lien requis).</p>
+        </template>
+        <DialogFooter>
+          <Button variant="outline" @click="testModal = false">Fermer</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
 
     <!-- Modal test de tous les flux -->
-    <LModal :open="bulkModal" title="Test des flux RSS" wide @close="bulkModal = false">
-      <template v-if="!bulkResults">
-        <p class="text-xs text-text-2 mb-2">Test isolé de chaque flux (aucun effet sur le pipeline)…</p>
-        <div class="flex items-center gap-3">
-          <div class="h-2 flex-1 rounded bg-bg border border-border overflow-hidden">
-            <div class="h-full bg-accent transition-all duration-200" :style="{ width: pct + '%' }"></div>
+    <Dialog v-model:open="bulkModal">
+      <DialogContent class="sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Test des flux RSS</DialogTitle>
+        </DialogHeader>
+        <template v-if="!bulkResults">
+          <p class="text-muted-foreground mb-2 text-xs">Test isolé de chaque flux (aucun effet sur le pipeline)…</p>
+          <div class="flex items-center gap-3">
+            <div class="border-input bg-input/30 h-2 flex-1 overflow-hidden rounded border">
+              <div class="bg-accent h-full transition-all duration-200" :style="{ width: pct + '%' }"></div>
+            </div>
+            <span class="text-muted-foreground whitespace-nowrap text-xs">{{ bulkTest?.done ?? 0 }}/{{ bulkTest?.total ?? 0 }}</span>
           </div>
-          <span class="text-xs text-text-3 whitespace-nowrap">{{ bulkTest?.done ?? 0 }}/{{ bulkTest?.total ?? 0 }}</span>
-        </div>
-      </template>
-      <template v-else>
-        <div class="flex items-center gap-4 mb-3">
-          <span class="text-xs font-medium text-accent">✅ {{ okCount }} opérationnel{{ okCount > 1 ? 's' : '' }}</span>
-          <span class="text-xs font-medium text-danger">❌ {{ failCount }} en échec{{ failCount > 1 ? 's' : '' }}</span>
-        </div>
-        <ul class="space-y-1.5 max-h-96 overflow-y-auto pr-1">
-          <li v-for="r in sortedBulk" :key="r.url" class="flex items-start justify-between gap-3 border border-border/60 rounded-lg px-3 py-2 bg-bg/40">
-            <div class="min-w-0">
-              <p class="text-xs font-medium truncate" :title="r.url">{{ hostOf(r.url) }}</p>
-              <p class="text-[11px] text-text-3 font-mono truncate">{{ r.url }}</p>
-            </div>
-            <div class="text-right shrink-0">
-              <template v-if="r.ok">
-                <span class="text-[11px] text-accent font-semibold">OK</span>
-                <p class="text-[10px] text-text-3">{{ r.articles }} article{{ r.articles !== null ? 's' : '' }} · {{ r.fetchMs }} ms</p>
-              </template>
-              <template v-else>
-                <span class="text-[11px] text-danger font-semibold">ÉCHEC</span>
-                <p class="text-[10px] text-text-3 max-w-[220px] truncate" :title="r.error">{{ r.error }}</p>
-              </template>
-            </div>
-          </li>
-        </ul>
-        <p class="text-[11px] text-text-3 mt-2">Astuce : désactive dans la colonne « Active » les flux marqués en échec, puis vérifie leurs URLs.</p>
-      </template>
-      <template #footer>
-        <LButton variant="secondary" @click="bulkModal = false" :disabled="testingAll">Fermer</LButton>
-      </template>
-    </LModal>
+        </template>
+        <template v-else>
+          <div class="mb-3 flex items-center gap-4">
+            <span class="text-accent text-xs font-medium">✅ {{ okCount }} opérationnel{{ okCount > 1 ? 's' : '' }}</span>
+            <span class="text-destructive text-xs font-medium">❌ {{ failCount }} en échec{{ failCount > 1 ? 's' : '' }}</span>
+          </div>
+          <ul class="max-h-96 space-y-1.5 overflow-y-auto pr-1">
+            <li v-for="r in sortedBulk" :key="r.url" class="border-border/60 bg-input/30 flex items-start justify-between gap-3 rounded-lg border px-3 py-2">
+              <div class="min-w-0">
+                <p class="truncate text-xs font-medium" :title="r.url">{{ hostOf(r.url) }}</p>
+                <p class="text-muted-foreground truncate font-mono text-[11px]">{{ r.url }}</p>
+              </div>
+              <div class="shrink-0 text-right">
+                <template v-if="r.ok">
+                  <span class="text-accent text-[11px] font-semibold">OK</span>
+                  <p class="text-muted-foreground text-[10px]">{{ r.articles }} article{{ r.articles !== null ? 's' : '' }} · {{ r.fetchMs }} ms</p>
+                </template>
+                <template v-else>
+                  <span class="text-destructive text-[11px] font-semibold">ÉCHEC</span>
+                  <p class="text-muted-foreground max-w-[220px] truncate text-[10px]" :title="r.error">{{ r.error }}</p>
+                </template>
+              </div>
+            </li>
+          </ul>
+          <p class="text-muted-foreground mt-2 text-[11px]">Astuce : désactive dans la colonne « Active » les flux marqués en échec, puis vérifie leurs URLs.</p>
+        </template>
+        <DialogFooter>
+          <Button variant="outline" @click="bulkModal = false" :disabled="testingAll">Fermer</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
 
     <!-- Modal importer -->
-    <LModal :open="importOpen" title="Importer des sources" wide @close="importOpen = false">
-      <p class="text-xs text-text-2 mb-3">Colle une liste d'URLs (une par ligne). Les doublons sont ignorés, la fiabilité détectée automatiquement.</p>
-      <LTextarea v-model="csvPaste" :rows="8" placeholder="https://exemple.com/rss&#10;https://autre.fr/feed" />
-      <template #footer>
-        <LButton variant="secondary" @click="importOpen = false">Annuler</LButton>
-        <LButton :disabled="csvLines === 0" @click="doImport">Importer {{ csvLines }} URL{{ csvLines > 1 ? 's' : '' }}</LButton>
-      </template>
-    </LModal>
+    <Dialog v-model:open="importOpen">
+      <DialogContent class="sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Importer des sources</DialogTitle>
+          <DialogDescription>Colle une liste d'URLs (une par ligne). Les doublons sont ignorés, la fiabilité détectée automatiquement.</DialogDescription>
+        </DialogHeader>
+        <Textarea v-model="csvPaste" :rows="8" placeholder="https://exemple.com/rss&#10;https://autre.fr/feed" />
+        <DialogFooter>
+          <Button variant="outline" @click="importOpen = false">Annuler</Button>
+          <Button :disabled="csvLines === 0" @click="doImport">Importer {{ csvLines }} URL{{ csvLines > 1 ? 's' : '' }}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, nextTick } from 'vue'
+import { CheckIcon, DownloadIcon, PencilIcon, RadioIcon, SearchIcon, Trash2Icon, XIcon } from '@lucide/vue'
+import { Badge } from '../components/ui/badge'
+import { Button } from '../components/ui/button'
+import { Card } from '../components/ui/card'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../components/ui/dialog'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select'
+import { Switch } from '../components/ui/switch'
+import { Textarea } from '../components/ui/textarea'
 import { useConfigStore, detectTrust, hostOf, BIAS_VALUES } from '../stores/config'
 import { api } from '../lib/api'
-import LCard from '../components/ui/LCard.vue'
-import LButton from '../components/ui/LButton.vue'
-import LBadge from '../components/ui/LBadge.vue'
-import LToggle from '../components/ui/LToggle.vue'
-import LTextarea from '../components/ui/LTextarea.vue'
-import LModal from '../components/ui/LModal.vue'
-import LEmpty from '../components/ui/LEmpty.vue'
 
 const store = useConfigStore()
 const search = ref('')
@@ -306,7 +326,7 @@ async function testAllSources() {
   bulkModal.value = true
   const results: BulkResult[] = new Array(urls.length)
   let next = 0
-  const CONCURRENCY = 3 // on ne tape pas le réseau à 10 flux d'un coup
+  const CONCURRENCY = 3
   async function worker() {
     while (true) {
       const i = next++
@@ -346,7 +366,6 @@ function setUrl(id: string, v: string) {
   store.markDirty()
 }
 
-
 const filtered = computed(() =>
   store.sources.list.filter(s => {
     if (trustFilter.value !== 'all' && s.trust !== trustFilter.value) return false
@@ -373,7 +392,7 @@ const trustFilters = [
 ] as const
 
 function dotClass(t: string) {
-  return t === 'high' ? 'bg-accent' : t === 'medium' ? 'bg-warning' : 'bg-danger'
+  return t === 'high' ? 'bg-accent' : t === 'medium' ? 'bg-warning' : 'bg-destructive'
 }
 function trustLabel(t: string) {
   return t === 'high' ? 'haute' : t === 'medium' ? 'moyenne' : 'faible'
@@ -399,7 +418,7 @@ function removeOne(id: string) {
 function confirmAdd() {
   const url = newUrl.value.trim()
   if (!url || duplicateError.value) return
-  store.sources.list.unshift({ id: Math.random().toString(36).slice(2, 9), url, trust: detectTrust(url), active: true })
+  store.sources.list.unshift({ id: Math.random().toString(36).slice(2, 9), url, trust: detectTrust(url), active: true } as any)
   store.markDirty()
   newUrl.value = ''
   adding.value = false
@@ -411,7 +430,7 @@ function doImport() {
   for (const url of urls) {
     if (existing.has(url.toLowerCase())) continue
     existing.add(url.toLowerCase())
-    store.sources.list.push({ id: Math.random().toString(36).slice(2, 9), url, trust: detectTrust(url), active: true })
+    store.sources.list.push({ id: Math.random().toString(36).slice(2, 9), url, trust: detectTrust(url), active: true } as any)
     added++
   }
   if (added > 0) store.markDirty()
@@ -420,24 +439,22 @@ function doImport() {
 }
 
 // Santé réelle enregistrée par le daemon à chaque scan (daemon_source_health).
-// Sans daemon : repli sur les échecs connus du VPS pour ne pas tout montrer vert.
 const FALLBACK_FAILED = [
   'https://www.rtl.fr/actu/rss',
   'https://www.arretsurimages.net/rss',
   'https://www.politis.fr/feed/',
   'https://www.palestinechronicle.com/feed/',
 ]
-function healthOf(url: string): { variant: 'success' | 'warning' | 'danger'; label: string } {
+function healthOf(url: string): { cls: string; label: string } {
   const h = store.sourceHealth[url]
   if (h) {
-    if (h.status === 'DISABLED') return { variant: 'danger', label: `Quarantaine (${h.consecutive_failures} échecs)` }
-    if (h.status === 'DEGRADED') return { variant: 'warning', label: `En échec (${h.consecutive_failures})` }
-    return { variant: 'success', label: 'OK' }
+    if (h.status === 'DISABLED') return { cls: 'border-destructive/40 bg-destructive/10 text-destructive', label: `Quarantaine (${h.consecutive_failures} échecs)` }
+    if (h.status === 'DEGRADED') return { cls: 'border-warning/40 bg-warning/10 text-warning', label: `En échec (${h.consecutive_failures})` }
+    return { cls: 'border-accent/40 bg-accent/10 text-accent', label: 'OK' }
   }
-  // Daemon muet : on garde les échecs réels connus du dernier scan VPS
-  if (FALLBACK_FAILED.includes(url)) return { variant: 'danger', label: 'En échec' }
-  if (!url.startsWith('https://')) return { variant: 'warning', label: 'HTTP' }
-  return { variant: 'success', label: 'OK' }
+  if (FALLBACK_FAILED.includes(url)) return { cls: 'border-destructive/40 bg-destructive/10 text-destructive', label: 'En échec' }
+  if (!url.startsWith('https://')) return { cls: 'border-warning/40 bg-warning/10 text-warning', label: 'HTTP' }
+  return { cls: 'border-accent/40 bg-accent/10 text-accent', label: 'OK' }
 }
 function healthTitle(url: string): string {
   const h = store.sourceHealth[url]

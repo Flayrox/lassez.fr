@@ -115,7 +115,10 @@ export const useConfigStore = defineStore('config', () => {
   }
 
   // ── Atelier ──
-  const atelier = ref([
+  // Liste CANONIQUE des nœuds — l'ordre fait foi pour pipeline.graphJson. Un
+  // localStorage périmé ne doit JAMAIS pouvoir l'amputer (cf. applyFromYaml /
+  // normalizeAtelier) : chaque nœud manquant est ré-ajouté avec ses défauts.
+  const atelierDefaults = [
     { type: 'ingestion', label: 'Collecte', enabled: true, desc: 'On récupère les nouveaux articles', order: 1 },
     { type: 'dedup', label: 'Anti-doublons', enabled: true, desc: 'Similarité 65%, fenêtre 10 h', order: 2 },
     { type: 'orchestrator', label: 'Orchestrateur', enabled: false, desc: 'Chef de desk — 1 appel IA/cycle, agenda + aiguillage (remplace le Tri)', order: 3 },
@@ -123,7 +126,8 @@ export const useConfigStore = defineStore('config', () => {
     { type: 'editor', label: 'Rédaction', enabled: true, desc: 'Gemini 3.7 Flash écrit l’enquête', order: 5 },
     { type: 'validator', label: 'Vérification', enabled: true, desc: 'Auto-pilote désactivé pour l’instant', order: 6 },
     { type: 'media', label: 'Image', enabled: true, desc: 'Overlay 50%, box 78%', order: 7 },
-  ])
+  ]
+  const atelier = ref(atelierDefaults.map(n => ({ ...n })))
 
   // Positions sauvegardées du graphe (type → x/y) — sinon reposition auto
   const positions = ref<Record<string, { x: number; y: number }>>({})
@@ -349,6 +353,14 @@ export const useConfigStore = defineStore('config', () => {
 
   const dirty = ref(false)
   function markDirty() { dirty.value = true }
+
+  // Debounce de l'autosave — déclaré ici (avant loadFromDaemon) pour pouvoir
+  // être annulé à la fin d'une hydration.
+  let saveTimer: ReturnType<typeof setTimeout> | null = null
+  // Chargements en cours : tant qu'au moins un chargement tourne, hydrating
+  // reste true et l'autosave ne peut PAS partir (le daemon fait foi au
+  // chargement, jamais le localStorage).
+  let loadsInFlight = 0
 
   // ── API du daemon (config.yaml) — source de vérité quand le robot tourne ──
   const apiOk = ref(false)
@@ -577,12 +589,20 @@ export const useConfigStore = defineStore('config', () => {
         if (typeof u !== 'string' || !u.trim()) continue
         const prev = sources.value.list.find(s => s.url === u)
         const meta = metaByUrl.get(u) ?? {}
-        list.push(prev ?? {
-          id: uid(), url: u,
-          trust: meta.trust === 'high' || meta.trust === 'medium' || meta.trust === 'low' ? meta.trust : detectTrust(u),
-          bias: typeof meta.bias === 'string' && BIAS_VALUES.includes(meta.bias) ? meta.bias : 'Indépendant',
-          allowImages: meta.allowImages !== false,
-          active: meta.active !== false,
+        // La config du daemon fait foi sur fiabilité/biais/images/actif : le
+        // localStorage (éventuellement périmé) ne doit JAMAIS les écraser.
+        // Seul l'id est conservé pour rester stable côté studio.
+        list.push({
+          id: prev?.id ?? uid(),
+          url: u,
+          trust: meta.trust === 'high' || meta.trust === 'medium' || meta.trust === 'low'
+            ? meta.trust
+            : (prev?.trust ?? detectTrust(u)),
+          bias: typeof meta.bias === 'string' && BIAS_VALUES.includes(meta.bias)
+            ? meta.bias
+            : (prev?.bias ?? 'Indépendant'),
+          allowImages: meta.allowImages !== undefined ? meta.allowImages : (prev?.allowImages ?? true),
+          active: meta.active !== undefined ? meta.active : (prev?.active ?? true),
         })
       }
     }
@@ -725,7 +745,21 @@ export const useConfigStore = defineStore('config', () => {
         if (Array.isArray(g.nodes)) {
           const enabledByType: Record<string, boolean> = {}
           for (const n of g.nodes) if (n && typeof n.type === 'string') enabledByType[n.type] = n.enabled !== false
-          atelier.value = atelier.value.map(n => ({ ...n, enabled: enabledByType[n.type] ?? n.enabled }))
+          // Réconciliation : on part de la liste CANONIQUE des nœuds (l'ordre
+          // fait foi pour le graphe) puis on applique l'état du graphe daemon.
+          // Un nœud absent du store (localStorage périmé qui l'a amputé) est
+          // RÉ-AJOUTÉ à sa position — on ne peut jamais repousser un graphe
+          // tronqué ou réordonné vers config.yaml.
+          const merged = atelierDefaults.map(n => {
+            const e = enabledByType[n.type]
+            return e === undefined ? n : { ...n, enabled: e }
+          })
+          for (const type of Object.keys(enabledByType)) {
+            if (!merged.some(n => n.type === type)) {
+              merged.push({ type, label: type, enabled: enabledByType[type], desc: '', order: merged.length + 1 })
+            }
+          }
+          atelier.value = merged
         }
       } catch { /* graphe corrompu → on garde l'existant */ }
     }
@@ -760,21 +794,26 @@ export const useConfigStore = defineStore('config', () => {
     return out as T
   }
   function normalizeAtelier(saved: unknown) {
-    const def = atelier.value
-    if (!Array.isArray(saved) || saved.length === 0) return def
+    // On part de la liste canonique : un localStorage qui a amputé ou réordonné
+    // les nœuds (ancienne version, édition manuelle…) ne peut ni en supprimer
+    // ni changer l'ordre du pipeline — chaque nœud manquant revient à sa place.
+    const def = atelierDefaults
+    if (!Array.isArray(saved) || saved.length === 0) return def.map(n => ({ ...n }))
     const byType = new Map(def.map(n => [n.type, n]))
-    return saved
-      .filter((n: any) => n && typeof n.type === 'string')
+    const out = saved
+      .filter((n: any) => n && typeof n.type === 'string' && byType.has(n.type))
       .map((n: any) => {
-        const d = byType.get(n.type)
+        const d = byType.get(n.type)!
         return {
           type: n.type,
-          label: typeof n.label === 'string' ? n.label : (d?.label ?? n.type),
+          label: typeof n.label === 'string' ? n.label : d.label,
           enabled: n.enabled !== false,
-          desc: typeof n.desc === 'string' ? n.desc : (d?.desc ?? ''),
-          order: typeof n.order === 'number' ? n.order : (d?.order ?? 0),
+          desc: typeof n.desc === 'string' ? n.desc : d.desc,
+          order: typeof n.order === 'number' ? n.order : d.order,
         }
       })
+    for (const d of def) if (!out.some(n => n.type === d.type)) out.push({ ...d })
+    return out
   }
   // Les 4 anciens formats par défaut (avant le portage de l'ancienne DB) :
   // ils sont remplacés par les 5 rubriques factory, sans consigne à migrer.
@@ -994,6 +1033,7 @@ export const useConfigStore = defineStore('config', () => {
 
   // Au démarrage : si le daemon répond, sa config.yaml fait foi sur le localStorage.
   async function loadFromDaemon() {
+    loadsInFlight++
     hydrating.value = true
     await loadPipelines()
     try {
@@ -1007,10 +1047,25 @@ export const useConfigStore = defineStore('config', () => {
       apiOk.value = false
       apiError.value = e?.message || String(e)
     }
-    hydrating.value = false
     normalizeModelFields()
     baseline = stateSnapshot()
     persistLocal()
+    loadsInFlight--
+    if (loadsInFlight === 0) {
+      hydrating.value = false
+      // Fin d'hydratation : si l'état final est identique au baseline, tout
+      // signal « sale » ne peut venir que d'une détection transitoire (le
+      // watcher profond a comparé le localStorage périmé au daemon pendant le
+      // chargement) — on le neutralise pour que l'autosave ne pousse JAMAIS
+      // l'état du localStorage vers config.yaml au chargement.
+      // Si l'état diffère encore (vraie édition pendant le chargement), on
+      // laisse l'autosave faire son travail.
+      if (stateSnapshot() === baseline) {
+        dirty.value = false
+        if (saveTimer) { clearTimeout(saveTimer); saveTimer = null }
+        configPending.value = false
+      }
+    }
     await loadSecretsFromDaemon()
     await loadSourceHealth()
   }
@@ -1018,9 +1073,9 @@ export const useConfigStore = defineStore('config', () => {
 
   // Autosave debouncé : toute modification d'une vue déclenche la sauvegarde
   // (localStorage + config.yaml via le daemon) sans bouton à cliquer.
-  let saveTimer: ReturnType<typeof setTimeout> | null = null
+  // Garde-fou : jamais pendant une hydration (le chargement fait foi).
   watch(dirty, (d) => {
-    if (!d) return
+    if (!d || hydrating.value) return
     if (saveTimer) clearTimeout(saveTimer)
     saveTimer = setTimeout(() => { save() }, 600)
   })

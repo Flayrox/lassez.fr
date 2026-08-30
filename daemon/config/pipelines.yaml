@@ -1,0 +1,20 @@
+# Registre des pipelines — une instance = sa config YAML, sa base SQLite, son
+# port API et son planning propres. Le daemon lance une goroutine par instance.
+# Le studio lit cette liste via GET /api/pipelines pour basculer de l'une à l'autre.
+pipelines:
+  - id: principal
+    name: Principal
+    description: Le pipeline principal — tous les formats (FLASH, ALERTE…)
+    enabled: true
+    configPath: config/config.yaml
+    dbPath: ../data/pipeline.db
+    port: 4406
+    color: "#F59E0B"
+  - id: flash
+    name: Flash
+    description: Pipeline dédié au rythme FLASH — sources réduites, scans rapprochés
+    enabled: true
+    configPath: config/pipelines/flash.yaml
+    dbPath: ../data/pipeline-flash.db
+    port: 4407
+    color: "#3B82F6"

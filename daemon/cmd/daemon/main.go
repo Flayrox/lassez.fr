@@ -4,6 +4,11 @@
 // daemon.ts: the main pipeline cycle runs the active nodes from the
 // pipelineGraphJson graph on a schedule (pulse / calendar / hybrid), and the
 // publisher loop checks due publications every 2 minutes.
+//
+// Multi-pipeline : le registre daemon/config/pipelines.yaml déclare plusieurs
+// instances (chacune avec sa config YAML, sa base SQLite, son port API et son
+// planning). Une goroutine par instance = une boucle pipeline + une boucle
+// publisher indépendantes, qui peuvent tourner en parallèle.
 package main
 
 import (
@@ -17,6 +22,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -32,8 +38,9 @@ import (
 )
 
 func main() {
-	// -once : exécute un seul cycle complet (pipeline + publisher) puis sort.
-	// -config : chemin du YAML de configuration.
+	// -once : exécute un cycle complet (pipeline + publisher) de chaque
+	// instance active puis sort. -config : chemin du YAML de configuration
+	// (n'agit que sur l'instance unique historique).
 	once := flag.Bool("once", false, "exécuter un seul cycle et sortir")
 	configPath := flag.String("config", "config/config.yaml", "chemin du fichier de configuration YAML")
 	flag.Parse()
@@ -44,92 +51,37 @@ func main() {
 	// endroit, qu'on démarre de la racine du repo ou de daemon/.
 	daemonRoot := daemonDir()
 	repoRoot := filepath.Dir(daemonRoot)
-	cfgPath := resolvePath(daemonRoot, *configPath)
 	logDir := filepath.Join(daemonRoot, "logs")
 
 	loadEnv(repoRoot)
 
-	// ── Settings YAML + client local SQLite ──
-	resolver := config.NewResolverFromProvider(config.FileProvider(cfgPath))
-
-	// ── API HTTP du studio (signaux SQLite local) ──
-	dbPath := os.Getenv("PIPELINE_DB_PATH")
-	if dbPath == "" {
-		dbPath = filepath.Join(repoRoot, "data", "pipeline.db")
-	}
-	localClient, err := store.NewLocal(dbPath, func() (map[string]any, error) {
-		return resolver.Settings()
-	})
+	// ── Registre multi-instances ──
+	pipelinesPath := resolvePath(daemonRoot, "config/pipelines.yaml")
+	metas, err := config.LoadPipelines(pipelinesPath)
 	if err != nil {
-		log.Fatalf("[Daemon] 💥 SQLite indisponible (%s) : %v", dbPath, err)
+		log.Fatalf("[Daemon] 💥 Registre pipelines illisible : %v", err)
 	}
-	client := localClient // même interface que l'ancien client CMS
-
-	// Scan manuel : POST /api/scan du studio réveille la boucle principale
-	// (le canal est rempli par le serveur API, vidé par la boucle ci-dessous).
-	trigger := make(chan struct{}, 1)
-
-	{
-		// API HTTP du studio : signaux réels du pipeline (daemon_signals) + config.
-		srv := api.New(client, *configPath, resolver)
-		srv.Trigger = trigger
-		// Panneau de logs du studio : on lit la fin de daemon/logs/daemon.log.
-		srv.LogPath = filepath.Join(logDir, "daemon.log")
-		go func() {
-			// Port canonique de l'API studio : :4406 par défaut, LA valeur que
-			// le proxy dev (vite) et dev-domain.sh attendent partout. Résolu dans
-			// l'ordre : STUDIO_API_ADDR (si précisé) → DAEMON_PORT (alias dev-conjugué
-			// avec vite.config) → 4406. Le daemon ne doit plus JAMAIS se retrouver
-			// sur un autre port que celui que le studio attend, quelle que soit la
-			// façon dont il est lancé (screen, PM2, dev-domain, ./bin/daemon nu).
-			addr := os.Getenv("STUDIO_API_ADDR")
-			if addr == "" {
-				if p := os.Getenv("DAEMON_PORT"); p != "" {
-					addr = ":" + p
-				} else {
-					addr = ":4406"
-				}
-			}
-			log.Printf("[Daemon] API studio sur %s (signaux : %s)", addr, dbPath)
-			if err := http.ListenAndServe(addr, api.CORS(srv.Mux)); err != nil {
-				log.Fatalf("[Daemon] 💥 Impossible de joindre le studio : écoute sur %s échouée (%v).", addr, err)
-			}
-		}()
+	// Compat : -config ne s'applique qu'à l'instance unique historique.
+	if len(metas) == 1 && *configPath != "config/config.yaml" {
+		metas[0].ConfigPath = *configPath
 	}
 
-	resolver.Invalidate()
+	// Logger global : les log.Printf des nœuds (process-wide) fan-out vers
+	// toutes les instances pour que chaque fichier daemon-<id>.log soit complet.
+	fan := &logFan{}
 
-	settings, _ := resolver.Settings()
-	logOpts := logger.Options{
-		Level: settingString(settings, "logLevel", "INFO"),
-	}
-
-	// Logger : fichier daemon/logs/daemon.log (rotation 10 Mo).
-	loggerInstance, err := logger.New(logDir, logOpts)
-	if err != nil {
-		log.Printf("[Daemon] ⚠️ Logger fichier indisponible: %v", err)
-	}
-	defer loggerInstance.Close()
-
-	// Redirige les log.Printf des nœuds vers le logger (fichier).
-	log.SetFlags(0)
-	log.SetOutput(&logRedirect{logger: loggerInstance})
-
-	loggerInstance.Info("Daemon", "==========================================")
-	loggerInstance.Info("Daemon", "   L'ASSEZ — DAEMON PIPELINE (Go)      ")
-	loggerInstance.Info("Daemon", "==========================================")
-	loggerInstance.Info("Daemon", "[Daemon] Stockage : "+client.BaseURL())
-	loggerInstance.Info("Daemon", "[Daemon] Journalisation : niveau="+logOpts.Level)
-
-	// Purge périodique des vieux journaux (rétention système) — no-op local.
-	go pruneLogsLoop(client, resolver, loggerInstance)
-
-	// Mode one-shot (trigger manuel) : un cycle pipeline + publisher puis exit.
 	if *once {
-		if err := pipeline.RunCycle(client, resolver, loggerInstance); err != nil {
-			loggerInstance.Error("Daemon", "❌ Erreur critique dans le pipeline : "+err.Error())
+		for _, m := range metas {
+			if !m.Enabled {
+				continue
+			}
+			inst := newInstance(m, metas, daemonRoot, repoRoot, logDir, fan)
+			if err := inst.runCycle(); err != nil {
+				fmt.Printf("[%s] ❌ Erreur critique pipeline : %v\n", m.Name, err)
+			}
+			recordPublisherRun(inst.client, time.Now())
+			inst.close()
 		}
-		recordPublisherRun(client, time.Now())
 		return
 	}
 
@@ -138,27 +90,119 @@ func main() {
 	signal.Notify(stop, syscall.SIGTERM, syscall.SIGINT)
 	go func() {
 		<-stop
-		loggerInstance.Info("Daemon", "🛑 Signal reçu, arrêt propre du démon...")
-		// os.Exit ne déroule pas les defers : on ferme le logger
-		// explicitement avant de sortir.
-		loggerInstance.Close()
+		log.Println("🛑 Signal reçu, arrêt propre du démon...")
+		fan.closeAll()
 		os.Exit(0)
 	}()
+
+	// Une goroutine par instance active — les pipelines tournent en parallèle.
+	for _, m := range metas {
+		if !m.Enabled {
+			continue
+		}
+		m := m
+		inst := newInstance(m, metas, daemonRoot, repoRoot, logDir, fan)
+		go inst.run()
+	}
+
+	select {}
+}
+
+// ── Une instance de pipeline ────────────────────────────────────────────────
+
+type instance struct {
+	meta     config.PipelineMeta
+	client   *store.Client
+	resolver *config.Resolver
+	log      *logger.Logger
+	trigger  chan struct{}
+}
+
+func newInstance(m config.PipelineMeta, all []config.PipelineMeta, daemonRoot, repoRoot, logDir string, fan *logFan) *instance {
+	cfgPath := resolvePath(daemonRoot, m.ConfigPath)
+
+	// Resolver : chaque instance lit SA config YAML.
+	resolver := config.NewResolverFromProvider(config.FileProvider(cfgPath))
+
+	// Base SQLite : chaque instance a SA base. dbPath est relatif au dossier
+	// du daemon (../data/pipeline.db = <projet>/data/pipeline.db).
+	dbPath := m.DBPath
+	if dbPath == "" {
+		dbPath = "../data/pipeline.db"
+	}
+	if !filepath.IsAbs(dbPath) {
+		dbPath = filepath.Join(daemonRoot, dbPath)
+	}
+	if p := os.Getenv("PIPELINE_DB_PATH"); p != "" {
+		dbPath = p
+	}
+	client, err := store.NewLocal(dbPath, func() (map[string]any, error) {
+		return resolver.Settings()
+	})
+	if err != nil {
+		log.Fatalf("[Daemon:%s] 💥 SQLite indisponible (%s) : %v", m.ID, dbPath, err)
+	}
+
+	// Logger : fichier dédié par instance (logs/daemon-<id>.log).
+	resolver.Invalidate()
+	settings, _ := resolver.Settings()
+	logOpts := logger.Options{
+		Level:    settingString(settings, "logLevel", "INFO"),
+		Filename: "daemon-" + m.ID + ".log",
+	}
+	instanceLogger, err := logger.New(logDir, logOpts)
+	if err != nil {
+		log.Printf("[Daemon:%s] ⚠️ Logger fichier indisponible: %v", m.ID, err)
+	}
+	fan.add(instanceLogger)
+	log.SetOutput(fan)
+	log.SetFlags(0)
+
+	inst := &instance{meta: m, client: client, resolver: resolver, log: instanceLogger, trigger: make(chan struct{}, 1)}
+
+	// API HTTP du studio : un port par instance.
+	{
+		srv := api.New(client, cfgPath, resolver)
+		srv.Trigger = inst.trigger
+		srv.LogPath = filepath.Join(logDir, "daemon-"+m.ID+".log")
+		srv.Pipelines = all
+		addr := listenAddr(m.Port)
+		go func() {
+			log.Printf("[Daemon:%s] API studio sur %s (signaux : %s)", m.ID, addr, dbPath)
+			if err := http.ListenAndServe(addr, api.CORS(srv.Mux)); err != nil {
+				log.Fatalf("[Daemon:%s] 💥 Impossible de joindre le studio : écoute sur %s échouée (%v).", m.ID, addr, err)
+			}
+		}()
+	}
+
+	instanceLogger.Info("Daemon", "==========================================")
+	instanceLogger.Info("Daemon", "   L'ASSEZ — PIPELINE "+strings.ToUpper(m.Name)+" (Go)")
+	instanceLogger.Info("Daemon", "==========================================")
+	instanceLogger.Info("Daemon", "[Daemon] Stockage : "+client.BaseURL())
+	instanceLogger.Info("Daemon", "[Daemon] Journalisation : niveau="+logOpts.Level+" (daemon-"+m.ID+".log)")
+
+	return inst
+}
+
+// run — les deux boucles autonomes de l'instance (pipeline + publisher).
+func (inst *instance) run() {
+	// Purge périodique des vieux journaux (rétention système).
+	go pruneLogsLoop(inst.client, inst.resolver, inst.log)
 
 	// 1. Boucle principale (ingestion → rédaction) avec planification.
 	//    Un scan manuel (POST /api/scan du studio) réveille l'attente immédiatement.
 	go func() {
 		for {
-			if err := pipeline.RunCycle(client, resolver, loggerInstance); err != nil {
-				loggerInstance.Error("Daemon", "❌ Erreur critique dans le pipeline : "+err.Error())
+			if err := inst.runCycle(); err != nil {
+				inst.log.Error("Daemon", "❌ Erreur critique dans le pipeline : "+err.Error())
 			}
 
-			settings, _ := resolver.Settings()
+			settings, _ := inst.resolver.Settings()
 			next := scheduler.Compute(settings, time.Now())
-			loggerInstance.Info("Daemon", "⏳ Prochain scan programmé : "+next.Label+" ("+formatMinutes(next.Delay)+" min).")
+			inst.log.Info("Daemon", "⏳ Prochain scan programmé : "+next.Label+" ("+formatMinutes(next.Delay)+" min).")
 			select {
-			case <-trigger:
-				loggerInstance.Info("Daemon", "⚡ Scan manuel demandé par le studio — cycle immédiat.")
+			case <-inst.trigger:
+				inst.log.Info("Daemon", "⚡ Scan manuel demandé par le studio — cycle immédiat.")
 			case <-time.After(next.Delay):
 			}
 		}
@@ -168,38 +212,89 @@ func main() {
 	go func() {
 		for {
 			pubStart := time.Now()
-			pubErr := nodes.RunPublisher(client, resolver)
+			pubErr := nodes.RunPublisher(inst.client, inst.resolver)
 			nodes.RecordBrickRun("publisher", "Publisher", pubErr, time.Since(pubStart))
-			recordPublisherRun(client, pubStart)
+			recordPublisherRun(inst.client, pubStart)
 			if pubErr != nil {
-				loggerInstance.Error("Daemon", "❌ Erreur dans la boucle Publisher : "+pubErr.Error())
+				inst.log.Error("Daemon", "❌ Erreur dans la boucle Publisher : "+pubErr.Error())
 			}
 
 			// Heartbeat : rafraîchit updatedAt.
-			if err := client.UpdateSettings(map[string]any{"updatedAt": time.Now().UTC().Format(time.RFC3339)}); err != nil {
-				loggerInstance.Warn("Daemon", "⚠️ Heartbeat updatedAt : "+err.Error())
+			if err := inst.client.UpdateSettings(map[string]any{"updatedAt": time.Now().UTC().Format(time.RFC3339)}); err != nil {
+				inst.log.Warn("Daemon", "⚠️ Heartbeat updatedAt : "+err.Error())
 			}
-			resolver.Invalidate()
+			inst.resolver.Invalidate()
 			time.Sleep(2 * time.Minute)
 		}
 	}()
-
-	select {}
 }
 
-// logRedirect envoie chaque ligne du package log vers le Logger, pour que
-// les nœuds (log.Printf) alimentent aussi le fichier.
-type logRedirect struct {
-	logger *logger.Logger
+// runCycle — un passage complet du pipeline de l'instance.
+func (inst *instance) runCycle() error {
+	return pipeline.RunCycle(inst.client, inst.resolver, inst.log)
 }
 
-func (r *logRedirect) Write(p []byte) (int, error) {
+func (inst *instance) close() {
+	inst.log.Close()
+}
+
+// listenAddr — port de l'API de l'instance. Pour l'instance historique :4406,
+// on respecte les envs STUDIO_API_ADDR / DAEMON_PORT (compat). Les autres
+// instances utilisent leur port déclaré dans le registre.
+func listenAddr(port int) string {
+	if port == 0 || port == 4406 {
+		if addr := os.Getenv("STUDIO_API_ADDR"); addr != "" {
+			return addr
+		}
+		if p := os.Getenv("DAEMON_PORT"); p != "" {
+			return ":" + p
+		}
+		return ":4406"
+	}
+	return ":" + strconv.Itoa(port)
+}
+
+// ── Fan-out des log.Printf des nœuds vers tous les logger d'instances ──────
+
+type logFan struct {
+	mu      sync.Mutex
+	loggers []*logger.Logger
+}
+
+func (f *logFan) add(l *logger.Logger) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if l != nil {
+		f.loggers = append(f.loggers, l)
+	}
+}
+
+// Write (io.Writer) — chaque ligne log.Printf est dupliquée vers toutes les
+// instances : chaque daemon-<id>.log garde la trace complète de ses nœuds.
+func (f *logFan) Write(p []byte) (int, error) {
 	line := strings.TrimRight(string(p), "\n")
-	if line != "" {
-		r.logger.Stdout(line)
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for _, l := range f.loggers {
+		if line != "" {
+			l.Stdout(line)
+		}
 	}
 	return len(p), nil
 }
+
+func (f *logFan) closeAll() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for _, l := range f.loggers {
+		l.Close()
+	}
+	f.loggers = nil
+}
+
+var _ io.Writer = (*logFan)(nil)
+
+// ── Helpers partagés ────────────────────────────────────────────────────────
 
 // formatMinutes affiche un délai en minutes (arrondi à la minute).
 func formatMinutes(d time.Duration) string {
@@ -253,17 +348,6 @@ func settingString(settings map[string]any, key, def string) string {
 		return def
 	}
 	if v, ok := settings[key].(string); ok && v != "" {
-		return v
-	}
-	return def
-}
-
-// settingBool lit une valeur booléenne d'un map de réglages (avec défaut).
-func settingBool(settings map[string]any, key string, def bool) bool {
-	if settings == nil {
-		return def
-	}
-	if v, ok := settings[key].(bool); ok {
 		return v
 	}
 	return def
@@ -327,5 +411,3 @@ func resolvePath(root, p string) string {
 	}
 	return filepath.Join(root, p)
 }
-
-var _ io.Writer = (*logRedirect)(nil)

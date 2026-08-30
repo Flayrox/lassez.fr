@@ -28,6 +28,9 @@ type Options struct {
 	// Level is the minimum severity persisted to the local file.
 	// Empty means INFO. SUCCESS entries are always kept.
 	Level string
+	// Filename overrides the log file name (default "daemon.log").
+	// Multi-pipeline : chaque instance écrit dans daemon-<id>.log.
+	Filename string
 }
 
 // Level ranks, DEBUG < INFO < WARN < ERROR < SUCCESS. SUCCESS always wins.
@@ -50,9 +53,13 @@ func New(dir string, opts Options) (*Logger, error) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, err
 	}
-	path := filepath.Join(dir, "daemon.log")
+	name := strings.TrimSpace(opts.Filename)
+	if name == "" {
+		name = "daemon.log"
+	}
+	path := filepath.Join(dir, name)
 	if st, err := os.Stat(path); err == nil && st.Size() >= maxLogSize {
-		_ = os.Rename(path, filepath.Join(dir, "daemon.old.log"))
+		_ = os.Rename(path, filepath.Join(dir, strings.TrimSuffix(name, ".log")+".old.log"))
 	}
 	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
 	if err != nil {

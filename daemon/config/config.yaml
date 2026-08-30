@@ -34,7 +34,6 @@ research:
     "customPromptModifier": ""
 editorial:
     aiModelPro: "gemini-3.7-flash" # ai_model_standard ; le graphe utilisait gemini-3.1-pro-preview pour researcher
-    aiModelVerification: "gemini-3.5-flash-lite" # validator (ai_model_main du VPS)
     maxConcurrentTasks: 3
     aiPrompt: "" # le grand prompt éditorial (ai_prompt) — vide → fallback code
     modelByFormat: # modèle par format (id → modèle) — le défaut = editorial.aiModelPro
@@ -80,8 +79,6 @@ publisher:
     minDelayMinutes: 1 # min_delay_min = 1
     maxDelayMinutes: 2 # max_delay_min = 2
     enableAutoPublish: false # auto_pilot_enabled = false !
-    enableAutoApprove: true # auto_approve_enabled — Mode Fantôme (IA approuve sans modération)
-    enableAutoApproveMedia: true # mode fantôme : garder l'enrichissement média (false = PENDING direct, sans nœud Image)
     targetsByType: # matrice format → plateforme (clé = id du format) — social_targets_by_type_json réel
         FLASH: {qoe: false, discord: true, x: false, bluesky: false, mastodon: false}
         CITATION: {qoe: false, discord: true, x: false, bluesky: false, mastodon: false}
@@ -96,7 +93,7 @@ scheduling:
     mode: calendar # interval désactivé, schedule actif
     scrapingIntervalMinutes: 6 # scan_interval_hours = 0.1 h
     # daemon_rss_schedule_times = 20:08 quotidien → représenté dans weeklySlots
-    weeklySlots: [{"day": "LUN", "time": "20:08"}, {"day": "MAR", "time": "20:08"}, {"day": "MER", "time": "20:08"}, {"day": "JEU", "time": "20:08"}, {"day": "VEN", "time": "20:08"}, {"day": "SAM", "time": "20:08"}, {"day": "DIM", "time": "20:08"}]
+    weeklySlots: [{"day": "LUN", "time": "20:08"}, {"day": "MAR", "time": "20:08"}, {"day": "MER", "time": "20:08"}, {"day": "JEU", "time": "20:08"}, {"day": "VEN", "time": "20:08"}, {"day": "SAM", "time": "20:08"}, {"day": "DIM", "time": "20:08"}, {"day": "SAM", "time": "09:00"}]
     timezone: Europe/Paris
 media:
     overlayEnabled: true # image_overlay_enabled

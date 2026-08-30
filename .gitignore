@@ -86,6 +86,8 @@ apps/studio/dist/
 # Secrets locaux du daemon (clés API plateformes — écrits par le studio via /api/secrets)
 daemon/config/.secrets.yaml
 daemon/config/.secrets.yaml.bak
+daemon/config/pipelines/.secrets.yaml
+daemon/config/pipelines/.secrets.yaml.bak
 
 # Backups automatiques de config.yaml (créés par le daemon à chaque sauvegarde)
 daemon/config/*.bak

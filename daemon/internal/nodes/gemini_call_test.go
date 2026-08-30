@@ -236,10 +236,10 @@ func TestVertexAIConfig(t *testing.T) {
 }
 
 // TestBuildGeminiBodyPresets — les presets par nœud respectent les contrats :
-// Tri/Vérification strictes (basse température), Rédaction créative (haute).
+// Tri strict (basse température), Rédaction créative (haute).
 func TestBuildGeminiBodyPresets(t *testing.T) {
-	if researchTemp != 0.1 || validatorTemp != 0.1 {
-		t.Errorf("Tri et Vérification doivent être strictes (temp 0.1) : research=%v validator=%v", researchTemp, validatorTemp)
+	if researchTemp != 0.1 {
+		t.Errorf("Tri doit être strict (temp 0.1) : research=%v", researchTemp)
 	}
 	if editorTemp < 0.8 {
 		t.Errorf("Rédaction doit être créative (temp ≥ 0.8) : %v", editorTemp)

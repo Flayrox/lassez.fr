@@ -420,6 +420,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Switch } from '../components/ui/switch'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table'
 import { Textarea } from '../components/ui/textarea'
+import { toast } from 'vue-sonner'
 
 const store = useConfigStore()
 const system = useSystemStore()
@@ -428,9 +429,14 @@ onMounted(() => system.fetchHealth())
 
 async function refresh() { await system.fetchHealth() }
 async function scan() {
-  await system.triggerScan()
-  await system.fetchHealth()
-  setTimeout(() => system.fetchHealth(), 6000)
+  try {
+    await system.triggerScan()
+    await system.fetchHealth()
+    setTimeout(() => system.fetchHealth(), 6000)
+    toast.success('Scan lancé — le robot tourne en arrière-plan')
+  } catch {
+    toast.error('Impossible de lancer le scan — daemon injoignable')
+  }
 }
 
 function dotClass(status: string): string {
@@ -466,6 +472,8 @@ async function testGeminiKey() {
   } finally {
     geminiTesting.value = false
   }
+  if (geminiResult.value?.ok) toast.success(`Clé Gemini valide · ${geminiResult.value.latencyMs} ms`)
+  else toast.error(geminiResult.value?.error ?? 'Test de clé échoué')
 }
 
 // ── Vertex AI (secours) : statut + test réel via le daemon (POST /api/vertex/test) ──
@@ -486,6 +494,8 @@ async function testVertex() {
   } finally {
     vertexTesting.value = false
   }
+  if (vertexResult.value?.ok) toast.success(`Vertex AI fonctionne · ${vertexResult.value.latencyMs} ms`)
+  else toast.error(vertexResult.value?.error ?? 'Test Vertex échoué')
 }
 
 const qoeMock = computed(() => system.daemon?.qoeMock ?? true)

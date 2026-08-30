@@ -58,29 +58,15 @@
       <Card class="gap-0 py-0">
         <CardHeader class="border-b px-4 py-3">
           <CardTitle class="text-sm">Autonomie</CardTitle>
-          <CardDescription class="text-xs">Deux décisions distinctes : ce qui part, puis l'envoi</CardDescription>
+          <CardDescription class="text-xs">Ce qui part, puis l'envoi — le robot peut tout décider seul</CardDescription>
         </CardHeader>
         <CardContent class="space-y-2 p-4">
-          <div class="flex items-center justify-between gap-3 rounded-lg border px-3 py-2.5">
-            <div class="min-w-0">
-              <p class="text-sm">Mode Fantôme</p>
-              <p class="text-muted-foreground text-xs">L'IA valide à ta place : tu n'as plus à cliquer « Valider » dans Signaux</p>
-            </div>
-            <Switch :model-value="store.partage.autoApprove" @update:model-value="(v: boolean) => { store.partage.autoApprove = v; store.markDirty() }" />
-          </div>
           <div class="flex items-center justify-between gap-3 rounded-lg border px-3 py-2.5">
             <div class="min-w-0">
               <p class="text-sm">Publication auto</p>
               <p class="text-muted-foreground text-xs">Le robot envoie tout seul sur les plateformes cochées (pilote auto)</p>
             </div>
             <Switch :model-value="store.partage.auto" @update:model-value="(v: boolean) => { store.partage.auto = v; store.markDirty() }" />
-          </div>
-          <div class="flex items-center justify-between gap-3 rounded-lg border px-3 py-2.5">
-            <div class="min-w-0">
-              <p class="text-sm">Mode Fantôme — images</p>
-              <p class="text-muted-foreground text-xs">Les sujets auto-approuvés passent quand même par le nœud Image</p>
-            </div>
-            <Switch :model-value="store.partage.autoApproveMedia" :disabled="!store.partage.autoApprove" @update:model-value="(v: boolean) => { store.partage.autoApproveMedia = v; store.markDirty() }" />
           </div>
         </CardContent>
       </Card>
@@ -92,23 +78,23 @@
         <CardTitle class="text-sm">Où part chaque format</CardTitle>
         <CardDescription class="text-xs">Ex : seules les Alertes partent sur Discord</CardDescription>
       </CardHeader>
-      <CardContent class="p-4">
-        <table class="w-full text-left text-xs">
-          <thead>
-            <tr class="text-muted-foreground border-b border-border text-[10px] tracking-wider uppercase">
-              <th class="py-2 pr-3 font-medium">Format</th>
-              <th v-for="p in matrixPlatforms" :key="p" class="px-2 py-2 text-center font-medium">{{ p }}</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="f in store.formats" :key="f.id" class="border-b border-border/50">
-              <td class="py-2 pr-3 font-medium">{{ f.nom }}</td>
-              <td v-for="p in matrixPlatforms" :key="p" class="px-2 py-2 text-center">
+      <CardContent class="p-0">
+        <Table class="text-xs">
+          <TableHeader>
+            <TableRow class="hover:bg-transparent">
+              <TableHead class="pl-4 text-[10px] tracking-wider uppercase">Format</TableHead>
+              <TableHead v-for="p in matrixPlatforms" :key="p" class="px-2 text-center text-[10px] tracking-wider uppercase">{{ p }}</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            <TableRow v-for="f in store.formats" :key="f.id">
+              <TableCell class="py-2 pl-4 pr-3 font-medium">{{ f.nom }}</TableCell>
+              <TableCell v-for="p in matrixPlatforms" :key="p" class="px-2 py-2 text-center">
                 <input type="checkbox" :checked="store.matrix[f.id]?.[p]" @change="toggleMatrix(f.id, p)" class="accent-primary" />
-              </td>
-            </tr>
-          </tbody>
-        </table>
+              </TableCell>
+            </TableRow>
+          </TableBody>
+        </Table>
       </CardContent>
     </Card>
 
@@ -121,18 +107,22 @@
         <div v-if="settingsFor" class="space-y-5">
           <div>
             <p class="mb-1.5 text-sm font-medium">Quand publier</p>
-            <div class="bg-input/30 border-input flex w-fit overflow-hidden rounded-lg border">
-              <button
+            <ButtonGroup class="h-8">
+              <Button
+                type="button"
+                variant="outline"
+                class="h-8 rounded-l-lg px-3 text-[11px] font-medium"
+                :class="modeOf(settingsFor) === 'DIRECT' ? 'bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground' : ''"
                 @click="setMode(modeKeyOf(settingsFor), 'DIRECT')"
-                class="h-8 px-3 text-[11px] font-medium transition-colors"
-                :class="modeOf(settingsFor) === 'DIRECT' ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground'"
-              >Tout de suite</button>
-              <button
+              >Tout de suite</Button>
+              <Button
+                type="button"
+                variant="outline"
+                class="h-8 px-3 text-[11px] font-medium"
+                :class="modeOf(settingsFor) === 'SCHEDULED' ? 'bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground' : ''"
                 @click="setMode(modeKeyOf(settingsFor), 'SCHEDULED')"
-                class="h-8 px-3 text-[11px] font-medium transition-colors"
-                :class="modeOf(settingsFor) === 'SCHEDULED' ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground'"
-              >Petit à petit</button>
-            </div>
+              >Petit à petit</Button>
+            </ButtonGroup>
             <p class="text-muted-foreground mt-1.5 text-[11px]">« Tout de suite » publie à la réception · « Petit à petit » espace les envois selon les délais réglés.</p>
           </div>
 
@@ -169,10 +159,12 @@
 import { ref, computed } from 'vue'
 import { SettingsIcon } from '@lucide/vue'
 import { Button } from '../components/ui/button'
+import { ButtonGroup } from '../components/ui/button-group'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../components/ui/dialog'
 import { Input } from '../components/ui/input'
 import { Switch } from '../components/ui/switch'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table'
 import { useConfigStore } from '../stores/config'
 
 const store = useConfigStore()

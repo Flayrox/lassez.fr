@@ -128,29 +128,8 @@ func RunEditorialist(client *store.Client, resolver *config.Resolver) error {
 	}
 
 	// La rédaction écrit DRAFTED (rédigé + validé, prêt pour le média) : le
-	// raisonnement fait office de vérification. Le nœud Validator, s'il est
-	// actif dans le graphe, reste un garde-fou optionnel.
-	validatorActive := true
-	if settings, err := resolver.Settings(); err == nil && settings != nil {
-		if gs, ok := settings["pipelineGraphJson"].(string); ok && gs != "" {
-			var g struct {
-				Nodes []struct {
-					Type    string `json:"type"`
-					Enabled *bool  `json:"enabled"`
-				} `json:"nodes"`
-			}
-			if json.Unmarshal([]byte(gs), &g) == nil {
-				for _, n := range g.Nodes {
-					if n.Type == "validator" {
-						validatorActive = n.Enabled == nil || *n.Enabled
-					}
-				}
-			}
-		}
-	}
-	if !validatorActive {
-		log.Printf("[Node 4] 🔩 Vérification désactivée : la rédaction raisonne en un seul passage et livre un brouillon validé (DRAFTED).")
-	}
+	// raisonnement (thinking + Google Search) fait office de vérification — un
+	// seul passage rédige ET contrôle. L'ancien nœud Validator a été retiré.
 
 	// Recherche web : grounding Google Search natif de l'API REST — le modèle
 	// fait de VRAIES recherches à chaque rédaction (vérif des faits, passif des

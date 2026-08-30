@@ -76,7 +76,7 @@
                     variant="ghost"
                     size="icon-xs"
                     :disabled="pipes.scanning.has(p.id)"
-                    @click="pipes.scan(p)"
+                    @click="runScan(p)"
                   >
                     <Spinner v-if="pipes.scanning.has(p.id)" class="size-3" />
                     <PlayIcon v-else />
@@ -144,15 +144,15 @@
         <Card class="gap-0 overflow-hidden py-0">
           <!-- Barre d'outils : navigation + mois + prochain scan -->
           <div class="flex flex-wrap items-center gap-2 border-b px-3 py-2">
-            <div class="flex items-center gap-1">
-              <Button variant="outline" size="icon-sm" title="Mois précédent" @click="prevMonth">
+            <ButtonGroup aria-label="Navigation du mois">
+              <Button variant="outline" size="sm" title="Mois précédent" @click="prevMonth">
                 <ChevronLeftIcon />
               </Button>
-              <Button variant="outline" size="icon-sm" title="Mois suivant" @click="nextMonth">
+              <Button variant="outline" size="sm" @click="goToday">Aujourd'hui</Button>
+              <Button variant="outline" size="sm" title="Mois suivant" @click="nextMonth">
                 <ChevronRightIcon />
               </Button>
-              <Button variant="outline" size="sm" @click="goToday">Aujourd'hui</Button>
-            </div>
+            </ButtonGroup>
             <h2 class="text-sm font-semibold capitalize">{{ monthLabel }}</h2>
             <div class="ml-auto flex items-center gap-3">
               <Badge v-if="nextScanLabel" variant="outline" class="gap-1.5 px-2 py-0 font-mono text-[10px]">
@@ -436,9 +436,11 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { CalendarPlusIcon, ChevronLeftIcon, ChevronRightIcon, MoreHorizontalIcon, PlayIcon, PlusIcon, SendIcon, SettingsIcon, Trash2Icon } from '@lucide/vue'
+import { toast } from 'vue-sonner'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../components/ui/accordion'
 import { Badge } from '../components/ui/badge'
 import { Button } from '../components/ui/button'
+import { ButtonGroup } from '../components/ui/button-group'
 import { Card } from '../components/ui/card'
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from '../components/ui/context-menu'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../components/ui/dropdown-menu'
@@ -508,6 +510,10 @@ function toggleVisible(id: string) {
 }
 function toggleEditor(id: string) {
   editorId.value = editorId.value === id ? null : id
+}
+function runScan(p: PipelineInfo) {
+  pipes.scan(p)
+  toast.success(`Scan lancé sur ${p.name} — le robot tourne en arrière-plan`)
 }
 
 // ── Prochain scan global (badge de la barre d'outils) ──
@@ -779,7 +785,7 @@ async function createSlotAt(d: Date) {
   if (!pid) return
   const cur = pipes.schedules[pid]?.weeklySlots ?? []
   if (cur.some(s => s.day === slot.day && s.time === slot.time)) return
-  await patchConfig(pid, { scheduling: { weeklySlots: [...cur, slot] } })
+  await patchConfig(pid, { scheduling: { weeklySlots: [...cur, slot] } }, `Créneau ${slot.day} ${slot.time} ajouté`)
 }
 
 async function persistMoveEvent(ev: CalEvent, target: Date) {
@@ -794,13 +800,13 @@ async function persistMoveEvent(ev: CalEvent, target: Date) {
   if (targetDay && !next.some(s => s.day === targetDay && s.time === ev.time)) {
     next.push({ day: targetDay, time: ev.time! })
   }
-  await patchConfig(pid, { scheduling: { weeklySlots: next } })
+  await patchConfig(pid, { scheduling: { weeklySlots: next } }, 'Créneau déplacé')
 }
 
 async function persistDeleteSlot(ev: CalEvent) {
   const pid = ev.pipelineId
   const cur = pipes.schedules[pid]?.weeklySlots ?? []
-  await patchConfig(pid, { scheduling: { weeklySlots: cur.filter(s => !(s.day === ev.day && s.time === ev.time)) } })
+  await patchConfig(pid, { scheduling: { weeklySlots: cur.filter(s => !(s.day === ev.day && s.time === ev.time)) } }, 'Créneau supprimé')
 }
 
 // Menu contextuel : déplacer un créneau de N jours (réutilise le même chemin
@@ -818,25 +824,33 @@ async function reschedulePub(ev: CalEvent, days: number) {
   const p = pipelines.value.find(x => x.id === ev.pipelineId)
   if (!p) return
   try {
-    await fetch(pipelineApiBase(p.port) + '/api/publications', {
+    const res = await fetch(pipelineApiBase(p.port) + '/api/publications', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: Number(ev.pubId), scheduled_at: at.toISOString() }),
     })
-  } catch { /* instance injoignable */ }
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    toast.success(days === 1 ? 'Publication reprogrammée à demain' : `Publication reprogrammée à +${days} jours`)
+  } catch {
+    toast.error('Reprogrammation impossible — daemon injoignable')
+  }
   pipes.refresh(true)
 }
 
-async function patchConfig(pid: string, patch: any) {
+async function patchConfig(pid: string, patch: any, okMsg = 'Planning enregistré') {
   const p = cfg.pipelines.find(x => x.id === pid)
   if (!p) return
   try {
-    await fetch(pipelineApiBase(p.port) + '/api/config', {
+    const res = await fetch(pipelineApiBase(p.port) + '/api/config', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(patch),
     })
-  } catch { /* instance injoignable */ }
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    toast.success(okMsg)
+  } catch {
+    toast.error('Config non enregistrée — daemon injoignable')
+  }
   pipes.refresh(true)
 }
 

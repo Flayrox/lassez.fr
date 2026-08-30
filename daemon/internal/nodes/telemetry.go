@@ -41,7 +41,6 @@ var brickCatalog = []struct{ Type, Label string }{
 	{"dedup", "Dédoublonnage"},
 	{"research", "Researcher"},
 	{"editor", "Editorialist"},
-	{"validator", "Validator"},
 	{"media", "Média"},
 	{"publisher", "Publisher"},
 }

@@ -41,8 +41,8 @@ const geminiRESTBase = "https://generativelanguage.googleapis.com/v1beta"
 
 // Presets de génération par nœud — semi-dur : la base de référence si rien
 // n'est configuré ailleurs. Regardés contre l'API Gemini :
-//   - temperature 0 → déterministe ; 0.9-1.0 → créatif. Le Tri et la
-//     Vérification doivent être STRICTS (0.1), la Rédaction CRÉATIVE (0.9).
+//   - temperature 0 → déterministe ; 0.9-1.0 → créatif. Le Tri doit être
+//     STRICT (0.1), la Rédaction CRÉATIVE (0.9).
 //   - topP : nucleus sampling — 0.9/0.95 = garde ~90/95% des tokens les plus
 //     probables (réduit les réponses hors-sujet).
 //   - maxOutputTokens : les brouillons L'Assez (headline + body + requêtes
@@ -67,10 +67,6 @@ const (
 	orchestratorTopP      = float32(0.9)
 	orchestratorTokens    = int32(8192)
 	orchestratorThinking  = int32(2048)
-
-	validatorTemp   = float32(0.1)
-	validatorTopP   = float32(0.9)
-	validatorTokens = int32(2048)
 )
 
 // geminiProvider — le fournisseur vers lequel part l'appel REST.
@@ -528,15 +524,6 @@ func schemaEditorialist() map[string]any {
 		"image_search_queries": jsonArr("1 à 3 requêtes d'image selon la méthode des Tirs"),
 		"metadata":             jsonObj(map[string]any{"accent_color": jsonStr("Couleur du format")}, []string{"accent_color"}),
 	}, []string{"taxonomie", "geo", "tags", "headline", "body"})
-}
-
-// schemaValidator — Vérification : verdict + corrections + raison.
-func schemaValidator() map[string]any {
-	return jsonObj(map[string]any{
-		"isValid":     jsonBool("true si validé, false sinon"),
-		"corrections": jsonStr("Le texte corrigé si nécessaire"),
-		"reason":      jsonStr("Justification du verdict de validation"),
-	}, []string{"isValid", "reason"})
 }
 
 // schemaOrchestrator — Chef de desk : une décision par sujet de la liste

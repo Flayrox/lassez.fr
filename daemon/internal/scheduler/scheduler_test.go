@@ -91,3 +91,131 @@ func TestCalendarSemicolonLines(t *testing.T) {
 		t.Fatalf("expected %v, got %v", want, got.Delay)
 	}
 }
+
+// weekMatches / Compute : semaines A/B.
+func TestWeekParity(t *testing.T) {
+	// 2026-08-12 est en semaine ISO 33 (impaire) → A.
+	if !weekMatches("A", fixedNow()) || weekMatches("B", fixedNow()) {
+		t.Fatalf("semaine ISO 33 attendue comme A (impaire)")
+	}
+}
+
+func TestCalendarWeekAOnly(t *testing.T) {
+	// Mercredi 10:30, semaine ISO impaire (A). Créneau marqué A → se déclenche.
+	settings := map[string]any{
+		"schedulingMode": "calendar",
+		"daemonSchedule": "MER 14:00 A",
+	}
+	got := Compute(settings, fixedNow())
+	if got.Delay != 3*time.Hour+30*time.Minute {
+		t.Fatalf("créneau A en semaine A : attendu 3h30, got %v", got.Delay)
+	}
+}
+
+func TestCalendarWeekBOnlySkipped(t *testing.T) {
+	// Créneau B en semaine A → aucune occurrence : repli intervalle 60 min.
+	settings := map[string]any{
+		"schedulingMode": "calendar",
+		"daemonSchedule": "MER 14:00 B",
+	}
+	got := Compute(settings, fixedNow())
+	if got.Delay != 60*time.Minute {
+		t.Fatalf("créneau B en semaine A : attendu repli 60m, got %v", got.Delay)
+	}
+}
+
+func TestActiveWindow(t *testing.T) {
+	// Fenêtre passée → la pipeline dort (1 an).
+	past := map[string]any{
+		"schedulingMode": "calendar",
+		"daemonSchedule": "MER 14:00",
+		"schedulingActiveUntil": "2026-07-01",
+	}
+	if got := Compute(past, fixedNow()); got.Delay != 365*24*time.Hour {
+		t.Fatalf("après activeUntil : attendu 1 an, got %v", got.Delay)
+	}
+
+	// Fenêtre future → attendre la date de démarrage.
+	future := map[string]any{
+		"schedulingMode": "calendar",
+		"daemonSchedule": "MER 14:00",
+		"schedulingActiveFrom": "2026-08-20",
+	}
+	got := Compute(future, fixedNow())
+	if got.Delay < 7*24*time.Hour || got.Delay > 8*24*time.Hour {
+		t.Fatalf("avant activeFrom : attendu ~7j, got %v", got.Delay)
+	}
+}
+
+// NextPublishAt : heure explicite, offset, semaines A/B.
+func TestNextPublishAtExplicit(t *testing.T) {
+	now := fixedNow() // mercredi 10:30, semaine A
+	settings := map[string]any{
+		"weeklySlots": []any{map[string]any{"day": "MER", "time": "20:08", "publish": "21:00"}},
+	}
+	got := NextPublishAt(settings, now)
+	if got == nil {
+		t.Fatal("nil attendu non")
+	}
+	if got.Hour() != 21 || got.Minute() != 0 {
+		t.Fatalf("publication explicite attendue 21:00, got %v", got)
+	}
+}
+
+func TestNextPublishAtOffset(t *testing.T) {
+	now := fixedNow()
+	settings := map[string]any{
+		"weeklySlots":                  []any{map[string]any{"day": "MER", "time": "20:08"}},
+		"schedulingPublishOffsetMinutes": float64(30),
+	}
+	got := NextPublishAt(settings, now)
+	if got == nil {
+		t.Fatal("nil attendu non")
+	}
+	if got.Hour() != 20 || got.Minute() != 38 {
+		t.Fatalf("scan 20:08 + 30 min attendu 20:38, got %v", got)
+	}
+}
+
+func TestNextPublishAtOffsetPastMidnight(t *testing.T) {
+	now := fixedNow()
+	settings := map[string]any{
+		"weeklySlots":                  []any{map[string]any{"day": "MER", "time": "23:50"}},
+		"schedulingPublishOffsetMinutes": float64(30),
+	}
+	got := NextPublishAt(settings, now)
+	if got == nil {
+		t.Fatal("nil attendu non")
+	}
+	// 23:50 + 30 min = jeudi 00:20.
+	if got.Weekday() != time.Thursday || got.Hour() != 0 || got.Minute() != 20 {
+		t.Fatalf("attendu jeudi 00:20, got %v", got)
+	}
+}
+
+func TestNextPublishAtWeekB(t *testing.T) {
+	now := fixedNow() // semaine A
+	settings := map[string]any{
+		"weeklySlots": []any{map[string]any{"day": "MER", "time": "20:08", "week": "B"}},
+	}
+	// Créneau B ignoré en semaine A → aucune publication planifiée → nil.
+	if got := NextPublishAt(settings, now); got != nil {
+		t.Fatalf("créneau B en semaine A : nil attendu, got %v", got)
+	}
+}
+
+func TestNextPublishAtRollsToNextWeek(t *testing.T) {
+	// Mercredi 10:30, créneau uniquement DIM → publication dimanche prochain 20:38.
+	now := fixedNow()
+	settings := map[string]any{
+		"weeklySlots":                  []any{map[string]any{"day": "DIM", "time": "20:08"}},
+		"schedulingPublishOffsetMinutes": float64(30),
+	}
+	got := NextPublishAt(settings, now)
+	if got == nil {
+		t.Fatal("nil attendu non")
+	}
+	if got.Weekday() != time.Sunday || got.Hour() != 20 || got.Minute() != 38 {
+		t.Fatalf("attendu dimanche 20:38, got %v", got)
+	}
+}

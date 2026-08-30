@@ -138,159 +138,280 @@
             <span class="text-muted-foreground text-xs">{{ slotCount(editorPipeline) }} créneau{{ slotCount(editorPipeline) > 1 ? 'x' : '' }}</span>
             <Button variant="outline" size="sm" class="ml-auto" @click="editorId = null">Fermer</Button>
           </div>
+          <!-- Cadence : publications (offset scan → pub) + fenêtre d'activité -->
+          <div class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 border-t px-4 pt-3">
+            <p class="text-xs font-medium">Publications</p>
+            <span class="text-muted-foreground text-xs">X min après le scan</span>
+            <Input
+              type="number"
+              min="0"
+              max="1440"
+              class="h-7 w-16"
+              :model-value="sched(editorPipeline)?.publishOffsetMinutes"
+              @update:model-value="(v) => setPublishOffset(editorPipeline, Number(v))"
+            />
+            <span class="text-muted-foreground text-xs">· pipeline active du</span>
+            <Input type="date" class="h-7 w-36" :model-value="sched(editorPipeline)?.activeFrom" @update:model-value="(v) => setActive(editorPipeline, 'activeFrom', String(v))" />
+            <span class="text-muted-foreground text-xs">au</span>
+            <Input type="date" class="h-7 w-36" :model-value="sched(editorPipeline)?.activeUntil" @update:model-value="(v) => setActive(editorPipeline, 'activeUntil', String(v))" />
+            <Button variant="ghost" size="sm" class="text-destructive h-6 text-[10px] hover:text-destructive" @click="clearActive(editorPipeline)">↺ Infini</Button>
+          </div>
         </Card>
 
-        <!-- Calendrier natif shadcn, compact -->
+        <!-- Calendrier natif shadcn, compact et enrichi -->
         <Card class="gap-0 overflow-hidden py-0">
-          <!-- Barre d'outils : navigation + mois + prochain scan -->
-          <div class="flex flex-wrap items-center gap-2 border-b px-3 py-2">
-            <ButtonGroup aria-label="Navigation du mois">
-              <Button variant="outline" size="sm" title="Mois précédent" @click="prevMonth">
-                <ChevronLeftIcon />
+          <!-- Barre d'outils : navigation + bascule de vue + bouton + Programmer + alertes -->
+          <div class="flex flex-wrap items-center justify-between gap-3 border-b px-3 py-2">
+            <!-- Navigation de date -->
+            <div class="flex items-center gap-2">
+              <ButtonGroup aria-label="Navigation du calendrier">
+                <Button variant="outline" size="sm" title="Précédent" @click="prevPeriod">
+                  <ChevronLeftIcon />
+                </Button>
+                <Button variant="outline" size="sm" @click="goToday">Aujourd'hui</Button>
+                <Button variant="outline" size="sm" title="Suivant" @click="nextPeriod">
+                  <ChevronRightIcon />
+                </Button>
+              </ButtonGroup>
+              <h2 class="text-sm font-semibold capitalize min-w-36">{{ viewTitleLabel }}</h2>
+            </div>
+
+            <!-- Bascule de vue (Mois / Semaine / Jour) & Bouton d'action -->
+            <div class="flex flex-wrap items-center gap-2">
+              <CalendarConflictBadge :conflicts="detectedConflicts" />
+
+              <Tabs v-model="calendarViewMode" class="h-8">
+                <TabsList class="h-8 p-0.5">
+                  <TabsTrigger value="month" class="h-7 text-xs px-2.5">Mois</TabsTrigger>
+                  <TabsTrigger value="week" class="h-7 text-xs px-2.5">Semaine</TabsTrigger>
+                  <TabsTrigger value="day" class="h-7 text-xs px-2.5">Jour</TabsTrigger>
+                </TabsList>
+              </Tabs>
+
+              <Button size="sm" class="h-8 gap-1.5 px-3 bg-primary text-primary-foreground hover:bg-primary/90 font-medium" @click="openQuickAdd()">
+                <PlusIcon class="size-3.5" /> Programmer
               </Button>
-              <Button variant="outline" size="sm" @click="goToday">Aujourd'hui</Button>
-              <Button variant="outline" size="sm" title="Mois suivant" @click="nextMonth">
-                <ChevronRightIcon />
-              </Button>
-            </ButtonGroup>
-            <h2 class="text-sm font-semibold capitalize">{{ monthLabel }}</h2>
-            <div class="ml-auto flex items-center gap-3">
+            </div>
+          </div>
+
+          <!-- Sous-barre d'information : Prochain scan, Semaine A/B, Légendes -->
+          <div class="flex flex-wrap items-center justify-between gap-2 border-b bg-muted/20 px-3 py-1.5 text-xs text-muted-foreground">
+            <div class="flex items-center gap-3">
               <Badge v-if="nextScanLabel" variant="outline" class="gap-1.5 px-2 py-0 font-mono text-[10px]">
                 <span class="size-1.5 animate-pulse rounded-full bg-accent"></span>
                 Prochain scan {{ nextScanLabel }}
               </Badge>
-              <span class="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <span class="size-2 rounded-full bg-muted-foreground/70"></span>Publications
+              <Badge variant="outline" class="gap-1 px-2 py-0 font-mono text-[10px]" :title="'Les créneaux marqués A/B ne tournent que les semaines impaires/paires (ISO)'">
+                Semaine {{ currentWeek }}
+              </Badge>
+            </div>
+            <div class="flex items-center gap-3 text-[11px]">
+              <span class="flex items-center gap-1.5">
+                <span class="size-2 rounded-full bg-primary/70"></span> Scan automatique
+              </span>
+              <span class="flex items-center gap-1.5">
+                <span class="size-2 rounded-full bg-muted-foreground/70"></span> Publication programmée
               </span>
             </div>
           </div>
 
           <template v-if="loaded">
-            <!-- Jours de la semaine -->
-            <div class="bg-muted/20 grid grid-cols-7 border-b">
-              <div v-for="d in DAY_LABELS" :key="d" class="py-1 text-center text-[10px] font-medium tracking-wide text-muted-foreground">
-                {{ d }}
-              </div>
-            </div>
+            <!-- VUE SEMAINE (Grille horaire) -->
+            <CalendarWeekView
+              v-if="calendarViewMode === 'week'"
+              :start-date="weekStartCursor"
+              :events-by-day="eventsByDay"
+              @create-slot="(d, time) => openQuickAdd(d, time)"
+              @edit-event="(ev) => openEditEvent(ev)"
+              @delete-event="(ev) => persistDeleteSlot(ev)"
+              @move-event="(ev, targetDate) => persistMoveEvent(ev, targetDate)"
+            />
 
-            <!-- Grille du mois -->
-            <div class="grid grid-cols-7 select-none" :class="drag ? 'cursor-grabbing' : ''">
-              <div
-                v-for="cell in cells"
-                :key="cell.key"
-                :data-date="cell.key"
-                class="group relative min-h-[76px] border-r border-b border-border p-1"
-                :class="[
-                  !cell.inMonth ? 'bg-muted/10' : '',
-                  dropKey === cell.key ? 'bg-accent/10 ring-1 ring-accent ring-inset' : '',
-                ]"
-                @pointerdown="onCellDown(cell, $event)"
-              >
-                <div class="flex items-center justify-between">
-                  <span
-                    class="flex size-5 items-center justify-center rounded-full text-[11px] font-medium"
-                    :class="cell.isToday ? 'bg-primary text-primary-foreground' : cell.inMonth ? 'text-foreground' : 'text-muted-foreground/50'"
-                  >{{ cell.day }}</span>
-                  <Button
-                    variant="ghost"
-                    size="icon-xs"
-                    class="opacity-0 transition-opacity group-hover:opacity-100"
-                    :title="`Créer un créneau à 09:00 le ${cell.date.toLocaleDateString('fr-FR')}`"
-                    @pointerdown.stop
-                    @click.stop="createSlotAt(cell.date)"
-                  >
-                    <PlusIcon />
-                  </Button>
+            <!-- VUE JOUR (Timeline détaillée) -->
+            <CalendarDayView
+              v-else-if="calendarViewMode === 'day'"
+              :day-date="monthCursor"
+              :events-by-day="eventsByDay"
+              @create-slot="(d, time) => openQuickAdd(d, time)"
+              @edit-event="(ev) => openEditEvent(ev)"
+              @delete-event="(ev) => persistDeleteSlot(ev)"
+            />
+
+            <!-- VUE MOIS (Grille mensuelle) -->
+            <div v-else>
+              <!-- Jours de la semaine -->
+              <div class="bg-muted/20 grid grid-cols-7 border-b">
+                <div v-for="d in DAY_LABELS" :key="d" class="py-1 text-center text-[10px] font-medium tracking-wide text-muted-foreground">
+                  {{ d }}
                 </div>
+              </div>
 
-                <div class="mt-1 space-y-0.5">
-                  <!-- Créneaux : chip pour la prochaine occurrence, points pour les répétitions -->
-                  <ContextMenu v-for="ev in cell.slots" :key="ev.id">
-                    <ContextMenuTrigger
-                      as-child
-                      class="block w-full"
-                      @pointerdown.stop="onEventDown(ev, $event)"
+              <!-- Grille du mois -->
+              <div class="grid grid-cols-7 select-none" :class="drag ? 'cursor-grabbing' : ''">
+                <div
+                  v-for="cell in cells"
+                  :key="cell.key"
+                  :data-date="cell.key"
+                  class="group relative min-h-[76px] border-r border-b border-border p-1 hover:bg-muted/10 transition-colors"
+                  :class="[
+                    !cell.inMonth ? 'bg-muted/10' : '',
+                    dropKey === cell.key ? 'bg-accent/10 ring-1 ring-accent ring-inset' : '',
+                  ]"
+                  @pointerdown="onCellDown(cell, $event)"
+                >
+                  <div class="flex items-center justify-between">
+                    <button
+                      type="button"
+                      class="flex size-5 items-center justify-center rounded-full text-[11px] font-medium transition-transform hover:scale-110"
+                      :class="cell.isToday ? 'bg-primary text-primary-foreground' : cell.inMonth ? 'text-foreground' : 'text-muted-foreground/50'"
+                      @click.stop="monthCursor = cell.date; calendarViewMode = 'day'"
+                      :title="`Ouvrir la journée du ${cell.date.toLocaleDateString('fr-FR')}`"
                     >
-                      <div
-                        class="event-chip"
-                        :class="!ev.next ? 'event-chip-dot' : ''"
-                        :style="ev.next ? { background: ev.color, color: ev.fg } : undefined"
-                        :title="ev.tooltip"
-                      >
-                        <template v-if="ev.next">
-                          <span class="event-time">{{ ev.timeLabel }}</span>
-                          <span class="truncate">{{ ev.text }}</span>
-                        </template>
-                        <template v-else>
-                          <span class="size-1.5 shrink-0 rounded-full" :style="{ background: ev.color }"></span>
-                          <span class="font-mono tabular-nums">{{ ev.timeLabel }}</span>
-                        </template>
-                      </div>
-                    </ContextMenuTrigger>
-                    <ContextMenuContent class="min-w-44">
-                      <ContextMenuItem inset disabled class="pointer-events-none">
-                        {{ ev.text }} · {{ ev.timeLabel }}
-                      </ContextMenuItem>
-                      <ContextMenuSeparator />
-                      <ContextMenuItem inset @select="menuMoveSlot(ev, 1)">
-                        <CalendarPlusIcon class="size-3.5" /> Déplacer à demain
-                      </ContextMenuItem>
-                      <ContextMenuItem inset @select="menuMoveSlot(ev, 7)">
-                        <CalendarPlusIcon class="size-3.5" /> Déplacer à +7 jours
-                      </ContextMenuItem>
-                      <ContextMenuSeparator />
-                      <ContextMenuItem inset variant="destructive" @select="menuDeleteSlot(ev)">
-                        <Trash2Icon class="size-3.5" /> Supprimer le créneau
-                      </ContextMenuItem>
-                    </ContextMenuContent>
-                  </ContextMenu>
+                      {{ cell.day }}
+                    </button>
+                    <Button
+                      variant="ghost"
+                      size="icon-xs"
+                      class="opacity-0 transition-opacity group-hover:opacity-100"
+                      :title="`Programmer le ${cell.date.toLocaleDateString('fr-FR')}`"
+                      @pointerdown.stop
+                      @click.stop="openQuickAdd(cell.date, '09:00')"
+                    >
+                      <PlusIcon />
+                    </Button>
+                  </div>
 
-                  <!-- Publications : badge agrégé + liste en Popover -->
-                  <Popover v-if="cell.pubs.length">
-                    <PopoverTrigger as-child>
-                      <button
-                        class="pub-badge"
-                        :title="`${cell.pubs.length} publication${cell.pubs.length > 1 ? 's' : ''} le ${cell.date.toLocaleDateString('fr-FR')}`"
-                        @pointerdown.stop
-                        @click.stop
+                  <div class="mt-1 space-y-0.5">
+                    <!-- Créneaux : chip pour la prochaine occurrence, points pour les répétitions -->
+                    <ContextMenu v-for="ev in cell.slots" :key="ev.id">
+                      <ContextMenuTrigger
+                        as-child
+                        class="block w-full"
+                        @pointerdown.stop="onEventDown(ev, $event)"
                       >
-                        <SendIcon class="size-3" />
-                        <span>{{ cell.pubs.length }}</span>
-                      </button>
-                    </PopoverTrigger>
-                    <PopoverContent align="start" side="right" class="w-80 p-1.5">
-                      <div class="flex items-center justify-between px-2 py-1">
-                        <p class="text-xs font-semibold">{{ cell.pubs.length }} publication{{ cell.pubs.length > 1 ? 's' : '' }}</p>
-                        <p class="text-muted-foreground text-[10px] capitalize">{{ cell.date.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }) }}</p>
-                      </div>
-                      <div class="max-h-64 space-y-0.5 overflow-y-auto pr-0.5">
                         <div
-                          v-for="pub in cell.pubs"
-                          :key="pub.id"
-                          class="group flex items-center gap-2 rounded-md px-2 py-1 hover:bg-muted"
+                          class="event-chip cursor-pointer"
+                          :class="!ev.next ? 'event-chip-dot' : ''"
+                          :style="ev.next ? { background: ev.color, color: ev.fg } : undefined"
+                          :title="ev.tooltip"
+                          @click.stop="openEditEvent(ev)"
                         >
-                          <span class="font-mono text-[10px] text-muted-foreground tabular-nums">{{ pub.timeLabel }}</span>
-                          <Badge variant="outline" class="h-4 shrink-0 px-1 font-mono text-[9px]">{{ pub.platform }}</Badge>
-                          <span class="min-w-0 flex-1 truncate text-[11px]" :title="pub.tooltip">{{ pub.text }}</span>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger as-child>
-                              <Button variant="ghost" size="icon-xs" class="opacity-0 group-hover:opacity-100" @click.stop>
-                                <MoreHorizontalIcon />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem @select="reschedulePub(pub, 1)">
-                                <CalendarPlusIcon class="size-3.5" /> Reprogrammer à demain
-                              </DropdownMenuItem>
-                              <DropdownMenuItem @select="reschedulePub(pub, 7)">
-                                <CalendarPlusIcon class="size-3.5" /> Reprogrammer à +7 jours
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
+                          <template v-if="ev.next">
+                            <span class="event-time">{{ ev.timeLabel }}</span>
+                            <span v-if="ev.week" class="rounded border px-0.5 text-[8px] leading-tight">{{ ev.week }}</span>
+                            <span class="truncate">{{ ev.text }}</span>
+                            <span v-if="ev.publishLabel" class="shrink-0 text-[9px] font-semibold">{{ ev.publishLabel }}</span>
+                          </template>
+                          <template v-else>
+                            <span class="size-1.5 shrink-0 rounded-full" :style="{ background: ev.color }"></span>
+                            <span class="font-mono tabular-nums">{{ ev.timeLabel }}</span>
+                          </template>
                         </div>
-                      </div>
-                    </PopoverContent>
-                  </Popover>
+                      </ContextMenuTrigger>
+                      <ContextMenuContent class="min-w-44">
+                        <ContextMenuItem inset disabled class="pointer-events-none">
+                          {{ ev.text }} · {{ ev.timeLabel }}
+                        </ContextMenuItem>
+                        <ContextMenuSeparator />
+                        <ContextMenuItem inset @select="openEditEvent(ev)">
+                          <SettingsIcon class="size-3.5" /> Modifier les options…
+                        </ContextMenuItem>
+                        <ContextMenuSeparator />
+                        <ContextMenuItem inset @select="duplicateSlot(ev, 'tomorrow')">
+                          <CopyIcon class="size-3.5" /> Dupliquer à demain
+                        </ContextMenuItem>
+                        <ContextMenuItem inset @select="duplicateSlot(ev, 'weekdays')">
+                          <CopyIcon class="size-3.5" /> Copier sur Lun-Ven (Semaine)
+                        </ContextMenuItem>
+                        <ContextMenuItem inset @select="duplicateSlot(ev, 'all')">
+                          <CopyIcon class="size-3.5" /> Copier sur Tous les jours
+                        </ContextMenuItem>
+                        <ContextMenuSeparator />
+                        <ContextMenuItem inset @select="setSlotWeek(ev, 'A')" :class="ev.week === 'A' ? 'text-accent' : ''">
+                          Semaine A (impaire)
+                        </ContextMenuItem>
+                        <ContextMenuItem inset @select="setSlotWeek(ev, 'B')" :class="ev.week === 'B' ? 'text-accent' : ''">
+                          Semaine B (paire)
+                        </ContextMenuItem>
+                        <ContextMenuItem inset @select="setSlotWeek(ev, '')">
+                          Toutes les semaines
+                        </ContextMenuItem>
+                        <ContextMenuSeparator />
+                        <ContextMenuItem inset @select="openSlotPublish(ev)">
+                          <ClockIcon class="size-3.5" /> Heure de publication…
+                        </ContextMenuItem>
+                        <ContextMenuSeparator />
+                        <ContextMenuItem inset @select="menuMoveSlot(ev, 1)">
+                          <CalendarPlusIcon class="size-3.5" /> Déplacer à demain
+                        </ContextMenuItem>
+                        <ContextMenuItem inset @select="menuMoveSlot(ev, 7)">
+                          <CalendarPlusIcon class="size-3.5" /> Déplacer à +7 jours
+                        </ContextMenuItem>
+                        <ContextMenuSeparator />
+                        <ContextMenuItem inset variant="destructive" @select="menuDeleteSlot(ev)">
+                          <Trash2Icon class="size-3.5" /> Supprimer le créneau
+                        </ContextMenuItem>
+                      </ContextMenuContent>
+                    </ContextMenu>
+
+                    <!-- Publications planifiées (cadence) : pointillés discrets -->
+                    <div
+                      v-for="ev in cell.plans"
+                      :key="ev.id"
+                      class="event-chip event-chip-plan"
+                      :title="ev.tooltip"
+                    >
+                      <SendIcon class="size-2.5 shrink-0" />
+                      <span class="font-mono tabular-nums">{{ ev.timeLabel }}</span>
+                    </div>
+
+                    <!-- Publications : badge agrégé + liste en Popover -->
+                    <Popover v-if="cell.pubs.length">
+                      <PopoverTrigger as-child>
+                        <button
+                          class="pub-badge"
+                          :title="`${cell.pubs.length} publication${cell.pubs.length > 1 ? 's' : ''} le ${cell.date.toLocaleDateString('fr-FR')}`"
+                          @pointerdown.stop
+                          @click.stop
+                        >
+                          <SendIcon class="size-3" />
+                          <span>{{ cell.pubs.length }}</span>
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent align="start" side="right" class="w-80 p-1.5">
+                        <div class="flex items-center justify-between px-2 py-1">
+                          <p class="text-xs font-semibold">{{ cell.pubs.length }} publication{{ cell.pubs.length > 1 ? 's' : '' }}</p>
+                          <p class="text-muted-foreground text-[10px] capitalize">{{ cell.date.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }) }}</p>
+                        </div>
+                        <div class="max-h-64 space-y-0.5 overflow-y-auto pr-0.5">
+                          <div
+                            v-for="pub in cell.pubs"
+                            :key="pub.id"
+                            class="group flex items-center gap-2 rounded-md px-2 py-1 hover:bg-muted"
+                          >
+                            <span class="font-mono text-[10px] text-muted-foreground tabular-nums">{{ pub.timeLabel }}</span>
+                            <Badge variant="outline" class="h-4 shrink-0 px-1 font-mono text-[9px]">{{ pub.platform }}</Badge>
+                            <span class="min-w-0 flex-1 truncate text-[11px]" :title="pub.tooltip">{{ pub.text }}</span>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger as-child>
+                                <Button variant="ghost" size="icon-xs" class="opacity-0 group-hover:opacity-100" @click.stop>
+                                  <MoreHorizontalIcon />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem @select="reschedulePub(pub, 1)">
+                                  <CalendarPlusIcon class="size-3.5" /> Reprogrammer à demain
+                                </DropdownMenuItem>
+                                <DropdownMenuItem @select="reschedulePub(pub, 7)">
+                                  <CalendarPlusIcon class="size-3.5" /> Reprogrammer à +7 jours
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </div>
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+                  </div>
                 </div>
               </div>
             </div>
@@ -303,6 +424,17 @@
             </div>
           </template>
         </Card>
+
+        <!-- Modale universelle de création/édition de créneau & publication -->
+        <SlotEditorDialog
+          :open="slotDialogOpen"
+          :initial-date="dialogInitialDate"
+          :initial-time="dialogInitialTime"
+          :initial-pipeline-id="dialogInitialPipelineId"
+          :edit-event="dialogEditEvent"
+          @update:open="(v) => slotDialogOpen = v"
+          @saved="refreshAll"
+        />
 
         <!-- Suivi replié (accordéon shadcn) -->
         <Card class="gap-0 py-0">
@@ -410,6 +542,23 @@
       </TabsContent>
     </Tabs>
 
+    <!-- Heure de publication d'un créneau (Dialog) : vide = offset du pipeline -->
+    <Dialog :open="!!slotEditor" @update:open="(v: boolean) => { if (!v) slotEditor = null }">
+      <DialogContent class="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Heure de publication — {{ slotEditor?.text }} {{ slotEditor?.timeLabel }}</DialogTitle>
+          <DialogDescription>Laisse vide pour publier X minutes après le scan (offset du pipeline, réglable dans ⚙).</DialogDescription>
+        </DialogHeader>
+        <div class="space-y-2">
+          <Input type="time" class="h-8" :model-value="slotPublish" @update:model-value="(v) => slotPublish = String(v)" />
+        </div>
+        <DialogFooter>
+          <Button variant="outline" @click="slotPublish = ''">Offset par défaut</Button>
+          <Button @click="saveSlotPublish">OK</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
     <!-- Corbeille : apparaît pendant un drag pour supprimer un créneau -->
     <div v-if="drag" class="pointer-events-none fixed inset-x-0 bottom-6 z-50 flex justify-center">
       <div
@@ -426,7 +575,7 @@
 
 <script setup lang="ts">
 import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue'
-import { CalendarPlusIcon, ChevronLeftIcon, ChevronRightIcon, MoreHorizontalIcon, PlayIcon, PlusIcon, SendIcon, SettingsIcon, Trash2Icon } from '@lucide/vue'
+import { CalendarPlusIcon, ChevronLeftIcon, ChevronRightIcon, ClockIcon, CopyIcon, MoreHorizontalIcon, PlayIcon, PlusIcon, SendIcon, SettingsIcon, Trash2Icon } from '@lucide/vue'
 import { toast } from 'vue-sonner'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../components/ui/accordion'
 import { Badge } from '../components/ui/badge'
@@ -434,6 +583,7 @@ import { Button } from '../components/ui/button'
 import { ButtonGroup } from '../components/ui/button-group'
 import { Card } from '../components/ui/card'
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from '../components/ui/context-menu'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../components/ui/dialog'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../components/ui/dropdown-menu'
 import { Input } from '../components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover'
@@ -445,6 +595,10 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../com
 import EcriturePanel from '../components/EcriturePanel.vue'
 import EditorialBlocks from '../components/EditorialBlocks.vue'
 import NodeSettings from '../components/NodeSettings.vue'
+import CalendarConflictBadge, { type ConflictItem } from '../components/calendar/CalendarConflictBadge.vue'
+import CalendarDayView from '../components/calendar/CalendarDayView.vue'
+import CalendarWeekView from '../components/calendar/CalendarWeekView.vue'
+import SlotEditorDialog from '../components/calendar/SlotEditorDialog.vue'
 import { useConfigStore, type PipelineInfo, type WeeklySlot } from '../stores/config'
 import { usePipelinesStore } from '../stores/pipelines'
 import { useSystemStore } from '../stores/system'
@@ -456,6 +610,12 @@ const pipes = usePipelinesStore()
 const system = useSystemStore()
 
 const today = ref(new Date())
+const calendarViewMode = ref<'month' | 'week' | 'day'>('month')
+const slotDialogOpen = ref(false)
+const dialogInitialDate = ref<Date | undefined>(undefined)
+const dialogInitialTime = ref<string | undefined>(undefined)
+const dialogInitialPipelineId = ref<string | undefined>(undefined)
+const dialogEditEvent = ref<any>(null)
 const visible = ref<Set<string>>(new Set())
 const editorId = ref<string | null>(null)
 const tab = ref('calendrier')
@@ -558,7 +718,26 @@ function nextOccurrence(slot: WeeklySlot, from: Date): Date {
 }
 
 const monthCursor = ref(startOfDay(new Date()))
-const monthLabel = computed(() => monthCursor.value.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }))
+const weekStartCursor = computed(() => {
+  const d = new Date(monthCursor.value)
+  const day = (d.getDay() + 6) % 7 // lundi = 0
+  return addDays(d, -day)
+})
+
+const viewTitleLabel = computed(() => {
+  if (calendarViewMode.value === 'month') {
+    return monthCursor.value.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })
+  }
+  if (calendarViewMode.value === 'week') {
+    const end = addDays(weekStartCursor.value, 6)
+    const m1 = weekStartCursor.value.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
+    const m2 = end.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })
+    return `${m1} – ${m2}`
+  }
+  return monthCursor.value.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+})
+
+const monthLabel = computed(() => viewTitleLabel.value)
 
 const gridStart = computed(() => {
   const first = new Date(monthCursor.value.getFullYear(), monthCursor.value.getMonth(), 1)
@@ -566,14 +745,78 @@ const gridStart = computed(() => {
 })
 const gridEnd = computed(() => addDays(gridStart.value, 41))
 
-function prevMonth() { monthCursor.value = new Date(monthCursor.value.getFullYear(), monthCursor.value.getMonth() - 1, 1) }
-function nextMonth() { monthCursor.value = new Date(monthCursor.value.getFullYear(), monthCursor.value.getMonth() + 1, 1) }
+function prevPeriod() {
+  if (calendarViewMode.value === 'month') {
+    monthCursor.value = new Date(monthCursor.value.getFullYear(), monthCursor.value.getMonth() - 1, 1)
+  } else if (calendarViewMode.value === 'week') {
+    monthCursor.value = addDays(monthCursor.value, -7)
+  } else {
+    monthCursor.value = addDays(monthCursor.value, -1)
+  }
+}
+function nextPeriod() {
+  if (calendarViewMode.value === 'month') {
+    monthCursor.value = new Date(monthCursor.value.getFullYear(), monthCursor.value.getMonth() + 1, 1)
+  } else if (calendarViewMode.value === 'week') {
+    monthCursor.value = addDays(monthCursor.value, 7)
+  } else {
+    monthCursor.value = addDays(monthCursor.value, 1)
+  }
+}
+function prevMonth() { prevPeriod() }
+function nextMonth() { nextPeriod() }
 function goToday() { monthCursor.value = startOfDay(new Date()) }
+
+function openQuickAdd(d?: Date, time?: string) {
+  dialogInitialDate.value = d || new Date()
+  dialogInitialTime.value = time || '09:00'
+  dialogInitialPipelineId.value = cfg.activePipelineId
+  dialogEditEvent.value = null
+  slotDialogOpen.value = true
+}
+
+function openEditEvent(ev: any) {
+  dialogInitialDate.value = ev.date
+  dialogInitialTime.value = ev.time || ev.timeLabel
+  dialogInitialPipelineId.value = ev.pipelineId
+  dialogEditEvent.value = ev
+  slotDialogOpen.value = true
+}
+
+// ── Détection des conflits d'horaires (ex: 2 pipelines qui tournent à la même minute) ──
+const detectedConflicts = computed<ConflictItem[]>(() => {
+  const conflicts: ConflictItem[] = []
+  const timeMap = new Map<string, { pid: string; name: string }[]>()
+
+  for (const p of pipelines.value) {
+    const s = sched(p)
+    if (!s) continue
+    for (const slot of s.weeklySlots ?? []) {
+      const key = `${slot.day}-${slot.time}`
+      const arr = timeMap.get(key) ?? []
+      arr.push({ pid: p.id, name: p.name })
+      timeMap.set(key, arr)
+    }
+  }
+
+  for (const [key, list] of timeMap.entries()) {
+    if (list.length > 1) {
+      const [day, time] = key.split('-')
+      conflicts.push({
+        day,
+        time,
+        pipelines: list.map(x => x.name),
+        reason: 'Scans simultanés programmés à la même minute',
+      })
+    }
+  }
+  return conflicts
+})
 
 interface CalEvent {
   id: string
   key: string
-  kind: 'slot' | 'pub'
+  kind: 'slot' | 'pub' | 'plan'
   pipelineId: string
   timeLabel: string
   text: string
@@ -583,6 +826,9 @@ interface CalEvent {
   date: Date
   day?: string
   time?: string
+  week?: 'A' | 'B'
+  publish?: string
+  publishLabel?: string
   pubId?: number
   platform?: string
   next?: boolean
@@ -596,6 +842,7 @@ interface Cell {
   isToday: boolean
   slots: CalEvent[]
   pubs: CalEvent[]
+  plans: CalEvent[]
 }
 
 function occurrences(day: string, start: Date, end: Date): Date[] {
@@ -624,6 +871,7 @@ function pubLabel(pub: any): string {
 const eventsByDay = computed(() => {
   const slots = new Map<string, CalEvent[]>()
   const pubs = new Map<string, CalEvent[]>()
+  const plans = new Map<string, CalEvent[]>()
   const push = (map: Map<string, CalEvent[]>, ev: CalEvent) => {
     const arr = map.get(ev.key) ?? []
     arr.push(ev)
@@ -649,16 +897,42 @@ const eventsByDay = computed(() => {
     if (!s) continue
     for (const slot of s.weeklySlots ?? []) {
       const [h, m] = String(slot.time ?? '08:00').split(':').map(Number)
+      const pubTime = pubTimeOf(slot, p.id)
       for (const d of occurrences(slot.day, gridStart.value, gridEnd.value)) {
         const st = new Date(d); st.setHours(h, m, 0, 0)
         push(slots, {
           id: `slot-${p.id}-${slot.day}-${slot.time}-${st.getTime()}`,
           key: dateKey(d), kind: 'slot', pipelineId: p.id,
           timeLabel: fmtClock(st), text: p.name,
-          tooltip: `${p.name} — scan à ${fmtClock(st)} (tous les ${slot.day.toLowerCase()})`,
+          tooltip: `${p.name} — scan à ${fmtClock(st)} (${slot.day.toLowerCase()}${slot.week ? `, semaine ${slot.week}` : ''})${pubTime ? ` · publication ${pubTime}` : ''}`,
           color: p.color, fg: '#101010', date: d,
           day: slot.day, time: slot.time,
+          week: slot.week,
+          publish: slot.publish,
+          publishLabel: pubTime ? `→ ${pubTime}` : undefined,
           next: nextKeys.has(`${p.id}|${dateKey(st)}`),
+        })
+      }
+    }
+  }
+  // Publications PLANIFIÉES (cadence) : scan + offset ou heure explicite —
+  // les pointsillés montrent le plan, les badges pleins les vraies missions.
+  for (const p of pipelines.value) {
+    if (!visible.value.has(p.id)) continue
+    const s = sched(p)
+    if (!s) continue
+    for (const slot of s.weeklySlots ?? []) {
+      const pt = pubTimeOf(slot, p.id)
+      if (!pt) continue
+      const [ph, pm] = pt.split(':').map(Number)
+      for (const d of occurrences(slot.day, gridStart.value, gridEnd.value)) {
+        const st = new Date(d); st.setHours(ph, pm, 0, 0)
+        push(plans, {
+          id: `plan-${p.id}-${slot.day}-${slot.time}-${st.getTime()}`,
+          key: dateKey(d), kind: 'plan', pipelineId: p.id,
+          timeLabel: fmtClock(st), text: `${p.name} — publication planifiée`,
+          tooltip: `${p.name} — publication prévue à ${fmtClock(st)} (scan ${slot.time}${slot.publish ? '' : ' + offset'})`,
+          color: p.color, fg: '#101010', date: d,
         })
       }
     }
@@ -679,8 +953,20 @@ const eventsByDay = computed(() => {
   }
   for (const arr of slots.values()) arr.sort((a, b) => a.timeLabel.localeCompare(b.timeLabel))
   for (const arr of pubs.values()) arr.sort((a, b) => a.timeLabel.localeCompare(b.timeLabel))
-  return { slots, pubs }
+  for (const arr of plans.values()) arr.sort((a, b) => a.timeLabel.localeCompare(b.timeLabel))
+  return { slots, pubs, plans }
 })
+
+// Heure de publication d'un créneau : explicite (slot.publish) sinon
+// scan + offset du pipeline (défaut 30 min).
+function pubTimeOf(slot: WeeklySlot, pipelineId: string): string | null {
+  if (slot.publish) return slot.publish
+  const offset = pipes.schedules[pipelineId]?.publishOffsetMinutes ?? 30
+  const [h, m] = String(slot.time ?? '').split(':').map(Number)
+  if (Number.isNaN(h) || Number.isNaN(m)) return null
+  const total = (h * 60 + m + offset) % (24 * 60)
+  return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`
+}
 
 const cells = computed<Cell[]>(() => {
   const out: Cell[] = []
@@ -695,6 +981,7 @@ const cells = computed<Cell[]>(() => {
       isToday: sameDay(date, today.value),
       slots: eventsByDay.value.slots.get(key) ?? [],
       pubs: eventsByDay.value.pubs.get(key) ?? [],
+      plans: eventsByDay.value.plans.get(key) ?? [],
     })
   }
   return out
@@ -810,6 +1097,44 @@ async function menuDeleteSlot(ev: CalEvent) {
   await persistDeleteSlot(ev)
 }
 
+// Duplication d'un créneau sur d'autres jours
+async function duplicateSlot(ev: CalEvent, target: 'tomorrow' | 'weekdays' | 'all') {
+  const pid = ev.pipelineId
+  const cur = pipes.schedules[pid]?.weeklySlots ?? []
+  let targetDays: string[] = []
+
+  if (target === 'tomorrow') {
+    const nextDate = addDays(ev.date, 1)
+    const day = Object.keys(DAY_INDEX).find(k => DAY_INDEX[k] === nextDate.getDay())
+    if (day) targetDays = [day]
+  } else if (target === 'weekdays') {
+    targetDays = ['LUN', 'MAR', 'MER', 'JEU', 'VEN']
+  } else if (target === 'all') {
+    targetDays = ['LUN', 'MAR', 'MER', 'JEU', 'VEN', 'SAM', 'DIM']
+  }
+
+  const nextSlots = [...cur]
+  let addedCount = 0
+
+  for (const d of targetDays) {
+    if (!nextSlots.some(s => s.day === d && s.time === ev.time && s.week === ev.week)) {
+      nextSlots.push({
+        day: d,
+        time: ev.time!,
+        week: ev.week,
+        publish: ev.publish,
+      })
+      addedCount++
+    }
+  }
+
+  if (addedCount > 0) {
+    await patchConfig(pid, { scheduling: { weeklySlots: nextSlots } }, `Créneau copié sur ${addedCount} jour(s)`)
+  } else {
+    toast.info('Ce créneau existe déjà sur les jours ciblés')
+  }
+}
+
 async function reschedulePub(ev: CalEvent, days: number) {
   const at = new Date(ev.date)
   at.setDate(at.getDate() + days)
@@ -855,6 +1180,57 @@ async function setInterval(p: PipelineInfo, minutes: number) {
   if (!minutes || minutes < 1) return
   if (pipes.schedules[p.id]) pipes.schedules[p.id].intervalleMinutes = minutes
   await patchConfig(p.id, { scheduling: { scrapingIntervalMinutes: minutes } })
+}
+
+// ── Cadence : semaine A/B, heure de publication, fenêtre d'activité ──
+function isoWeekNumber(d: Date): number {
+  const t = new Date(d)
+  const day = (t.getDay() + 6) % 7
+  t.setDate(t.getDate() - day + 3)
+  const firstThursday = new Date(t.getFullYear(), 0, 4)
+  const fDay = (firstThursday.getDay() + 6) % 7
+  firstThursday.setDate(firstThursday.getDate() - fDay + 3)
+  return 1 + Math.round(((t.getTime() - firstThursday.getTime()) / 86_400_000 - 3 + ((firstThursday.getDay() + 6) % 7)) / 7)
+}
+// Semaine ISO impaire = A, paire = B (même règle que le daemon).
+const currentWeek = computed(() => (isoWeekNumber(today.value) % 2 === 1 ? 'A' : 'B'))
+
+async function setSlotWeek(ev: CalEvent, week: 'A' | 'B' | '') {
+  const pid = ev.pipelineId
+  const cur = pipes.schedules[pid]?.weeklySlots ?? []
+  const next = cur.map(s => (s.day === ev.day && s.time === ev.time ? { ...s, week: week || undefined } : s))
+  await patchConfig(pid, { scheduling: { weeklySlots: next } }, `Créneau ${ev.day} ${ev.time} — ${week ? `semaine ${week}` : 'toutes les semaines'}`)
+}
+
+const slotEditor = ref<CalEvent | null>(null)
+const slotPublish = ref('')
+function openSlotPublish(ev: CalEvent) {
+  slotEditor.value = ev
+  slotPublish.value = ev.publish ?? ''
+}
+async function saveSlotPublish() {
+  const ev = slotEditor.value
+  if (!ev) return
+  const pid = ev.pipelineId
+  const cur = pipes.schedules[pid]?.weeklySlots ?? []
+  const v = slotPublish.value.trim()
+  const next = cur.map(s => (s.day === ev.day && s.time === ev.time ? { ...s, publish: v || undefined } : s))
+  await patchConfig(pid, { scheduling: { weeklySlots: next } }, v ? `Publication ${ev.day} ${ev.time} → ${v}` : 'Publication par défaut (offset du pipeline)')
+  slotEditor.value = null
+}
+
+async function setPublishOffset(p: PipelineInfo, minutes: number) {
+  if (Number.isNaN(minutes) || minutes < 0) return
+  if (pipes.schedules[p.id]) pipes.schedules[p.id].publishOffsetMinutes = minutes
+  await patchConfig(p.id, { scheduling: { publishOffsetMinutes: minutes } })
+}
+async function setActive(p: PipelineInfo, key: 'activeFrom' | 'activeUntil', v: string) {
+  if (pipes.schedules[p.id]) pipes.schedules[p.id][key] = v
+  await patchConfig(p.id, { scheduling: { [key]: v } })
+}
+async function clearActive(p: PipelineInfo) {
+  if (pipes.schedules[p.id]) { pipes.schedules[p.id].activeFrom = ''; pipes.schedules[p.id].activeUntil = '' }
+  await patchConfig(p.id, { scheduling: { activeFrom: '', activeUntil: '' } })
 }
 
 // ── Suivi : journal, cycles, agenda (pipeline actif) ──
@@ -921,6 +1297,16 @@ onUnmounted(() => { if (refreshTimer) clearInterval(refreshTimer) })
   cursor: default;
 }
 .event-chip-dot:active {
+  cursor: default;
+}
+/* Publications planifiées (cadence) : pointillés discrets. */
+.event-chip-plan {
+  border: 1px dashed var(--border);
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: default;
+}
+.event-chip-plan:active {
   cursor: default;
 }
 /* Badge agrégé des publications du jour. */

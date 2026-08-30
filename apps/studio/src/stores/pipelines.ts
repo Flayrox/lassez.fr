@@ -12,6 +12,9 @@ export interface PipelineSchedule {
   mode: 'hybrid' | 'pulse' | 'calendar'
   intervalleMinutes: number
   weeklySlots: WeeklySlot[]
+  publishOffsetMinutes: number
+  activeFrom: string
+  activeUntil: string
 }
 
 const DAY_INDEX: Record<string, number> = { DIM: 0, LUN: 1, MAR: 2, MER: 3, JEU: 4, VEN: 5, SAM: 6 }
@@ -53,6 +56,9 @@ export const usePipelinesStore = defineStore('pipelines', () => {
               mode: sc.mode === 'pulse' || sc.mode === 'calendar' || sc.mode === 'hybrid' ? sc.mode : 'hybrid',
               intervalleMinutes: typeof sc.scrapingIntervalMinutes === 'number' ? sc.scrapingIntervalMinutes : 60,
               weeklySlots: Array.isArray(sc.weeklySlots) ? sc.weeklySlots : [],
+              publishOffsetMinutes: typeof sc.publishOffsetMinutes === 'number' ? sc.publishOffsetMinutes : 30,
+              activeFrom: typeof sc.activeFrom === 'string' ? sc.activeFrom : '',
+              activeUntil: typeof sc.activeUntil === 'string' ? sc.activeUntil : '',
             }
           }
           if (pubRes.ok) {

@@ -166,7 +166,10 @@ func flatten(d map[string]any) map[string]any {
 	set("qoePublicationId", s("publisher", "qoePublicationId"))
 	set("qoeBaseUrl", s("publisher", "qoeBaseUrl"))
 
-	// Scheduling (format daemon : "LUN 20:08\nMAR 20:08")
+	// Scheduling — cadence hebdomadaire : "LUN 20:08" (toutes les semaines),
+	// "LUN 20:08 A" (semaines impaires) ou "B" (paires). Plusieurs heures par
+	// jour = plusieurs lignes. Fenêtre d'activité + offset de publication lus
+	// par le scheduler et le publisher.
 	mode := s("scheduling", "mode")
 	set("schedulingMode", mode)
 	set("scrapingInterval", f("scheduling", "scrapingIntervalMinutes"))
@@ -176,13 +179,23 @@ func flatten(d map[string]any) map[string]any {
 			if m, ok := sl.(map[string]any); ok {
 				day, _ := m["day"].(string)
 				tm, _ := m["time"].(string)
-				lines += day + " " + tm + "\n"
+				line := day + " " + tm
+				if wk, _ := m["week"].(string); wk == "A" || wk == "B" {
+					line += " " + wk
+				}
+				lines += line + "\n"
 			}
 		}
 		set("daemonSchedule", lines)
 	} else {
 		set("daemonSchedule", "")
 	}
+	// Cadence enrichie pour le publisher (publications planifiées) : créneaux
+	// bruts (day/time/week/publish), offset scan→publication et fenêtre d'activité.
+	set("weeklySlots", get("scheduling", "weeklySlots"))
+	set("schedulingPublishOffsetMinutes", f("scheduling", "publishOffsetMinutes"))
+	set("schedulingActiveFrom", s("scheduling", "activeFrom"))
+	set("schedulingActiveUntil", s("scheduling", "activeUntil"))
 
 	// Pipeline graph (nœuds actifs — le graphe visuel du studio)
 	set("pipelineGraphJson", s("pipeline", "graphJson"))

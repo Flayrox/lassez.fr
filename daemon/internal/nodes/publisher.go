@@ -14,6 +14,7 @@ import (
 	"github.com/Flayrox/lassez.fr/daemon/internal/store"
 	"github.com/Flayrox/lassez.fr/daemon/internal/publish"
 	"github.com/Flayrox/lassez.fr/daemon/internal/qoe"
+	"github.com/Flayrox/lassez.fr/daemon/internal/scheduler"
 )
 
 type publisherPlatform struct {
@@ -140,9 +141,17 @@ func RunPublisher(client *store.Client, resolver *config.Resolver) error {
 				}
 				finalScheduledAt := now
 				if platform.Mode == "SCHEDULED" {
-					delayMinutes := minDelay + rand.Intn(maxDelay-minDelay+1) // min <= max garanti plus haut
-					base := lastScheduled[platform.Name]
-					finalScheduledAt = base.Add(time.Duration(delayMinutes) * time.Minute)
+					// Cadence : la publication part à la prochaine heure PLANIFIÉE du
+					// pipeline (créneau + publishOffsetMinutes, ou heure explicite du
+					// créneau) — visible sur le calendrier. Repli aléatoire historique
+					// si aucun créneau n'est configuré.
+					if planned := scheduler.NextPublishAt(settings, now); planned != nil {
+						finalScheduledAt = *planned
+					} else {
+						delayMinutes := minDelay + rand.Intn(maxDelay-minDelay+1) // min <= max garanti plus haut
+						base := lastScheduled[platform.Name]
+						finalScheduledAt = base.Add(time.Duration(delayMinutes) * time.Minute)
+					}
 					lastScheduled[platform.Name] = finalScheduledAt
 				}
 				missions = append(missions, store.PublicationInput{

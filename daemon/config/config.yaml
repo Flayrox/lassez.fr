@@ -90,11 +90,14 @@ publisher:
     "blueskyPublishMode": "DIRECT"
     "mastodonPublishMode": "DIRECT"
 scheduling:
-    mode: calendar # interval désactivé, schedule actif
-    scrapingIntervalMinutes: 6 # scan_interval_hours = 0.1 h
+    mode: "pulse" # interval désactivé, schedule actif
+    scrapingIntervalMinutes: 60 # scan_interval_hours = 0.1 h
     # daemon_rss_schedule_times = 20:08 quotidien → représenté dans weeklySlots
-    weeklySlots: [{"day": "DIM", "time": "20:08"}]
+    weeklySlots: []
     timezone: Europe/Paris
+    "publishOffsetMinutes": 1
+    "activeFrom": ""
+    "activeUntil": ""
 media:
     overlayEnabled: true # image_overlay_enabled
     overlayOpacity: 0.5 # image_overlay_opacity

@@ -6,7 +6,10 @@ import { FACTORY_PROMPTS, FACTORY_FORMATS } from './factory'
 // Store studio — valeurs par défaut = la VRAIE config qui tournait sur le VPS
 // (radar.db 04/08/2026, voir daemon/config/config.yaml)
 
-export interface WeeklySlot { day: string; time: string } // ex { day:'LUN', time:'20:08' }
+// Créneau hebdomadaire de la cadence : day+time (scan), week A/B optionnel
+// (semaines ISO impaires = A, paires = B), publish optionnel (heure de
+// publication explicite — sinon scan + publishOffsetMinutes).
+export interface WeeklySlot { day: string; time: string; week?: 'A' | 'B'; publish?: string }
 export interface FormatItem {
   id: string
   nom: string
@@ -81,10 +84,33 @@ function defaultSources(): SourceItem[] {
 
 export const useConfigStore = defineStore('config', () => {
   // ── Pipelines (registre multi-instances) ──
-  const pipelines = ref<PipelineInfo[]>([])
+  // Valeurs par défaut immédiates (registre canonique) pour ne jamais avoir de liste vide
+  const defaultPipelines: PipelineInfo[] = [
+    {
+      id: 'principal',
+      name: 'Principal',
+      description: 'Le pipeline principal — tous les formats (FLASH, ALERTE…)',
+      enabled: true,
+      configPath: 'config/config.yaml',
+      dbPath: '../data/pipeline.db',
+      port: 4406,
+      color: '#F59E0B',
+    },
+    {
+      id: 'flash',
+      name: 'Flash',
+      description: 'Pipeline dédié au rythme FLASH — sources réduites, scans rapprochés',
+      enabled: true,
+      configPath: 'config/pipelines/flash.yaml',
+      dbPath: '../data/pipeline-flash.db',
+      port: 4407,
+      color: '#3B82F6',
+    },
+  ]
+  const pipelines = ref<PipelineInfo[]>([...defaultPipelines])
   // Le pipeline actif est mémorisé : on retombe dessus au rechargement de page.
   const activePipelineId = ref(localStorage.getItem('studio-active-pipeline') ?? 'principal')
-  const activePipeline = computed(() => pipelines.value.find(p => p.id === activePipelineId.value) ?? pipelines.value[0] ?? null)
+  const activePipeline = computed(() => pipelines.value.find(p => p.id === activePipelineId.value) ?? pipelines.value[0] ?? defaultPipelines[0])
 
   // Charge le registre (chaque instance répond avec la même liste).
   async function loadPipelines() {
@@ -92,14 +118,17 @@ export const useConfigStore = defineStore('config', () => {
       const res = await api('/api/pipelines')
       if (!res.ok) return
       const y = await res.json()
-      if (!Array.isArray(y?.data)) return
-      pipelines.value = y.data.filter((p: any) => p && typeof p.id === 'string')
+      if (!Array.isArray(y?.data) || y.data.length === 0) return
+      const valid = y.data.filter((p: any) => p && typeof p.id === 'string')
+      if (valid.length > 0) {
+        pipelines.value = valid
+      }
       if (pipelines.value.length && !pipelines.value.some(p => p.id === activePipelineId.value)) {
         activePipelineId.value = pipelines.value[0].id
       }
       const active = pipelines.value.find(p => p.id === activePipelineId.value)
       if (active) setApiBase(pipelineApiBase(active.port))
-    } catch { /* daemon down → registre vide */ }
+    } catch { /* daemon down → fallback sur les pipelines par défaut */ }
   }
 
   // Bascule de pipeline : on pointe l'API sur l'instance choisie puis on
@@ -265,12 +294,15 @@ export const useConfigStore = defineStore('config', () => {
     googleCseId: '',
   })
 
-  // ── Planning (réel : tous les jours à 20:08, Europe/Paris) ──
+  // ── Planning — cadence hebdomadaire (scans + publications planifiées) ──
   const planning = ref({
     mode: 'calendar' as 'pulse' | 'calendar' | 'hybrid',
     intervalleMinutes: 6,
     timezone: 'Europe/Paris',
     weeklySlots: DAYS.map(d => ({ day: d, time: '20:08' })) as WeeklySlot[],
+    publishOffsetMinutes: 30, // publications X min après le scan (défaut)
+    activeFrom: '',           // fenêtre d'activité (ISO date) — vide = toujours
+    activeUntil: '',          // « 3 jours par semaine puis plus jamais »
   })
 
   // ── Image / média (image_overlay_*, image_box_scale_*) ──
@@ -537,6 +569,9 @@ export const useConfigStore = defineStore('config', () => {
         scrapingIntervalMinutes: planning.value.intervalleMinutes,
         weeklySlots: planning.value.weeklySlots,
         timezone: planning.value.timezone,
+        publishOffsetMinutes: planning.value.publishOffsetMinutes,
+        activeFrom: planning.value.activeFrom,
+        activeUntil: planning.value.activeUntil,
       },
       media: {
         overlayEnabled: media.value.overlayEnabled,
@@ -701,6 +736,9 @@ export const useConfigStore = defineStore('config', () => {
       intervalleMinutes: sched.scrapingIntervalMinutes,
       timezone: sched.timezone,
       weeklySlots: Array.isArray(sched.weeklySlots) ? sched.weeklySlots : undefined,
+      publishOffsetMinutes: sched.publishOffsetMinutes,
+      activeFrom: sched.activeFrom,
+      activeUntil: sched.activeUntil,
     })
 
     // Media / vidéo / système
@@ -878,21 +916,32 @@ export const useConfigStore = defineStore('config', () => {
     let mode = def.mode
     let intervalleMinutes = def.intervalleMinutes
     let timezone = def.timezone
+    let publishOffsetMinutes = def.publishOffsetMinutes
+    let activeFrom = def.activeFrom
+    let activeUntil = def.activeUntil
     if (isObj(saved)) {
       if (saved.mode === 'pulse' || saved.mode === 'calendar' || saved.mode === 'hybrid') mode = saved.mode
       if (typeof saved.intervalleMinutes === 'number') intervalleMinutes = saved.intervalleMinutes
       if (typeof saved.timezone === 'string') timezone = saved.timezone
+      if (typeof saved.publishOffsetMinutes === 'number' && saved.publishOffsetMinutes >= 0) publishOffsetMinutes = saved.publishOffsetMinutes
+      if (typeof saved.activeFrom === 'string') activeFrom = saved.activeFrom
+      if (typeof saved.activeUntil === 'string') activeUntil = saved.activeUntil
       if (Array.isArray(saved.weeklySlots)) {
         weeklySlots = saved.weeklySlots
           .filter((s: any) => s && typeof s === 'object' && DAYS.includes(s.day) && typeof s.time === 'string')
-          .map((s: any) => ({ day: s.day, time: s.time }))
+          .map((s: any) => {
+            const slot: WeeklySlot = { day: s.day, time: s.time }
+            if (s.week === 'A' || s.week === 'B') slot.week = s.week
+            if (typeof s.publish === 'string' && s.publish.trim()) slot.publish = s.publish.trim()
+            return slot
+          })
       } else if (Array.isArray(saved.times)) {
         // Ancienne forme : `times: ['20:08']` = tous les jours à ces heures
         const times = saved.times.filter((t: any) => typeof t === 'string' && t.trim())
         weeklySlots = times.flatMap((t: string) => DAYS.map(d => ({ day: d, time: t })))
       }
     }
-    return { mode, intervalleMinutes, timezone, weeklySlots }
+    return { mode, intervalleMinutes, timezone, weeklySlots, publishOffsetMinutes, activeFrom, activeUntil }
   }
   function load() {
     hydrating.value = true

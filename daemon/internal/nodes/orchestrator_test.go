@@ -53,3 +53,25 @@ func TestBuildOrchestratorPromptMemory(t *testing.T) {
 		}
 	}
 }
+
+// TestSanitizeTaxonomyRepli — un id inconnu retombe sur le PREMIER format
+// actif de la liste (jamais un format désactivé), et sur INFO seulement si
+// la liste des formats est vide.
+func TestSanitizeTaxonomyRepli(t *testing.T) {
+	templates := []store.TaxonomyTemplate{
+		{Name: "FLASH"},
+		{Name: "ALERTE"},
+	}
+	if got := sanitizeTaxonomy("ALERTE", templates); got != "ALERTE" {
+		t.Errorf("id connu mal reconnu : %q", got)
+	}
+	if got := sanitizeTaxonomy("INFO", templates); got != "FLASH" {
+		t.Errorf("repli attendu sur le premier format actif (FLASH), obtenu %q", got)
+	}
+	if got := sanitizeTaxonomy("", templates); got != "FLASH" {
+		t.Errorf("repli vide attendu FLASH, obtenu %q", got)
+	}
+	if got := sanitizeTaxonomy("DÉCRYPTAGE", nil); got != "INFO" {
+		t.Errorf("sans template, repli INFO attendu, obtenu %q", got)
+	}
+}

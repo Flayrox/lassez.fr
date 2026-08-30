@@ -279,6 +279,12 @@ func sanitizeTaxonomy(raw string, templates []store.TaxonomyTemplate) string {
 			return cand
 		}
 	}
+	// Aucun id reconnu : on force le sujet dans le PREMIER format actif de la
+	// liste (ordre de config.yaml) plutôt qu'un repli codé en dur — les formats
+	// désactivés (ex. INFO) ne doivent jamais ressortir en sortie.
+	if len(templates) > 0 {
+		return strings.ToUpper(strings.TrimSpace(templates[0].Name))
+	}
 	return "INFO"
 }
 

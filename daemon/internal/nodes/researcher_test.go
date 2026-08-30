@@ -35,7 +35,8 @@ func TestBuildResearchPromptBiais(t *testing.T) {
 }
 
 // TestSanitizeTaxonomy — le modèle renvoie parfois une liste de formats au
-// lieu d'un seul id : on ne garde que le premier id connu, sinon INFO.
+// lieu d'un seul id : on ne garde que le premier id connu, sinon le premier
+// format actif de la liste (repli INFO uniquement si la liste est vide).
 func TestSanitizeTaxonomy(t *testing.T) {
 	templates := []store.TaxonomyTemplate{
 		{Name: "FLASH"}, {Name: "CITATION"}, {Name: "ALERTE"}, {Name: "DECRYPTAGE"}, {Name: "INFO"},
@@ -48,8 +49,8 @@ func TestSanitizeTaxonomy(t *testing.T) {
 		{"decryptage", "DECRYPTAGE"},                        // minuscules → normalisé
 		{" FLASH ", "FLASH"},                                // espaces
 		{"INFO", "INFO"},                                    // id seul
-		{"", "INFO"},                                        // vide → INFO
-		{"QUELQUE CHOSE", "INFO"},                           // inconnu → INFO
+		{"", "FLASH"},                                        // vide → premier format actif
+		{"QUELQUE CHOSE", "FLASH"},                           // inconnu → premier format actif
 		{"ALERTE,\nINFO", "ALERTE"},                         // virgule + newline
 	}
 	for _, c := range cases {

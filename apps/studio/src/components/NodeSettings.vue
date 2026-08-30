@@ -1,38 +1,38 @@
-<!-- NodeSettings — carte de réglages d'un composant de la chaîne (onglet du hub
-     « Emploi du temps »). Switch marche/pause + champs typés (slider, select,
-     toggle, input) branchés directement sur le store config (autosave). -->
+<!-- NodeSettings — carte de réglages d'un composant de la chaîne, COMPACTE et
+     toujours visible : pas de repli, pas de sous-onglets. En-tête (icône, nom,
+     résumé de ce qui est déjà réglé, switch marche/pause) + champs typés
+     (slider, select, toggle, input) empilés en colonne, branchés directement
+     sur le store config (autosave). Les onglets du hub les disposent en
+     colonnes (grid) pour éviter tout scroll inutile. -->
 <template>
   <Card class="gap-0 overflow-hidden py-0">
-    <CardHeader class="flex-row items-center gap-3 border-b px-4 py-3">
-      <div class="flex min-w-0 flex-1 items-center gap-3">
-        <span
-          class="flex size-8 shrink-0 items-center justify-center rounded-lg text-sm font-semibold"
-          :class="node.enabled ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'"
-        >{{ iconOf(node.type) }}</span>
-        <div class="min-w-0">
-          <CardTitle class="text-sm">{{ node.label }}</CardTitle>
-          <CardDescription class="text-xs">{{ summary }}</CardDescription>
-        </div>
+    <div class="flex items-center gap-2.5 border-b px-3 py-2">
+      <span
+        class="flex size-6 shrink-0 items-center justify-center rounded-md text-xs font-semibold"
+        :class="node.enabled ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'"
+      >{{ iconOf(node.type) }}</span>
+      <div class="min-w-0 flex-1">
+        <p class="text-[13px] leading-tight font-semibold">{{ node.label }}</p>
+        <p class="text-muted-foreground truncate text-[11px] leading-tight" :title="summary">{{ summary }}</p>
       </div>
-      <Badge :variant="node.enabled ? 'default' : 'secondary'" class="shrink-0">{{ node.enabled ? 'En marche' : 'En pause' }}</Badge>
       <Switch :model-value="node.enabled" @update:model-value="toggleEnabled" />
-    </CardHeader>
+    </div>
 
-    <CardContent class="grid gap-5 p-4 md:grid-cols-2">
+    <div class="flex flex-col gap-3 p-3">
       <template v-for="f in fields" :key="f.key">
         <!-- Ligne switch -->
-        <div v-if="f.type === 'toggle-row'" class="flex items-center justify-between gap-3 rounded-lg border px-3 py-2.5">
+        <div v-if="f.type === 'toggle-row'" class="flex items-center justify-between gap-3 rounded-lg border px-3 py-2">
           <div class="min-w-0">
-            <p class="text-sm font-medium">{{ f.label }}</p>
-            <p v-if="f.help" class="text-muted-foreground mt-0.5 text-xs">{{ f.help }}</p>
+            <p class="text-[13px] font-medium">{{ f.label }}</p>
+            <p v-if="f.help" class="text-muted-foreground mt-0.5 text-[11px]">{{ f.help }}</p>
           </div>
           <Switch :model-value="!!f.value" @update:model-value="(v: boolean) => update(f, v)" />
         </div>
 
         <!-- Slider -->
-        <div v-else-if="f.type === 'slider'" class="space-y-2">
-          <div class="flex items-center justify-between">
-            <p class="text-sm font-medium">{{ f.label }}</p>
+        <div v-else-if="f.type === 'slider'" class="space-y-1.5">
+          <div class="flex items-center justify-between gap-2">
+            <p class="text-[13px] font-medium">{{ f.label }}</p>
             <span class="text-muted-foreground font-mono text-xs">{{ f.value }}{{ f.unit ?? '' }}</span>
           </div>
           <Slider
@@ -42,37 +42,38 @@
             :step="f.step ?? 1"
             @update:model-value="(v: number[]) => update(f, v[0])"
           />
-          <p v-if="f.help" class="text-muted-foreground text-xs">{{ f.help }}</p>
+          <p v-if="f.help" class="text-muted-foreground text-[11px]">{{ f.help }}</p>
         </div>
 
         <!-- Select -->
         <div v-else-if="f.type === 'select'" class="space-y-1.5">
-          <p class="text-sm font-medium">{{ f.label }}</p>
+          <p class="text-[13px] font-medium">{{ f.label }}</p>
           <Select :model-value="String(f.value)" @update:model-value="(v: string) => update(f, v)">
-            <SelectTrigger size="sm" class="w-full">
+            <SelectTrigger size="sm" class="h-7 w-full">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               <SelectItem v-for="o in f.options ?? []" :key="o" :value="o">{{ o }}</SelectItem>
             </SelectContent>
           </Select>
-          <p v-if="f.help" class="text-muted-foreground text-xs">{{ f.help }}</p>
+          <p v-if="f.help" class="text-muted-foreground text-[11px]">{{ f.help }}</p>
         </div>
 
         <!-- Input -->
         <div v-else class="space-y-1.5">
-          <p class="text-sm font-medium">{{ f.label }}</p>
+          <p class="text-[13px] font-medium">{{ f.label }}</p>
           <Input
+            class="h-7 text-xs"
             :type="f.type"
             :model-value="String(f.value ?? '')"
             @update:model-value="(v) => update(f, v)"
           />
-          <p v-if="f.help" class="text-muted-foreground text-xs">{{ f.help }}</p>
+          <p v-if="f.help" class="text-muted-foreground text-[11px]">{{ f.help }}</p>
         </div>
       </template>
 
-      <p v-if="fields.length === 0" class="text-muted-foreground text-xs md:col-span-2">Aucun réglage pour cette étape pour l'instant.</p>
-    </CardContent>
+      <p v-if="fields.length === 0" class="text-muted-foreground text-xs">Aucun réglage pour cette étape pour l'instant.</p>
+    </div>
   </Card>
 </template>
 
@@ -152,7 +153,7 @@ const fields = computed<Field[]>(() => {
     case 'orchestrator':
       return [
         { key: 'aiModelOrchestrator', label: 'Modèle de l’orchestrateur', help: 'Chef de desk — 1 appel IA par cycle', type: 'select', options: store.modelRegistry.map(m => m.label), value: store.ecriture.modeleOrchestrateur, apply: (v: string) => (store.ecriture.modeleOrchestrateur = v) },
-        { key: 'thinkingOrchestrator', label: 'Raisonnement (thinking)', help: 'Moyen par défaut : il planifie, la rédaction rédige', type: 'select', options: ['2048 — moyen', '8192 — élevé', '16384 — très élevé'], value: String(store.ecriture.thinkingOrchestrateur), apply: (v: string) => (store.ecriture.thinkingOrchestrateur = parseInt(v)) },
+        { key: 'thinkingOrchestrateur', label: 'Raisonnement (thinking)', help: 'Moyen par défaut : il planifie, la rédaction rédige', type: 'select', options: ['2048 — moyen', '8192 — élevé', '16384 — très élevé'], value: String(store.ecriture.thinkingOrchestrateur), apply: (v: string) => (store.ecriture.thinkingOrchestrateur = parseInt(v)) },
         { key: 'maxTopics', label: 'Sujets lus par cycle', help: 'La liste complète du jour (borne du prompt)', type: 'slider', min: 10, max: 100, value: store.ecriture.maxSujetsOrchestrateur, apply: (v: number) => (store.ecriture.maxSujetsOrchestrateur = v) },
       ]
     case 'research':

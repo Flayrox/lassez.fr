@@ -4,9 +4,9 @@
          + la mémoire éditoriale. Les blocs de la ligne éditoriale que la
          Rédaction consomme (ton, enquête, vocabulaire) + la consigne globale
          vivent ICI, dans l'étape qui les utilise.
-       · Formats : chaque rubrique regroupe TOUT — nom, couleur, modèle, statut,
-         description, instructions, exemples, schéma JSON et où elle part
-         (QOE/Discord/X/…) — en carte dépliable inline.
+      · Formats : chaque rubrique regroupe TOUT — nom, couleur, modèle, statut,
+        description, instructions, exemples, schéma JSON et où elle part
+        (QOE/Discord/X/…) — ligne toujours visible, édition en Dialog.
        · Modèles : registre des modèles IA (Dialog + ContextMenu).
      Les blocs du Tri et de l'Image vivent dans leurs propres onglets du hub
      (EmploiDuTemps : onglets ✦ Tri et ◎ Image), via EditorialBlocks.
@@ -19,74 +19,80 @@
       <TabsTrigger value="modeles">🤖 Modèles</TabsTrigger>
     </TabsList>
 
-    <!-- ══ Écriture : la rédaction (un seul passage) + mémoire ══ -->
+    <!-- ══ Écriture : la rédaction (un seul passage) + mémoire, en 2 colonnes ══ -->
     <TabsContent value="ecriture" class="space-y-3">
-      <!-- Rédaction : l'IA écrit ET vérifie en un seul passage -->
-      <Card class="gap-0 overflow-hidden py-0">
-        <div class="flex flex-wrap items-center gap-2 border-b px-4 py-2.5">
-          <span class="flex size-6 shrink-0 items-center justify-center rounded-md bg-primary text-xs text-primary-foreground">✎</span>
-          <p class="text-xs font-semibold">Rédaction — un seul passage, l'IA écrit et vérifie</p>
-        </div>
-        <div class="grid gap-4 p-4 md:grid-cols-3">
-          <Field label="Modèle de rédaction" help="Le plus fort pour écrire l'article">
-            <ModelSelect
-              :model-value="store.ecriture.modeleRedaction"
-              @update:model-value="(v: string) => { store.ecriture.modeleRedaction = v; store.markDirty() }"
-            />
-          </Field>
-          <Field label="Rédiger en parallèle" help="Combien d'articles à la fois">
-            <Select
-              :model-value="String(store.ecriture.tachesEnMemeTempsRedaction)"
-              @update:model-value="(v: string) => { store.ecriture.tachesEnMemeTempsRedaction = Number(v); store.markDirty() }"
-            >
-              <SelectTrigger size="sm" class="h-7 w-full"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem v-for="n in [1, 2, 3, 4, 6, 8]" :key="n" :value="String(n)">{{ n }} article{{ n > 1 ? 's' : '' }} à la fois</SelectItem>
-              </SelectContent>
-            </Select>
-          </Field>
-          <Field label="Persona — le nom du rédacteur" help="Remplacé automatiquement dans tous les prompts">
-            <Input
-              class="h-7 text-xs"
-              :model-value="store.ecriture.personaName"
-              placeholder="Le Mécanicien"
-              @update:model-value="(v) => { store.ecriture.personaName = String(v); store.markDirty() }"
-            />
-          </Field>
-        </div>
-      </Card>
+      <div class="grid items-start gap-3 xl:grid-cols-2">
+        <div class="flex flex-col gap-3">
+          <!-- Rédaction : l'IA écrit ET vérifie en un seul passage -->
+          <Card class="gap-0 overflow-hidden py-0">
+            <div class="flex flex-wrap items-center gap-2 border-b px-4 py-2.5">
+              <span class="flex size-6 shrink-0 items-center justify-center rounded-md bg-primary text-xs text-primary-foreground">✎</span>
+              <p class="text-xs font-semibold">Rédaction — un seul passage, l'IA écrit et vérifie</p>
+            </div>
+            <div class="flex flex-col gap-4 p-4">
+              <Field label="Modèle de rédaction" help="Le plus fort pour écrire l'article">
+                <ModelSelect
+                  :model-value="store.ecriture.modeleRedaction"
+                  @update:model-value="(v: string) => { store.ecriture.modeleRedaction = v; store.markDirty() }"
+                />
+              </Field>
+              <Field label="Rédiger en parallèle" help="Combien d'articles à la fois">
+                <Select
+                  :model-value="String(store.ecriture.tachesEnMemeTempsRedaction)"
+                  @update:model-value="(v: string) => { store.ecriture.tachesEnMemeTempsRedaction = Number(v); store.markDirty() }"
+                >
+                  <SelectTrigger size="sm" class="h-7 w-full"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem v-for="n in [1, 2, 3, 4, 6, 8]" :key="n" :value="String(n)">{{ n }} article{{ n > 1 ? 's' : '' }} à la fois</SelectItem>
+                  </SelectContent>
+                </Select>
+              </Field>
+              <Field label="Persona — le nom du rédacteur" help="Remplacé automatiquement dans tous les prompts">
+                <Input
+                  class="h-7 text-xs"
+                  :model-value="store.ecriture.personaName"
+                  placeholder="Le Mécanicien"
+                  @update:model-value="(v) => { store.ecriture.personaName = String(v); store.markDirty() }"
+                />
+              </Field>
+            </div>
+          </Card>
 
-      <!-- Mémoire éditoriale : une ligne compacte -->
-      <Card class="gap-0 py-0">
-        <div class="flex flex-wrap items-center gap-x-5 gap-y-2 px-4 py-3">
-          <div class="flex items-center gap-2">
-            <BrainIcon class="text-muted-foreground size-4" />
-            <p class="text-sm font-medium">Mémoire éditoriale</p>
-          </div>
-          <Switch
-            :model-value="store.ecriture.memoireActivee"
-            @update:model-value="(v: boolean) => { store.ecriture.memoireActivee = v; store.markDirty() }"
-          />
-          <span class="text-muted-foreground text-xs">L'IA se souvient des titres publiés — contradictions, suites, redites</span>
-          <div class="ml-auto flex items-center gap-2">
-            <Select
-              :model-value="String(store.ecriture.memoireJours)"
-              @update:model-value="(v: string) => { store.ecriture.memoireJours = Number(v); store.markDirty() }"
-            >
-              <SelectTrigger size="sm" class="h-7 w-32"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="7">7 jours</SelectItem>
-                <SelectItem value="30">30 jours</SelectItem>
-                <SelectItem value="90">90 jours</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+          <!-- Mémoire éditoriale : une ligne compacte -->
+          <Card class="gap-0 py-0">
+            <div class="flex flex-wrap items-center gap-x-5 gap-y-2 px-4 py-3">
+              <div class="flex items-center gap-2">
+                <BrainIcon class="text-muted-foreground size-4" />
+                <p class="text-sm font-medium">Mémoire éditoriale</p>
+              </div>
+              <Switch
+                :model-value="store.ecriture.memoireActivee"
+                @update:model-value="(v: boolean) => { store.ecriture.memoireActivee = v; store.markDirty() }"
+              />
+              <span class="text-muted-foreground text-xs">L'IA se souvient des titres publiés — contradictions, suites, redites</span>
+              <div class="ml-auto flex items-center gap-2">
+                <Select
+                  :model-value="String(store.ecriture.memoireJours)"
+                  @update:model-value="(v: string) => { store.ecriture.memoireJours = Number(v); store.markDirty() }"
+                >
+                  <SelectTrigger size="sm" class="h-7 w-32"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="7">7 jours</SelectItem>
+                    <SelectItem value="30">30 jours</SelectItem>
+                    <SelectItem value="90">90 jours</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </Card>
         </div>
-      </Card>
 
-      <!-- Le style d'écriture : les blocs VIVENT ICI, dans l'étape qui les utilise -->
-      <EditorialBlocks node="editor" />
-      <EditorialBlocks node="global" />
+        <div class="flex flex-col gap-3">
+          <!-- Le style d'écriture : les blocs VIVENT ICI, dans l'étape qui les utilise -->
+          <EditorialBlocks node="editor" />
+          <EditorialBlocks node="global" />
+        </div>
+      </div>
     </TabsContent>
 
     <!-- ══ Formats : chaque rubrique regroupe modèle + prompts + diffusion ══ -->
@@ -147,71 +153,84 @@
                       <Button variant="ghost" size="icon-xs" class="text-muted-foreground"><MoreHorizontalIcon /></Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem @select="toggleFormat(f.id)"><ChevronDownIcon class="size-3.5" /> {{ expandedFormat === f.id ? 'Replier' : 'Ouvrir' }}</DropdownMenuItem>
+                      <DropdownMenuItem @select="editingFormat = f"><PencilIcon class="size-3.5" /> Modifier</DropdownMenuItem>
                       <DropdownMenuItem @select="duplicateFormat(f)"><CopyIcon class="size-3.5" /> Dupliquer</DropdownMenuItem>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem variant="destructive" @select="removeFormat(f.id)"><Trash2Icon class="size-3.5" /> Supprimer</DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
-                  <Button variant="ghost" size="icon-xs" class="text-muted-foreground" :title="expandedFormat === f.id ? 'Replier' : 'Ouvrir'" @click="toggleFormat(f.id)">
-                    <ChevronDownIcon class="size-3.5 transition-transform" :class="expandedFormat === f.id ? 'rotate-180' : ''" />
+                  <Button variant="ghost" size="icon-xs" class="text-muted-foreground" title="Modifier" @click="editingFormat = f">
+                    <PencilIcon class="size-3.5" />
                   </Button>
-                </div>
-              </div>
-
-              <!-- Contenu déplié : prompts + exemples + schéma + diffusion -->
-              <div v-if="expandedFormat === f.id" class="space-y-4 border-t p-4">
-                <div class="space-y-1">
-                  <p class="text-muted-foreground text-[10px] font-medium tracking-wider uppercase">Description — aide le robot à reconnaître quand utiliser ce format</p>
-                  <Input :model-value="f.description" placeholder="Quand utiliser ce format…" class="h-7 text-xs" @update:model-value="(v) => { f.description = String(v); store.markDirty() }" />
-                </div>
-
-                <div class="space-y-1">
-                  <p class="text-muted-foreground text-[10px] font-medium tracking-wider uppercase">Instructions de format — envoyées à l'IA de rédaction</p>
-                  <Textarea :model-value="f.consigne" :rows="5" class="text-xs" placeholder="La structure exacte du post : lignes, MAJUSCULES, tacles…" @update:model-value="(v) => { f.consigne = String(v); store.markDirty() }" />
-                </div>
-
-                <div class="space-y-2">
-                  <div class="flex items-center justify-between">
-                    <p class="text-muted-foreground text-[10px] font-medium tracking-wider uppercase">Exemples (few-shot) — l'IA imite le style</p>
-                    <Button variant="outline" size="sm" class="h-6 text-[11px]" @click="addExample(f)">+ Exemple</Button>
-                  </div>
-                  <div v-for="(ex, i) in f.exemples" :key="i" class="relative">
-                    <span class="text-muted-foreground absolute top-2 left-2.5 text-[9px] font-bold uppercase">#{{ i + 1 }}</span>
-                    <Textarea :model-value="ex" :rows="2" class="pl-9 pr-8 text-xs" placeholder="Un post d'exemple complet…" @update:model-value="(v) => { f.exemples[i] = String(v); store.markDirty() }" />
-                    <Button variant="ghost" size="icon-xs" class="text-muted-foreground absolute top-1 right-1" title="Retirer" @click="removeExample(f, i)"><XIcon /></Button>
-                  </div>
-                  <p v-if="!f.exemples.length" class="text-muted-foreground text-[11px] italic">Aucun exemple — l'IA se reposera uniquement sur les instructions.</p>
-                </div>
-
-                <div class="space-y-1">
-                  <div class="flex items-center justify-between">
-                    <p class="text-muted-foreground text-[10px] font-medium tracking-wider uppercase">Schéma JSON de sortie</p>
-                    <span v-if="!isValidJson(f.schema)" class="text-warning text-[10px]">JSON invalide</span>
-                    <span v-else class="text-accent text-[10px]">JSON valide ✓</span>
-                  </div>
-                  <Textarea :model-value="f.schema" :rows="7" class="font-mono text-[10px]" placeholder='{ "taxonomie": "…", "geo": …, "tags": […], "headline": …, "body": …, "image_search_queries": […], "metadata": {…} }' @update:model-value="(v) => { f.schema = String(v); store.markDirty() }" />
-                </div>
-
-                <!-- Diffusion : où ce format part (matrice publisher) -->
-                <div class="flex flex-wrap items-center gap-x-5 gap-y-2 border-t pt-3">
-                  <p class="text-muted-foreground text-[10px] font-medium tracking-wider uppercase">Publié sur</p>
-                  <label v-for="p in PLATFORMS" :key="p.key" class="flex cursor-pointer items-center gap-1.5 text-xs" @click.stop>
-                    <Switch :model-value="matrixOf(f.id, p.key)" @update:model-value="(v: boolean) => setMatrix(f.id, p.key, v)" />
-                    <span class="text-muted-foreground">{{ p.label }}</span>
-                  </label>
                 </div>
               </div>
             </Card>
           </ContextMenuTrigger>
           <ContextMenuContent class="min-w-40">
-            <ContextMenuItem @select="toggleFormat(f.id)"><ChevronDownIcon class="size-3.5" /> {{ expandedFormat === f.id ? 'Replier' : 'Ouvrir' }}</ContextMenuItem>
+            <ContextMenuItem @select="editingFormat = f"><PencilIcon class="size-3.5" /> Modifier</ContextMenuItem>
             <ContextMenuItem @select="duplicateFormat(f)"><CopyIcon class="size-3.5" /> Dupliquer</ContextMenuItem>
             <ContextMenuSeparator />
             <ContextMenuItem variant="destructive" @select="removeFormat(f.id)"><Trash2Icon class="size-3.5" /> Supprimer</ContextMenuItem>
           </ContextMenuContent>
         </ContextMenu>
       </div>
+
+      <!-- Dialog d'édition complet d'un format : tout d'un coup d'œil, autosave -->
+      <Dialog :open="!!editingFormat" @update:open="(v: boolean) => { if (!v) editingFormat = null }">
+        <DialogContent class="sm:max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>Format — {{ editingFormat?.nom }}</DialogTitle>
+            <DialogDescription>Modèle, instructions, exemples, schéma JSON et diffusion — sauvegardé automatiquement à chaque frappe.</DialogDescription>
+          </DialogHeader>
+          <!-- Grand contenu avec scroll interne : tout le format reste éditable sans sortir -->
+          <div v-if="editingFormat" class="flex max-h-[75vh] flex-col gap-4 overflow-y-auto pr-1">
+            <div class="space-y-1">
+              <p class="text-muted-foreground text-[10px] font-medium tracking-wider uppercase">Description — aide le robot à reconnaître quand utiliser ce format</p>
+              <Input :model-value="editingFormat.description" placeholder="Quand utiliser ce format…" class="h-7 text-xs" @update:model-value="(v) => { editingFormat.description = String(v); store.markDirty() }" />
+            </div>
+
+            <div class="space-y-1">
+              <p class="text-muted-foreground text-[10px] font-medium tracking-wider uppercase">Instructions de format — envoyées à l'IA de rédaction</p>
+              <Textarea :model-value="editingFormat.consigne" :rows="5" class="text-xs" placeholder="La structure exacte du post : lignes, MAJUSCULES, tacles…" @update:model-value="(v) => { editingFormat.consigne = String(v); store.markDirty() }" />
+            </div>
+
+            <div class="space-y-2">
+              <div class="flex items-center justify-between">
+                <p class="text-muted-foreground text-[10px] font-medium tracking-wider uppercase">Exemples (few-shot) — l'IA imite le style</p>
+                <Button variant="outline" size="sm" class="h-6 text-[11px]" @click="addExample(editingFormat)">+ Exemple</Button>
+              </div>
+              <div v-for="(ex, i) in editingFormat.exemples" :key="i" class="relative">
+                <span class="text-muted-foreground absolute top-2 left-2.5 text-[9px] font-bold uppercase">#{{ i + 1 }}</span>
+                <Textarea :model-value="ex" :rows="2" class="pl-9 pr-8 text-xs" placeholder="Un post d'exemple complet…" @update:model-value="(v) => { editingFormat.exemples[i] = String(v); store.markDirty() }" />
+                <Button variant="ghost" size="icon-xs" class="text-muted-foreground absolute top-1 right-1" title="Retirer" @click="removeExample(editingFormat, i)"><XIcon /></Button>
+              </div>
+              <p v-if="!editingFormat.exemples.length" class="text-muted-foreground text-[11px] italic">Aucun exemple — l'IA se reposera uniquement sur les instructions.</p>
+            </div>
+
+            <div class="space-y-1">
+              <div class="flex items-center justify-between">
+                <p class="text-muted-foreground text-[10px] font-medium tracking-wider uppercase">Schéma JSON de sortie</p>
+                <span v-if="!isValidJson(editingFormat.schema)" class="text-warning text-[10px]">JSON invalide</span>
+                <span v-else class="text-accent text-[10px]">JSON valide ✓</span>
+              </div>
+              <Textarea :model-value="editingFormat.schema" :rows="7" class="font-mono text-[10px]" placeholder='{ "taxonomie": "…", "geo": …, "tags": […], "headline": …, "body": …, "image_search_queries": […], "metadata": {…} }' @update:model-value="(v) => { editingFormat.schema = String(v); store.markDirty() }" />
+            </div>
+
+            <!-- Diffusion : où ce format part (matrice publisher) -->
+            <div class="flex flex-wrap items-center gap-x-5 gap-y-2 border-t pt-3">
+              <p class="text-muted-foreground text-[10px] font-medium tracking-wider uppercase">Publié sur</p>
+              <label v-for="p in PLATFORMS" :key="p.key" class="flex cursor-pointer items-center gap-1.5 text-xs" @click.stop>
+                <Switch :model-value="matrixOf(editingFormat.id, p.key)" @update:model-value="(v: boolean) => setMatrix(editingFormat.id, p.key, v)" />
+                <span class="text-muted-foreground">{{ p.label }}</span>
+              </label>
+            </div>
+          </div>
+          <DialogFooter>
+            <span class="text-muted-foreground mr-auto text-[11px]">Sauvegardé automatiquement</span>
+            <Button @click="editingFormat = null">Fermer</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <div v-if="!store.formats.length" class="border-dashed rounded-xl border py-16 text-center">
         <p class="text-sm font-medium">Aucun format</p>
@@ -308,7 +327,7 @@
 
 <script setup lang="ts">
 import { ref, computed, h, defineComponent } from 'vue'
-import { BrainIcon, ChevronDownIcon, CopyIcon, MoreHorizontalIcon, PencilIcon, PlusIcon, RefreshCwIcon, Trash2Icon, XIcon } from '@lucide/vue'
+import { BrainIcon, CopyIcon, MoreHorizontalIcon, PencilIcon, PlusIcon, RefreshCwIcon, Trash2Icon, XIcon } from '@lucide/vue'
 import { Badge } from './ui/badge'
 import { Button } from './ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card'
@@ -368,15 +387,12 @@ function setMatrix(formatId: string, key: string, v: boolean) {
   store.markDirty()
 }
 
-// ── Formats : cartes tout-en-un (modèle + prompts + diffusion) ──
-const expandedFormat = ref<string | null>(null)
-function toggleFormat(id: string) {
-  expandedFormat.value = expandedFormat.value === id ? null : id
-}
+// ── Formats : lignes toujours visibles + édition complète en Dialog ──
+const editingFormat = ref<FormatItem | null>(null)
 function addFormat() {
   store.formats.push({ id: 'FORMAT_' + Date.now().toString().slice(-6), nom: 'Nouveau format', actif: true, couleur: '#3ecf8e', description: '', consigne: '', exemples: [], schema: '' })
   store.markDirty()
-  expandedFormat.value = store.formats[store.formats.length - 1].id
+  editingFormat.value = store.formats[store.formats.length - 1]
 }
 function duplicateFormat(f: FormatItem) {
   store.formats.push({ ...f, id: 'FORMAT_' + Date.now().toString().slice(-6), nom: f.nom + ' (copie)', exemples: [...f.exemples] })

@@ -1,14 +1,17 @@
 <!-- EditorialBlocks — les blocs de la ligne éditoriale, rendus DANS l'onglet de
      l'étape de la pipeline qui les consomme (Tri / Rédaction / Image / Global).
-     Chaque bloc = un prompt éditable (accordéon) avec sa clé config.yaml.
+     Chaque bloc = un prompt éditable avec sa clé config.yaml.
      Prop `node` : 'research' | 'editor' | 'media' | 'global' — filtre les blocs
-     de l'étape. Tout est sauvegardé automatiquement (store config). -->
+     de l'étape. Tout est sauvegardé automatiquement (store config).
+     ZÉRO FRICTION : chaque bloc est une ligne TOUJOURS visible (label + aperçu)
+     — cliquer ouvre l'édition dans un Dialog (pas d'accordéon qui déplie). -->
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from './ui/accordion'
+import { PencilIcon } from '@lucide/vue'
 import { Badge } from './ui/badge'
 import { Button } from './ui/button'
 import { Card } from './ui/card'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog'
 import { Textarea } from './ui/textarea'
 import { useConfigStore } from '../stores/config'
 import { FACTORY_PROMPTS } from '../stores/factory'
@@ -58,6 +61,9 @@ function resetGroup() {
   for (const b of list.value) b.set(b.resetTo)
 }
 const previewOf = (b: Block) => b.get().trim() || 'Vide — le texte par défaut du code sera utilisé'
+
+// Le bloc en cours d'édition (Dialog) — null = fermé.
+const editBlock = ref<Block | null>(null)
 </script>
 
 <template>
@@ -72,29 +78,46 @@ const previewOf = (b: Block) => b.get().trim() || 'Vide — le texte par défaut
       </div>
     </div>
 
-    <Accordion type="multiple" class="w-full">
-      <AccordionItem v-for="(b, i) in list" :key="b.key" :value="b.key" class="px-4">
-        <AccordionTrigger class="gap-2 py-2.5">
-          <span class="flex min-w-0 items-center gap-3">
-            <span class="bg-muted text-muted-foreground flex size-6 shrink-0 items-center justify-center rounded-md text-[11px] font-semibold">{{ i + 1 }}</span>
-            <span class="min-w-0 text-left">
-              <span class="block text-[13px] font-medium">{{ b.label }}</span>
-              <span class="text-muted-foreground line-clamp-1 mt-0.5 block text-[11px]">{{ previewOf(b) }}</span>
-            </span>
+    <!-- Chaque bloc = une ligne toujours visible (label + aperçu) ; clic → Dialog -->
+    <div class="flex flex-col p-2">
+      <button
+        v-for="(b, i) in list"
+        :key="b.key"
+        type="button"
+        class="flex min-w-0 items-center gap-3 rounded-lg px-2 py-2 text-left transition-colors hover:bg-muted/50"
+        @click="editBlock = b"
+      >
+        <span class="bg-muted text-muted-foreground flex size-6 shrink-0 items-center justify-center rounded-md text-[11px] font-semibold">{{ i + 1 }}</span>
+        <span class="min-w-0 flex-1">
+          <span class="flex items-center gap-2">
+            <span class="text-[13px] font-medium">{{ b.label }}</span>
+            <Badge v-if="b.get() !== b.resetTo" variant="secondary" class="shrink-0 text-[9px]">Personnalisé</Badge>
           </span>
-          <Badge v-if="b.get() !== b.resetTo" variant="secondary" class="shrink-0 text-[9px]">Personnalisé</Badge>
-        </AccordionTrigger>
-        <AccordionContent>
-          <div class="space-y-2">
-            <p class="text-muted-foreground text-[11px]">{{ b.help }}</p>
-            <Textarea :model-value="b.get()" :rows="6" class="text-xs" @update:model-value="b.set" />
-            <div class="flex items-center justify-between">
-              <Button v-if="b.resetTo" variant="ghost" size="sm" class="text-destructive h-6 text-[11px] hover:text-destructive" @click="b.set(b.resetTo)">↺ Remettre par défaut</Button>
-              <span class="text-muted-foreground ml-auto font-mono text-[10px]">{{ b.get().length }} caractères</span>
-            </div>
+          <span class="text-muted-foreground mt-0.5 line-clamp-2 block text-[11px]">{{ previewOf(b) }}</span>
+        </span>
+        <PencilIcon class="text-muted-foreground size-3.5 shrink-0" />
+      </button>
+    </div>
+
+    <!-- Dialog d'édition du prompt : autosave, on ferme quand on a fini -->
+    <Dialog :open="!!editBlock" @update:open="(v: boolean) => { if (!v) editBlock = null }">
+      <DialogContent class="sm:max-w-4xl">
+        <DialogHeader>
+          <DialogTitle>{{ editBlock?.label }}</DialogTitle>
+          <DialogDescription>{{ editBlock?.help }}</DialogDescription>
+        </DialogHeader>
+        <div v-if="editBlock" class="space-y-2">
+          <!-- Grande zone d'édition : la textarea prend la place et scrolle en interne -->
+          <Textarea :model-value="editBlock.get()" class="h-[55vh] text-xs" @update:model-value="editBlock.set" />
+          <div class="flex items-center justify-between">
+            <Button v-if="editBlock.resetTo" variant="ghost" size="sm" class="text-destructive h-6 text-[11px] hover:text-destructive" @click="editBlock.set(editBlock.resetTo)">↺ Remettre par défaut</Button>
+            <span class="text-muted-foreground ml-auto font-mono text-[10px]">{{ editBlock.get().length }} caractères</span>
           </div>
-        </AccordionContent>
-      </AccordionItem>
-    </Accordion>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" @click="editBlock = null">Fermer</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   </Card>
 </template>

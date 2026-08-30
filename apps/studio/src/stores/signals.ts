@@ -1,7 +1,8 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
+import { api } from '../lib/api'
 
-// Signaux — données réelles depuis l'API du daemon Go (:4406, proxifiée en dev via vite).
+// Signaux — données réelles depuis l'API du daemon Go (pipeline actif).
 export interface Signal {
   id: number
   source_title: string
@@ -28,7 +29,7 @@ export const useSignalsStore = defineStore('signals', () => {
       const params = new URLSearchParams({ status, geo })
       if (q.trim()) params.set('q', q.trim())
       params.set('limit', '100')
-      const res = await fetch(`/api/signals?${params}`)
+      const res = await api(`/api/signals?${params}`)
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`)
       all.value = json.data ?? []
@@ -42,14 +43,14 @@ export const useSignalsStore = defineStore('signals', () => {
   }
 
   async function bulkUpdate(ids: number[], status: string) {
-    await fetch('/api/signals', {
+    await api('/api/signals', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ids, status }),
     })
   }
   async function remove(ids: number[]) {
-    await fetch('/api/signals', {
+    await api('/api/signals', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ids, delete: true }),

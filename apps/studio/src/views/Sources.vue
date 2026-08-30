@@ -10,6 +10,9 @@
         <LButton variant="secondary" @click="editMode = !editMode" :class="editMode ? '!border-accent !text-accent' : ''" :title="editMode ? 'Fermer le mode édition' : 'Débloquer les textes pour les modifier directement'">
           ✎ {{ editMode ? 'Terminer' : 'Éditer' }}
         </LButton>
+        <LButton variant="secondary" :disabled="testingAll" :title="testingAll ? 'Test en cours…' : 'Tester tous les flux — indique lesquels répondent et lesquels échouent (isolé, sans effet sur le pipeline)'" @click="testAllSources">
+          📡 {{ testingAll ? `Test… (${bulkTest?.done ?? 0}/${bulkTest?.total ?? 0})` : 'Tester les flux' }}
+        </LButton>
         <LButton @click="startAdd">+ Ajouter</LButton>
       </div>
     </div>
@@ -139,6 +142,47 @@
       </template>
     </LModal>
 
+    <!-- Modal test de tous les flux -->
+    <LModal :open="bulkModal" title="Test des flux RSS" wide @close="bulkModal = false">
+      <template v-if="!bulkResults">
+        <p class="text-xs text-text-2 mb-2">Test isolé de chaque flux (aucun effet sur le pipeline)…</p>
+        <div class="flex items-center gap-3">
+          <div class="h-2 flex-1 rounded bg-bg border border-border overflow-hidden">
+            <div class="h-full bg-accent transition-all duration-200" :style="{ width: pct + '%' }"></div>
+          </div>
+          <span class="text-xs text-text-3 whitespace-nowrap">{{ bulkTest?.done ?? 0 }}/{{ bulkTest?.total ?? 0 }}</span>
+        </div>
+      </template>
+      <template v-else>
+        <div class="flex items-center gap-4 mb-3">
+          <span class="text-xs font-medium text-accent">✅ {{ okCount }} opérationnel{{ okCount > 1 ? 's' : '' }}</span>
+          <span class="text-xs font-medium text-danger">❌ {{ failCount }} en échec{{ failCount > 1 ? 's' : '' }}</span>
+        </div>
+        <ul class="space-y-1.5 max-h-96 overflow-y-auto pr-1">
+          <li v-for="r in sortedBulk" :key="r.url" class="flex items-start justify-between gap-3 border border-border/60 rounded-lg px-3 py-2 bg-bg/40">
+            <div class="min-w-0">
+              <p class="text-xs font-medium truncate" :title="r.url">{{ hostOf(r.url) }}</p>
+              <p class="text-[11px] text-text-3 font-mono truncate">{{ r.url }}</p>
+            </div>
+            <div class="text-right shrink-0">
+              <template v-if="r.ok">
+                <span class="text-[11px] text-accent font-semibold">OK</span>
+                <p class="text-[10px] text-text-3">{{ r.articles }} article{{ r.articles !== null ? 's' : '' }} · {{ r.fetchMs }} ms</p>
+              </template>
+              <template v-else>
+                <span class="text-[11px] text-danger font-semibold">ÉCHEC</span>
+                <p class="text-[10px] text-text-3 max-w-[220px] truncate" :title="r.error">{{ r.error }}</p>
+              </template>
+            </div>
+          </li>
+        </ul>
+        <p class="text-[11px] text-text-3 mt-2">Astuce : désactive dans la colonne « Active » les flux marqués en échec, puis vérifie leurs URLs.</p>
+      </template>
+      <template #footer>
+        <LButton variant="secondary" @click="bulkModal = false" :disabled="testingAll">Fermer</LButton>
+      </template>
+    </LModal>
+
     <!-- Modal importer -->
     <LModal :open="importOpen" title="Importer des sources" wide @close="importOpen = false">
       <p class="text-xs text-text-2 mb-3">Colle une liste d'URLs (une par ligne). Les doublons sont ignorés, la fiabilité détectée automatiquement.</p>
@@ -154,6 +198,7 @@
 <script setup lang="ts">
 import { ref, computed, nextTick } from 'vue'
 import { useConfigStore, detectTrust, hostOf, BIAS_VALUES } from '../stores/config'
+import { api } from '../lib/api'
 import LCard from '../components/ui/LCard.vue'
 import LButton from '../components/ui/LButton.vue'
 import LBadge from '../components/ui/LBadge.vue'
@@ -196,7 +241,7 @@ async function testSource(s: { id: string; url: string }) {
   testError.value = ''
   testResult.value = null
   try {
-    const res = await fetch('/api/sources/test', {
+    const res = await api('/api/sources/test', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ url: s.url, type: 'RSS' }),
@@ -214,6 +259,78 @@ async function testSource(s: { id: string; url: string }) {
     testModal.value = true
   }
 }
+
+// ── Test en masse : tous les flux (actifs + désactivés) — le daemon aspire
+// isolément chaque URL, on affiche lesquels répondent / échouent. ──
+interface BulkResult {
+  url: string
+  ok: boolean
+  error?: string
+  articles?: number | null
+  fetchMs?: number
+}
+const testingAll = ref(false)
+const bulkModal = ref(false)
+const bulkTest = ref<{ done: number; total: number } | null>(null)
+const bulkResults = ref<BulkResult[] | null>(null)
+
+async function runSourceTest(url: string): Promise<BulkResult> {
+  try {
+    const res = await api('/api/sources/test', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url, type: 'RSS' }),
+    })
+    const data = await res.json()
+    if (data.ok && data.result) {
+      return {
+        url,
+        ok: true,
+        articles: data.result.articles?.length ?? 0,
+        fetchMs: data.result.fetchMs,
+      }
+    }
+    return { url, ok: false, error: data.error || 'Erreur inconnue du daemon' }
+  } catch {
+    return { url, ok: false, error: 'Impossible de contacter le daemon (il est peut-être arrêté)' }
+  }
+}
+
+async function testAllSources() {
+  if (testingAll.value) return
+  const urls = store.sources.list.map(s => s.url)
+  if (urls.length === 0) return
+  testingAll.value = true
+  bulkResults.value = null
+  bulkTest.value = { done: 0, total: urls.length }
+  bulkModal.value = true
+  const results: BulkResult[] = new Array(urls.length)
+  let next = 0
+  const CONCURRENCY = 3 // on ne tape pas le réseau à 10 flux d'un coup
+  async function worker() {
+    while (true) {
+      const i = next++
+      if (i >= urls.length) return
+      results[i] = await runSourceTest(urls[i])
+      bulkTest.value = { done: results.filter(Boolean).length, total: urls.length }
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(CONCURRENCY, urls.length) }, worker))
+  bulkResults.value = results
+  testingAll.value = false
+}
+
+const pct = computed(() => {
+  const d = bulkTest.value
+  if (!d || d.total === 0) return 0
+  return Math.round((d.done / d.total) * 100)
+})
+const okCount = computed(() => bulkResults.value?.filter(r => r.ok).length ?? 0)
+const failCount = computed(() => bulkResults.value?.filter(r => !r.ok).length ?? 0)
+const sortedBulk = computed(() => {
+  if (!bulkResults.value) return []
+  return [...bulkResults.value].sort((a, b) => (a.ok === b.ok ? 0 : a.ok ? 1 : -1))
+})
 
 async function startAdd() {
   adding.value = true

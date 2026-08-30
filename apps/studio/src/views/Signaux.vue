@@ -136,13 +136,20 @@
                         <Trash2Icon data-icon="inline-start" /> Supprimer
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
+                      <DropdownMenuItem @select="routeToPipeline(s.id, 'flash')">
+                        <ArrowRightIcon data-icon="inline-start" /> Transférer vers Flash
+                      </DropdownMenuItem>
+                      <DropdownMenuItem @select="routeToPipeline(s.id, 'principal')">
+                        <ArrowRightIcon data-icon="inline-start" /> Transférer vers Principal
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
                       <DropdownMenuItem @select="openDetail(s)">Voir le détail</DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </TableCell>
               </TableRow>
             </ContextMenuTrigger>
-            <ContextMenuContent class="w-44">
+            <ContextMenuContent class="w-48">
               <ContextMenuItem v-if="s.status === 'PENDING'" @select="bulk([s.id], 'QUEUED')">
                 <CheckIcon data-icon="inline-start" /> Valider
               </ContextMenuItem>
@@ -151,6 +158,13 @@
               </ContextMenuItem>
               <ContextMenuItem v-if="canDelete(s.status)" class="text-destructive focus:text-destructive" @select="delOne(s.id)">
                 <Trash2Icon data-icon="inline-start" /> Supprimer
+              </ContextMenuItem>
+              <ContextMenuSeparator />
+              <ContextMenuItem @select="routeToPipeline(s.id, 'flash')">
+                <ArrowRightIcon data-icon="inline-start" /> Transférer vers Flash
+              </ContextMenuItem>
+              <ContextMenuItem @select="routeToPipeline(s.id, 'principal')">
+                <ArrowRightIcon data-icon="inline-start" /> Transférer vers Principal
               </ContextMenuItem>
               <ContextMenuSeparator />
               <ContextMenuItem @select="openDetail(s)">Voir le détail</ContextMenuItem>
@@ -234,7 +248,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
-import { CheckIcon, ChevronsUpDownIcon, MoreHorizontalIcon, PlayIcon, RefreshCwIcon, SearchIcon, Trash2Icon, XIcon } from '@lucide/vue'
+import { ArrowRightIcon, CheckIcon, ChevronsUpDownIcon, MoreHorizontalIcon, PlayIcon, RefreshCwIcon, SearchIcon, Trash2Icon, XIcon } from '@lucide/vue'
 import { Badge } from '../components/ui/badge'
 import { Button } from '../components/ui/button'
 import { Card } from '../components/ui/card'
@@ -250,6 +264,7 @@ import { Tabs, TabsList, TabsTrigger } from '../components/ui/tabs'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/ui/tooltip'
 import { toast } from 'vue-sonner'
 import { useSignalsStore, SIGNAL_TABS, tabToStatus } from '../stores/signals'
+import { api } from '../lib/api'
 
 const store = useSignalsStore()
 const tab = ref('inbox')
@@ -352,6 +367,24 @@ async function delSelected() {
     toast.error('Suppression impossible — daemon injoignable')
   }
 }
+async function routeToPipeline(signalId: number, targetPipelineId: string) {
+  try {
+    const res = await api('/api/signals/route', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        signal_id: signalId,
+        target_pipeline_id: targetPipelineId,
+      }),
+    })
+    if (!res.ok) throw new Error('Échec du routage')
+    toast.success(`Signal transféré vers le pipeline ${targetPipelineId}`)
+    load()
+  } catch (err: any) {
+    toast.error(err.message || 'Erreur lors du transfert')
+  }
+}
+
 function refresh() { load() }
 function doScan() { scanOpen.value = false; refresh() }
 

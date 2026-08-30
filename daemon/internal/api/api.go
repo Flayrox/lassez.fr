@@ -10,6 +10,7 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -18,6 +19,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Flayrox/lassez.fr/daemon/internal/assistant"
 	"github.com/Flayrox/lassez.fr/daemon/internal/config"
 	"github.com/Flayrox/lassez.fr/daemon/internal/nodes"
 	"github.com/Flayrox/lassez.fr/daemon/internal/store"
@@ -58,7 +60,76 @@ func New(client *store.Client, cfgPath string, resolver *config.Resolver) *Serve
 	srv.Mux.HandleFunc("GET /api/pipelines", srv.listPipelines)
 	srv.Mux.HandleFunc("GET /api/publications", srv.listPublications)
 	srv.Mux.HandleFunc("PATCH /api/publications", srv.patchPublications)
+	srv.Mux.HandleFunc("POST /api/assistant/chat", srv.assistantChat)
+	srv.Mux.HandleFunc("POST /api/signals/route", srv.routeSignal)
 	return srv
+}
+
+func (srv *Server) assistantChat(w http.ResponseWriter, r *http.Request) {
+	var req assistant.ChatRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Message == "" {
+		writeJSON(w, 400, map[string]any{"error": "message requis"})
+		return
+	}
+	engine := assistant.NewAssistantEngine(srv.Client, srv.Resolver, srv.ConfigPath, srv.Pipelines)
+	resp, err := engine.ProcessChat(r.Context(), req)
+	if err != nil {
+		writeJSON(w, 500, map[string]any{"error": err.Error()})
+		return
+	}
+	writeJSON(w, 200, resp)
+}
+
+// routeSignal — Déplace/route un signal vers la base de données d'un autre pipeline
+func (srv *Server) routeSignal(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		SignalID         int64  `json:"signal_id"`
+		TargetPipelineID string `json:"target_pipeline_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.SignalID == 0 || body.TargetPipelineID == "" {
+		writeJSON(w, 400, map[string]any{"error": "signal_id et target_pipeline_id requis"})
+		return
+	}
+
+	sig, err := srv.Client.GetSignal(store.ID(strconv.FormatInt(body.SignalID, 10)))
+	if err != nil || sig == nil {
+		writeJSON(w, 404, map[string]any{"error": "signal introuvable"})
+		return
+	}
+
+	// Trouver le chemin DB de la cible
+	targetDB := ""
+	for _, p := range srv.Pipelines {
+		if p.ID == body.TargetPipelineID {
+			targetDB = p.DBPath
+			break
+		}
+	}
+	if targetDB == "" {
+		if body.TargetPipelineID == "flash" {
+			targetDB = "../data/pipeline-flash.db"
+		} else {
+			targetDB = "../data/pipeline.db"
+		}
+	}
+
+	targetClient, err := store.NewLocal(targetDB, func() (map[string]any, error) { return map[string]any{}, nil })
+	if err != nil {
+		writeJSON(w, 500, map[string]any{"error": fmt.Sprintf("connexion db cible %s : %v", targetDB, err)})
+		return
+	}
+	defer targetClient.Close()
+
+	// Insérer dans la base cible
+	if err := targetClient.InsertRawSignal(sig); err != nil {
+		writeJSON(w, 500, map[string]any{"error": fmt.Sprintf("insertion db cible : %v", err)})
+		return
+	}
+
+	// Marquer comme routé dans la base source
+	_ = srv.Client.UpdateSignal(sig.ID, map[string]any{"status": "ROUTED_TO_" + strings.ToUpper(body.TargetPipelineID)})
+
+	writeJSON(w, 200, map[string]any{"ok": true, "routed_to": body.TargetPipelineID})
 }
 
 // listPipelines — le registre des instances (chaque daemon répond avec la

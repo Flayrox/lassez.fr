@@ -1093,28 +1093,117 @@ func (c *Client) GetDuePublications(limit int) ([]Publication, error) {
 		return nil, err
 	}
 	defer rows.Close()
-	var out []Publication
+	// Deux passes obligatoires : le store est en MaxOpenConns(1), une requête
+	// imbriquée pendant l'itération des rows (GetSignal ci-dessous) se bloquerait
+	// sur la même connexion SQLite — deadlock. On lit d'abord tout, on ferme,
+	// puis on enrichit avec le signal.
+	type row struct {
+		id       int64
+		topicID  int64
+		platform string
+		status   string
+		schedStr sql.NullString
+		pubStr   sql.NullString
+	}
+	var collected []row
 	for rows.Next() {
-		var pub Publication
-		var id, topicID int64
-		var publishedAt sql.NullString
-		if err := rows.Scan(&id, &pub.Platform, &pub.Status, &pub.ScheduledAt, &publishedAt, &topicID); err != nil {
+		var r row
+		if err := rows.Scan(&r.id, &r.platform, &r.status, &r.schedStr, &r.pubStr, &r.topicID); err != nil {
 			return nil, err
 		}
-		pub.ID = ID(strconv.FormatInt(id, 10))
-		if publishedAt.Valid && publishedAt.String != "" {
-			if t, err := time.Parse(time.RFC3339, publishedAt.String); err == nil {
+		collected = append(collected, r)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	var out []Publication
+	for _, r := range collected {
+		pub := Publication{
+			ID:       ID(strconv.FormatInt(r.id, 10)),
+			Platform: r.platform,
+			Status:   r.status,
+		}
+		if r.schedStr.Valid && r.schedStr.String != "" {
+			if t, err := time.Parse(time.RFC3339, r.schedStr.String); err == nil {
+				pub.ScheduledAt = t
+			}
+		}
+		if r.pubStr.Valid && r.pubStr.String != "" {
+			if t, err := time.Parse(time.RFC3339, r.pubStr.String); err == nil {
 				pub.PublishedAt = &t
 			}
 		}
-		if sig, err := c.GetSignal(ID(strconv.FormatInt(topicID, 10))); err == nil {
+		if sig, err := c.GetSignal(ID(strconv.FormatInt(r.topicID, 10))); err == nil {
 			if b, err := json.Marshal(sig); err == nil {
 				pub.Signal = b
 			}
 		}
 		out = append(out, pub)
 	}
-	return out, rows.Err()
+	return out, nil
+}
+
+// ListPublications — publications programmées ou passées (pour le calendrier
+// « Emploi du temps » du studio), de la plus proche à la plus lointaine.
+func (c *Client) ListPublications(limit int) ([]Publication, error) {
+	if limit <= 0 {
+		limit = 100
+	}
+	rows, err := c.db.Query(`
+		SELECT p.id, p.platform, p.status, p.scheduled_at, p.published_at, p.topic_id
+		FROM daemon_publications p
+		ORDER BY p.scheduled_at ASC LIMIT ?`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	type row struct {
+		id       int64
+		topicID  int64
+		platform string
+		status   string
+		schedStr sql.NullString
+		pubStr   sql.NullString
+	}
+	var collected []row
+	for rows.Next() {
+		var r row
+		if err := rows.Scan(&r.id, &r.platform, &r.status, &r.schedStr, &r.pubStr, &r.topicID); err != nil {
+			return nil, err
+		}
+		collected = append(collected, r)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	var out []Publication
+	for _, r := range collected {
+		pub := Publication{
+			ID:       ID(strconv.FormatInt(r.id, 10)),
+			Platform: r.platform,
+			Status:   r.status,
+		}
+		if r.schedStr.Valid && r.schedStr.String != "" {
+			if t, err := time.Parse(time.RFC3339, r.schedStr.String); err == nil {
+				pub.ScheduledAt = t
+			}
+		}
+		if r.pubStr.Valid && r.pubStr.String != "" {
+			if t, err := time.Parse(time.RFC3339, r.pubStr.String); err == nil {
+				pub.PublishedAt = &t
+			}
+		}
+		if sig, err := c.GetSignal(ID(strconv.FormatInt(r.topicID, 10))); err == nil {
+			if b, err := json.Marshal(sig); err == nil {
+				pub.Signal = b
+			}
+		}
+		out = append(out, pub)
+	}
+	if out == nil {
+		out = []Publication{}
+	}
+	return out, nil
 }
 
 func (c *Client) GetLastScheduledPublication(platform string) (*Publication, error) {
@@ -1124,8 +1213,8 @@ func (c *Client) GetLastScheduledPublication(platform string) (*Publication, err
 		ORDER BY scheduled_at DESC LIMIT 1`, platform, time.Now().UTC().Format(time.RFC3339))
 	var pub Publication
 	var id int64
-	var publishedAt sql.NullString
-	err := row.Scan(&id, &pub.Platform, &pub.Status, &pub.ScheduledAt, &publishedAt)
+	var scheduledAt, publishedAt sql.NullString
+	err := row.Scan(&id, &pub.Platform, &pub.Status, &scheduledAt, &publishedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -1133,6 +1222,16 @@ func (c *Client) GetLastScheduledPublication(platform string) (*Publication, err
 		return nil, err
 	}
 	pub.ID = ID(strconv.FormatInt(id, 10))
+	if scheduledAt.Valid && scheduledAt.String != "" {
+		if t, err := time.Parse(time.RFC3339, scheduledAt.String); err == nil {
+			pub.ScheduledAt = t
+		}
+	}
+	if publishedAt.Valid && publishedAt.String != "" {
+		if t, err := time.Parse(time.RFC3339, publishedAt.String); err == nil {
+			pub.PublishedAt = &t
+		}
+	}
 	return &pub, nil
 }
 
@@ -1140,6 +1239,9 @@ func (c *Client) UpdatePublication(id ID, data map[string]any) error {
 	sets, args := []string{}, []any{}
 	if st, ok := data["status"].(string); ok {
 		sets, args = append(sets, "status = ?"), append(args, st)
+	}
+	if sa, ok := data["scheduledAt"].(time.Time); ok {
+		sets, args = append(sets, "scheduled_at = ?"), append(args, sa.UTC().Format(time.RFC3339))
 	}
 	if pt, ok := data["publishedAt"].(time.Time); ok {
 		sets, args = append(sets, "published_at = ?"), append(args, pt.UTC().Format(time.RFC3339))

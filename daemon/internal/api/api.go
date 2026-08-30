@@ -24,12 +24,13 @@ import (
 )
 
 type Server struct {
-	Client     *store.Client  // daemon_signals : signaux réels du pipeline + santé
+	Client     *store.Client         // daemon_signals : signaux réels du pipeline + santé
 	Mux        *http.ServeMux
-	ConfigPath string           // config/config.yaml — édité par le studio
-	Resolver   *config.Resolver // invalidé après chaque écriture
-	Trigger    chan struct{}    // POST /api/scan → réveille la boucle principale (nil = scan désactivé)
-	LogPath    string           // logs/daemon.log — lu pour le panneau de logs du studio
+	ConfigPath string                // config/config.yaml — édité par le studio
+	Resolver   *config.Resolver      // invalidé après chaque écriture
+	Trigger    chan struct{}         // POST /api/scan → réveille la boucle principale (nil = scan désactivé)
+	LogPath    string                // logs/daemon-<id>.log — lu pour le panneau de logs du studio
+	Pipelines  []config.PipelineMeta // registre multi-instances (GET /api/pipelines)
 }
 
 func New(client *store.Client, cfgPath string, resolver *config.Resolver) *Server {
@@ -54,7 +55,50 @@ func New(client *store.Client, cfgPath string, resolver *config.Resolver) *Serve
 	srv.Mux.HandleFunc("GET /api/cycles", srv.listCycles)
 	srv.Mux.HandleFunc("GET /api/logs", srv.listLogs)
 	srv.Mux.HandleFunc("GET /api/orchestration", srv.listOrchestration)
+	srv.Mux.HandleFunc("GET /api/pipelines", srv.listPipelines)
+	srv.Mux.HandleFunc("GET /api/publications", srv.listPublications)
+	srv.Mux.HandleFunc("PATCH /api/publications", srv.patchPublications)
 	return srv
+}
+
+// listPipelines — le registre des instances (chaque daemon répond avec la
+// même liste) : le studio s'en sert pour basculer d'un pipeline à l'autre.
+func (srv *Server) listPipelines(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, 200, map[string]any{"data": srv.Pipelines})
+}
+
+// listPublications — publications programmées/passées (calendrier Emploi du temps).
+func (srv *Server) listPublications(w http.ResponseWriter, r *http.Request) {
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	pubs, err := srv.Client.ListPublications(limit)
+	if err != nil {
+		writeJSON(w, 500, map[string]any{"error": err.Error()})
+		return
+	}
+	writeJSON(w, 200, map[string]any{"data": pubs})
+}
+
+// patchPublications — reprogrammer une publication depuis le calendrier :
+// {"id": 12, "scheduled_at": "2026-08-31T09:00:00Z"}.
+func (srv *Server) patchPublications(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		ID         int64  `json:"id"`
+		ScheduledAt string `json:"scheduled_at"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.ID == 0 {
+		writeJSON(w, 400, map[string]any{"error": "body invalide : {id, scheduled_at}"})
+		return
+	}
+	when, err := time.Parse(time.RFC3339, strings.TrimSpace(body.ScheduledAt))
+	if err != nil {
+		writeJSON(w, 400, map[string]any{"error": "scheduled_at invalide (RFC3339 attendu)"})
+		return
+	}
+	if err := srv.Client.UpdatePublication(store.ID(strconv.FormatInt(body.ID, 10)), map[string]any{"scheduledAt": when}); err != nil {
+		writeJSON(w, 500, map[string]any{"error": err.Error()})
+		return
+	}
+	writeJSON(w, 200, map[string]any{"ok": true})
 }
 
 // listOrchestration — l'Agenda du jour : les dernières décisions de

@@ -22,6 +22,8 @@ export const usePipelinesStore = defineStore('pipelines', () => {
   const publications = ref<any[]>([])
   const lastRefresh = ref(0)
   const refreshing = ref(false)
+  // Instances dont un scan manuel est en cours (Spinner sur les pills du calendrier).
+  const scanning = ref<Set<string>>(new Set())
 
   const sched = (p: PipelineInfo) => schedules.value[p.id]
 
@@ -99,13 +101,19 @@ export const usePipelinesStore = defineStore('pipelines', () => {
 
   // ── Scan manuel sur une instance précise ──
   async function scan(p: PipelineInfo) {
+    scanning.value = new Set(scanning.value).add(p.id)
     try {
       await fetch(pipelineApiBase(p.port) + '/api/scan', { method: 'POST' })
     } catch { /* instance injoignable */ }
     // Le cycle tourne en arrière-plan : on rafraîchit tôt puis un peu après.
     setTimeout(() => { refresh(true) }, 2500)
     setTimeout(() => { refresh(true) }, 9000)
+    setTimeout(() => {
+      const next = new Set(scanning.value)
+      next.delete(p.id)
+      scanning.value = next
+    }, 8000)
   }
 
-  return { schedules, publications, sched, slotCount, refresh, nextRunLabel, scan }
+  return { schedules, publications, lastRefresh, refreshing, sched, slotCount, refresh, nextRunLabel, scan, scanning }
 })

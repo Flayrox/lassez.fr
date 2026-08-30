@@ -89,4 +89,5 @@ daemon/config/.secrets.yaml.bak
 
 # Backups automatiques de config.yaml (créés par le daemon à chaque sauvegarde)
 daemon/config/*.bak
+daemon/config/pipelines/*.bak
 

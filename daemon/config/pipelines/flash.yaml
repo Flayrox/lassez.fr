@@ -60,7 +60,7 @@ memory:
     enabled: true
     windowDays: 30
 pipeline:
-    graphJson: "{\"nodes\":[{\"type\":\"ingestion\",\"enabled\":true},{\"type\":\"dedup\",\"enabled\":true},{\"type\":\"orchestrator\",\"enabled\":true},{\"type\":\"research\",\"enabled\":true},{\"type\":\"editor\",\"enabled\":true},{\"type\":\"validator\",\"enabled\":true},{\"type\":\"media\",\"enabled\":false}]}"
+    graphJson: "{\"nodes\":[{\"type\":\"ingestion\",\"enabled\":true},{\"type\":\"dedup\",\"enabled\":true},{\"type\":\"orchestrator\",\"enabled\":true},{\"type\":\"research\",\"enabled\":true},{\"type\":\"editor\",\"enabled\":true},{\"type\":\"media\",\"enabled\":false}]}"
 publisher:
     enableDiscord: true
     discordTestMode: false

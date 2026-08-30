@@ -123,9 +123,8 @@ export const useConfigStore = defineStore('config', () => {
     { type: 'dedup', label: 'Anti-doublons', enabled: true, desc: 'Similarité 65%, fenêtre 10 h', order: 2 },
     { type: 'orchestrator', label: 'Orchestrateur', enabled: false, desc: 'Chef de desk — 1 appel IA/cycle, agenda + aiguillage (remplace le Tri)', order: 3 },
     { type: 'research', label: 'Tri', enabled: true, desc: 'Gemini 3.7 Flash — note 0–100 (repli)', order: 4 },
-    { type: 'editor', label: 'Rédaction', enabled: true, desc: 'Gemini 3.7 Flash écrit l’enquête', order: 5 },
-    { type: 'validator', label: 'Vérification', enabled: true, desc: 'Auto-pilote désactivé pour l’instant', order: 6 },
-    { type: 'media', label: 'Image', enabled: true, desc: 'Overlay 50%, box 78%', order: 7 },
+    { type: 'editor', label: 'Rédaction', enabled: true, desc: 'Gemini 3.7 Flash écrit et vérifie en un seul passage', order: 5 },
+    { type: 'media', label: 'Image', enabled: true, desc: 'Overlay 50%, box 78%', order: 6 },
   ]
   const atelier = ref(atelierDefaults.map(n => ({ ...n })))
 
@@ -156,7 +155,6 @@ export const useConfigStore = defineStore('config', () => {
     // (16384 — elle rédige ET vérifie en un seul passage).
     modeleRapide: 'Gemini 3.7 Flash',
     modeleRedaction: 'Gemini 3.7 Flash',
-    modeleVerification: 'Gemini 3.5 Flash Lite',
     modeleOrchestrateur: 'Gemini 3.7 Flash',
     thinkingRapide: 2048,
     thinkingOrchestrateur: 2048,
@@ -256,7 +254,7 @@ export const useConfigStore = defineStore('config', () => {
     qoePublicationId: '',
     qoeBaseUrl: 'https://api.qoe.fi/v1',
     // Gemini — la clé qui fait tourner les nœuds IA du pipeline (Tri /
-    // Rédaction / Vérification). Écrite dans .secrets.yaml, jamais dans git.
+    // Rédaction). Écrite dans .secrets.yaml, jamais dans git.
     geminiApiKey: '',
     // Vertex AI (secours) — compte de service Google Cloud : utilisé
     // automatiquement quand la clé AI Studio est épuisée ou invalide.
@@ -333,7 +331,6 @@ export const useConfigStore = defineStore('config', () => {
     }
     ecriture.value.modeleRapide = ensure(ecriture.value.modeleRapide)
     ecriture.value.modeleRedaction = ensure(ecriture.value.modeleRedaction)
-    ecriture.value.modeleVerification = ensure(ecriture.value.modeleVerification)
     const mbf: Record<string, string> = {}
     for (const k of Object.keys(ecriture.value.modeleParFormat)) mbf[k] = ensure(ecriture.value.modeleParFormat[k])
     ecriture.value.modeleParFormat = mbf
@@ -490,7 +487,6 @@ export const useConfigStore = defineStore('config', () => {
       },
       editorial: {
         aiModelPro: modelValueOf(ecriture.value.modeleRedaction),
-        aiModelVerification: modelValueOf(ecriture.value.modeleVerification),
         maxConcurrentTasks: ecriture.value.tachesEnMemeTempsRedaction,
         aiPrompt: ecriture.value.promptEditorial,
         modelByFormat: Object.fromEntries(
@@ -632,7 +628,6 @@ export const useConfigStore = defineStore('config', () => {
       ...ecriture.value,
       modeleRapide: sOr(research.aiModelFlash, ecriture.value.modeleRapide),
       modeleRedaction: sOr(editorial.aiModelPro, sOr(research.aiModelDecrypt, ecriture.value.modeleRedaction)),
-      modeleVerification: sOr(editorial.aiModelVerification, ecriture.value.modeleVerification),
       modeleOrchestrateur: sOr(orchestrator.aiModel, ecriture.value.modeleOrchestrateur),
       thinkingRapide: numOr(research.thinkingBudget, ecriture.value.thinkingRapide),
       thinkingOrchestrateur: numOr(orchestrator.thinkingBudget, ecriture.value.thinkingOrchestrateur),

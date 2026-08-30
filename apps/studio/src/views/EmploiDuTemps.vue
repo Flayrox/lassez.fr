@@ -1,11 +1,16 @@
 <!-- Emploi du temps — hub du produit Signaux : le calendrier + un onglet par
      composant de la chaîne (Collecte, Anti-doublons, Orchestrateur, Tri,
      Écriture, Image) avec ses paramètres directement (Pipeline + Écriture
-     fusionnés ici). Calendrier natif shadcn.
-     - Pills-pipelines : bascule l'affichage, ▶ scan, ⚙ éditeur de planning inline.
+     fusionnés ici). Calendrier natif shadcn, compact.
+     - Pills-pipelines : bascule l'affichage, ▶ scan (Spinner pendant le scan),
+       ⚙ éditeur de planning inline.
      - Créneaux : tirer sur une case vide en crée un (09:00), glisser le déplace,
-       le glisser vers la corbeille le supprime. Publications : glisser les reprogramme.
-     - Section « Suivi » repliée (accordéon) : journal, cycles, agenda. -->
+       le glisser vers la corbeille le supprime. Clic droit sur un créneau :
+       menu contextuel (supprimer / déplacer). Seule la prochaine occurrence de
+       chaque créneau est affichée en chip — les répétitions deviennent de
+       simples points.
+     - Publications : agrégées en badge par jour, liste détaillée en Popover
+       (reprogrammation via menu). -->
 <template>
   <div class="space-y-4">
     <div>
@@ -23,7 +28,7 @@
             class="gap-1.5"
             :class="tab === tabOf(n.type) && tab !== 'calendrier' ? 'bg-muted text-foreground' : ''"
             :title="`Ouvrir les réglages de ${n.label}`"
-            @click="tab = tabOf(n.type)"
+            @click="goTab(n.type)"
           >
             <span class="size-1.5 rounded-full" :class="n.enabled ? 'bg-accent' : 'bg-border'"></span>
             {{ n.label }}
@@ -37,9 +42,7 @@
     <Tabs v-model="tab" class="w-full">
       <TabsList class="flex h-auto w-full flex-wrap justify-start">
         <TabsTrigger value="calendrier">📅 Calendrier</TabsTrigger>
-        <TabsTrigger value="ingestion">◉ Collecte</TabsTrigger>
-        <TabsTrigger value="dedup">⬢ Anti-doublons</TabsTrigger>
-        <TabsTrigger value="orchestrator">✸ Orchestrateur</TabsTrigger>
+        <TabsTrigger value="amont">⚙ Amont</TabsTrigger>
         <TabsTrigger value="research">✦ Tri</TabsTrigger>
         <TabsTrigger value="ecriture">✎ Écriture</TabsTrigger>
         <TabsTrigger value="media">◎ Image</TabsTrigger>
@@ -52,7 +55,7 @@
           <div
             v-for="p in pipelines"
             :key="p.id"
-            class="flex h-8 items-center gap-0.5 rounded-full border pl-1 pr-1 transition-colors"
+            class="flex h-7 items-center gap-0.5 rounded-full border pl-1 pr-1 transition-colors"
             :class="visible.has(p.id) ? 'border-accent/40 bg-accent/10' : 'border-border bg-card opacity-70'"
           >
             <Button
@@ -66,22 +69,36 @@
               <span class="text-xs font-medium">{{ p.name }}</span>
               <span class="text-muted-foreground hidden font-mono text-[10px] sm:inline">{{ pipes.nextRunLabel(p) }}</span>
             </Button>
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              :title="`Lancer un scan sur ${p.name}`"
-              @click="pipes.scan(p)"
-            >
-              <PlayIcon />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              :title="`Réglages du planning de ${p.name}`"
-              @click="toggleEditor(p.id)"
-            >
-              <SettingsIcon />
-            </Button>
+            <TooltipProvider :delay-duration="200">
+              <Tooltip>
+                <TooltipTrigger as-child>
+                  <Button
+                    variant="ghost"
+                    size="icon-xs"
+                    :disabled="pipes.scanning.has(p.id)"
+                    @click="pipes.scan(p)"
+                  >
+                    <Spinner v-if="pipes.scanning.has(p.id)" class="size-3" />
+                    <PlayIcon v-else />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">Lancer un scan sur {{ p.name }}</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+            <TooltipProvider :delay-duration="200">
+              <Tooltip>
+                <TooltipTrigger as-child>
+                  <Button
+                    variant="ghost"
+                    size="icon-xs"
+                    @click="toggleEditor(p.id)"
+                  >
+                    <SettingsIcon />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">Réglages du planning de {{ p.name }}</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           </div>
         </div>
 
@@ -123,9 +140,9 @@
           </div>
         </Card>
 
-        <!-- Calendrier natif shadcn -->
+        <!-- Calendrier natif shadcn, compact -->
         <Card class="gap-0 overflow-hidden py-0">
-          <!-- Barre d'outils : navigation + légende -->
+          <!-- Barre d'outils : navigation + mois + prochain scan -->
           <div class="flex flex-wrap items-center gap-2 border-b px-3 py-2">
             <div class="flex items-center gap-1">
               <Button variant="outline" size="icon-sm" title="Mois précédent" @click="prevMonth">
@@ -137,76 +154,154 @@
               <Button variant="outline" size="sm" @click="goToday">Aujourd'hui</Button>
             </div>
             <h2 class="text-sm font-semibold capitalize">{{ monthLabel }}</h2>
-            <div class="ml-auto flex flex-wrap items-center gap-3">
-              <span v-for="p in pipelines" :key="p.id" class="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <span class="size-2 rounded-full" :style="{ background: p.color }"></span>{{ p.name }}
-              </span>
+            <div class="ml-auto flex items-center gap-3">
+              <Badge v-if="nextScanLabel" variant="outline" class="gap-1.5 px-2 py-0 font-mono text-[10px]">
+                <span class="size-1.5 animate-pulse rounded-full bg-accent"></span>
+                Prochain scan {{ nextScanLabel }}
+              </Badge>
               <span class="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <span class="size-2 rounded-full" :style="{ background: 'var(--muted-foreground)' }"></span>Publications
+                <span class="size-2 rounded-full bg-muted-foreground/70"></span>Publications
               </span>
             </div>
           </div>
 
-          <!-- Jours de la semaine -->
-          <div class="bg-muted/20 grid grid-cols-7 border-b">
-            <div v-for="d in DAY_LABELS" :key="d" class="py-1.5 text-center text-[11px] font-medium text-muted-foreground">
-              {{ d }}
-            </div>
-          </div>
-
-          <!-- Grille du mois -->
-          <div class="grid grid-cols-7 select-none" :class="drag ? 'cursor-grabbing' : ''">
-            <div
-              v-for="cell in cells"
-              :key="cell.key"
-              :data-date="cell.key"
-              class="group relative min-h-28 border-r border-b border-border p-1.5"
-              :class="[
-                !cell.inMonth ? 'bg-muted/10' : '',
-                dropKey === cell.key ? 'bg-accent/10 ring-1 ring-accent ring-inset' : '',
-              ]"
-              @pointerdown="onCellDown(cell, $event)"
-            >
-              <div class="flex items-start justify-between">
-                <span
-                  class="flex size-6 items-center justify-center rounded-full text-xs font-medium"
-                  :class="cell.isToday ? 'bg-primary text-primary-foreground' : cell.inMonth ? 'text-foreground' : 'text-muted-foreground/50'"
-                >{{ cell.day }}</span>
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
-                  class="opacity-0 transition-opacity group-hover:opacity-100"
-                  :title="`Créer un créneau à 09:00 le ${cell.date.toLocaleDateString('fr-FR')}`"
-                  @pointerdown.stop
-                  @click.stop="createSlotAt(cell.date)"
-                >
-                  <PlusIcon />
-                </Button>
+          <template v-if="loaded">
+            <!-- Jours de la semaine -->
+            <div class="bg-muted/20 grid grid-cols-7 border-b">
+              <div v-for="d in DAY_LABELS" :key="d" class="py-1 text-center text-[10px] font-medium tracking-wide text-muted-foreground">
+                {{ d }}
               </div>
+            </div>
 
-              <div class="mt-1 space-y-1">
-                <div
-                  v-for="ev in shownEvents(cell)"
-                  :key="ev.id"
-                  class="event-chip"
-                  :class="ev.kind === 'pub' ? 'event-pub' : ''"
-                  :style="ev.kind === 'slot' ? { background: ev.color, color: ev.fg } : undefined"
-                  :title="ev.tooltip"
-                  @pointerdown.stop="onEventDown(ev, $event)"
-                >
-                  <span class="event-time">{{ ev.timeLabel }}</span>
-                  <span class="truncate">{{ ev.text }}</span>
+            <!-- Grille du mois -->
+            <div class="grid grid-cols-7 select-none" :class="drag ? 'cursor-grabbing' : ''">
+              <div
+                v-for="cell in cells"
+                :key="cell.key"
+                :data-date="cell.key"
+                class="group relative min-h-[76px] border-r border-b border-border p-1"
+                :class="[
+                  !cell.inMonth ? 'bg-muted/10' : '',
+                  dropKey === cell.key ? 'bg-accent/10 ring-1 ring-accent ring-inset' : '',
+                ]"
+                @pointerdown="onCellDown(cell, $event)"
+              >
+                <div class="flex items-center justify-between">
+                  <span
+                    class="flex size-5 items-center justify-center rounded-full text-[11px] font-medium"
+                    :class="cell.isToday ? 'bg-primary text-primary-foreground' : cell.inMonth ? 'text-foreground' : 'text-muted-foreground/50'"
+                  >{{ cell.day }}</span>
+                  <Button
+                    variant="ghost"
+                    size="icon-xs"
+                    class="opacity-0 transition-opacity group-hover:opacity-100"
+                    :title="`Créer un créneau à 09:00 le ${cell.date.toLocaleDateString('fr-FR')}`"
+                    @pointerdown.stop
+                    @click.stop="createSlotAt(cell.date)"
+                  >
+                    <PlusIcon />
+                  </Button>
                 </div>
-                <button
-                  v-if="cell.events.length > MAX_CHIPS"
-                  class="block w-full rounded px-1 py-0.5 text-left text-[10px] font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
-                  @click="toggleExpanded(cell.key)"
-                >
-                  {{ expanded.has(cell.key) ? '− Réduire' : `+${cell.events.length - MAX_CHIPS} autres` }}
-                </button>
+
+                <div class="mt-1 space-y-0.5">
+                  <!-- Créneaux : chip pour la prochaine occurrence, points pour les répétitions -->
+                  <ContextMenu v-for="ev in cell.slots" :key="ev.id">
+                    <ContextMenuTrigger
+                      as-child
+                      class="block w-full"
+                      @pointerdown.stop="onEventDown(ev, $event)"
+                    >
+                      <div
+                        class="event-chip"
+                        :class="!ev.next ? 'event-chip-dot' : ''"
+                        :style="ev.next ? { background: ev.color, color: ev.fg } : undefined"
+                        :title="ev.tooltip"
+                      >
+                        <template v-if="ev.next">
+                          <span class="event-time">{{ ev.timeLabel }}</span>
+                          <span class="truncate">{{ ev.text }}</span>
+                        </template>
+                        <template v-else>
+                          <span class="size-1.5 shrink-0 rounded-full" :style="{ background: ev.color }"></span>
+                          <span class="font-mono tabular-nums">{{ ev.timeLabel }}</span>
+                        </template>
+                      </div>
+                    </ContextMenuTrigger>
+                    <ContextMenuContent class="min-w-44">
+                      <ContextMenuItem inset disabled class="pointer-events-none">
+                        {{ ev.text }} · {{ ev.timeLabel }}
+                      </ContextMenuItem>
+                      <ContextMenuSeparator />
+                      <ContextMenuItem inset @select="menuMoveSlot(ev, 1)">
+                        <CalendarPlusIcon class="size-3.5" /> Déplacer à demain
+                      </ContextMenuItem>
+                      <ContextMenuItem inset @select="menuMoveSlot(ev, 7)">
+                        <CalendarPlusIcon class="size-3.5" /> Déplacer à +7 jours
+                      </ContextMenuItem>
+                      <ContextMenuSeparator />
+                      <ContextMenuItem inset variant="destructive" @select="menuDeleteSlot(ev)">
+                        <Trash2Icon class="size-3.5" /> Supprimer le créneau
+                      </ContextMenuItem>
+                    </ContextMenuContent>
+                  </ContextMenu>
+
+                  <!-- Publications : badge agrégé + liste en Popover -->
+                  <Popover v-if="cell.pubs.length">
+                    <PopoverTrigger as-child>
+                      <button
+                        class="pub-badge"
+                        :title="`${cell.pubs.length} publication${cell.pubs.length > 1 ? 's' : ''} le ${cell.date.toLocaleDateString('fr-FR')}`"
+                        @pointerdown.stop
+                        @click.stop
+                      >
+                        <SendIcon class="size-3" />
+                        <span>{{ cell.pubs.length }}</span>
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent align="start" side="right" class="w-80 p-1.5">
+                      <div class="flex items-center justify-between px-2 py-1">
+                        <p class="text-xs font-semibold">{{ cell.pubs.length }} publication{{ cell.pubs.length > 1 ? 's' : '' }}</p>
+                        <p class="text-muted-foreground text-[10px] capitalize">{{ cell.date.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }) }}</p>
+                      </div>
+                      <div class="max-h-64 space-y-0.5 overflow-y-auto pr-0.5">
+                        <div
+                          v-for="pub in cell.pubs"
+                          :key="pub.id"
+                          class="group flex items-center gap-2 rounded-md px-2 py-1 hover:bg-muted"
+                        >
+                          <span class="font-mono text-[10px] text-muted-foreground tabular-nums">{{ pub.timeLabel }}</span>
+                          <Badge variant="outline" class="h-4 shrink-0 px-1 font-mono text-[9px]">{{ pub.platform }}</Badge>
+                          <span class="min-w-0 flex-1 truncate text-[11px]" :title="pub.tooltip">{{ pub.text }}</span>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger as-child>
+                              <Button variant="ghost" size="icon-xs" class="opacity-0 group-hover:opacity-100" @click.stop>
+                                <MoreHorizontalIcon />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem @select="reschedulePub(pub, 1)">
+                                <CalendarPlusIcon class="size-3.5" /> Reprogrammer à demain
+                              </DropdownMenuItem>
+                              <DropdownMenuItem @select="reschedulePub(pub, 7)">
+                                <CalendarPlusIcon class="size-3.5" /> Reprogrammer à +7 jours
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                </div>
               </div>
             </div>
-          </div>
+          </template>
+
+          <!-- Chargement initial : squelette de la grille -->
+          <template v-else>
+            <div class="grid grid-cols-7 gap-px bg-border p-px">
+              <Skeleton v-for="i in 42" :key="i" class="h-[76px] rounded-none bg-muted/40" />
+            </div>
+          </template>
         </Card>
 
         <!-- Suivi replié (accordéon shadcn) -->
@@ -279,15 +374,47 @@
         </Card>
       </TabsContent>
 
-      <!-- ══ Composants de la chaîne : leurs paramètres directement ══ -->
-      <TabsContent v-for="nt in NODE_TABS" :key="nt.key" :value="nt.key" class="space-y-4">
-        <NodeSettings :node="nodeOf(nt.nodeType)" />
+      <!-- ══ Amont : Collecte → Anti-doublons → Orchestrateur regroupés ══ -->
+      <TabsContent value="amont" class="space-y-4">
+        <Card class="gap-0 overflow-hidden py-0">
+          <NavigationMenu :viewport="false" class="w-full">
+            <NavigationMenuList class="w-full justify-start gap-0.5">
+              <NavigationMenuItem v-for="s in AMONT_STEPS" :key="s.key">
+                <NavigationMenuLink
+                  as-child
+                  :active="amontStep === s.key"
+                  @select="amontStep = s.key"
+                >
+                  <button
+                    type="button"
+                    class="flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors"
+                    :class="amontStep === s.key ? 'bg-accent/10 text-accent' : 'text-muted-foreground hover:bg-muted hover:text-foreground'"
+                  >
+                    <span>{{ s.icon }}</span>
+                    <span>{{ s.label }}</span>
+                  </button>
+                </NavigationMenuLink>
+              </NavigationMenuItem>
+            </NavigationMenuList>
+          </NavigationMenu>
+        </Card>
+        <NodeSettings :node="nodeOf(amontStep)" />
       </TabsContent>
 
-      <!-- ══ Écriture : rédaction + vérification + consignes + formats + modèles ══ -->
+      <!-- ══ Tri : réglages + les blocs de ligne éditoriale que le filtre consomme ══ -->
+      <TabsContent value="research" class="space-y-4">
+        <NodeSettings :node="nodeOf('research')" />
+        <EditorialBlocks node="research" />
+      </TabsContent>
+
+      <!-- ══ Image : réglages + les blocs que le choix des visuels consomme ══ -->
+      <TabsContent value="media" class="space-y-4">
+        <NodeSettings :node="nodeOf('media')" />
+        <EditorialBlocks node="media" />
+      </TabsContent>
+
+      <!-- ══ Écriture : chaîne (stepper) + formats + modèles (EcriturePanel) ══ -->
       <TabsContent value="ecriture" class="space-y-4">
-        <NodeSettings :node="nodeOf('editor')" />
-        <NodeSettings :node="nodeOf('validator')" />
         <EcriturePanel />
       </TabsContent>
     </Tabs>
@@ -308,15 +435,23 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { ChevronLeftIcon, ChevronRightIcon, PlayIcon, PlusIcon, SettingsIcon, Trash2Icon } from '@lucide/vue'
+import { CalendarPlusIcon, ChevronLeftIcon, ChevronRightIcon, MoreHorizontalIcon, PlayIcon, PlusIcon, SendIcon, SettingsIcon, Trash2Icon } from '@lucide/vue'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../components/ui/accordion'
 import { Badge } from '../components/ui/badge'
 import { Button } from '../components/ui/button'
 import { Card } from '../components/ui/card'
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from '../components/ui/context-menu'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../components/ui/dropdown-menu'
 import { Input } from '../components/ui/input'
+import { NavigationMenu, NavigationMenuItem, NavigationMenuLink, NavigationMenuList } from '../components/ui/navigation-menu'
+import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover'
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '../components/ui/select'
+import { Skeleton } from '../components/ui/skeleton'
+import { Spinner } from '../components/ui/spinner'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/ui/tooltip'
 import EcriturePanel from '../components/EcriturePanel.vue'
+import EditorialBlocks from '../components/EditorialBlocks.vue'
 import NodeSettings from '../components/NodeSettings.vue'
 import { useConfigStore, type PipelineInfo, type WeeklySlot } from '../stores/config'
 import { usePipelinesStore } from '../stores/pipelines'
@@ -331,7 +466,6 @@ const system = useSystemStore()
 const today = ref(new Date())
 const visible = ref<Set<string>>(new Set())
 const editorId = ref<string | null>(null)
-const expanded = ref<Set<string>>(new Set())
 const tab = ref('calendrier')
 let refreshTimer: ReturnType<typeof setInterval> | null = null
 
@@ -339,20 +473,28 @@ const pipelines = computed(() => cfg.pipelines.filter(p => p.enabled !== false))
 const editorPipeline = computed(() => pipelines.value.find(p => p.id === editorId.value) ?? null)
 const sched = (p: PipelineInfo) => pipes.schedules[p.id]
 function slotCount(p: PipelineInfo) { return pipes.slotCount(p) }
+const loaded = computed(() => pipes.lastRefresh > 0)
 
 // ── Onglets : chaque composant de la chaîne → son onglet de réglages ──
-const NODE_TABS = [
-  { key: 'ingestion', nodeType: 'ingestion' },
-  { key: 'dedup', nodeType: 'dedup' },
-  { key: 'orchestrator', nodeType: 'orchestrator' },
-  { key: 'research', nodeType: 'research' },
-  { key: 'media', nodeType: 'media' },
+// Collecte / Anti-doublons / Orchestrateur sont regroupés dans l'onglet
+// « Amont » (NavigationMenu) ; research et media ont leur propre onglet avec
+// les blocs de la ligne éditoriale qu'ils consomment.
+const AMONT_STEPS = [
+  { key: 'ingestion', label: 'Collecte', icon: '◉' },
+  { key: 'dedup', label: 'Anti-doublons', icon: '⬢' },
+  { key: 'orchestrator', label: 'Orchestrateur', icon: '✸' },
 ]
+const amontStep = ref('ingestion')
 const TAB_BY_NODE: Record<string, string> = {
-  ingestion: 'ingestion', dedup: 'dedup', orchestrator: 'orchestrator',
-  research: 'research', editor: 'ecriture', validator: 'ecriture', media: 'media',
+  ingestion: 'amont', dedup: 'amont', orchestrator: 'amont',
+  research: 'research', editor: 'ecriture', media: 'media',
 }
 const tabOf = (nodeType: string) => TAB_BY_NODE[nodeType] ?? 'calendrier'
+function goTab(nodeType: string) {
+  const t = tabOf(nodeType)
+  tab.value = t
+  if (t === 'amont') amontStep.value = nodeType
+}
 const nodeOf = (nodeType: string) => {
   const n = store.atelier.find(x => x.type === nodeType)
   return n ?? { type: nodeType, label: nodeType, desc: '', enabled: false }
@@ -368,10 +510,29 @@ function toggleEditor(id: string) {
   editorId.value = editorId.value === id ? null : id
 }
 
+// ── Prochain scan global (badge de la barre d'outils) ──
+const nextScanLabel = computed(() => {
+  let best: { mins: number; label: string } | null = null
+  for (const p of pipelines.value) {
+    const s = sched(p)
+    if (!s || s.mode === 'pulse') continue
+    for (const slot of s.weeklySlots ?? []) {
+      const d = nextOccurrence(slot, new Date())
+      const mins = Math.round((d.getTime() - Date.now()) / 60_000)
+      const label = `${p.name} ${d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })} ${fmtClock(d)}`
+      if (!best || mins < best.mins) best = { mins, label }
+    }
+  }
+  if (!best) return ''
+  const h = Math.floor(best.mins / 60)
+  const m = best.mins % 60
+  const dans = h >= 24 ? `dans ${Math.floor(h / 24)} j` : h > 0 ? `dans ${h} h${m ? ` ${m} min` : ''}` : `dans ${m} min`
+  return `· ${best.label} (${dans})`
+})
+
 // ── Calendrier natif : grille mensuelle (semaine lundi→dimanche) ──
 const DAY_LABELS = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim']
 const DAY_INDEX: Record<string, number> = { DIM: 0, LUN: 1, MAR: 2, MER: 3, JEU: 4, VEN: 5, SAM: 6 }
-const MAX_CHIPS = 3
 
 function startOfDay(d: Date) { const o = new Date(d); o.setHours(0, 0, 0, 0); return o }
 function addDays(d: Date, n: number) { const o = new Date(d); o.setDate(o.getDate() + n); return o }
@@ -383,6 +544,20 @@ function parseKey(key: string): Date {
   return new Date(y, m - 1, d)
 }
 function sameDay(a: Date, b: Date) { return dateKey(a) === dateKey(b) }
+function fmtClock(d: Date) {
+  return d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+}
+
+// Prochaine occurrence (>= maintenant) d'un créneau hebdomadaire.
+function nextOccurrence(slot: WeeklySlot, from: Date): Date {
+  const [h, m] = String(slot.time ?? '08:00').split(':').map(Number)
+  const dayIdx = DAY_INDEX[slot.day] ?? 0
+  let diff = (dayIdx - from.getDay() + 7) % 7
+  const cand = addDays(startOfDay(from), diff)
+  cand.setHours(h || 0, m || 0, 0, 0)
+  if (cand.getTime() <= from.getTime()) return addDays(cand, 7)
+  return cand
+}
 
 const monthCursor = ref(startOfDay(new Date()))
 const monthLabel = computed(() => monthCursor.value.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }))
@@ -393,9 +568,9 @@ const gridStart = computed(() => {
 })
 const gridEnd = computed(() => addDays(gridStart.value, 41))
 
-function prevMonth() { monthCursor.value = new Date(monthCursor.value.getFullYear(), monthCursor.value.getMonth() - 1, 1); expanded.value = new Set() }
-function nextMonth() { monthCursor.value = new Date(monthCursor.value.getFullYear(), monthCursor.value.getMonth() + 1, 1); expanded.value = new Set() }
-function goToday() { monthCursor.value = startOfDay(new Date()); expanded.value = new Set() }
+function prevMonth() { monthCursor.value = new Date(monthCursor.value.getFullYear(), monthCursor.value.getMonth() - 1, 1) }
+function nextMonth() { monthCursor.value = new Date(monthCursor.value.getFullYear(), monthCursor.value.getMonth() + 1, 1) }
+function goToday() { monthCursor.value = startOfDay(new Date()) }
 
 interface CalEvent {
   id: string
@@ -411,6 +586,8 @@ interface CalEvent {
   day?: string
   time?: string
   pubId?: number
+  platform?: string
+  next?: boolean
 }
 
 interface Cell {
@@ -419,7 +596,8 @@ interface Cell {
   day: number
   inMonth: boolean
   isToday: boolean
-  events: CalEvent[]
+  slots: CalEvent[]
+  pubs: CalEvent[]
 }
 
 function occurrences(day: string, start: Date, end: Date): Date[] {
@@ -446,13 +624,26 @@ function pubLabel(pub: any): string {
 }
 
 const eventsByDay = computed(() => {
-  const map = new Map<string, CalEvent[]>()
-  const push = (ev: CalEvent) => {
+  const slots = new Map<string, CalEvent[]>()
+  const pubs = new Map<string, CalEvent[]>()
+  const push = (map: Map<string, CalEvent[]>, ev: CalEvent) => {
     const arr = map.get(ev.key) ?? []
     arr.push(ev)
     map.set(ev.key, arr)
   }
-  const fmt = (d: Date) => d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+
+  // Une seule chip par pipeline : le prochain passage global (comme la pill),
+  // toutes les autres répétitions du mois deviennent de simples points.
+  const now = new Date()
+  const nextKeys = new Set<string>()
+  for (const p of pipelines.value) {
+    let best: Date | null = null
+    for (const slot of sched(p)?.weeklySlots ?? []) {
+      const occ = nextOccurrence(slot, now)
+      if (!best || occ.getTime() < best.getTime()) best = occ
+    }
+    if (best) nextKeys.add(`${p.id}|${dateKey(best)}`)
+  }
 
   for (const p of pipelines.value) {
     if (!visible.value.has(p.id)) continue
@@ -462,13 +653,14 @@ const eventsByDay = computed(() => {
       const [h, m] = String(slot.time ?? '08:00').split(':').map(Number)
       for (const d of occurrences(slot.day, gridStart.value, gridEnd.value)) {
         const st = new Date(d); st.setHours(h, m, 0, 0)
-        push({
+        push(slots, {
           id: `slot-${p.id}-${slot.day}-${slot.time}-${st.getTime()}`,
           key: dateKey(d), kind: 'slot', pipelineId: p.id,
-          timeLabel: fmt(st), text: p.name,
-          tooltip: `${p.name} — scan à ${fmt(st)} (tous les ${slot.day.toLowerCase()})`,
+          timeLabel: fmtClock(st), text: p.name,
+          tooltip: `${p.name} — scan à ${fmtClock(st)} (tous les ${slot.day.toLowerCase()})`,
           color: p.color, fg: '#101010', date: d,
           day: slot.day, time: slot.time,
+          next: nextKeys.has(`${p.id}|${dateKey(st)}`),
         })
       }
     }
@@ -478,43 +670,37 @@ const eventsByDay = computed(() => {
     if (isNaN(d.getTime())) continue
     if (d < gridStart.value || d > gridEnd.value) continue
     const label = pubLabel(pub)
-    push({
+    push(pubs, {
       id: `pub-${pub.pipelineId}-${pub.id}`,
       key: dateKey(d), kind: 'pub', pipelineId: pub.pipelineId,
-      timeLabel: fmt(d), text: label.slice(0, 40),
+      timeLabel: fmtClock(d), text: label.slice(0, 44),
       tooltip: label,
       color: 'var(--muted-foreground)', fg: 'var(--background)', date: d,
-      pubId: pub.id,
+      pubId: pub.id, platform: String(pub.platform ?? '').toUpperCase(),
     })
   }
-  for (const arr of map.values()) arr.sort((a, b) => a.timeLabel.localeCompare(b.timeLabel))
-  return map
+  for (const arr of slots.values()) arr.sort((a, b) => a.timeLabel.localeCompare(b.timeLabel))
+  for (const arr of pubs.values()) arr.sort((a, b) => a.timeLabel.localeCompare(b.timeLabel))
+  return { slots, pubs }
 })
 
 const cells = computed<Cell[]>(() => {
   const out: Cell[] = []
   for (let i = 0; i < 42; i++) {
     const date = addDays(gridStart.value, i)
+    const key = dateKey(date)
     out.push({
-      key: dateKey(date),
+      key,
       date,
       day: date.getDate(),
       inMonth: date.getMonth() === monthCursor.value.getMonth(),
       isToday: sameDay(date, today.value),
-      events: eventsByDay.value.get(dateKey(date)) ?? [],
+      slots: eventsByDay.value.slots.get(key) ?? [],
+      pubs: eventsByDay.value.pubs.get(key) ?? [],
     })
   }
   return out
 })
-
-function shownEvents(cell: Cell) {
-  return expanded.value.has(cell.key) ? cell.events : cell.events.slice(0, MAX_CHIPS)
-}
-function toggleExpanded(key: string) {
-  const next = new Set(expanded.value)
-  if (next.has(key)) next.delete(key); else next.add(key)
-  expanded.value = next
-}
 
 // ── Drag & drop : créer / déplacer / supprimer ──
 type DragState =
@@ -598,19 +784,7 @@ async function createSlotAt(d: Date) {
 
 async function persistMoveEvent(ev: CalEvent, target: Date) {
   if (ev.kind === 'pub') {
-    const orig = ev.date
-    const at = startOfDay(target)
-    at.setHours(orig.getHours(), orig.getMinutes(), 0, 0)
-    const p = pipelines.value.find(x => x.id === ev.pipelineId)
-    if (!p) return
-    try {
-      await fetch(pipelineApiBase(p.port) + '/api/publications', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: Number(ev.pubId), scheduled_at: at.toISOString() }),
-      })
-    } catch { /* instance injoignable */ }
-    pipes.refresh(true)
+    await reschedulePub(ev, Math.round((startOfDay(target).getTime() - startOfDay(ev.date).getTime()) / 86_400_000))
     return
   }
   const pid = ev.pipelineId
@@ -627,6 +801,30 @@ async function persistDeleteSlot(ev: CalEvent) {
   const pid = ev.pipelineId
   const cur = pipes.schedules[pid]?.weeklySlots ?? []
   await patchConfig(pid, { scheduling: { weeklySlots: cur.filter(s => !(s.day === ev.day && s.time === ev.time)) } })
+}
+
+// Menu contextuel : déplacer un créneau de N jours (réutilise le même chemin
+// que le drag, donc mêmes règles de fusion/déplacement).
+async function menuMoveSlot(ev: CalEvent, days: number) {
+  await persistMoveEvent(ev, addDays(ev.date, days))
+}
+async function menuDeleteSlot(ev: CalEvent) {
+  await persistDeleteSlot(ev)
+}
+
+async function reschedulePub(ev: CalEvent, days: number) {
+  const at = new Date(ev.date)
+  at.setDate(at.getDate() + days)
+  const p = pipelines.value.find(x => x.id === ev.pipelineId)
+  if (!p) return
+  try {
+    await fetch(pipelineApiBase(p.port) + '/api/publications', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: Number(ev.pubId), scheduled_at: at.toISOString() }),
+    })
+  } catch { /* instance injoignable */ }
+  pipes.refresh(true)
 }
 
 async function patchConfig(pid: string, patch: any) {
@@ -706,7 +904,36 @@ onUnmounted(() => { if (refreshTimer) clearInterval(refreshTimer) })
   font-weight: 600;
   opacity: 0.75;
 }
-.event-pub {
+/* Répétitions d'un créneau : simple ligne discrète (point + heure). */
+.event-chip-dot {
+  padding: 0 4px;
+  font-size: 9px;
+  font-weight: 400;
+  color: var(--muted-foreground);
+  line-height: 1.6;
+  gap: 3px;
+  cursor: default;
+}
+.event-chip-dot:active {
+  cursor: default;
+}
+/* Badge agrégé des publications du jour. */
+.pub-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  background: var(--muted);
+  color: var(--muted-foreground);
+  padding: 0 6px;
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 1.6;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.pub-badge:hover {
   background: var(--muted-foreground);
   color: var(--background);
 }

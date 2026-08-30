@@ -7,19 +7,23 @@
         <p class="text-muted-foreground mt-0.5 text-xs">Les articles collectés par le robot — valide, programme ou rejette</p>
       </div>
       <div class="flex gap-2">
-        <Button variant="outline" size="sm" @click="refresh"><RefreshCwIcon data-icon="inline-start" /> Actualiser</Button>
+        <Button variant="outline" size="sm" :disabled="store.loading" @click="refresh">
+          <RefreshCwIcon v-if="!store.loading" data-icon="inline-start" />
+          <Spinner v-else class="size-3.5" />
+          Actualiser
+        </Button>
         <Button size="sm" @click="scanOpen = true"><PlayIcon data-icon="inline-start" /> Lancer un scan</Button>
       </div>
     </div>
 
     <!-- Erreur -->
-    <div v-if="store.error" class="text-destructive border-destructive/40 bg-destructive/10 rounded-lg border px-4 py-3 text-xs">
+    <div v-if="store.error" class="border-destructive/40 bg-destructive/10 text-destructive rounded-lg border px-4 py-3 text-xs">
       Impossible de joindre le robot ({{ store.error }}). Lance le daemon : <code class="font-mono">PIPELINE_DB_PATH=../data/pipeline.db ./daemon</code>
     </div>
 
     <Card class="gap-0 overflow-hidden py-0">
       <!-- Toolbar -->
-      <div class="space-y-3 px-4 pt-3">
+      <div class="space-y-2.5 px-3 pt-2.5">
         <Tabs v-model="tab" class="w-full">
           <TabsList class="flex h-auto w-full justify-start overflow-x-auto">
             <TabsTrigger v-for="t in tabs" :key="t.key" :value="t.key" class="flex gap-1.5">
@@ -28,79 +32,148 @@
             </TabsTrigger>
           </TabsList>
         </Tabs>
-        <div class="flex items-center gap-2 pb-3">
-          <div class="border-input bg-input/30 flex h-8 max-w-xs flex-1 items-center gap-2 rounded-lg border px-2.5">
+        <div class="flex items-center gap-1.5 pb-2.5">
+          <div class="border-input bg-input/30 flex h-7 max-w-xs flex-1 items-center gap-2 rounded-lg border px-2">
             <SearchIcon class="text-muted-foreground size-3.5" />
             <input v-model="search" placeholder="Rechercher un titre, un tag…" class="placeholder:text-muted-foreground w-full bg-transparent text-xs outline-none" />
           </div>
+
+          <!-- Filtre format (combobox : Popover + Command) -->
+          <Popover>
+            <PopoverTrigger as-child>
+              <Button variant="outline" size="sm" class="h-7 gap-1.5 px-2 text-[11px] font-normal">
+                <span>{{ formatLabel }}</span>
+                <ChevronsUpDownIcon class="size-3 opacity-60" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent class="w-52 p-0" align="end">
+              <Command>
+                <CommandInput v-model="formatSearch" placeholder="Filtrer par format…" class="h-8" />
+                <CommandList>
+                  <CommandEmpty>Aucun format</CommandEmpty>
+                  <CommandGroup>
+                    <CommandItem v-for="f in formatOptions" :key="f.value" :value="f.label" @select="formatFilter = f.value; formatSearch = ''">
+                      {{ f.label }}
+                    </CommandItem>
+                  </CommandGroup>
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
+
+          <!-- Zone (segmented compact) -->
           <div class="bg-input/30 border-input flex overflow-hidden rounded-lg border">
             <button v-for="g in ['all', 'france', 'international']" :key="g" @click="geo = g"
-              class="h-8 px-2.5 text-[11px] font-medium capitalize transition-colors"
+              class="h-7 px-2 text-[11px] font-medium capitalize transition-colors"
               :class="geo === g ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground'">
               {{ g === 'all' ? 'Tout' : g }}
             </button>
           </div>
-          <span class="text-muted-foreground ml-auto text-[11px]">{{ filtered.length }} affichés{{ store.loading ? ' · chargement…' : '' }}</span>
+
+          <span class="text-muted-foreground ml-auto flex items-center gap-1.5 text-[11px]">
+            <Spinner v-if="store.loading" class="size-3" />
+            {{ filtered.length }} affichés
+          </span>
         </div>
       </div>
 
       <!-- Table -->
-      <table class="w-full border-collapse text-left">
-        <thead>
-          <tr class="text-muted-foreground border-y border-border text-[10px] tracking-wider uppercase">
-            <th class="w-10 py-2 pl-4 pr-3"><input type="checkbox" :checked="allSelected" @change="toggleAll" class="accent-primary" /></th>
-            <th class="py-2 pr-3 font-medium">Titre</th>
-            <th class="hidden py-2 pr-3 font-medium md:table-cell">Format</th>
-            <th class="py-2 pr-3 font-medium">Zone</th>
-            <th class="hidden py-2 pr-3 font-medium lg:table-cell">Fiabilité</th>
-            <th class="hidden py-2 pr-3 font-medium sm:table-cell">Reçu</th>
-            <th class="py-2 pl-3 pr-4 font-medium"></th>
-          </tr>
-        </thead>
-        <tbody>
-          <template v-for="s in filtered" :key="s.id">
-            <tr class="hover:bg-muted/50 group border-b border-border/50 transition-colors" :class="{ 'bg-muted': selected.includes(s.id) }">
-              <td class="py-2.5 pl-4 pr-3"><input type="checkbox" :checked="selected.includes(s.id)" @change="toggle(s.id)" class="accent-primary" /></td>
-              <td class="max-w-md cursor-pointer py-2.5 pr-3" @click="expanded = expanded === s.id ? null : s.id">
-                <p class="line-clamp-1 text-xs font-medium">{{ s.source_title }}</p>
-                <p v-if="expanded !== s.id" class="text-muted-foreground mt-0.5 line-clamp-1 text-[11px]">{{ s.flash_content }}</p>
-                <p v-if="s.tags" class="text-accent mt-0.5 text-[10px]">{{ s.tags.split(',').map(t => '#' + t.trim()).join(' ') }}</p>
-              </td>
-              <td class="hidden py-2.5 pr-3 md:table-cell"><Badge :variant="formatVariant(s.type_ouverture)">{{ shortFormat(s.type_ouverture) }}</Badge></td>
-              <td class="py-2.5 pr-3"><span class="text-xs text-muted-foreground">{{ s.geo === 'france' ? '🇫🇷' : '🌍' }}</span></td>
-              <td class="hidden py-2.5 pr-3 lg:table-cell">
-                <span class="text-muted-foreground inline-flex items-center gap-1.5 text-xs capitalize">
-                  <span class="size-1.5 rounded-full" :class="dotFiabilite(s.fiabilite)"></span>{{ s.fiabilite }}
-                </span>
-              </td>
-              <td class="text-muted-foreground hidden whitespace-nowrap py-2.5 pr-3 text-[11px] sm:table-cell">{{ timeAgo(s.created_at) }}</td>
-              <td class="py-2.5 pl-3 pr-4">
-                <div class="group-hover:opacity-100 flex justify-end gap-1 opacity-0 transition-opacity">
-                  <Button v-if="s.status === 'PENDING'" variant="ghost" size="icon-xs" title="Valider" @click.stop="bulk([s.id], 'QUEUED')"><CheckIcon /></Button>
-                  <Button v-if="canReject(s.status)" variant="ghost" size="icon-xs" class="hover:text-destructive" title="Rejeter" @click.stop="bulk([s.id], 'REJECTED')"><XIcon /></Button>
-                  <Button v-if="canDelete(s.status)" variant="ghost" size="icon-xs" class="hover:text-destructive" title="Supprimer" @click.stop="delOne(s.id)"><Trash2Icon /></Button>
-                </div>
-              </td>
-            </tr>
-            <!-- Expanded preview -->
-            <tr v-if="expanded === s.id">
-              <td colspan="7" class="border-b border-border bg-background px-4 py-4">
-                <div class="ml-12 max-w-2xl space-y-2">
-                  <h4 class="text-sm font-medium">{{ s.source_title }}</h4>
-                  <p class="whitespace-pre-line text-xs leading-relaxed text-muted-foreground">{{ s.flash_content }}</p>
-                  <a :href="s.source_url" target="_blank" rel="noopener" class="text-info break-all text-[11px] hover:underline">{{ s.source_url }}</a>
-                  <div class="flex gap-2 pt-1">
-                    <Button v-if="s.status === 'PENDING'" @click="bulk([s.id], 'QUEUED')">Valider</Button>
-                    <Button v-if="canReject(s.status)" variant="destructive" @click="bulk([s.id], 'REJECTED')">Rejeter</Button>
-                  </div>
-                </div>
-              </td>
-            </tr>
-          </template>
-        </tbody>
-      </table>
+      <Table v-if="!store.loading" class="text-xs">
+        <TableHeader>
+          <TableRow class="hover:bg-transparent">
+            <TableHead class="w-9 pl-3 pr-1.5">
+              <input type="checkbox" :checked="allSelected" @change="toggleAll" class="accent-primary" />
+            </TableHead>
+            <TableHead class="text-muted-foreground text-[10px] tracking-wider uppercase">Titre</TableHead>
+            <TableHead class="text-muted-foreground hidden text-[10px] tracking-wider uppercase md:table-cell">Format</TableHead>
+            <TableHead class="text-muted-foreground hidden text-[10px] tracking-wider uppercase lg:table-cell">Fiabilité</TableHead>
+            <TableHead class="text-muted-foreground hidden text-[10px] tracking-wider uppercase sm:table-cell">Reçu</TableHead>
+            <TableHead class="w-9 pr-3 text-right" />
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          <ContextMenu v-for="s in filtered" :key="s.id">
+            <ContextMenuTrigger as-child>
+              <TableRow :class="selected.includes(s.id) ? 'bg-muted/60' : ''">
+                <TableCell class="py-1.5 pl-3 pr-1.5">
+                  <input type="checkbox" :checked="selected.includes(s.id)" @change="toggle(s.id)" class="accent-primary" />
+                </TableCell>
+                <TableCell class="max-w-md cursor-pointer py-1.5 pr-2" @click="openDetail(s)">
+                  <p class="truncate text-xs font-medium">{{ s.source_title }}</p>
+                  <p v-if="s.tags" class="text-accent mt-0.5 truncate text-[10px]">{{ s.tags.split(',').map(t => '#' + t.trim()).join(' ') }}</p>
+                </TableCell>
+                <TableCell class="hidden py-1.5 pr-2 md:table-cell">
+                  <Badge :variant="formatVariant(s.type_ouverture)" class="h-4 px-1.5 text-[9px]">{{ shortFormat(s.type_ouverture) }}</Badge>
+                </TableCell>
+                <TableCell class="hidden py-1.5 pr-2 lg:table-cell">
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger as-child>
+                        <span class="text-muted-foreground inline-flex items-center gap-1.5 text-xs capitalize">
+                          <span class="size-1.5 rounded-full" :class="dotFiabilite(s.fiabilite)"></span>{{ s.fiabilite }}
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent side="right">Fiabilité {{ s.fiabilite }}</TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </TableCell>
+                <TableCell class="text-muted-foreground hidden whitespace-nowrap py-1.5 pr-2 text-[11px] sm:table-cell">{{ timeAgo(s.created_at) }}</TableCell>
+                <TableCell class="py-1.5 pl-2 pr-3 text-right">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger as-child>
+                      <Button variant="ghost" size="icon-xs" class="text-muted-foreground hover:text-foreground">
+                        <MoreHorizontalIcon />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" class="w-40">
+                      <DropdownMenuItem v-if="s.status === 'PENDING'" @select="bulk([s.id], 'QUEUED')">
+                        <CheckIcon data-icon="inline-start" /> Valider
+                      </DropdownMenuItem>
+                      <DropdownMenuItem v-if="canReject(s.status)" class="text-destructive focus:text-destructive" @select="bulk([s.id], 'REJECTED')">
+                        <XIcon data-icon="inline-start" /> Rejeter
+                      </DropdownMenuItem>
+                      <DropdownMenuItem v-if="canDelete(s.status)" class="text-destructive focus:text-destructive" @select="delOne(s.id)">
+                        <Trash2Icon data-icon="inline-start" /> Supprimer
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem @select="openDetail(s)">Voir le détail</DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </TableCell>
+              </TableRow>
+            </ContextMenuTrigger>
+            <ContextMenuContent class="w-44">
+              <ContextMenuItem v-if="s.status === 'PENDING'" @select="bulk([s.id], 'QUEUED')">
+                <CheckIcon data-icon="inline-start" /> Valider
+              </ContextMenuItem>
+              <ContextMenuItem v-if="canReject(s.status)" class="text-destructive focus:text-destructive" @select="bulk([s.id], 'REJECTED')">
+                <XIcon data-icon="inline-start" /> Rejeter
+              </ContextMenuItem>
+              <ContextMenuItem v-if="canDelete(s.status)" class="text-destructive focus:text-destructive" @select="delOne(s.id)">
+                <Trash2Icon data-icon="inline-start" /> Supprimer
+              </ContextMenuItem>
+              <ContextMenuSeparator />
+              <ContextMenuItem @select="openDetail(s)">Voir le détail</ContextMenuItem>
+            </ContextMenuContent>
+          </ContextMenu>
+        </TableBody>
+      </Table>
 
-      <div v-if="!store.loading && filtered.length === 0" class="border-dashed rounded-lg border py-16 text-center">
+      <!-- Skeleton pendant le chargement -->
+      <div v-else class="space-y-2.5 p-3">
+        <div v-for="i in 6" :key="i" class="flex items-center gap-3">
+          <Skeleton class="size-4 rounded" />
+          <div class="flex-1 space-y-1.5">
+            <Skeleton class="h-3 w-2/3" />
+            <Skeleton class="h-2.5 w-1/3" />
+          </div>
+          <Skeleton class="h-4 w-16" />
+          <Skeleton class="size-6 rounded-md" />
+        </div>
+      </div>
+
+      <!-- Vide -->
+      <div v-if="!store.loading && filtered.length === 0" class="border-dashed rounded-lg border py-14 text-center">
         <div class="bg-muted text-muted-foreground mx-auto mb-3 flex size-10 items-center justify-center rounded-full">▤</div>
         <p class="text-sm font-medium">Aucun signal ici</p>
         <p class="text-muted-foreground mx-auto mt-1 max-w-xs text-xs">Change d'onglet ou lance un scan pour collecter de nouveaux articles.</p>
@@ -113,13 +186,35 @@
       <Transition name="fadeup">
         <div v-if="selected.length > 0" class="bg-card border-border fixed bottom-6 left-1/2 z-50 flex -translate-x-1/2 items-center gap-2 rounded-lg border px-4 py-2.5 shadow-2xl">
           <span class="mr-1 text-xs font-medium">{{ selected.length }} sélectionné{{ selected.length > 1 ? 's' : '' }}</span>
-          <Button @click="bulk(selected, 'QUEUED')">Valider</Button>
-          <Button variant="outline" @click="bulk(selected, 'REJECTED')">Rejeter</Button>
-          <Button variant="destructive" @click="delSelected()">Supprimer</Button>
+          <Button size="sm" @click="bulk(selected, 'QUEUED')">Valider</Button>
+          <Button variant="outline" size="sm" @click="bulk(selected, 'REJECTED')">Rejeter</Button>
+          <Button variant="destructive" size="sm" @click="delSelected()">Supprimer</Button>
           <button @click="selected = []" class="text-muted-foreground hover:text-foreground ml-1 px-1 text-sm">✕</button>
         </div>
       </Transition>
     </Teleport>
+
+    <!-- Détail d'un signal -->
+    <Dialog v-model:open="detailOpen">
+      <DialogContent class="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle class="pr-6">{{ detail?.source_title }}</DialogTitle>
+          <DialogDescription>
+            <span class="flex flex-wrap gap-1.5 pt-1">
+              <Badge :variant="detail ? formatVariant(detail.type_ouverture) : 'secondary'" class="h-4 px-1.5 text-[9px]">{{ detail ? shortFormat(detail.type_ouverture) : '' }}</Badge>
+              <Badge variant="outline" class="h-4 px-1.5 text-[9px]">{{ detail?.geo === 'france' ? '🇫🇷 France' : '🌍 International' }}</Badge>
+              <Badge variant="secondary" class="h-4 px-1.5 text-[9px] capitalize">{{ detail?.fiabilite }}</Badge>
+            </span>
+          </DialogDescription>
+        </DialogHeader>
+        <p class="text-muted-foreground whitespace-pre-line text-xs leading-relaxed">{{ detail?.flash_content }}</p>
+        <a v-if="detail?.source_url" :href="detail.source_url" target="_blank" rel="noopener" class="text-info break-all text-[11px] hover:underline">{{ detail.source_url }}</a>
+        <DialogFooter>
+          <Button v-if="detail?.status === 'PENDING'" @click="bulk([detail.id], 'QUEUED')">Valider</Button>
+          <Button v-if="detail && canReject(detail.status)" variant="destructive" @click="bulk([detail.id], 'REJECTED')">Rejeter</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
 
     <!-- Scan modal -->
     <Dialog v-model:open="scanOpen">
@@ -139,12 +234,20 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
-import { CheckIcon, PlayIcon, RefreshCwIcon, SearchIcon, Trash2Icon, XIcon } from '@lucide/vue'
+import { CheckIcon, ChevronsUpDownIcon, MoreHorizontalIcon, PlayIcon, RefreshCwIcon, SearchIcon, Trash2Icon, XIcon } from '@lucide/vue'
 import { Badge } from '../components/ui/badge'
 import { Button } from '../components/ui/button'
 import { Card } from '../components/ui/card'
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '../components/ui/command'
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from '../components/ui/context-menu'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../components/ui/dialog'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '../components/ui/dropdown-menu'
+import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover'
+import { Skeleton } from '../components/ui/skeleton'
+import { Spinner } from '../components/ui/spinner'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table'
 import { Tabs, TabsList, TabsTrigger } from '../components/ui/tabs'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/ui/tooltip'
 import { useSignalsStore, SIGNAL_TABS, tabToStatus } from '../stores/signals'
 
 const store = useSignalsStore()
@@ -162,8 +265,26 @@ const tabs = computed(() =>
 const geo = ref('all')
 const search = ref('')
 const selected = ref<number[]>([])
-const expanded = ref<number | null>(null)
+const detail = ref<any | null>(null)
+const detailOpen = ref(false)
 const scanOpen = ref(false)
+
+// Filtre format (client-side — les formats présents dans le flux actuel).
+const formatFilter = ref('all')
+const formatSearch = ref('')
+const formatOptions = computed(() => {
+  const set = new Map<string, string>()
+  for (const s of store.all) {
+    const raw = String(s.type_ouverture ?? '').trim()
+    if (!raw) continue
+    const key = raw.toUpperCase()
+    if (!set.has(key)) set.set(key, shortFormat(raw) || raw)
+  }
+  return [{ value: 'all', label: 'Tout' }, ...[...set.entries()].map(([value, label]) => ({ value, label }))]
+})
+const formatLabel = computed(() =>
+  formatFilter.value === 'all' ? 'Format : tout' : `Format : ${formatOptions.value.find(f => f.value === formatFilter.value)?.label ?? formatFilter.value}`,
+)
 
 function load() {
   store.fetchSignals(tabToStatus(tab.value), geo.value, search.value)
@@ -178,7 +299,12 @@ watch(search, () => {
 watch(tab, load)
 watch(geo, load)
 
-const filtered = computed(() => store.all)
+// Le filtre format s'applique côté client sur la liste déjà filtrée (tab/géo/recherche).
+const filtered = computed(() => {
+  const all = store.all
+  if (formatFilter.value === 'all') return all
+  return all.filter(s => String(s.type_ouverture ?? '').toUpperCase() === formatFilter.value)
+})
 
 const allSelected = computed(() => filtered.value.length > 0 && filtered.value.every(s => selected.value.includes(s.id)))
 
@@ -188,10 +314,14 @@ function toggle(id: number) {
 function toggleAll() {
   selected.value = allSelected.value ? [] : filtered.value.map(s => s.id)
 }
+function openDetail(s: any) {
+  detail.value = s
+  detailOpen.value = true
+}
 async function bulk(ids: number[], status: string) {
   await store.bulkUpdate(ids, status)
   selected.value = []
-  expanded.value = null
+  detailOpen.value = false
   load()
 }
 async function delOne(id: number) {

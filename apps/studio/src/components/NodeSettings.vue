@@ -92,7 +92,7 @@ const store = useConfigStore()
 const props = defineProps<{ node: { type: string; label: string; desc: string; enabled: boolean } }>()
 
 const icons: Record<string, string> = {
-  ingestion: '◉', dedup: '⬢', orchestrator: '✸', research: '✦', editor: '✎', validator: '✓', media: '◎',
+  ingestion: '◉', dedup: '⬢', orchestrator: '✸', research: '✦', editor: '✎', media: '◎',
 }
 const iconOf = (t: string) => icons[t] ?? '●'
 
@@ -115,8 +115,6 @@ const summary = computed(() => {
       return `${store.ecriture.modeleRapide} · thinking ${store.ecriture.thinkingRapide} tokens · ${store.ecriture.tachesEnMemeTempsRapide} en parallèle`
     case 'editor':
       return `${store.ecriture.modeleRedaction} · ${store.ecriture.tachesEnMemeTempsRedaction} en parallèle`
-    case 'validator':
-      return `Note min ${store.ecriture.scoreMini}/100 · ${store.partage.autoApprove ? 'mode fantôme (approuve seul)' : 'attend ta validation'}`
     case 'media':
       return `Overlay ${store.media.overlayEnabled ? 'oui' : 'non'} · ${store.media.overlayOpacity}% · cadres ${store.media.boxScale169}% / ${store.media.boxScale11}%`
     default:
@@ -162,17 +160,13 @@ const fields = computed<Field[]>(() => {
         { key: 'aiModelFlash', label: 'Modèle de tri', help: 'Repli de l’orchestrateur — note 0–100', type: 'select', options: store.modelRegistry.map(m => m.label), value: store.ecriture.modeleRapide, apply: (v: string) => (store.ecriture.modeleRapide = v) },
         { key: 'thinkingRapide', label: 'Raisonnement (thinking)', help: 'Moyen par défaut — 0 = réponse directe', type: 'select', options: ['0 — rapide', '2048 — moyen', '8192 — élevé'], value: String(store.ecriture.thinkingRapide), apply: (v: string) => (store.ecriture.thinkingRapide = parseInt(v)) },
         { key: 'concurrency', label: 'Traiter combien à la fois', help: 'En parallèle', type: 'slider', min: 1, max: 10, value: store.ecriture.tachesEnMemeTempsRapide, apply: (v: number) => (store.ecriture.tachesEnMemeTempsRapide = v) },
+        { key: 'scoreMini', label: 'Note minimale', unit: '/100', help: 'En dessous, le sujet est écarté au tri', type: 'slider', min: 0, max: 100, value: store.ecriture.scoreMini, apply: (v: number) => (store.ecriture.scoreMini = v) },
         { key: 'webSearch', label: 'Recherche web', help: "Gemini vérifie sur le web avant de rédiger — pour tous les types d'articles", type: 'toggle-row', value: store.ecriture.webSearchEnabled, apply: (v: boolean) => (store.ecriture.webSearchEnabled = v) },
       ]
     case 'editor':
       return [
         { key: 'aiModelPro', label: 'Modèle de rédaction', help: 'Le plus fort pour écrire', type: 'select', options: store.modelRegistry.map(m => m.label), value: store.ecriture.modeleRedaction, apply: (v: string) => (store.ecriture.modeleRedaction = v) },
         { key: 'concurrency', label: 'Rédiger combien à la fois', type: 'slider', min: 1, max: 8, value: store.ecriture.tachesEnMemeTempsRedaction, apply: (v: number) => (store.ecriture.tachesEnMemeTempsRedaction = v) },
-      ]
-    case 'validator':
-      return [
-        { key: 'scoreMini', label: 'Note minimale /100', help: 'En dessous → rejeté automatiquement', type: 'slider', min: 20, max: 80, value: store.ecriture.scoreMini, apply: (v: number) => (store.ecriture.scoreMini = v) },
-        { key: 'autoApprove', label: 'Mode Fantôme : l’IA valide à ta place', help: 'Les articles passent directement à la publication, sans modération humaine — distinct de la Publication auto (Diffusion)', type: 'toggle-row', value: store.partage.autoApprove, apply: (v: boolean) => (store.partage.autoApprove = v) },
       ]
     case 'media':
       return [

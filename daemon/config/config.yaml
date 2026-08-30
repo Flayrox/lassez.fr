@@ -66,7 +66,7 @@ memory: # mémoire éditoriale — ce qu'on a publié, injecté dans l'orchestra
     enabled: true
     windowDays: 30
 pipeline: # graphe visuel du studio (Atelier) — nœuds actifs
-    graphJson: "{\"nodes\":[{\"type\":\"ingestion\",\"enabled\":true},{\"type\":\"dedup\",\"enabled\":true},{\"type\":\"orchestrator\",\"enabled\":true},{\"type\":\"research\",\"enabled\":true},{\"type\":\"editor\",\"enabled\":true},{\"type\":\"validator\",\"enabled\":true},{\"type\":\"media\",\"enabled\":false}]}"
+    graphJson: "{\"nodes\":[{\"type\":\"ingestion\",\"enabled\":true},{\"type\":\"dedup\",\"enabled\":true},{\"type\":\"orchestrator\",\"enabled\":true},{\"type\":\"research\",\"enabled\":true},{\"type\":\"editor\",\"enabled\":true},{\"type\":\"media\",\"enabled\":false}]}"
 publisher:
     enableDiscord: true # social_discord_enabled = true (+ test mode)
     discordTestMode: false # discord_test_mode = true
@@ -88,6 +88,7 @@ publisher:
         ALERTE: {qoe: false, discord: true, x: false, bluesky: false, mastodon: false}
         DECRYPTAGE: {qoe: false, discord: true, x: false, bluesky: false, mastodon: false}
         INFO: {qoe: false, discord: true, x: false, bluesky: false, mastodon: false}
+        "FORMAT_377473": {"qoe": true, "discord": true, "x": false, "bluesky": false, "mastodon": false}
     "xPublishMode": "DIRECT"
     "blueskyPublishMode": "DIRECT"
     "mastodonPublishMode": "DIRECT"

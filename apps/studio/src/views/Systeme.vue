@@ -155,7 +155,7 @@
       <CardHeader class="border-b">
         <div>
           <CardTitle>Vertex AI (source principale)</CardTitle>
-          <CardDescription>Compte de service Google Cloud — SOURCE PRINCIPALE des nœuds IA du pipeline (Tri, Orchestrateur, Rédaction, Vérification)</CardDescription>
+          <CardDescription>Compte de service Google Cloud — SOURCE PRINCIPALE des nœuds IA du pipeline (Tri, Orchestrateur, Rédaction)</CardDescription>
         </div>
       </CardHeader>
       <CardContent class="pt-4">

@@ -1,8 +1,8 @@
 // Package pipeline — cœur de L'Assez : orchestre un cycle complet du pipeline
 // d'automatisation (le daemon Go).
 //
-// Flot explicite (7 nœuds, 2 boucles) :
-//   Boucle principale (tous les X min) : ingestion → dedup → research → editor → validator → media
+// Flot explicite (6 nœuds, 2 boucles) :
+//   Boucle principale (tous les X min) : ingestion → dedup → research → editor → media
 //   Boucle publisher (toutes les 2 min) : diffusion qoe.fi / Discord / X / Bluesky (hors cycle)
 //
 // Le graphe actif des nœuds est pilotable depuis config.yaml (section pipeline,
@@ -29,7 +29,6 @@ const (
 	NodeOrchestrator = "orchestrator"
 	NodeResearch     = "research"
 	NodeEditor       = "editor"
-	NodeValidator    = "validator"
 	NodeMedia        = "media"
 	// publisher est hors cycle (boucle séparée daemon/cmd/daemon/main.go)
 )
@@ -48,8 +47,7 @@ var NodeCatalog = []NodeMeta{
 	{Type: NodeOrchestrator, Label: "Orchestrateur", Description: "Chef de desk — 1 appel IA/cycle, agenda + aiguillage", Order: 3},
 	{Type: NodeResearch, Label: "Researcher", Description: "Gemini Flash scoring 0-100, triage (repli)", Order: 4},
 	{Type: NodeEditor, Label: "Editorialist", Description: "Gemini Pro rédaction investigation", Order: 5},
-	{Type: NodeValidator, Label: "Validator", Description: "Vérif faits + conformité", Order: 6},
-	{Type: NodeMedia, Label: "Media", Description: "Enrichissement image (Unsplash/keywords)", Order: 7},
+	{Type: NodeMedia, Label: "Media", Description: "Enrichissement image (Unsplash/keywords)", Order: 6},
 }
 
 // defaultActiveNodes = graphe par défaut si aucun JSON en DB
@@ -59,7 +57,6 @@ var defaultActiveNodes = map[string]bool{
 	NodeOrchestrator: false, // opt-in : remplace le Tri quand il est activé
 	NodeResearch:     true,  // repli automatique si l'orchestrateur est désactivé/échoue
 	NodeEditor:       true,
-	NodeValidator:    true,
 	NodeMedia:        true,
 }
 
@@ -201,25 +198,14 @@ func RunCycle(client *store.Client, resolver *config.Resolver, log *logger.Logge
 		}
 	}
 
-	if active["validator"] {
-		log.Info("Node 5", "⚖️ Lancement du Validator (Vérification et sécurité)...")
-		start := time.Now()
-		err := nodes.RunValidator(client, resolver)
-		nodes.RecordBrickRun(NodeValidator, "Validator", err, time.Since(start))
-		client.RecordCycleStep(cycleID, NodeValidator, "Validé", stepStatus(err), time.Since(start), errMsg(err), "faits vérifiés")
-		if err != nil {
-			log.Error("Node 5", "❌ Erreur validator: "+err.Error())
-		}
-	}
-
 	if active["media"] {
-		log.Info("Node 6", "📸 Lancement du Media Enrichment (Création et assignation visuelle)...")
+		log.Info("Node 5", "📸 Lancement du Media Enrichment (Création et assignation visuelle)...")
 		start := time.Now()
 		err := nodes.RunMedia(client, resolver)
 		nodes.RecordBrickRun(NodeMedia, "Média", err, time.Since(start))
 		client.RecordCycleStep(cycleID, NodeMedia, "Illustré", stepStatus(err), time.Since(start), errMsg(err), "visuels assignés")
 		if err != nil {
-			log.Error("Node 6", "❌ Erreur media: "+err.Error())
+			log.Error("Node 5", "❌ Erreur media: "+err.Error())
 		}
 	}
 
@@ -259,7 +245,7 @@ func strVal(v any, def string) string {
 
 // activeList — liste ordonnée des nœuds actifs pour le log
 func activeList(active map[string]bool) []string {
-	order := []string{NodeIngestion, NodeDedup, NodeOrchestrator, NodeResearch, NodeEditor, NodeValidator, NodeMedia}
+	order := []string{NodeIngestion, NodeDedup, NodeOrchestrator, NodeResearch, NodeEditor, NodeMedia}
 	var out []string
 	for _, n := range order {
 		if active[n] {

@@ -100,6 +100,7 @@ import { Input } from '../components/ui/input'
 import { Label } from '../components/ui/label'
 import { Switch } from '../components/ui/switch'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table'
+import { toast } from 'vue-sonner'
 
 interface Election {
   slug: string
@@ -166,18 +167,27 @@ async function create() {
   if (y) {
     newSlug.value = ''
     createMsg.value = { ok: true, text: `Scrutin « ${y.slug} » créé et affiché.` }
+    toast.success(`Scrutin « ${y.slug} » créé et affiché`)
   } else {
     createMsg.value = { ok: false, text: error.value ?? 'échec inconnu' }
+    toast.error(error.value ?? 'Création impossible')
   }
 }
 
 async function setDisplay(e: Election, v: boolean) {
   const y = await api('PATCH', { slug: e.slug, display: v })
-  if (y) e.displayed = v
+  if (y) {
+    e.displayed = v
+    toast.success(`Scrutin « ${e.slug} » ${v ? 'affiché' : 'masqué'}`)
+  } else {
+    toast.error(error.value ?? 'Modification impossible')
+  }
 }
 
 async function setTarget(e: Election) {
-  await api('PATCH', { slug: e.slug, target: true })
+  const y = await api('PATCH', { slug: e.slug, target: true })
+  if (y) toast.success(`« ${e.slug} » est maintenant la cible`)
+  else toast.error(error.value ?? 'Modification impossible')
 }
 
 async function remove(e: Election) {
@@ -186,8 +196,10 @@ async function remove(e: Election) {
   const y = await res.json().catch(() => ({}))
   if (!res.ok) {
     error.value = y?.error || `HTTP ${res.status}`
+    toast.error(error.value)
     return
   }
   await refresh()
+  toast.success(`Scrutin « ${e.slug} » supprimé`)
 }
 </script>

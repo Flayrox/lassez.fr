@@ -113,13 +113,11 @@ func flatten(d map[string]any) map[string]any {
 	set("googleSearchDecryptEnabled", get("research", "googleSearchDecrypt"))
 	set("scoreThreshold", f("research", "scoreThreshold"))
 
-	// Editorial (+ validator)
+	// Editorial
 	set("editor.aiModelPro", s("editorial", "aiModelPro"))
 	set("editor.maxConcurrentTasks", f("editorial", "maxConcurrentTasks"))
 	// Raisonnement (thinking) de la rédaction — élevé par défaut dans le code.
 	set("editor.thinkingBudget", f("editorial", "thinkingBudget"))
-	set("validator.aiModelValidator", s("editorial", "aiModelVerification"))
-	set("validator.maxConcurrentTasks", float64(5))
 	set("aiModelPro", orString(s("editorial", "aiModelPro"), "gemini-3.7-flash"))
 	set("baseIdentityPrompt", s("editorial", "baseIdentity"))
 	set("researchMissionPrompt", s("editorial", "researchMission"))
@@ -162,8 +160,6 @@ func flatten(d map[string]any) map[string]any {
 	set("minPublishDelay", f("publisher", "minDelayMinutes"))
 	set("maxPublishDelay", f("publisher", "maxDelayMinutes"))
 	set("enableAutoPublish", get("publisher", "enableAutoPublish"))
-	set("enableAutoApprove", get("publisher", "enableAutoApprove"))           // Mode Fantôme
-	set("enableAutoApproveMedia", get("publisher", "enableAutoApproveMedia")) // média conservé en mode fantôme
 	set("targetsByType", get("publisher", "targetsByType"))
 	// qoe.fi (clé + publication dans .secrets.yaml, base URL dans le YAML)
 	set("qoeApiKey", s("publisher", "qoeApiKey"))

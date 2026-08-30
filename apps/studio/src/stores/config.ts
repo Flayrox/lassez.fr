@@ -237,8 +237,6 @@ export const useConfigStore = defineStore('config', () => {
     delaiMini: 1,
     delaiMaxi: 2,
     auto: false,               // auto_pilot_enabled = false sur le VPS
-    autoApprove: false,        // auto_approve_enabled — Mode Fantôme (l'IA approuve sans modération)
-    autoApproveMedia: true,    // mode fantôme : garder l'enrichissement média (false = PENDING direct)
     discordTestMode: true,
   })
 
@@ -528,8 +526,6 @@ export const useConfigStore = defineStore('config', () => {
         minDelayMinutes: partage.value.delaiMini,
         maxDelayMinutes: partage.value.delaiMaxi,
         enableAutoPublish: partage.value.auto,
-        enableAutoApprove: partage.value.autoApprove, // Mode Fantôme
-        enableAutoApproveMedia: partage.value.autoApproveMedia, // média en mode fantôme
         targetsByType,
       },
       memory: {
@@ -681,8 +677,6 @@ export const useConfigStore = defineStore('config', () => {
       delaiMini: numOr(pub.minDelayMinutes, partage.value.delaiMini),
       delaiMaxi: numOr(pub.maxDelayMinutes, partage.value.delaiMaxi),
       auto: boolOr(pub.enableAutoPublish, partage.value.auto),
-      autoApprove: boolOr(pub.enableAutoApprove, partage.value.autoApprove),
-      autoApproveMedia: boolOr(pub.enableAutoApproveMedia, partage.value.autoApproveMedia),
     }
     if (isObj(pub.targetsByType)) {
       matrix.value = defaultMatrix()

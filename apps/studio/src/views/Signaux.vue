@@ -248,6 +248,7 @@ import { Spinner } from '../components/ui/spinner'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table'
 import { Tabs, TabsList, TabsTrigger } from '../components/ui/tabs'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/ui/tooltip'
+import { toast } from 'vue-sonner'
 import { useSignalsStore, SIGNAL_TABS, tabToStatus } from '../stores/signals'
 
 const store = useSignalsStore()
@@ -319,19 +320,37 @@ function openDetail(s: any) {
   detailOpen.value = true
 }
 async function bulk(ids: number[], status: string) {
-  await store.bulkUpdate(ids, status)
-  selected.value = []
-  detailOpen.value = false
-  load()
+  try {
+    await store.bulkUpdate(ids, status)
+    selected.value = []
+    detailOpen.value = false
+    load()
+    const n = ids.length
+    const verb = status === 'QUEUED' ? 'validé' : 'rejeté'
+    toast.success(`${n} signal${n > 1 ? 's' : ''} ${verb}${n > 1 ? 's' : ''}`)
+  } catch {
+    toast.error('Impossible de mettre à jour — daemon injoignable')
+  }
 }
 async function delOne(id: number) {
-  await store.remove([id])
-  load()
+  try {
+    await store.remove([id])
+    load()
+    toast.success('Signal supprimé')
+  } catch {
+    toast.error('Suppression impossible — daemon injoignable')
+  }
 }
 async function delSelected() {
-  await store.remove(selected.value)
-  selected.value = []
-  load()
+  const n = selected.value.length
+  try {
+    await store.remove(selected.value)
+    selected.value = []
+    load()
+    toast.success(`${n} signal${n > 1 ? 's' : ''} supprimé${n > 1 ? 's' : ''}`)
+  } catch {
+    toast.error('Suppression impossible — daemon injoignable')
+  }
 }
 function refresh() { load() }
 function doScan() { scanOpen.value = false; refresh() }

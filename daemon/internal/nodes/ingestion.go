@@ -111,9 +111,10 @@ func RunIngestion(client *store.Client, resolver *config.Resolver) ([]IngestedAr
 	}
 
 	// gofeed uses http.DefaultClient (no timeout) by default: a dead feed
-	// would hang the ingestion node. Give the parser its own timed client.
+	// would hang the ingestion node. Give the parser its own timed client
+	// with a browser-like User-Agent (see newRSSClient).
 	parser := gofeed.NewParser()
-	parser.Client = &http.Client{Timeout: 30 * time.Second}
+	parser.Client = newRSSClient()
 
 	var (
 		mu       sync.Mutex
@@ -211,7 +212,7 @@ func TestSource(rawURL string) (*SourceTestResult, error) {
 
 	start := time.Now()
 	parser := gofeed.NewParser()
-	parser.Client = &http.Client{Timeout: 30 * time.Second}
+	parser.Client = newRSSClient()
 	feed, err := parser.ParseURL(rawURL)
 	if err != nil {
 		return nil, err
@@ -238,6 +239,30 @@ func TestSource(rawURL string) (*SourceTestResult, error) {
 		}
 	}
 	return out, nil
+}
+
+// rssUserAgent imite un navigateur réel. Sans lui, gofeed envoie le
+// User-Agent par défaut de Go ("Go-http-client/1.1"), que plusieurs flux
+// (notamment humanite.fr) renvoient en 429 Too Many Requests / bloquent,
+// alors qu'il fonctionnent parfaitement dans un navigateur.
+const rssUserAgent = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+
+// rssRoundTripper injecte le User-Agent navigateur dans chaque requête du
+// client gofeed. On clone la requête pour ne pas muter l'objet partagé.
+type rssRoundTripper struct{ base http.RoundTripper }
+
+func (rt *rssRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	r := req.Clone(req.Context())
+	r.Header.Set("User-Agent", rssUserAgent)
+	return rt.base.RoundTrip(r)
+}
+
+// newRSSClient renvoie un client HTTP timed avec un vrai UA navigateur.
+func newRSSClient() *http.Client {
+	return &http.Client{
+		Timeout:   30 * time.Second,
+		Transport: &rssRoundTripper{base: http.DefaultTransport},
+	}
 }
 
 // snippet mirrors rss-parser's contentSnippet || content || title.

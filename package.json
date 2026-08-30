@@ -9,8 +9,9 @@
   "scripts": {
     "dev": "next dev -p 2500",
     "dev:studio": "npm --prefix apps/studio run dev",
+    "dev:daemon": "cd daemon && go run ./cmd/daemon",
     "dev:domain": "bash scripts/dev-domain.sh",
-    "dev:all": "concurrently -n lassez,studio -c red,blue \"npm:dev\" \"npm:dev:studio\"",
+    "dev:all": "concurrently -n front,studio,daemon -c magenta,cyan,yellow \"npm:dev\" \"npm:dev:studio\" \"npm:dev:daemon\"",
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",

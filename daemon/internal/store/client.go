@@ -14,6 +14,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -133,7 +135,10 @@ type PublicationInput struct {
 // de settings (config YAML aplatie). WAL activé : lectures du studio pendant
 // que le daemon écrit.
 func NewLocal(dbPath string, settingsProvider func() (map[string]any, error)) (*Client, error) {
-	db, err := sql.Open("sqlite", dbPath+"?mode=rw")
+	if dir := filepath.Dir(dbPath); dir != "" && dir != "." {
+		_ = os.MkdirAll(dir, 0o755)
+	}
+	db, err := sql.Open("sqlite", dbPath+"?mode=rwc")
 	if err != nil {
 		return nil, err
 	}

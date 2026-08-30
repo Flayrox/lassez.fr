@@ -1033,7 +1033,8 @@ export const useConfigStore = defineStore('config', () => {
         body: JSON.stringify(toYamlConfig()),
       })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      await res.json()
+      const text = await res.text()
+      if (text) JSON.parse(text)
       apiOk.value = true
       apiError.value = null
     } catch (e: any) {
@@ -1048,7 +1049,9 @@ export const useConfigStore = defineStore('config', () => {
     try {
       const res = await api('/api/secrets')
       if (!res.ok) return
-      const y = await res.json()
+      const text = await res.text()
+      if (!text) return
+      const y = JSON.parse(text)
       if (isObj(y) && isObj(y.publisher)) {
         const s = y.publisher
         for (const k of Object.keys(secrets.value)) if (typeof s[k] === 'string') (secrets.value as any)[k] = s[k]
@@ -1063,7 +1066,8 @@ export const useConfigStore = defineStore('config', () => {
         body: JSON.stringify({ publisher: secrets.value }),
       })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      await res.json()
+      const text = await res.text()
+      if (text) JSON.parse(text)
     } catch (e: any) {
       console.warn('[studio] secrets non envoyés au daemon :', e?.message || e)
     }
@@ -1077,8 +1081,11 @@ export const useConfigStore = defineStore('config', () => {
     try {
       const res = await api('/api/config')
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const y = await res.json()
-      applyFromYaml(y)
+      const text = await res.text()
+      if (text) {
+        const y = JSON.parse(text)
+        applyFromYaml(y)
+      }
       apiOk.value = true
       apiError.value = null
     } catch (e: any) {

@@ -1,257 +1,425 @@
 <template>
-  <div class="space-y-5">
+  <div class="space-y-6">
     <div class="flex items-center justify-between gap-3">
       <div>
         <h1 class="text-lg font-semibold">Système</h1>
-        <p class="text-xs text-text-3 mt-0.5">Le studio en coulisses — simple et lisible</p>
+        <p class="text-muted-foreground mt-0.5 text-xs">Le studio en coulisses — simple et lisible</p>
       </div>
       <div class="flex items-center gap-2">
-        <LButton variant="secondary" :disabled="system.loading" @click="refresh">↻ Rafraîchir</LButton>
-        <LButton :disabled="system.scanning" @click="scan">▶ Lancer un scan</LButton>
+        <Button variant="outline" :disabled="system.loading" @click="refresh">
+          <RefreshCwIcon data-icon="inline-start" />
+          Rafraîchir
+        </Button>
+        <Button :disabled="system.scanning" @click="scan">
+          <PlayIcon data-icon="inline-start" />
+          Lancer un scan
+        </Button>
       </div>
     </div>
 
     <!-- Télémétrie temps réel -->
-    <LCard title="Santé du système" description="État de chaque brique du pipeline, mis à jour en direct">
-      <div v-if="system.error" class="text-xs text-danger mb-3">
-        daemon injoignable — la télémétrie n'est pas disponible ({{ system.error }})
-      </div>
-      <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        <div v-for="b in system.bricks" :key="b.type"
-          class="rounded-card border border-border bg-bg p-3 flex flex-col gap-1.5">
-          <div class="flex items-center justify-between gap-2">
-            <p class="text-xs font-medium text-text-1">{{ b.label }}</p>
-            <span class="w-2 h-2 rounded-full shrink-0" :class="dotClass(b.status)"></span>
-          </div>
-          <p class="text-[10px] text-text-3">{{ statusLabel(b) }}</p>
-          <p v-if="b.lastError" class="text-[10px] text-danger line-clamp-2" :title="b.lastError">{{ b.lastError }}</p>
-          <p v-else-if="b.durationMs" class="text-[10px] text-text-3">{{ b.durationMs }} ms</p>
+    <Card>
+      <CardHeader class="border-b">
+        <div>
+          <CardTitle>Santé du système</CardTitle>
+          <CardDescription>État de chaque brique du pipeline, mis à jour en direct</CardDescription>
         </div>
-      </div>
-      <div class="flex flex-wrap items-center gap-x-5 gap-y-1 mt-3 text-[11px] text-text-3">
-        <span>Uptime : <b class="text-text-1">{{ uptime }}</b></span>
-        <span>Cycles : <b class="text-text-1">{{ cycles }}</b></span>
-        <span>Dernier passage : <b class="text-text-1">{{ lastCycle }}</b></span>
-        <span v-if="system.scanDone" class="text-accent">⚡ Scan déclenché — le robot tourne en arrière-plan</span>
-      </div>
-    </LCard>
+      </CardHeader>
+      <CardContent class="pt-4">
+        <div v-if="system.error" class="text-destructive mb-3 text-xs">
+          daemon injoignable — la télémétrie n'est pas disponible ({{ system.error }})
+        </div>
+        <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div v-for="b in system.bricks" :key="b.type"
+            class="bg-muted/30 flex flex-col gap-1.5 rounded-lg border border-border p-3">
+            <div class="flex items-center justify-between gap-2">
+              <p class="text-xs font-medium">{{ b.label }}</p>
+              <span class="h-2 w-2 shrink-0 rounded-full" :class="dotClass(b.status)"></span>
+            </div>
+            <p class="text-muted-foreground text-[10px]">{{ statusLabel(b) }}</p>
+            <p v-if="b.lastError" class="text-destructive line-clamp-2 text-[10px]" :title="b.lastError">{{ b.lastError }}</p>
+            <p v-else-if="b.durationMs" class="text-muted-foreground text-[10px]">{{ b.durationMs }} ms</p>
+          </div>
+        </div>
+        <div class="text-muted-foreground mt-3 flex flex-wrap items-center gap-x-5 gap-y-1 text-[11px]">
+          <span>Uptime : <b class="text-foreground">{{ uptime }}</b></span>
+          <span>Cycles : <b class="text-foreground">{{ cycles }}</b></span>
+          <span>Dernier passage : <b class="text-foreground">{{ lastCycle }}</b></span>
+          <span v-if="system.scanDone" class="text-emerald-400">⚡ Scan déclenché — le robot tourne en arrière-plan</span>
+        </div>
+      </CardContent>
+    </Card>
 
-    <LCard title="Niveau de détail des journaux" description="DEBUG = tout · INFO = normal · WARN = alertes · ERROR = que les problèmes">
-      <select v-model="store.systeme.niveauLogs" @change="store.markDirty()" class="w-full max-w-xs h-8 bg-bg border border-border rounded px-2 text-xs focus:outline-none focus:border-accent/60">
-        <option>DEBUG</option><option>INFO</option><option>WARN</option><option>ERROR</option>
-      </select>
-    </LCard>
+    <Card>
+      <CardHeader class="border-b">
+        <div>
+          <CardTitle>Niveau de détail des journaux</CardTitle>
+          <CardDescription>DEBUG = tout · INFO = normal · WARN = alertes · ERROR = que les problèmes</CardDescription>
+        </div>
+      </CardHeader>
+      <CardContent class="pt-4">
+        <Select
+          :model-value="store.systeme.niveauLogs"
+          @update:model-value="(v) => { store.systeme.niveauLogs = v; store.markDirty() }"
+        >
+          <SelectTrigger class="h-8 w-full max-w-xs text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="DEBUG">DEBUG</SelectItem>
+            <SelectItem value="INFO">INFO</SelectItem>
+            <SelectItem value="WARN">WARN</SelectItem>
+            <SelectItem value="ERROR">ERROR</SelectItem>
+          </SelectContent>
+        </Select>
+      </CardContent>
+    </Card>
 
-    <div class="grid md:grid-cols-2 gap-4">
-      <LCard title="Garder les journaux combien de jours" description="0 = pour toujours (déconseillé)">
-        <input type="number" v-model.number="store.systeme.garderLogsJours" class="w-full h-8 bg-bg border border-border rounded px-2.5 text-sm focus:outline-none focus:border-accent/60 max-w-[120px]" />
-      </LCard>
-      <LCard title="Envoyer les journaux au tableau de bord" description="Pour voir en direct si le robot tourne bien">
-        <LToggle :model-value="store.systeme.miroirLogs" @update:model-value="(v: boolean) => { store.systeme.miroirLogs = v; store.markDirty() }" />
-      </LCard>
+    <div class="grid gap-4 md:grid-cols-2">
+      <Card>
+        <CardHeader class="border-b">
+          <div>
+            <CardTitle>Garder les journaux combien de jours</CardTitle>
+            <CardDescription>0 = pour toujours (déconseillé)</CardDescription>
+          </div>
+        </CardHeader>
+        <CardContent class="pt-4">
+          <Input
+            type="number"
+            class="max-w-[120px]"
+            :model-value="store.systeme.garderLogsJours"
+            @update:model-value="(v) => { store.systeme.garderLogsJours = Number(v); store.markDirty() }"
+          />
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader class="border-b">
+          <div>
+            <CardTitle>Envoyer les journaux au tableau de bord</CardTitle>
+            <CardDescription>Pour voir en direct si le robot tourne bien</CardDescription>
+          </div>
+        </CardHeader>
+        <CardContent class="pt-4">
+          <Switch :model-value="store.systeme.miroirLogs" @update:model-value="(v: boolean) => { store.systeme.miroirLogs = v; store.markDirty() }" />
+        </CardContent>
+      </Card>
     </div>
 
     <!-- Connexion qoe.fi — réelle -->
-    <LCard title="Connexion qoe.fi" description="Là où partent les articles publiés">
-      <div class="flex items-center justify-between gap-3 mb-4">
-        <div class="flex items-center gap-3">
-          <span class="w-2 h-2 rounded-full" :class="qoeMock ? 'bg-warning' : 'bg-accent'"></span>
-          <div>
-            <p class="text-sm font-medium">{{ qoeMock ? 'Mode test' : 'Branché' }}</p>
-            <p class="text-[11px] text-text-3">
-              {{ qoeMock ? 'Sans clé d\'API, les envois sont simulés. Colle ta clé ci-dessous pour publier pour de vrai.' : 'Les articles partent vers ta publication qoe.fi.' }}
-            </p>
+    <Card>
+      <CardHeader class="border-b">
+        <div>
+          <CardTitle>Connexion qoe.fi</CardTitle>
+          <CardDescription>Là où partent les articles publiés</CardDescription>
+        </div>
+      </CardHeader>
+      <CardContent class="pt-4">
+        <div class="mb-4 flex items-center justify-between gap-3">
+          <div class="flex items-center gap-3">
+            <span class="h-2 w-2 rounded-full" :class="qoeMock ? 'bg-warning' : 'bg-emerald-500'"></span>
+            <div>
+              <p class="text-sm font-medium">{{ qoeMock ? 'Mode test' : 'Branché' }}</p>
+              <p class="text-muted-foreground text-[11px]">
+                {{ qoeMock ? 'Sans clé d\'API, les envois sont simulés. Colle ta clé ci-dessous pour publier pour de vrai.' : 'Les articles partent vers ta publication qoe.fi.' }}
+              </p>
+            </div>
+          </div>
+          <Badge :class="qoeMock ? 'border-warning/40 bg-warning/10 text-warning' : 'border-emerald-500/40 bg-emerald-500/10 text-emerald-400'">
+            {{ qoeMock ? 'mock' : 'en ligne' }}
+          </Badge>
+        </div>
+        <div class="grid gap-3 md:grid-cols-2">
+          <div class="space-y-1.5">
+            <Label class="text-xs">Clé d'API qoe.fi</Label>
+            <Input type="password" :model-value="store.secrets.qoeApiKey"
+              @update:model-value="(v: string) => { store.secrets.qoeApiKey = v; store.markDirty() }" />
+            <p class="text-muted-foreground text-[11px]">Stockée dans .secrets.yaml — jamais dans git</p>
+          </div>
+          <div class="space-y-1.5">
+            <Label class="text-xs">ID de publication</Label>
+            <Input :model-value="store.secrets.qoePublicationId"
+              @update:model-value="(v: string) => { store.secrets.qoePublicationId = v; store.markDirty() }" />
           </div>
         </div>
-        <LBadge :variant="qoeMock ? 'warning' : 'success'">{{ qoeMock ? 'mock' : 'en ligne' }}</LBadge>
-      </div>
-      <div class="grid md:grid-cols-2 gap-3">
-        <LInput label="Clé d'API qoe.fi" type="password" :model-value="store.secrets.qoeApiKey"
-          @update:model-value="(v: string) => { store.secrets.qoeApiKey = v; store.markDirty() }"
-          help="Stockée dans .secrets.yaml — jamais dans git" />
-        <LInput label="ID de publication" :model-value="store.secrets.qoePublicationId"
-          @update:model-value="(v: string) => { store.secrets.qoePublicationId = v; store.markDirty() }" />
-      </div>
-      <LInput label="Base URL (avancé)" :model-value="store.secrets.qoeBaseUrl"
-        @update:model-value="(v: string) => { store.secrets.qoeBaseUrl = v; store.markDirty() }"
-        help="Par défaut https://api.qoe.fi/v1 — laisse tel quel sauf si tu sais" />
-    </LCard>
+        <div class="mt-3 space-y-1.5">
+          <Label class="text-xs">Base URL (avancé)</Label>
+          <Input :model-value="store.secrets.qoeBaseUrl"
+            @update:model-value="(v: string) => { store.secrets.qoeBaseUrl = v; store.markDirty() }" />
+          <p class="text-muted-foreground text-[11px]">Par défaut https://api.qoe.fi/v1 — laisse tel quel sauf si tu sais</p>
+        </div>
+      </CardContent>
+    </Card>
 
-    <!-- Vertex AI (source principale) — compte de service Google Cloud : le chemin fiable qui fait tourner les nœuds IA -->
-    <LCard title="Vertex AI (source principale)" description="Compte de service Google Cloud — SOURCE PRINCIPALE des nœuds IA du pipeline (Tri, Orchestrateur, Rédaction, Vérification)">
-      <div class="flex items-center justify-between gap-3 mb-4">
-        <div class="flex items-center gap-3">
-          <span class="w-2 h-2 rounded-full" :class="vertexConfigured ? 'bg-accent' : 'bg-border'"></span>
-          <div>
-            <p class="text-sm font-medium">{{ vertexConfigured ? 'Compte de service configuré' : 'Non configuré' }}</p>
-            <p class="text-[11px] text-text-3">
-              {{ vertexConfigured
-                ? 'Vertex AI est utilisé en premier pour chaque appel IA — la recherche web continue de fonctionner. AI Studio ne prend le relais que si Vertex échoue.'
-                : 'Non configuré : le pipeline dépend de la clé AI Studio en repli. Colle le JSON ci-dessous pour faire de Vertex AI ta source principale (fiable, sans crédits AI Studio).' }}
-            </p>
+    <!-- Vertex AI (source principale) -->
+    <Card>
+      <CardHeader class="border-b">
+        <div>
+          <CardTitle>Vertex AI (source principale)</CardTitle>
+          <CardDescription>Compte de service Google Cloud — SOURCE PRINCIPALE des nœuds IA du pipeline (Tri, Orchestrateur, Rédaction, Vérification)</CardDescription>
+        </div>
+      </CardHeader>
+      <CardContent class="pt-4">
+        <div class="mb-4 flex items-center justify-between gap-3">
+          <div class="flex items-center gap-3">
+            <span class="h-2 w-2 rounded-full" :class="vertexConfigured ? 'bg-emerald-500' : 'bg-border'"></span>
+            <div>
+              <p class="text-sm font-medium">{{ vertexConfigured ? 'Compte de service configuré' : 'Non configuré' }}</p>
+              <p class="text-muted-foreground text-[11px]">
+                {{ vertexConfigured
+                  ? 'Vertex AI est utilisé en premier pour chaque appel IA — la recherche web continue de fonctionner. AI Studio ne prend le relais que si Vertex échoue.'
+                  : 'Non configuré : le pipeline dépend de la clé AI Studio en repli. Colle le JSON ci-dessous pour faire de Vertex AI ta source principale (fiable, sans crédits AI Studio).' }}
+              </p>
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            <Button variant="outline" size="sm" :disabled="vertexTesting || !vertexConfigured" @click="testVertex">
+              {{ vertexTesting ? 'Test…' : 'Tester Vertex AI' }}
+            </Button>
+            <Badge :class="vertexConfigured ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-400' : 'border-warning/40 bg-warning/10 text-warning'">
+              {{ vertexConfigured ? 'actif' : 'inactif' }}
+            </Badge>
           </div>
         </div>
-        <div class="flex items-center gap-2">
-          <LButton variant="secondary" size="sm" :disabled="vertexTesting || !vertexConfigured" @click="testVertex">
-            {{ vertexTesting ? 'Test…' : 'Tester Vertex AI' }}
-          </LButton>
-          <LBadge :variant="vertexConfigured ? 'success' : 'warning'">{{ vertexConfigured ? 'actif' : 'inactif' }}</LBadge>
+        <div class="space-y-3">
+          <div class="space-y-1.5">
+            <Label class="text-xs">JSON du compte de service (le fichier .json téléchargé depuis Google Cloud)</Label>
+            <Textarea
+              :rows="5"
+              class="font-mono text-xs"
+              :model-value="vertexShown ? store.secrets.vertexServiceAccount : (vertexConfigured ? '••••••••  (JSON configuré — clique dans le champ pour le voir ou le remplacer)' : '')"
+              @focus="vertexShown = true" @blur="vertexShown = false"
+              @update:model-value="(v: string) => { store.secrets.vertexServiceAccount = v.trim(); store.markDirty() }"
+              placeholder='{ "type": "service_account", "project_id": "…", … }'
+            />
+            <p class="text-muted-foreground text-[11px]">Google Cloud Console → IAM & Admin → Comptes de service → créer un compte → Clés → Ajouter une clé → JSON. Contient la clé privée — masqué par défaut. Stocké dans .secrets.yaml, jamais dans git.</p>
+          </div>
+          <div class="space-y-1.5">
+            <Label class="text-xs">Région</Label>
+            <Input placeholder="global" :model-value="store.secrets.vertexRegion"
+              @update:model-value="(v: string) => { store.secrets.vertexRegion = v.trim() || 'global'; store.markDirty() }" />
+            <p class="text-muted-foreground text-[11px]">global (recommandé) ou une région : us-central1, europe-west1… (selon où les modèles sont activés).</p>
+          </div>
+          <p v-if="vertexResult" class="text-xs" :class="vertexResult.ok ? 'text-emerald-400' : 'text-destructive'">
+            {{ vertexResult.ok ? '✓ Vertex AI fonctionne' : '✗ ' + vertexResult.error }}
+            <span v-if="vertexResult.ok" class="text-muted-foreground">· {{ vertexResult.latencyMs }} ms · {{ vertexResult.model }} · {{ vertexResult.project }}@{{ vertexResult.region }} · « {{ vertexResult.reply }} »</span>
+          </p>
         </div>
-      </div>
-      <div class="space-y-3">
-        <LTextarea label="JSON du compte de service (le fichier .json téléchargé depuis Google Cloud)" :rows="5"
-          :model-value="vertexShown ? store.secrets.vertexServiceAccount : (vertexConfigured ? '••••••••  (JSON configuré — clique dans le champ pour le voir ou le remplacer)' : '')"
-          @focus="vertexShown = true" @blur="vertexShown = false"
-          @update:model-value="(v: string) => { store.secrets.vertexServiceAccount = v.trim(); store.markDirty() }"
-          placeholder='{ "type": "service_account", "project_id": "…", … }'
-          help="Google Cloud Console → IAM & Admin → Comptes de service → créer un compte → Clés → Ajouter une clé → JSON. Contient la clé privée — masqué par défaut. Stocké dans .secrets.yaml, jamais dans git." />
-        <LInput label="Région" :model-value="store.secrets.vertexRegion"
-          @update:model-value="(v: string) => { store.secrets.vertexRegion = v.trim() || 'global'; store.markDirty() }"
-          placeholder="global"
-          help="global (recommandé) ou une région : us-central1, europe-west1… (selon où les modèles sont activés)." />
-        <p v-if="vertexResult" class="text-xs" :class="vertexResult.ok ? 'text-accent' : 'text-danger'">
-          {{ vertexResult.ok ? '✓ Vertex AI fonctionne' : '✗ ' + vertexResult.error }}
-          <span v-if="vertexResult.ok" class="text-text-3">· {{ vertexResult.latencyMs }} ms · {{ vertexResult.model }} · {{ vertexResult.project }}@{{ vertexResult.region }} · « {{ vertexResult.reply }} »</span>
-        </p>
-      </div>
-    </LCard>
+      </CardContent>
+    </Card>
 
-    <!-- Clé API Gemini (repli) — utilisée si Vertex AI est absent ou échoue -->
-    <LCard title="Clé API Gemini (repli)" description="Repli gratuit si Vertex AI est absent ou échoue (quota, erreur réseau)">
-      <div class="flex items-center justify-between gap-3 mb-4">
-        <div class="flex items-center gap-3">
-          <span class="w-2 h-2 rounded-full" :class="geminiConfigured ? 'bg-warning' : 'bg-border'"></span>
-          <div>
-            <p class="text-sm font-medium">{{ geminiConfigured ? 'Clé configurée' : 'Aucune clé' }}</p>
-            <p class="text-[11px] text-text-3">
-              {{ geminiConfigured
-                ? 'Utilisée en repli quand Vertex AI échoue. Sans Vertex configuré, c\'est elle qui fait tourner les nœuds IA.'
-                : 'Aucune clé de repli. Tant que Vertex AI (ci-dessus) est configuré, le pipeline tourne grâce à lui.' }}
-            </p>
+    <!-- Clé API Gemini (repli) -->
+    <Card>
+      <CardHeader class="border-b">
+        <div>
+          <CardTitle>Clé API Gemini (repli)</CardTitle>
+          <CardDescription>Repli gratuit si Vertex AI est absent ou échoue (quota, erreur réseau)</CardDescription>
+        </div>
+      </CardHeader>
+      <CardContent class="pt-4">
+        <div class="mb-4 flex items-center justify-between gap-3">
+          <div class="flex items-center gap-3">
+            <span class="h-2 w-2 rounded-full" :class="geminiConfigured ? 'bg-warning' : 'bg-border'"></span>
+            <div>
+              <p class="text-sm font-medium">{{ geminiConfigured ? 'Clé configurée' : 'Aucune clé' }}</p>
+              <p class="text-muted-foreground text-[11px]">
+                {{ geminiConfigured
+                  ? 'Utilisée en repli quand Vertex AI échoue. Sans Vertex configuré, c\'est elle qui fait tourner les nœuds IA.'
+                  : 'Aucune clé de repli. Tant que Vertex AI (ci-dessus) est configuré, le pipeline tourne grâce à lui.' }}
+              </p>
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            <Button variant="outline" size="sm" :disabled="geminiTesting || !geminiConfigured" @click="testGeminiKey">
+              {{ geminiTesting ? 'Test…' : 'Tester la clé' }}
+            </Button>
+            <Badge :class="geminiConfigured ? 'border-warning/40 bg-warning/10 text-warning' : 'bg-muted text-muted-foreground border border-border'">
+              {{ geminiConfigured ? 'repli' : 'inactive' }}
+            </Badge>
           </div>
         </div>
-        <div class="flex items-center gap-2">
-          <LButton variant="secondary" size="sm" :disabled="geminiTesting || !geminiConfigured" @click="testGeminiKey">
-            {{ geminiTesting ? 'Test…' : 'Tester la clé' }}
-          </LButton>
-          <LBadge :variant="geminiConfigured ? 'warning' : 'border'">{{ geminiConfigured ? 'repli' : 'inactive' }}</LBadge>
+        <div class="space-y-3">
+          <div class="space-y-1.5">
+            <Label class="text-xs">Clé API Gemini</Label>
+            <Input type="password" placeholder="AIza…" :model-value="store.secrets.geminiApiKey"
+              @update:model-value="(v: string) => { store.secrets.geminiApiKey = v.trim(); store.markDirty() }" />
+            <p class="text-muted-foreground text-[11px]">Stockée dans .secrets.yaml (jamais dans git). Utilisée seulement si Vertex AI est absent ou échoue.</p>
+          </div>
+          <p v-if="geminiResult" class="text-xs" :class="geminiResult.ok ? 'text-emerald-400' : 'text-destructive'">
+            {{ geminiResult.ok ? '✓ Clé valide' : '✗ ' + geminiResult.error }}
+            <span v-if="geminiResult.ok" class="text-muted-foreground">· {{ geminiResult.latencyMs }} ms · {{ geminiResult.model }} · réponse : « {{ geminiResult.reply }} »</span>
+          </p>
         </div>
-      </div>
-      <div class="space-y-3">
-        <LInput label="Clé API Gemini" type="password" :model-value="store.secrets.geminiApiKey"
-          @update:model-value="(v: string) => { store.secrets.geminiApiKey = v.trim(); store.markDirty() }"
-          placeholder="AIza…"
-          help="Stockée dans .secrets.yaml (jamais dans git). Utilisée seulement si Vertex AI est absent ou échoue." />
-        <p v-if="geminiResult" class="text-xs" :class="geminiResult.ok ? 'text-accent' : 'text-danger'">
-          {{ geminiResult.ok ? '✓ Clé valide' : '✗ ' + geminiResult.error }}
-          <span v-if="geminiResult.ok" class="text-text-3">· {{ geminiResult.latencyMs }} ms · {{ geminiResult.model }} · réponse : « {{ geminiResult.reply }} »</span>
-        </p>
-      </div>
-    </LCard>
+      </CardContent>
+    </Card>
 
-    <LCard title="Recherche d'images (Google officiel)" description="Le nœud Média illustre chaque article — avec cette clé il utilise l'API Google Images officielle (100 recherches gratuites/jour), sinon il retombe sur Wikimedia Commons.">
-      <div class="space-y-3">
+    <Card>
+      <CardHeader class="border-b">
+        <div>
+          <CardTitle>Recherche d'images (Google officiel)</CardTitle>
+          <CardDescription>Le nœud Média illustre chaque article — avec cette clé il utilise l'API Google Images officielle (100 recherches gratuites/jour), sinon il retombe sur Wikimedia Commons.</CardDescription>
+        </div>
+      </CardHeader>
+      <CardContent class="space-y-3 pt-4">
         <div class="flex items-center justify-between gap-2">
           <div>
             <p class="text-xs font-medium">{{ cseConfigured ? 'Recherche Google configurée' : 'Non configuré' }}</p>
-            <p class="text-[11px] text-text-3">
+            <p class="text-muted-foreground text-[11px]">
               {{ cseConfigured
                 ? "Le nœud Média cherche les illustrations avec l'API officielle, puis Wikimedia en secours."
                 : 'Sans clé, les illustrations viennent de Wikimedia Commons (gratuit, sans clé). Active la Custom Search JSON API pour de vraies images Google.' }}
             </p>
           </div>
-          <LBadge :variant="cseConfigured ? 'success' : 'warning'">{{ cseConfigured ? 'actif' : 'inactif' }}</LBadge>
+          <Badge :class="cseConfigured ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-400' : 'border-warning/40 bg-warning/10 text-warning'">
+            {{ cseConfigured ? 'actif' : 'inactif' }}
+          </Badge>
         </div>
-        <LInput label="Clé API (Custom Search JSON API)" type="password"
-          :model-value="store.secrets.googleCseApiKey"
-          @update:model-value="(v: string) => { store.secrets.googleCseApiKey = v.trim(); store.markDirty() }"
-          placeholder="AIza…"
-          help="Google Cloud Console → APIs & Services → Custom Search API → Créer des identifiants → Clé API (gratuit, sans carte). Stockée dans .secrets.yaml, jamais dans git." />
-        <LInput label="ID du moteur de recherche (cx)"
-          :model-value="store.secrets.googleCseId"
-          @update:model-value="(v: string) => { store.secrets.googleCseId = v.trim(); store.markDirty() }"
-          placeholder="0123456789abcdefg:hijklmnopqrst"
-          help="programmablesearchengine.google.com → créer un moteur qui cherche TOUT le web → activer « Recherche d'images » → copier l'ID (cx)." />
-      </div>
-    </LCard>
+        <div class="space-y-1.5">
+          <Label class="text-xs">Clé API (Custom Search JSON API)</Label>
+          <Input type="password" placeholder="AIza…" :model-value="store.secrets.googleCseApiKey"
+            @update:model-value="(v: string) => { store.secrets.googleCseApiKey = v.trim(); store.markDirty() }" />
+          <p class="text-muted-foreground text-[11px]">Google Cloud Console → APIs & Services → Custom Search API → Créer des identifiants → Clé API (gratuit, sans carte). Stockée dans .secrets.yaml, jamais dans git.</p>
+        </div>
+        <div class="space-y-1.5">
+          <Label class="text-xs">ID du moteur de recherche (cx)</Label>
+          <Input placeholder="0123456789abcdefg:hijklmnopqrst" :model-value="store.secrets.googleCseId"
+            @update:model-value="(v: string) => { store.secrets.googleCseId = v.trim(); store.markDirty() }" />
+          <p class="text-muted-foreground text-[11px]">programmablesearchengine.google.com → créer un moteur qui cherche TOUT le web → activer « Recherche d'images » → copier l'ID (cx).</p>
+        </div>
+      </CardContent>
+    </Card>
 
-    <LCard title="Mode maintenance" description="Remplace le site public par un écran « revenons bientôt »">
-      <div class="space-y-3">
+    <Card>
+      <CardHeader class="border-b">
+        <div>
+          <CardTitle>Mode maintenance</CardTitle>
+          <CardDescription>Remplace le site public par un écran « revenons bientôt »</CardDescription>
+        </div>
+      </CardHeader>
+      <CardContent class="space-y-3 pt-4">
         <div class="flex items-center justify-between gap-2">
           <p class="text-xs font-medium">Activer la maintenance</p>
-          <LToggle :model-value="store.systeme.maintenanceMode" @update:model-value="(v: boolean) => { store.systeme.maintenanceMode = v; store.markDirty() }" />
+          <Switch :model-value="store.systeme.maintenanceMode" @update:model-value="(v: boolean) => { store.systeme.maintenanceMode = v; store.markDirty() }" />
         </div>
-        <LTextarea v-if="store.systeme.maintenanceMode" v-model="store.systeme.maintenanceMessage" :rows="2" label="Message affiché" />
-      </div>
-    </LCard>
+        <div v-if="store.systeme.maintenanceMode" class="space-y-1.5">
+          <Label class="text-xs">Message affiché</Label>
+          <Textarea :rows="2" :model-value="store.systeme.maintenanceMessage"
+            @update:model-value="(v: string) => { store.systeme.maintenanceMessage = v; store.markDirty() }" />
+        </div>
+      </CardContent>
+    </Card>
 
-    <LCard title="Popup de soutien" description="S'affiche une fois par session sur le site public (bandeau don)">
-      <div class="space-y-3">
+    <Card>
+      <CardHeader class="border-b">
+        <div>
+          <CardTitle>Popup de soutien</CardTitle>
+          <CardDescription>S'affiche une fois par session sur le site public (bandeau don)</CardDescription>
+        </div>
+      </CardHeader>
+      <CardContent class="space-y-3 pt-4">
         <div class="flex items-center justify-between gap-2">
           <p class="text-xs font-medium">Activer la popup</p>
-          <LToggle :model-value="store.systeme.popupEnabled" @update:model-value="(v: boolean) => { store.systeme.popupEnabled = v; store.markDirty() }" />
+          <Switch :model-value="store.systeme.popupEnabled" @update:model-value="(v: boolean) => { store.systeme.popupEnabled = v; store.markDirty() }" />
         </div>
         <template v-if="store.systeme.popupEnabled">
-          <LInput label="Titre" v-model="popupTitleProxy" />
-          <LTextarea label="Texte" :rows="2" v-model="popupTextProxy" />
+          <div class="space-y-1.5">
+            <Label class="text-xs">Titre</Label>
+            <Input v-model="popupTitleProxy" />
+          </div>
+          <div class="space-y-1.5">
+            <Label class="text-xs">Texte</Label>
+            <Textarea :rows="2" v-model="popupTextProxy" />
+          </div>
           <div class="grid grid-cols-2 gap-3">
-            <LInput label="Libellé du bouton" v-model="popupLinkLabelProxy" />
-            <LInput label="Lien" help="Chemin interne ou URL complète" v-model="popupLinkUrlProxy" />
+            <div class="space-y-1.5">
+              <Label class="text-xs">Libellé du bouton</Label>
+              <Input v-model="popupLinkLabelProxy" />
+            </div>
+            <div class="space-y-1.5">
+              <Label class="text-xs">Lien</Label>
+              <Input v-model="popupLinkUrlProxy" />
+              <p class="text-muted-foreground text-[11px]">Chemin interne ou URL complète</p>
+            </div>
           </div>
           <!-- Aperçu -->
-          <div class="border border-border rounded-card p-4 bg-bg max-w-xs">
-            <p class="text-[9px] uppercase tracking-widest text-text-3 mb-1.5">Aperçu</p>
+          <div class="bg-muted/30 max-w-xs rounded-lg border border-border p-4">
+            <p class="text-muted-foreground mb-1.5 text-[9px] uppercase tracking-widest">Aperçu</p>
             <p class="text-sm font-semibold">{{ store.systeme.popupTitle }}</p>
-            <p class="text-xs text-text-2 mt-1">{{ store.systeme.popupText }}</p>
-            <span class="inline-block mt-3 px-3 py-1.5 bg-accent text-accent-fg text-xs font-semibold rounded">{{ store.systeme.popupLinkLabel }}</span>
+            <p class="mt-1 text-xs">{{ store.systeme.popupText }}</p>
+            <span class="bg-primary text-primary-foreground mt-3 inline-block rounded px-3 py-1.5 text-xs font-semibold">{{ store.systeme.popupLinkLabel }}</span>
           </div>
         </template>
-      </div>
-    </LCard>
+      </CardContent>
+    </Card>
 
     <!-- Équipe (en attente de l'API qoe.fi pour le vrai CRUD) -->
-    <LCard title="Équipe" description="Qui peut toucher au studio (branché via qoe.fi prochainement)">
-      <table class="w-full text-left text-xs">
-        <thead><tr class="text-[10px] uppercase tracking-wider text-text-3 border-b border-border">
-          <th class="px-4 py-2 font-medium">Membre</th>
-          <th class="py-2 pr-3 font-medium">Rôle</th>
-          <th class="py-2 pr-3 font-medium">Depuis</th>
-        </tr></thead>
-        <tbody>
-          <tr class="border-b border-border/50">
-            <td class="px-4 py-2.5 flex items-center gap-2.5">
-              <div class="w-6 h-6 rounded-full bg-gradient-to-br from-accent/60 to-info/60 ring-1 ring-border"></div>
-              <div><p class="font-medium text-text-1">Toi</p><p class="text-[10px] text-text-3">ekedzah@gmail.com</p></div>
-            </td>
-            <td class="py-2.5 pr-3"><LBadge variant="accent">Admin</LBadge></td>
-            <td class="py-2.5 pr-3 text-text-3">Le début</td>
-          </tr>
-        </tbody>
-      </table>
-    </LCard>
+    <Card>
+      <CardHeader class="border-b">
+        <div>
+          <CardTitle>Équipe</CardTitle>
+          <CardDescription>Qui peut toucher au studio (branché via qoe.fi prochainement)</CardDescription>
+        </div>
+      </CardHeader>
+      <CardContent class="pt-4">
+        <Table>
+          <TableHeader>
+            <TableRow class="hover:bg-transparent">
+              <TableHead>Membre</TableHead>
+              <TableHead>Rôle</TableHead>
+              <TableHead>Depuis</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            <TableRow>
+              <TableCell>
+                <div class="flex items-center gap-2.5">
+                  <div class="from-emerald-500/60 to-sky-500/60 ring-border h-6 w-6 rounded-full bg-gradient-to-br ring-1"></div>
+                  <div>
+                    <p class="font-medium">Toi</p>
+                    <p class="text-muted-foreground text-[10px]">ekedzah@gmail.com</p>
+                  </div>
+                </div>
+              </TableCell>
+              <TableCell>
+                <Badge class="border-emerald-500/40 bg-emerald-500/10 text-emerald-400">Admin</Badge>
+              </TableCell>
+              <TableCell class="text-muted-foreground">Le début</TableCell>
+            </TableRow>
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
 
-    <LCard title="Où tout est gardé">
-      <ul class="text-xs text-text-2 space-y-1.5 font-mono">
-        <li><span class="text-text-3">Config</span> daemon/config/config.yaml</li>
-        <li><span class="text-text-3">Secrets</span> daemon/config/.secrets.yaml (clés API, jamais dans git)</li>
-        <li><span class="text-text-3">Données locales</span> data/pipeline.db (signaux, cycles, publications)</li>
-        <li><span class="text-text-3">Articles publiés</span> api.qoe.fi (qoe.fi)</li>
-      </ul>
-    </LCard>
+    <Card>
+      <CardHeader class="border-b">
+        <CardTitle>Où tout est gardé</CardTitle>
+      </CardHeader>
+      <CardContent class="pt-4">
+        <ul class="text-muted-foreground space-y-1.5 font-mono text-xs">
+          <li><span class="text-foreground/50">Config</span> daemon/config/config.yaml</li>
+          <li><span class="text-foreground/50">Secrets</span> daemon/config/.secrets.yaml (clés API, jamais dans git)</li>
+          <li><span class="text-foreground/50">Données locales</span> data/pipeline.db (signaux, cycles, publications)</li>
+          <li><span class="text-foreground/50">Articles publiés</span> api.qoe.fi (qoe.fi)</li>
+        </ul>
+      </CardContent>
+    </Card>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { PlayIcon, RefreshCwIcon } from '@lucide/vue'
 import { useConfigStore } from '../stores/config'
 import { useSystemStore } from '../stores/system'
 import { api } from '../lib/api'
-import LCard from '../components/ui/LCard.vue'
-import LToggle from '../components/ui/LToggle.vue'
-import LButton from '../components/ui/LButton.vue'
-import LBadge from '../components/ui/LBadge.vue'
-import LInput from '../components/ui/LInput.vue'
-import LTextarea from '../components/ui/LTextarea.vue'
+import { Badge } from '../components/ui/badge'
+import { Button } from '../components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
+import { Input } from '../components/ui/input'
+import { Label } from '../components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select'
+import { Switch } from '../components/ui/switch'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table'
+import { Textarea } from '../components/ui/textarea'
 
 const store = useConfigStore()
 const system = useSystemStore()
@@ -267,9 +435,9 @@ async function scan() {
 
 function dotClass(status: string): string {
   switch (status) {
-    case 'ok': return 'bg-accent'
+    case 'ok': return 'bg-emerald-500'
     case 'warning': return 'bg-warning'
-    case 'danger': return 'bg-danger'
+    case 'danger': return 'bg-destructive'
     default: return 'bg-border'
   }
 }

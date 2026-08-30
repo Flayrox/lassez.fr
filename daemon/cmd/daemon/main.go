@@ -193,10 +193,6 @@ func (inst *instance) run() {
 	//    Un scan manuel (POST /api/scan du studio) réveille l'attente immédiatement.
 	go func() {
 		for {
-			if err := inst.runCycle(); err != nil {
-				inst.log.Error("Daemon", "❌ Erreur critique dans le pipeline : "+err.Error())
-			}
-
 			settings, _ := inst.resolver.Settings()
 			next := scheduler.Compute(settings, time.Now())
 			inst.log.Info("Daemon", "⏳ Prochain scan programmé : "+next.Label+" ("+formatMinutes(next.Delay)+" min).")
@@ -204,6 +200,10 @@ func (inst *instance) run() {
 			case <-inst.trigger:
 				inst.log.Info("Daemon", "⚡ Scan manuel demandé par le studio — cycle immédiat.")
 			case <-time.After(next.Delay):
+			}
+
+			if err := inst.runCycle(); err != nil {
+				inst.log.Error("Daemon", "❌ Erreur critique dans le pipeline : "+err.Error())
 			}
 		}
 	}()

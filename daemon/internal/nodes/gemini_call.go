@@ -35,6 +35,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/Flayrox/lassez.fr/daemon/internal/config"
 )
 
 const geminiRESTBase = "https://generativelanguage.googleapis.com/v1beta"
@@ -541,3 +543,27 @@ func schemaOrchestrator() map[string]any {
 		"decisions": map[string]any{"type": "array", "description": "Une entrée par sujet de la liste, sans omission ni invention", "items": item},
 	}, []string{"decisions"})
 }
+
+// CallGeminiDirect — appel direct pour l'Assistant IA conversationnel (Vertex AI en priorité, repli AI Studio)
+func CallGeminiDirect(ctx context.Context, resolver *config.Resolver, prompt string, modelName string) (string, error) {
+	if modelName == "" {
+		modelName = "gemini-3.5-flash-lite"
+	}
+	apiKey := GeminiAPIKey(resolver, "assistant")
+	vc := VertexAIConfig(resolver)
+
+	params := geminiParams{
+		user:          prompt,
+		apiKey:        apiKey,
+		model:         modelName,
+		modelFallback: "gemini-3.7-flash",
+		temperature:   0.3,
+		topP:          0.9,
+		maxTokens:     2048,
+		vertex:        vc,
+		search:        false,
+	}
+
+	return callGemini(ctx, params)
+}
+

@@ -188,6 +188,35 @@ func RunResearcher(client *store.Client, resolver *config.Resolver) error {
 				if geo == "" {
 					geo = "FRANCE"
 				}
+
+				// Vérification de routage vers un autre pipeline (ex: format FLASH routé vers flash.db)
+				autoRouteTarget := ""
+				if settings, err := resolver.Settings(); err == nil && settings != nil {
+					if routes, ok := settings["routingRules"].(map[string]any); ok {
+						if tgt, exists := routes[taxonomy].(string); exists && tgt != "" {
+							autoRouteTarget = tgt
+						}
+					}
+				}
+
+				if autoRouteTarget != "" && autoRouteTarget != "self" {
+					targetDB := fmt.Sprintf("../data/pipeline-%s.db", autoRouteTarget)
+					if autoRouteTarget == "principal" {
+						targetDB = "../data/pipeline.db"
+					}
+					if targetClient, err := store.NewLocal(targetDB, func() (map[string]any, error) { return map[string]any{}, nil }); err == nil {
+						routedSig := topic
+						routedSig.Status = "RESEARCHED"
+						routedSig.Taxonomy = taxonomy
+						routedSig.Geo = geo
+						_ = targetClient.InsertRawSignal(&routedSig)
+						_ = targetClient.Close()
+						_ = client.UpdateSignal(topic.ID, map[string]any{"status": "ROUTED_TO_" + strings.ToUpper(autoRouteTarget)})
+						log.Printf("[Node 3] 🔀 Signal %s routé vers la DB du pipeline %s", topic.ID, autoRouteTarget)
+						return
+					}
+				}
+
 				if err := client.UpdateSignal(topic.ID, map[string]any{
 					"status":   "RESEARCHED",
 					"taxonomy": taxonomy,

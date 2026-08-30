@@ -687,6 +687,15 @@ func (c *Client) CreateSignals(rows []map[string]any) error {
 	return tx.Commit()
 }
 
+// InsertRawSignal — insère un signal complet provenant d'un autre pipeline (routage)
+func (c *Client) InsertRawSignal(sig *Signal) error {
+	_, err := c.db.Exec(`
+		INSERT INTO daemon_signals(raw_data, final_draft, tags, status, taxonomy, geo, image_url)
+		VALUES(?, ?, ?, ?, ?, ?, ?)`,
+		string(sig.RawData), string(sig.FinalDraft), string(sig.Tags), sig.Status, sig.Taxonomy, sig.Geo, sig.ImageURL)
+	return err
+}
+
 var signalFieldCols = map[string]string{
 	"status":      "status",
 	"taxonomy":    "taxonomy",

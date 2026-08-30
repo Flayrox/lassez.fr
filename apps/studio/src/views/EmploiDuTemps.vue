@@ -50,6 +50,9 @@
 
       <!-- ══ Calendrier ══ -->
       <TabsContent value="calendrier" class="space-y-4">
+        <!-- Assistant de pilotage IA en langage naturel (Vertex AI / Gemini 3.5 Flash Lite) -->
+        <CalendarAIAssistant />
+
         <!-- Pills-pipelines : bascule + scan + éditeur de planning -->
         <div class="flex flex-wrap gap-2">
           <div
@@ -599,6 +602,7 @@ import CalendarConflictBadge, { type ConflictItem } from '../components/calendar
 import CalendarDayView from '../components/calendar/CalendarDayView.vue'
 import CalendarWeekView from '../components/calendar/CalendarWeekView.vue'
 import SlotEditorDialog from '../components/calendar/SlotEditorDialog.vue'
+import CalendarAIAssistant from '../components/calendar/CalendarAIAssistant.vue'
 import { useConfigStore, type PipelineInfo, type WeeklySlot } from '../stores/config'
 import { usePipelinesStore } from '../stores/pipelines'
 import { useSystemStore } from '../stores/system'

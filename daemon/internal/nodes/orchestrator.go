@@ -168,6 +168,34 @@ func RunOrchestrator(client *store.Client, resolver *config.Resolver, cycleID in
 			if geo != "france" && geo != "international" {
 				geo = "france"
 			}
+
+			// Routage automatique inter-pipeline dans l'orchestrateur
+			autoRouteTarget := ""
+			if settings, err := resolver.Settings(); err == nil && settings != nil {
+				if routes, ok := settings["routingRules"].(map[string]any); ok {
+					if tgt, exists := routes[taxonomy].(string); exists && tgt != "" {
+						autoRouteTarget = tgt
+					}
+				}
+			}
+			if autoRouteTarget != "" && autoRouteTarget != "self" {
+				targetDB := fmt.Sprintf("../data/pipeline-%s.db", autoRouteTarget)
+				if autoRouteTarget == "principal" {
+					targetDB = "../data/pipeline.db"
+				}
+				if targetClient, err := store.NewLocal(targetDB, func() (map[string]any, error) { return map[string]any{}, nil }); err == nil {
+					routedSig := topic
+					routedSig.Status = "RESEARCHED"
+					routedSig.Taxonomy = taxonomy
+					routedSig.Geo = geo
+					_ = targetClient.InsertRawSignal(&routedSig)
+					_ = targetClient.Close()
+					_ = client.UpdateSignal(topic.ID, map[string]any{"status": "ROUTED_TO_" + strings.ToUpper(autoRouteTarget)})
+					log.Printf("[Node 3: Orchestrateur] 🔀 Signal %s routé vers la DB du pipeline %s", topic.ID, autoRouteTarget)
+					continue
+				}
+			}
+
 			if err := client.UpdateSignal(topic.ID, map[string]any{
 				"status":   "RESEARCHED",
 				"taxonomy": taxonomy,

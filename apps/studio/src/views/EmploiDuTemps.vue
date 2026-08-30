@@ -1,7 +1,7 @@
 <!-- Emploi du temps — hub du produit Signaux : le calendrier + un onglet par
-     composant de la chaîne (Collecte, Anti-doublons, Orchestrateur, Tri,
-     Écriture, Image) avec ses paramètres directement (Pipeline + Écriture
-     fusionnés ici). Calendrier natif shadcn, compact.
+     étape de la chaîne. Collecte, Anti-doublons et Orchestrateur sont réunis
+     dans l'onglet « Amont » sans sous-onglets : toutes les cartes empilées,
+     toutes visibles d'un coup. Calendrier natif shadcn, compact.
      - Pills-pipelines : bascule l'affichage, ▶ scan (Spinner pendant le scan),
        ⚙ éditeur de planning inline.
      - Créneaux : tirer sur une case vide en crée un (09:00), glisser le déplace,
@@ -374,43 +374,34 @@
         </Card>
       </TabsContent>
 
-      <!-- ══ Amont : Collecte → Anti-doublons → Orchestrateur regroupés ══ -->
-      <TabsContent value="amont" class="space-y-4">
-        <Card class="gap-0 overflow-hidden py-0">
-          <NavigationMenu :viewport="false" class="w-full">
-            <NavigationMenuList class="w-full justify-start gap-0.5">
-              <NavigationMenuItem v-for="s in AMONT_STEPS" :key="s.key">
-                <NavigationMenuLink
-                  as-child
-                  :active="amontStep === s.key"
-                  @select="amontStep = s.key"
-                >
-                  <button
-                    type="button"
-                    class="flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors"
-                    :class="amontStep === s.key ? 'bg-accent/10 text-accent' : 'text-muted-foreground hover:bg-muted hover:text-foreground'"
-                  >
-                    <span>{{ s.icon }}</span>
-                    <span>{{ s.label }}</span>
-                  </button>
-                </NavigationMenuLink>
-              </NavigationMenuItem>
-            </NavigationMenuList>
-          </NavigationMenu>
-        </Card>
-        <NodeSettings :node="nodeOf(amontStep)" />
+      <!-- ══ Amont : Collecte → Anti-doublons → Orchestrateur en 3 colonnes ══ -->
+      <!-- Pas de sous-onglets ni de repli : chaque étape est une carte compacte
+           toujours visible (résumé + champs), posée en colonne côte à côte.
+           La liste vient de store.atelier filtré sur AMONT_NODES — ajouter un
+           type ici = il apparaît dans l'onglet. -->
+      <TabsContent value="amont" class="space-y-3">
+        <p class="text-muted-foreground text-xs">Collecte, Anti-doublons et Orchestrateur côte à côte — tout est visible, rien à déplier.</p>
+        <div class="grid items-start gap-3 md:grid-cols-2 xl:grid-cols-3">
+          <div v-for="n in amontSteps" :id="`amont-${n.type}`" :key="n.type" class="scroll-mt-4">
+            <NodeSettings :node="n" />
+          </div>
+        </div>
       </TabsContent>
 
-      <!-- ══ Tri : réglages + les blocs de ligne éditoriale que le filtre consomme ══ -->
-      <TabsContent value="research" class="space-y-4">
-        <NodeSettings :node="nodeOf('research')" />
-        <EditorialBlocks node="research" />
+      <!-- ══ Tri : réglages et ligne éditoriale côte à côte (2 colonnes) ══ -->
+      <TabsContent value="research" class="space-y-3">
+        <div class="grid items-start gap-3 xl:grid-cols-2">
+          <NodeSettings :node="nodeOf('research')" />
+          <EditorialBlocks node="research" />
+        </div>
       </TabsContent>
 
-      <!-- ══ Image : réglages + les blocs que le choix des visuels consomme ══ -->
-      <TabsContent value="media" class="space-y-4">
-        <NodeSettings :node="nodeOf('media')" />
-        <EditorialBlocks node="media" />
+      <!-- ══ Image : réglages et choix des visuels côte à côte (2 colonnes) ══ -->
+      <TabsContent value="media" class="space-y-3">
+        <div class="grid items-start gap-3 xl:grid-cols-2">
+          <NodeSettings :node="nodeOf('media')" />
+          <EditorialBlocks node="media" />
+        </div>
       </TabsContent>
 
       <!-- ══ Écriture : chaîne (stepper) + formats + modèles (EcriturePanel) ══ -->
@@ -434,7 +425,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue'
 import { CalendarPlusIcon, ChevronLeftIcon, ChevronRightIcon, MoreHorizontalIcon, PlayIcon, PlusIcon, SendIcon, SettingsIcon, Trash2Icon } from '@lucide/vue'
 import { toast } from 'vue-sonner'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../components/ui/accordion'
@@ -445,7 +436,6 @@ import { Card } from '../components/ui/card'
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from '../components/ui/context-menu'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../components/ui/dropdown-menu'
 import { Input } from '../components/ui/input'
-import { NavigationMenu, NavigationMenuItem, NavigationMenuLink, NavigationMenuList } from '../components/ui/navigation-menu'
 import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover'
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '../components/ui/select'
 import { Skeleton } from '../components/ui/skeleton'
@@ -479,14 +469,11 @@ const loaded = computed(() => pipes.lastRefresh > 0)
 
 // ── Onglets : chaque composant de la chaîne → son onglet de réglages ──
 // Collecte / Anti-doublons / Orchestrateur sont regroupés dans l'onglet
-// « Amont » (NavigationMenu) ; research et media ont leur propre onglet avec
-// les blocs de la ligne éditoriale qu'ils consomment.
-const AMONT_STEPS = [
-  { key: 'ingestion', label: 'Collecte', icon: '◉' },
-  { key: 'dedup', label: 'Anti-doublons', icon: '⬢' },
-  { key: 'orchestrator', label: 'Orchestrateur', icon: '✸' },
-]
-const amontStep = ref('ingestion')
+// « Amont » SANS sous-onglets : les cartes sont empilées et toutes visibles.
+// La liste des étapes de l'amont est pilotée par la config — un nœud ajouté
+// à AMONT_NODES (et présent dans la chaîne store.atelier) apparaît d'office.
+const AMONT_NODES = new Set(['ingestion', 'dedup', 'orchestrator'])
+const amontSteps = computed(() => store.atelier.filter(n => AMONT_NODES.has(n.type)))
 const TAB_BY_NODE: Record<string, string> = {
   ingestion: 'amont', dedup: 'amont', orchestrator: 'amont',
   research: 'research', editor: 'ecriture', media: 'media',
@@ -495,7 +482,12 @@ const tabOf = (nodeType: string) => TAB_BY_NODE[nodeType] ?? 'calendrier'
 function goTab(nodeType: string) {
   const t = tabOf(nodeType)
   tab.value = t
-  if (t === 'amont') amontStep.value = nodeType
+  // Amont = une seule vue : la pill de la chaîne saute directement à la carte.
+  if (t === 'amont') {
+    nextTick(() => {
+      document.getElementById(`amont-${nodeType}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
+  }
 }
 const nodeOf = (nodeType: string) => {
   const n = store.atelier.find(x => x.type === nodeType)

@@ -61,56 +61,64 @@ type ChatResponse struct {
 	UpdatedState bool     `json:"updated_state"`
 }
 
-const systemPrompt = `Tu es l'Assistant IA Intelligent et Automate Suprême de L'Assez Studio.
-Tu es capable de piloter ENTIÈREMENT le workflow des pipelines d'information :
-1. Planification et calendrier : scans récurrents (heures précises, plages 8h-22h, etc.), scans ponctuels, publications, modifications, suppressions.
-2. Paramètres et réglages : ajuster les intervalles de scraping, délais anti-spam, activation de nœuds (collecte, dedup, tri, rédaction, image), seuils de ressemblance.
-3. Déclenchement d'actions : lancer un scan immédiat sur un pipeline.
-4. Gestion des signaux : déplacer ou router des signaux vers un autre pipeline.
+const systemPrompt = `Tu es l'Assistant IA Intelligent et Automate Suprême de L'Assez Studio (Média populaire, marxiste, anti-impérialiste et panafricaniste).
+Tu disposes du CONTRÔLE TOTAL ET ABSOLU sur l'ensemble de la plateforme et de ses workflows :
+1. Planification et calendrier universels : scans récurrents, plages horaires (ex: 10h-15h toutes les heures), scans ponctuels à une date précise (ex: le 27 décembre à 22h20), publications futures.
+2. Création et configuration intégrale de NOUVEAUX pipelines sur mesure :
+   - Ex: créer un pipeline "Palestine & Anti-impérialisme" avec ses sources RSS ciblées, sa ligne éditoriale, ses mots-clés, sa couleur et sa programmation.
+3. Consultation et inspection de la base de données : vérifier les signaux captés, les formats, les publications en attente.
+4. Gestion des sources RSS et filtres : ajouter ou désactiver des flux, configurer les listes de mots-clés interdits ou surveillés.
+5. Routage inter-pipelines : transférer des sujets d'une base de données à une autre.
+6. Dialogue proactif & guidage : si l'utilisateur formule une demande générale (ex: "crée-moi un pipeline sur tel sujet"), tu lui proposes proactivement la configuration adaptée, et si des détails manquent, tu lui demandes ses préférences (plateformes cibles, flux RSS spécifiques, etc.) tout en proposant des choix intelligents par défaut.
 
-Quand l'utilisateur te donne un ordre en langage naturel, tu analyses son intention et tu DOIS répondre avec un bloc JSON d'action exécutable à la fin de ton message si une modification est demandée.
-
-Format de sortie avec action :
-Explique brièvement ce que tu as fait de façon concise et proactive en français.
-Si une ou plusieurs actions doivent être appliquées, ajoute TOUJOURS à la fin de ta réponse un bloc JSON délimité par:
+Quand l'utilisateur te demande une action, analyse son intention et réponds de façon claire, directe et chaleureuse. Si une action doit être exécutée, inclus TOUJOURS à la fin de ton message un bloc JSON délimité par:
 ` + "```json:actions" + `
 [
   {
+    "type": "create_pipeline",
+    "pipeline_id": "palestine",
+    "name": "Palestine & Anti-Impérialisme",
+    "description": "Surveillance internationale, focus génocides, Palestine, luttes anti-impérialistes",
+    "color": "#10B981",
+    "port": 4408,
+    "sources": ["https://www.aljazeera.com/xml/rss/all.xml", "https://orientxxi.info/spip.php?page=backend"],
+    "system_prompt": "Ligne éditoriale L'Assez : anti-impérialisme, focus Palestine, analyse critique des médias occidentaux.",
+    "schedule": {
+      "days": ["LUN", "MAR", "MER", "JEU", "VEN", "SAM", "DIM"],
+      "start_time": "10:00",
+      "end_time": "15:00",
+      "step_minutes": 60,
+      "publish_offset_minutes": 30
+    }
+  },
+  {
     "type": "schedule_slots",
+    "pipeline_id": "palestine",
+    "days": ["ALL"],
+    "start_time": "10:00",
+    "end_time": "15:00",
+    "step_minutes": 60
+  },
+  {
+    "type": "add_source",
     "pipeline_id": "principal",
-    "days": ["LUN", "MAR", "MER", "JEU", "VEN"],
-    "start_time": "08:00",
-    "end_time": "22:00",
-    "step_minutes": 60,
-    "publish_offset_minutes": 30
-  },
-  {
-    "type": "trigger_scan",
-    "pipeline_id": "principal"
-  },
-  {
-    "type": "set_pipeline_setting",
-    "pipeline_id": "principal",
-    "key": "scraping_interval",
-    "value": 30
-  },
-  {
-    "type": "route_signal",
-    "target_pipeline_id": "flash",
-    "filter_format": "FLASH"
+    "url": "https://example.com/rss",
+    "source_name": "Nouveau Flux"
   }
 ]
 ` + "```" + `
 
 Types d'actions disponibles :
-- schedule_slots : { pipeline_id, days (liste de LUN,MAR,MER,JEU,VEN,SAM,DIM ou "ALL"), time (ou start_time + end_time + step_minutes), publish_offset_minutes, week ("A"|"B"|"ALL") }
+- create_pipeline : { pipeline_id, name, description, color, port, sources, system_prompt, schedule }
+- schedule_slots : { pipeline_id, days (["LUN", "MAR"...] ou "ALL"), time (ou start_time + end_time + step_minutes), publish_offset_minutes, week ("A"|"B"|"ALL") }
 - schedule_oneshot : { pipeline_id, date ("YYYY-MM-DD"), time ("HH:MM"), publish_time }
 - clear_slots : { pipeline_id, days, clear_all (bool) }
 - trigger_scan : { pipeline_id }
-- set_pipeline_setting : { pipeline_id, key, value } (ex: auto_publish, min_delay, max_delay, score_threshold)
-- schedule_publication : { pipeline_id, date, time, platforms (["x", "discord", "bluesky"...]), format, title, content }
+- add_source : { pipeline_id, url, source_name }
+- set_pipeline_setting : { pipeline_id, key, value }
+- schedule_publication : { pipeline_id, date, time, platforms, format, title, content }
 
-Reste toujours courtois, concis, efficace, et veille à bien identifier le pipeline visé (principal, flash, etc.). Si non spécifié, utilise le pipeline actif.`
+Sois proactif, intelligent et précis.`
 
 func (e *AssistantEngine) ProcessChat(ctx context.Context, req ChatRequest) (*ChatResponse, error) {
 	e.mu.Lock()
@@ -121,11 +129,23 @@ func (e *AssistantEngine) ProcessChat(ctx context.Context, req ChatRequest) (*Ch
 	hist := e.history[sessID]
 	e.mu.Unlock()
 
+	// Récupérer un aperçu de la DB pour que l'IA connaisse l'état réel
+	counts, _ := e.client.CountSignals()
+	var totalCount, queuedCount int64
+	for st, n := range counts {
+		totalCount += n
+		if st == "QUEUED" || st == "PENDING" {
+			queuedCount += n
+		}
+	}
+	dbSummary := fmt.Sprintf("Base active : %d signaux au total (dont %d en attente ou validés)", totalCount, queuedCount)
+
 	// Construction du contexte conversationnel
 	var conversationContext strings.Builder
 	conversationContext.WriteString(systemPrompt)
-	conversationContext.WriteString(fmt.Sprintf("\n\nPIPELINES DISPONIBLES : %s\n", e.getPipelinesSummary()))
-	conversationContext.WriteString(fmt.Sprintf("PIPELINE ACTUELLEMENT SÉLECTIONNÉ : %s\n\n", req.ActivePipelineID))
+	conversationContext.WriteString(fmt.Sprintf("\n\nÉTAT ACTUEL DE LA DB : %s\n", dbSummary))
+	conversationContext.WriteString(fmt.Sprintf("PIPELINES ENREGISTRÉS : %s\n", e.getPipelinesSummary()))
+	conversationContext.WriteString(fmt.Sprintf("PIPELINE ACTIF SÉLECTIONNÉ : %s\n\n", req.ActivePipelineID))
 	conversationContext.WriteString("HISTORIQUE RÉCENT :\n")
 
 	for _, msg := range hist {
@@ -228,8 +248,17 @@ func (e *AssistantEngine) extractAndExecuteActions(reply string, defaultPipeline
 		}
 
 		switch actionType {
+		case "create_pipeline":
+			msg := e.executeCreatePipeline(act)
+			executed = append(executed, msg)
+		case "add_source":
+			msg := e.executeAddSource(pid, act)
+			executed = append(executed, msg)
 		case "schedule_slots":
 			msg := e.executeScheduleSlots(pid, act)
+			executed = append(executed, msg)
+		case "schedule_oneshot":
+			msg := e.executeScheduleOneShot(pid, act)
 			executed = append(executed, msg)
 		case "trigger_scan":
 			msg := e.executeTriggerScan(pid)
@@ -247,6 +276,141 @@ func (e *AssistantEngine) extractAndExecuteActions(reply string, defaultPipeline
 	}
 
 	return executed, cleanReply
+}
+
+func (e *AssistantEngine) executeCreatePipeline(act map[string]any) string {
+	pipeID, _ := act["pipeline_id"].(string)
+	if pipeID == "" {
+		pipeID = fmt.Sprintf("pipe_%d", time.Now().Unix())
+	}
+	name, _ := act["name"].(string)
+	if name == "" {
+		name = strings.Title(pipeID)
+	}
+	desc, _ := act["description"].(string)
+	color, _ := act["color"].(string)
+	if color == "" {
+		color = "#10B981"
+	}
+	port := 4408
+	if pVal, ok := act["port"].(float64); ok && pVal > 0 {
+		port = int(pVal)
+	}
+
+	// 1. Ajouter au registre pipelines.yaml
+	regPath := "config/pipelines.yaml"
+	regDoc, _ := readYamlFile(regPath)
+	if regDoc != nil {
+		newEntry := map[string]any{
+			"id":          pipeID,
+			"name":        name,
+			"description": desc,
+			"enabled":     true,
+			"configPath":  fmt.Sprintf("config/pipelines/%s.yaml", pipeID),
+			"dbPath":      fmt.Sprintf("../data/pipeline-%s.db", pipeID),
+			"port":        port,
+			"color":       color,
+		}
+		rawEntry, _ := yaml.Marshal(map[string]any{"pipelines": []any{newEntry}})
+		var entryNode yaml.Node
+		_ = yaml.Unmarshal(rawEntry, &entryNode)
+		mergeYamlNode(regDoc, &entryNode)
+		_ = writeYamlFile(regPath, regDoc)
+	}
+
+	// 2. Créer le fichier config YAML dédié
+	cfgPath := fmt.Sprintf("config/pipelines/%s.yaml", pipeID)
+	_ = os.MkdirAll("config/pipelines", 0o755)
+
+	var sourcesList []string
+	if srcArray, ok := act["sources"].([]any); ok {
+		for _, s := range srcArray {
+			sourcesList = append(sourcesList, fmt.Sprint(s))
+		}
+	}
+	if len(sourcesList) == 0 {
+		sourcesList = []string{"https://www.aljazeera.com/xml/rss/all.xml", "https://orientxxi.info/spip.php?page=backend"}
+	}
+
+	systemPromptText, _ := act["system_prompt"].(string)
+	if systemPromptText == "" {
+		systemPromptText = "Ligne éditoriale L'Assez : anti-impérialisme, focus Palestine, analyse critique des médias occidentaux."
+	}
+
+	pipeConfig := map[string]any{
+		"ingestion": map[string]any{
+			"sources": map[string]any{
+				"rss": sourcesList,
+			},
+		},
+		"research": map[string]any{
+			"researcherSystemPrompt": systemPromptText,
+		},
+		"scheduling": map[string]any{
+			"mode": "weekly",
+			"weeklySlots": []map[string]any{
+				{"day": "LUN", "time": "10:00"},
+				{"day": "MAR", "time": "10:00"},
+				{"day": "MER", "time": "10:00"},
+				{"day": "JEU", "time": "10:00"},
+				{"day": "VEN", "time": "10:00"},
+			},
+		},
+	}
+	rawCfg, _ := yaml.Marshal(pipeConfig)
+	_ = os.WriteFile(cfgPath, rawCfg, 0o644)
+
+	return fmt.Sprintf("Nouveau pipeline '%s' (%s) créé avec succès sur le port %d", name, pipeID, port)
+}
+
+func (e *AssistantEngine) executeAddSource(pid string, act map[string]any) string {
+	url, _ := act["url"].(string)
+	if url == "" {
+		return "URL de flux RSS manquante"
+	}
+	patch := map[string]any{
+		"ingestion": map[string]any{
+			"sources": map[string]any{
+				"rss": []string{url},
+			},
+		},
+	}
+	_ = e.applyConfigPatch(patch)
+	return fmt.Sprintf("Flux RSS %s ajouté au pipeline %s", url, pid)
+}
+
+func (e *AssistantEngine) executeScheduleOneShot(pid string, act map[string]any) string {
+	dateStr, _ := act["date"].(string)
+	timeStr, _ := act["time"].(string)
+	if dateStr == "" || timeStr == "" {
+		return "Date ou heure manquante pour le scan ponctuel"
+	}
+	// Calculer le jour et la semaine
+	target, err := time.Parse("2006-01-02", dateStr)
+	if err != nil {
+		target = time.Now()
+	}
+	dayNames := []string{"DIM", "LUN", "MAR", "MER", "JEU", "VEN", "SAM"}
+	dayKey := dayNames[target.Weekday()]
+	_, isoWk := target.ISOWeek()
+	weekAorB := "A"
+	if isoWk%2 == 0 {
+		weekAorB = "B"
+	}
+
+	slotObj := map[string]any{
+		"day":  dayKey,
+		"time": timeStr,
+		"week": weekAorB,
+	}
+
+	patch := map[string]any{
+		"scheduling": map[string]any{
+			"weeklySlots": []map[string]any{slotObj},
+		},
+	}
+	_ = e.applyConfigPatch(patch)
+	return fmt.Sprintf("Scan ponctuel programmé pour le %s à %s (Semaine %s) sur %s", dateStr, timeStr, weekAorB, pid)
 }
 
 func (e *AssistantEngine) executeScheduleSlots(pid string, act map[string]any) string {

@@ -22,7 +22,7 @@ orchestrator: # chef de desk — 1 appel IA/cycle, agenda + aiguillage (remplace
 research:
     aiModelFlash: "gemini-3.7-flash" # les deux nœuds IA (Tri/Orchestrateur + Rédaction) sur 3.7 flash
     aiModelDecrypt: "gemini-3.7-flash" # ai_model_decrypt
-    thinkingBudget: 2048 # moyen (repli de l'orchestrateur)
+    thinkingBudget: 0 # moyen (repli de l'orchestrateur)
     maxConcurrentTasks: 5
     scoreThreshold: 50
     webSearchEnabled: true # recherche web : l'IA vérifie les sujets sur Google (tous types)
@@ -93,7 +93,7 @@ scheduling:
     mode: calendar # interval désactivé, schedule actif
     scrapingIntervalMinutes: 6 # scan_interval_hours = 0.1 h
     # daemon_rss_schedule_times = 20:08 quotidien → représenté dans weeklySlots
-    weeklySlots: [{"day": "LUN", "time": "20:08"}, {"day": "MAR", "time": "20:08"}, {"day": "MER", "time": "20:08"}, {"day": "JEU", "time": "20:08"}, {"day": "VEN", "time": "20:08"}, {"day": "SAM", "time": "20:08"}, {"day": "DIM", "time": "20:08"}, {"day": "SAM", "time": "09:00"}]
+    weeklySlots: [{"day": "DIM", "time": "20:08"}]
     timezone: Europe/Paris
 media:
     overlayEnabled: true # image_overlay_enabled

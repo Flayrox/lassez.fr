@@ -22,6 +22,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, provide, ref, watch } from 'vue'
 import { clampZoom, fitScale } from '../formats'
+import { isTypingTarget } from './dom'
 
 const props = withDefaults(
   defineProps<{ stageW: number; stageH: number; min?: number }>(),
@@ -130,7 +131,9 @@ function onPanUp() {
 }
 
 function onKeyDown(e: KeyboardEvent) {
-  if (e.code === 'Space' && !(e.target instanceof HTMLInputElement) && !(e.target instanceof HTMLTextAreaElement)) {
+  // Jamais de pan pendant la frappe : le preventDefault avalerait l'espace
+  // dans tous les éditeurs (bug critique : espaces impossibles à taper).
+  if (e.code === 'Space' && !isTypingTarget(e.target)) {
     spaceHeld.value = true
     e.preventDefault()
   }

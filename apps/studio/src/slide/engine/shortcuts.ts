@@ -1,6 +1,7 @@
 // Raccourcis clavier du studio (inactifs pendant la frappe / les champs).
 import { onBeforeUnmount, onMounted } from 'vue'
 import { useSlideDeckStore } from '../store/deck'
+import { isTypingTarget } from './dom'
 
 export interface ShortcutHandlers {
   onDeleteSlide?: () => void
@@ -11,19 +12,19 @@ export function useSlideShortcuts(handlers: ShortcutHandlers = {}) {
   const store = useSlideDeckStore()
 
   function isTyping(): boolean {
-    const el = document.activeElement as HTMLElement | null
-    if (!el) return false
-    if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement) return true
-    if (el.isContentEditable) return true
-    if (el.closest?.('.tiptap')) return true
-    return false
+    return isTypingTarget(document.activeElement)
   }
 
   function onKey(e: KeyboardEvent) {
     const mod = e.ctrlKey || e.metaKey
 
     if (e.key === 'Escape') {
-      store.clearLayerSelection()
+      // Échap quitte l'édition (garde la sélection), puis désélectionne.
+      if (store.editingLayerId) {
+        store.stopEditing()
+        const el = document.activeElement as HTMLElement | null
+        el?.blur?.()
+      } else store.clearLayerSelection()
       return
     }
     if (isTyping()) return
@@ -51,6 +52,13 @@ export function useSlideShortcuts(handlers: ShortcutHandlers = {}) {
         handlers.onDeleteSlide?.()
       }
       return
+    }
+    if (e.key === 'Enter' && !store.editingLayerId && store.selectedLayerId) {
+      // Entrée = éditer la couche texte primaire (comme le double-clic).
+      if (store.startEditing(store.selectedLayerId)) {
+        e.preventDefault()
+        return
+      }
     }
     if (e.key.startsWith('Arrow') && store.selectedLayerIds.length > 0) {
       const step = e.shiftKey ? 10 : 1

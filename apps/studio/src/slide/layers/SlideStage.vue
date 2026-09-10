@@ -122,10 +122,12 @@ const visibleLayers = computed(() => props.slide.layers)
 const behind = computed(() => sortLayers(visibleLayers.value.filter((l) => l.behind)))
 const front = computed(() => sortLayers(visibleLayers.value.filter((l) => !l.behind)))
 
-/** Toutes les sélectionnées (visibles, déverrouillées) ont leur cadre. */
+/** Toutes les sélectionnées (visibles, déverrouillées, hors édition) ont leur cadre. */
 const selectedBoxes = computed<Layer[]>(() => {
   const ids = new Set(store.selectedLayerIds)
-  return props.slide.layers.filter((l) => ids.has(l.id) && l.visible && !l.locked)
+  return props.slide.layers.filter(
+    (l) => ids.has(l.id) && l.visible && !l.locked && l.id !== store.editingLayerId,
+  )
 })
 
 /** Couche pilotant le geste en cours (drag groupé). */
@@ -137,17 +139,33 @@ function viewFor(kind: LayerKind) {
   return TextLayerView
 }
 
+function blurStaleFocus() {
+  // Un éditeur read-only resté focalisé bloquerait les raccourcis (garde
+  // anti-frappe) : on le blur. Mais JAMAIS un éditeur en cours d'édition —
+  // sinon le focus qui vient d'être posé (onFocus → select) est tué aussitôt.
+  const el = document.activeElement as HTMLElement | null
+  if (!el || el === document.body) return
+  try {
+    if (el.getAttribute?.('contenteditable') === 'false') el.blur()
+  } catch {
+    /* focus déjà perdu */
+  }
+}
+
 function select(id: string, additive: boolean) {
+  blurStaleFocus()
   if (additive) store.toggleLayerSelection(id)
   else store.selectLayer(id)
 }
 
 function onEmptyDown() {
+  store.stopEditing()
   store.selectLayer(null)
 }
 
 function onTemplateDown() {
-  // Cliquer le template désélectionne la couche (édition template prioritaire).
+  // Cliquer le template quitte l'édition (priorité au template).
+  store.stopEditing()
   if (store.selectedLayerId) store.selectLayer(null)
 }
 

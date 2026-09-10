@@ -156,4 +156,30 @@ describe('useSlideShortcuts', () => {
     expect(after.get(b.id)).toBe(bx0)
     w.unmount()
   })
+
+  it('Entrée édite la couche texte primaire (pas les images)', () => {
+    const { store, w } = setup()
+    const t = store.addTextLayer('A')!
+    const img = store.addImageLayer('https://example.com/a.png')!
+    store.selectLayer(img.id)
+    key({ key: 'Enter' })
+    expect(store.editingLayerId).toBeNull()
+    store.selectLayer(t.id)
+    key({ key: 'Enter' })
+    expect(store.editingLayerId).toBe(t.id)
+    w.unmount()
+  })
+
+  it('Échap quitte l’édition en gardant la sélection, puis désélectionne', () => {
+    const { store, w } = setup()
+    const t = store.addTextLayer('A')!
+    store.selectLayer(t.id)
+    store.startEditing(t.id)
+    key({ key: 'Escape' })
+    expect(store.editingLayerId).toBeNull()
+    expect(store.selectedLayerIds).toEqual([t.id])
+    key({ key: 'Escape' })
+    expect(store.selectedLayerIds).toEqual([])
+    w.unmount()
+  })
 })

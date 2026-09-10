@@ -62,6 +62,12 @@ export const useSlideDeckStore = defineStore('slide-deck', () => {
   const deckFormat = ref<FormatId>(DEFAULT_FORMAT)
   /** Sélection multiple — [0] = primaire (cible des poignées/panneaux). */
   const selectedLayerIds = ref<string[]>([])
+  /**
+   * Couche en cours d'ÉDITION texte (double-clic/Entrée). Séparée de la
+   * sélection : hors édition l'éditeur est read-only donc le drag déplace
+   * et Suppr supprime (modèle Canva). Une seule à la fois.
+   */
+  const editingLayerId = ref<string | null>(null)
   const articleInput = ref('')
   const past = ref<Snapshot[]>([])
   const future = ref<Snapshot[]>([])
@@ -97,6 +103,7 @@ export const useSlideDeckStore = defineStore('slide-deck', () => {
     activeId.value = prev.activeId
     deckFormat.value = prev.deckFormat
     selectedLayerIds.value = []
+    editingLayerId.value = null
   }
 
   function redo() {
@@ -107,6 +114,7 @@ export const useSlideDeckStore = defineStore('slide-deck', () => {
     activeId.value = next.activeId
     deckFormat.value = next.deckFormat
     selectedLayerIds.value = []
+    editingLayerId.value = null
   }
 
   function buildSlide(type: SlideType, index: number): Slide {
@@ -140,6 +148,7 @@ export const useSlideDeckStore = defineStore('slide-deck', () => {
     slides.value.push(slide)
     activeId.value = slide.id
     selectedLayerIds.value = []
+    editingLayerId.value = null
     return slide
   }
 
@@ -169,6 +178,12 @@ export const useSlideDeckStore = defineStore('slide-deck', () => {
     selectedLayerIds.value = selectedLayerIds.value.filter((lid) =>
       slides.value.some((s) => s.layers.some((l) => l.id === lid)),
     )
+    if (
+      editingLayerId.value &&
+      !slides.value.some((s) => s.layers.some((l) => l.id === editingLayerId.value))
+    ) {
+      editingLayerId.value = null
+    }
     return true
   }
 
@@ -199,6 +214,7 @@ export const useSlideDeckStore = defineStore('slide-deck', () => {
     if (!findSlide(slides.value, id)) return
     activeId.value = id
     selectedLayerIds.value = []
+    editingLayerId.value = null
   }
 
   function patchTemplateState(patch: Record<string, unknown>) {
@@ -227,6 +243,7 @@ export const useSlideDeckStore = defineStore('slide-deck', () => {
     slide.templateState = deepClone(meta.defaultState)
     slide.layers = []
     selectedLayerIds.value = []
+    editingLayerId.value = null
     return true
   }
 
@@ -362,6 +379,7 @@ export const useSlideDeckStore = defineStore('slide-deck', () => {
     slide.layers.splice(idx, 1)
     renumberZ(slide.layers)
     selectedLayerIds.value = selectedLayerIds.value.filter((lid) => lid !== id)
+    if (editingLayerId.value === id) editingLayerId.value = null
   }
 
   /** Suppression groupée (multi-sélection) — 1 seul undo. */
@@ -375,6 +393,7 @@ export const useSlideDeckStore = defineStore('slide-deck', () => {
     renumberZ(slide.layers)
     const gone = new Set(targets.map((l) => l.id))
     selectedLayerIds.value = selectedLayerIds.value.filter((lid) => !gone.has(lid))
+    if (editingLayerId.value && gone.has(editingLayerId.value)) editingLayerId.value = null
     return targets.length
   }
 
@@ -515,15 +534,35 @@ export const useSlideDeckStore = defineStore('slide-deck', () => {
     }
   }
 
-  /** Sélection simple (remplace). `null` = désélectionne tout. */
+  /** Sélection simple (remplace). `null` = désélectionne tout + stop édition. */
   function selectLayer(id: string | null) {
     if (id === null) {
       selectedLayerIds.value = []
+      editingLayerId.value = null
       return
     }
     const slide = activeSlide.value
     if (slide && !slide.layers.some((l) => l.id === id)) return
     selectedLayerIds.value = [id]
+    if (editingLayerId.value !== id) editingLayerId.value = null
+  }
+
+  /** Entre en édition texte (la couche doit être sélectionnée). */
+  function startEditing(id: string): boolean {
+    const slide = activeSlide.value
+    const layer = slide?.layers.find((l) => l.id === id)
+    if (!slide || !layer || layer.kind !== 'text' || layer.locked || !layer.visible) return false
+    if (!selectedLayerIds.value.includes(id)) selectedLayerIds.value = [id]
+    editingLayerId.value = id
+    return true
+  }
+
+  function stopEditing() {
+    editingLayerId.value = null
+  }
+
+  function isEditing(id: string): boolean {
+    return editingLayerId.value === id
   }
 
   /** Bascule additive (shift/ctrl-clic) pour la multi-sélection. */
@@ -663,6 +702,7 @@ export const useSlideDeckStore = defineStore('slide-deck', () => {
     activeId.value = ''
     deckFormat.value = DEFAULT_FORMAT
     selectedLayerIds.value = []
+    editingLayerId.value = null
     articleInput.value = ''
     past.value = []
     future.value = []
@@ -717,6 +757,10 @@ export const useSlideDeckStore = defineStore('slide-deck', () => {
     selectLayer,
     toggleLayerSelection,
     clearLayerSelection,
+    startEditing,
+    stopEditing,
+    isEditing,
+    editingLayerId,
     selectedLayerIds,
     selectedLayers,
     undo,

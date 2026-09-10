@@ -65,10 +65,13 @@
 /* ── Tiptap dans les templates ── */
 .slide-tiptap { outline: none; }
 .slide-tiptap p { margin: 0; }
-.slide-tiptap:empty::before {
+/* Tiptap marque les paragraphes vides (jamais de :empty, il garde un <p>). */
+.slide-tiptap p.is-empty::before {
   content: 'Écris quelque chose…';
   color: rgba(128, 128, 128, 0.6);
   pointer-events: none;
+  float: left;
+  height: 0;
 }
 
 /* ── Toolbar flottante (DA studio slide : carte sombre arrondie) ── */

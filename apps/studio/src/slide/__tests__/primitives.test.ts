@@ -69,7 +69,6 @@ describe('TextLayerView', () => {
   async function flushEditor() {
     await new Promise((r) => requestAnimationFrame(() => r(null)))
   }
-
   it('applique la typo libre de la couche (taille, famille, graisse)', async () => {
     setActivePinia(createPinia())
     const store = useSlideDeckStore()
@@ -115,6 +114,75 @@ describe('TextLayerView', () => {
     await flushEditor()
     await w.trigger('pointerdown')
     expect(w.emitted('select')![0]).toEqual([layer.id, false])
+    w.unmount()
+  })
+
+  it('clic simple ne démarre pas de drag (sous le seuil)', async () => {
+    setActivePinia(createPinia())
+    const store = useSlideDeckStore()
+    store.ensureInit()
+    const layer = store.addTextLayer('Hi')!
+    const w = mount(TextLayerView, { props: { layer } })
+    await flushEditor()
+    const el = w.element as HTMLElement
+    el.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0, clientX: 50, clientY: 50 }))
+    window.dispatchEvent(new MouseEvent('pointermove', { clientX: 52, clientY: 51 }))
+    window.dispatchEvent(new MouseEvent('pointerup'))
+    expect(w.emitted('gesturestart')).toBeUndefined()
+    expect(w.emitted('select')).toHaveLength(1)
+    w.unmount()
+  })
+
+  it('drag corps au-delà du seuil déplace (gesturestart/move/end)', async () => {
+    setActivePinia(createPinia())
+    const store = useSlideDeckStore()
+    store.ensureInit()
+    const layer = store.addTextLayer('Hi')!
+    const w = mount(TextLayerView, { props: { layer } })
+    await flushEditor()
+    const el = w.element as HTMLElement
+    el.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0, clientX: 50, clientY: 50 }))
+    window.dispatchEvent(new MouseEvent('pointermove', { clientX: 100, clientY: 80 }))
+    await new Promise((r) => requestAnimationFrame(() => r(null)))
+    window.dispatchEvent(new MouseEvent('pointerup'))
+    expect(w.emitted('gesturestart')).toEqual([[layer.id]])
+    expect(w.emitted('move')).toHaveLength(1)
+    expect(w.emitted('move')![0][0]).toEqual({ x: 110, y: 90 })
+    expect(w.emitted('gestureend')).toHaveLength(1)
+    w.unmount()
+  })
+
+  it('double-clic entre en édition (éditeur activé)', async () => {
+    setActivePinia(createPinia())
+    const store = useSlideDeckStore()
+    store.ensureInit()
+    const layer = store.addTextLayer('Hi')!
+    const w = mount(TextLayerView, { props: { layer } })
+    await flushEditor()
+    // Avant édition : contenteditable désactivé.
+    expect(w.find('.slide-tiptap').attributes('contenteditable')).toBe('false')
+    w.element.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }))
+    await w.vm.$nextTick()
+    await flushEditor()
+    expect(store.editingLayerId).toBe(layer.id)
+    expect(w.find('.slide-tiptap').attributes('contenteditable')).toBe('true')
+    w.unmount()
+  })
+
+  it('en édition : pointerdown ne sélectionne ni ne drague', async () => {
+    setActivePinia(createPinia())
+    const store = useSlideDeckStore()
+    store.ensureInit()
+    const layer = store.addTextLayer('Hi')!
+    store.startEditing(layer.id)
+    const w = mount(TextLayerView, { props: { layer } })
+    await flushEditor()
+    const el = w.element as HTMLElement
+    el.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0, clientX: 50, clientY: 50 }))
+    window.dispatchEvent(new MouseEvent('pointermove', { clientX: 200, clientY: 200 }))
+    window.dispatchEvent(new MouseEvent('pointerup'))
+    expect(w.emitted('select')).toBeUndefined()
+    expect(w.emitted('gesturestart')).toBeUndefined()
     w.unmount()
   })
 })

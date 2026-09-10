@@ -562,3 +562,66 @@ describe('deck store — multi-sélection', () => {
     expect(s.canUndo).toBe(undos)
   })
 })
+
+describe('deck store — édition texte', () => {
+  it('startEditing sélectionne + édite une couche texte', () => {
+    const s = useSlideDeckStore()
+    s.ensureInit()
+    const l = s.addTextLayer('x')!
+    s.clearLayerSelection()
+    expect(s.startEditing(l.id)).toBe(true)
+    expect(s.editingLayerId).toBe(l.id)
+    expect(s.selectedLayerIds).toEqual([l.id])
+    expect(s.isEditing(l.id)).toBe(true)
+    s.stopEditing()
+    expect(s.editingLayerId).toBeNull()
+  })
+
+  it('startEditing refuse image/forme/verrouillée/invisible/inconnue', () => {
+    const s = useSlideDeckStore()
+    s.ensureInit()
+    const img = s.addImageLayer('https://example.com/a.png')!
+    const shape = s.addShapeLayer('rect')!
+    const txt = s.addTextLayer('x')!
+    expect(s.startEditing(img.id)).toBe(false)
+    expect(s.startEditing(shape.id)).toBe(false)
+    expect(s.startEditing('nope')).toBe(false)
+    s.toggleLayerLock(txt.id)
+    expect(s.startEditing(txt.id)).toBe(false)
+    s.toggleLayerLock(txt.id)
+    s.toggleLayerVisibility(txt.id)
+    expect(s.startEditing(txt.id)).toBe(false)
+    expect(s.editingLayerId).toBeNull()
+  })
+
+  it('changer de sélection quitte l’édition', () => {
+    const s = useSlideDeckStore()
+    s.ensureInit()
+    const a = s.addTextLayer('a')!
+    const b = s.addTextLayer('b')!
+    s.startEditing(a.id)
+    s.selectLayer(b.id)
+    expect(s.editingLayerId).toBeNull()
+    expect(s.selectedLayerIds).toEqual([b.id])
+  })
+
+  it('édition nettoyée à la suppression, undo, changement de slide', () => {
+    const s = useSlideDeckStore()
+    s.ensureInit()
+    const l = s.addTextLayer('x')!
+    s.startEditing(l.id)
+    s.removeLayer(l.id)
+    expect(s.editingLayerId).toBeNull()
+
+    const m = s.addTextLayer('y')!
+    s.startEditing(m.id)
+    s.undo()
+    expect(s.editingLayerId).toBeNull()
+
+    const n = s.addTextLayer('z')!
+    s.startEditing(n.id)
+    const other = s.addSlide('COVER')
+    s.setActiveId(other.id)
+    expect(s.editingLayerId).toBeNull()
+  })
+})

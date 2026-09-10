@@ -55,13 +55,13 @@
           </div>
           <div class="flex flex-col gap-3">
             <div class="grid grid-cols-2 gap-2">
-              <label class="layer-num">X <input type="number" :value="Math.round(activeLayer.x)" @change="setLayer({ x: numVal($event) })" /></label>
-              <label class="layer-num">Y <input type="number" :value="Math.round(activeLayer.y)" @change="setLayer({ y: numVal($event) })" /></label>
-              <label class="layer-num">L <input type="number" :value="Math.round(activeLayer.w)" @change="setLayer({ w: Math.max(20, numVal($event)) })" /></label>
-              <label class="layer-num">H <input type="number" :value="Math.round(activeLayer.h)" @change="setLayer({ h: Math.max(20, numVal($event)) })" /></label>
+              <label class="layer-num">X <input type="number" :value="Math.round(activeLayer.x)" @focus="gesture.onBegin" @input="gesture.liveLayer(activeLayer.id, { x: numVal($event) })" @change="gesture.onEnd" @blur="gesture.onEnd" /></label>
+              <label class="layer-num">Y <input type="number" :value="Math.round(activeLayer.y)" @focus="gesture.onBegin" @input="gesture.liveLayer(activeLayer.id, { y: numVal($event) })" @change="gesture.onEnd" @blur="gesture.onEnd" /></label>
+              <label class="layer-num">L <input type="number" :value="Math.round(activeLayer.w)" @focus="gesture.onBegin" @input="gesture.liveLayer(activeLayer.id, { w: Math.max(20, numVal($event)) })" @change="gesture.onEnd" @blur="gesture.onEnd" /></label>
+              <label class="layer-num">H <input type="number" :value="Math.round(activeLayer.h)" @focus="gesture.onBegin" @input="gesture.liveLayer(activeLayer.id, { h: Math.max(20, numVal($event)) })" @change="gesture.onEnd" @blur="gesture.onEnd" /></label>
             </div>
-            <label class="layer-slider">Rotation <input type="range" min="-180" max="180" step="1" :value="activeLayer.rotation" @input="setLayer({ rotation: numVal($event) })" /><span>{{ Math.round(activeLayer.rotation) }}°</span></label>
-            <label class="layer-slider">Opacité <input type="range" min="0" max="1" step="0.01" :value="activeLayer.opacity" @input="setLayer({ opacity: numVal($event) })" /><span>{{ Math.round(activeLayer.opacity * 100) }}%</span></label>
+            <label class="layer-slider">Rotation <input type="range" min="-180" max="180" step="1" :value="activeLayer.rotation" @pointerdown="gesture.onBegin" @focus="gesture.onBegin" @input="gesture.liveLayer(activeLayer.id, { rotation: numVal($event) })" @change="gesture.onEnd" @blur="gesture.onEnd" /><span>{{ Math.round(activeLayer.rotation) }}°</span></label>
+            <label class="layer-slider">Opacité <input type="range" min="0" max="1" step="0.01" :value="activeLayer.opacity" @pointerdown="gesture.onBegin" @focus="gesture.onBegin" @input="gesture.liveLayer(activeLayer.id, { opacity: numVal($event) })" @change="gesture.onEnd" @blur="gesture.onEnd" /><span>{{ Math.round(activeLayer.opacity * 100) }}%</span></label>
             <div class="flex gap-1.5">
               <button class="layer-btn" @click="toggleBehind">{{ activeLayer.behind ? 'Passer devant' : 'Passer derrière' }}</button>
               <button class="layer-btn" @click="duplicateLayer">Dupliquer</button>
@@ -83,11 +83,13 @@
 import { computed } from 'vue'
 import { getTemplate, resolveTemplateSchema } from '../registry'
 import { FORMAT_IDS, FORMATS } from '../formats'
-import type { FormatId, Layer } from '../types'
+import type { FormatId } from '../types'
 import { useSlideDeckStore } from '../store/deck'
+import { useGestureInput } from '../engine/gestures'
 import SchemaForm from './SchemaForm.vue'
 
 const store = useSlideDeckStore()
+const gesture = useGestureInput()
 
 const slide = computed(() => store.activeSlide)
 const meta = computed(() => (slide.value ? getTemplate(slide.value.type) : undefined))
@@ -104,11 +106,6 @@ function setFormat(format: FormatId) {
 function numVal(e: Event): number {
   const v = parseFloat((e.target as HTMLInputElement).value)
   return Number.isNaN(v) ? 0 : v
-}
-
-function setLayer(patch: Partial<Pick<Layer, 'x' | 'y' | 'w' | 'h' | 'rotation' | 'opacity'>>) {
-  const layer = activeLayer.value
-  if (layer) store.updateLayer(layer.id, patch)
 }
 
 function toggleBehind() {

@@ -21,6 +21,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { getSafeImageUrl } from '../media'
+import { createRafEmitter } from '../engine/gestures'
 import type { ImageLayerData, Layer } from '../types'
 
 const props = defineProps<{ layer: Layer; scale?: number }>()
@@ -35,6 +36,7 @@ const emit = defineEmits<{
 const dragging = ref(false)
 let origin = { x: 0, y: 0 }
 let start = { x: 0, y: 0 }
+let out: ReturnType<typeof createRafEmitter<{ x: number; y: number }>> | null = null
 
 const data = computed(() => props.layer.data as ImageLayerData)
 const safeSrc = computed(() => getSafeImageUrl(data.value.src))
@@ -67,14 +69,15 @@ function onDown(e: PointerEvent) {
   origin = { x: e.clientX, y: e.clientY }
   start = { x: props.layer.x, y: props.layer.y }
   emit('gesturestart', props.layer.id)
+  out = createRafEmitter((pos: { x: number; y: number }) => emit('move', pos))
   window.addEventListener('pointermove', onMove)
   window.addEventListener('pointerup', onUp, { once: true })
 }
 
 function onMove(e: PointerEvent) {
-  if (!dragging.value) return
+  if (!dragging.value || !out) return
   const s = Math.max(0.05, props.scale ?? 1)
-  emit('move', {
+  out.push({
     x: start.x + (e.clientX - origin.x) / s,
     y: start.y + (e.clientY - origin.y) / s,
   })
@@ -83,6 +86,8 @@ function onMove(e: PointerEvent) {
 function onUp() {
   window.removeEventListener('pointermove', onMove)
   dragging.value = false
+  out?.flush()
+  out = null
   emit('gestureend')
 }
 </script>

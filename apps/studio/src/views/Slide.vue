@@ -109,14 +109,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, provide, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { toast } from 'vue-sonner'
 import '../slide/slide.css'
 import { useSlideDeckStore } from '../slide/store/deck'
 import { getFormat, type FormatId } from '../slide/formats'
 import { buildDeckFromArticle } from '../slide/article'
-import { createAssetStore, type AssetStore } from '../slide/assets'
+import { ASSETS_KEY, createAssetStore, type AssetStore } from '../slide/assets'
 import {
   buildDeckZip,
   deckFileName,
@@ -150,6 +150,8 @@ const exportProgress = ref<string | null>(null)
 const zoomPercent = ref<number | null>(null)
 const rightTab = ref<'props' | 'layers'>('props')
 const assetStore = ref<AssetStore | null>(null)
+// Bibliothèque partagée (champs image des templates + panneau calques).
+provide(ASSETS_KEY, assetStore)
 
 // Panneaux redimensionnables (comme le legacy).
 const sidebarWidth = ref(300)
@@ -197,12 +199,16 @@ function onResizeUp() {
 
 // ── Persistance (debounce 600ms) ──────────────────────────────
 let saveTimer: ReturnType<typeof setTimeout> | null = null
+let quotaWarned = false
 watch(
   () => store.serialize(),
   () => {
     if (saveTimer) clearTimeout(saveTimer)
     saveTimer = window.setTimeout(() => {
-      store.saveToStorage()
+      if (!store.saveToStorage() && !quotaWarned) {
+        quotaWarned = true
+        toast.error('Stockage local plein — exporte ton deck en JSON pour ne rien perdre')
+      }
     }, 600)
   },
   { deep: true },

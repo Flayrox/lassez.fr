@@ -24,6 +24,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { getSafeImageUrl } from '../media'
+import { createRafEmitter } from './gestures'
 
 const props = withDefaults(
   defineProps<{
@@ -49,6 +50,7 @@ const dragging = ref(false)
 const live = ref<{ x: number; y: number } | null>(null)
 let startPointer = { x: 0, y: 0 }
 let startPos = { x: 0, y: 0 }
+let out: ReturnType<typeof createRafEmitter<{ x: number; y: number }>> | null = null
 
 const safeSrc = computed(() => getSafeImageUrl(props.src))
 
@@ -85,23 +87,26 @@ function onDown(e: PointerEvent) {
   startPos = { x: props.posX, y: props.posY }
   ;(e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId)
   emit('dragstart')
+  out = createRafEmitter((pos: { x: number; y: number }) => emit('dragmove', pos))
   window.addEventListener('pointermove', onMove)
   window.addEventListener('pointerup', onUp, { once: true })
 }
 
 function onMove(e: PointerEvent) {
-  if (!dragging.value) return
+  if (!dragging.value || !out) return
   live.value = {
     x: startPos.x + (e.clientX - startPointer.x),
     y: startPos.y + (e.clientY - startPointer.y),
   }
-  emit('dragmove', { ...live.value })
+  out.push({ ...live.value })
 }
 
 function onUp() {
   window.removeEventListener('pointermove', onMove)
   if (!dragging.value) return
   dragging.value = false
+  out?.flush()
+  out = null
   const end = live.value ? { ...live.value } : { ...startPos }
   live.value = null
   emit('dragend', end)

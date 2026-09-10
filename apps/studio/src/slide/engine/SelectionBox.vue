@@ -26,6 +26,7 @@
 <script setup lang="ts">
 import type { Layer } from '../types'
 import { resizeRect, type ResizeHandle } from './geometry'
+import { createRafEmitter } from './gestures'
 
 const props = withDefaults(
   defineProps<{ layer: Layer; scale?: number }>(),
@@ -79,12 +80,14 @@ function onMoveStart(e: PointerEvent) {
   emit('gesturestart')
   const origin = { x: e.clientX, y: e.clientY }
   const start = { x: props.layer.x, y: props.layer.y }
+  const out = createRafEmitter((pos: { x: number; y: number }) => emit('move', pos))
   const move = (ev: PointerEvent) => {
     const { dx, dy } = toStage(ev, origin)
-    emit('move', { x: start.x + dx, y: start.y + dy })
+    out.push({ x: start.x + dx, y: start.y + dy })
   }
   const up = () => {
     window.removeEventListener('pointermove', move)
+    out.flush()
     emit('gestureend')
   }
   window.addEventListener('pointermove', move)
@@ -98,12 +101,14 @@ function onResizeStart(e: PointerEvent, handle: ResizeHandle) {
   emit('gesturestart')
   const origin = { x: e.clientX, y: e.clientY }
   const start = { x: props.layer.x, y: props.layer.y, w: props.layer.w, h: props.layer.h }
+  const out = createRafEmitter((rect: { x: number; y: number; w: number; h: number }) => emit('resize', rect))
   const move = (ev: PointerEvent) => {
     const { dx, dy } = toStage(ev, origin)
-    emit('resize', resizeRect(start, handle, dx, dy, { keepAspect: ev.shiftKey }))
+    out.push(resizeRect(start, handle, dx, dy, { keepAspect: ev.shiftKey }))
   }
   const up = () => {
     window.removeEventListener('pointermove', move)
+    out.flush()
     emit('gestureend')
   }
   window.addEventListener('pointermove', move)

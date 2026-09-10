@@ -114,6 +114,43 @@ describe('PropsPanel', () => {
     w.unmount()
   })
 
+  it('drag du slider rotation = 1 seul undo', async () => {
+    const store = setup()
+    const added = store.addTextLayer('X')!
+    const w = mount(PropsPanel)
+    await flush()
+    const rotation = w.findAll('input[type="range"]').find((i) => String(i.attributes('min')) === '-180')!
+    const el = rotation.element as HTMLInputElement
+    await rotation.trigger('pointerdown')
+    for (const v of ['30', '60', '90']) {
+      el.value = v
+      await rotation.trigger('input')
+    }
+    await rotation.trigger('change')
+    expect(store.getActiveLayer()!.rotation).toBe(90)
+    store.undo() // vide aussi la sélection (comportement store)
+    expect(store.activeSlide!.layers.find((l) => l.id === added.id)!.rotation).toBe(0)
+    w.unmount()
+  })
+
+  it('drag du slider couleur template = 1 seul undo', async () => {
+    const store = setup()
+    const w = mount(PropsPanel)
+    await flush()
+    const color = w.find('input[type="color"]')
+    const el = color.element as HTMLInputElement
+    await color.trigger('pointerdown')
+    for (const v of ['#111111', '#222222']) {
+      el.value = v
+      await color.trigger('input')
+    }
+    await color.trigger('change')
+    expect(String(store.activeSlide!.templateState.accent)).toBe('#222222')
+    store.undo()
+    expect(String(store.activeSlide!.templateState.accent)).toBe('#DC2626')
+    w.unmount()
+  })
+
   it('section couche : sliders + suppression', async () => {
     const store = setup()
     const l = store.addTextLayer('X')!

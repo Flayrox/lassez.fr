@@ -18,26 +18,36 @@
       <div class="flex items-center justify-between">
         <label class="schema-label !mb-0">{{ field.label }}</label>
         <div class="schema-colorbox">
-          <input type="color" :value="colorValue" @input="emit('patch', ($event.target as HTMLInputElement).value)" />
+          <input
+            type="color" :value="colorValue"
+            @pointerdown="gesture.onBegin" @focus="gesture.onBegin"
+            @input="gesture.liveTemplate({ [field.key]: ($event.target as HTMLInputElement).value })"
+            @change="gesture.onEnd" @blur="gesture.onEnd"
+          />
           <span>{{ colorValue.toUpperCase() }}</span>
         </div>
       </div>
     </template>
 
-    <!-- Nombre : slider + saisie -->
+    <!-- Nombre : slider + saisie (geste groupé) -->
     <template v-else-if="field.type === 'number'">
       <div class="flex items-center justify-between mb-1">
         <label class="schema-label !mb-0">{{ field.label }}</label>
         <input
           type="text" class="schema-minibox" :value="numberValue"
-          @change="emit('patch', toNumber(($event.target as HTMLInputElement).value))"
+          @focus="gesture.onBegin"
+          @input="gesture.liveTemplate({ [field.key]: toNumber(($event.target as HTMLInputElement).value) })"
+          @change="gesture.onEnd" @blur="gesture.onEnd"
         />
       </div>
       <input
         v-if="!field.props?.hideSlider"
         type="range" class="w-full"
         :min="field.props?.min ?? 0" :max="field.props?.max ?? 100" :step="field.props?.step ?? 1"
-        :value="numberValue" @input="emit('patch', toNumber(($event.target as HTMLInputElement).value))"
+        :value="numberValue"
+        @pointerdown="gesture.onBegin" @focus="gesture.onBegin"
+        @input="gesture.liveTemplate({ [field.key]: toNumber(($event.target as HTMLInputElement).value) })"
+        @change="gesture.onEnd" @blur="gesture.onEnd"
       />
     </template>
 
@@ -52,7 +62,9 @@
       </div>
       <input
         type="text" class="si" placeholder="https://…" :value="stringValue"
-        @input="emit('patch', ($event.target as HTMLInputElement).value)"
+        @focus="gesture.onBegin"
+        @input="gesture.liveTemplate({ [field.key]: ($event.target as HTMLInputElement).value })"
+        @change="gesture.onEnd" @blur="gesture.onEnd"
       />
       <img v-if="stringValue" :src="stringValue" alt="" class="mt-2 w-full h-20 object-cover border" style="border-color: #2a2a2a;" />
     </template>
@@ -103,11 +115,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, inject, ref, type Ref } from 'vue'
 import type { TemplateField } from '../types'
 import RichText from '../text/RichText.vue'
 import { fieldDoc } from '../text/fields'
 import { useTemplateFields } from '../templates/useTemplateFields'
+import { useGestureInput } from '../engine/gestures'
+import { ASSETS_KEY, type AssetStore } from '../assets'
 
 const props = defineProps<{ field: TemplateField; value: unknown }>()
 
@@ -117,8 +131,14 @@ const emit = defineEmits<{
 }>()
 
 const { onFocus, onBlur } = useTemplateFields()
+// Gestes continus (sliders, color, URL) : 1 undo par geste, jamais de
+// checkpoint par tick — voir engine/gestures.ts.
+const gesture = useGestureInput()
 const fileInput = ref<HTMLInputElement | null>(null)
 const uploading = ref(false)
+// Bibliothèque fournie par Slide.vue : les imports deviennent des assets
+// persistés (reload-safe). Sans provider (tests) : repli objectURL session.
+const assetStore = inject<Ref<AssetStore | null>>(ASSETS_KEY, ref(null))
 
 const docValue = computed(() => fieldDoc({ v: props.value }, 'v'))
 const stringValue = computed(() => (typeof props.value === 'string' ? props.value : ''))
@@ -132,12 +152,19 @@ function toNumber(raw: string): number {
   return Number.isNaN(v) ? 0 : v
 }
 
-function onFile(e: Event) {
+async function onFile(e: Event) {
   const file = (e.target as HTMLInputElement).files?.[0]
   if (!file) return
   uploading.value = true
   try {
-    emit('patch', URL.createObjectURL(file))
+    if (assetStore.value) {
+      const asset = await assetStore.value.add(file, file.name)
+      emit('patch', asset.url)
+    } else {
+      emit('patch', URL.createObjectURL(file))
+    }
+  } catch {
+    /* l'URL manuelle reste disponible dans le champ */
   } finally {
     uploading.value = false
     if (fileInput.value) fileInput.value.value = ''

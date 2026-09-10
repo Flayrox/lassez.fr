@@ -92,7 +92,7 @@ describe('DraggableImage', () => {
     expect(w.find('img').attributes('style')).toContain('grayscale(0.5)')
   })
 
-  it('drag complet : dragstart → dragmove → dragend avec positions', async () => {
+  it('drag complet : dragstart → dragmove coalescé → dragend final', async () => {
     const w = mount(DraggableImage, {
       props: { src: 'https://example.com/a.png', posX: 10, posY: 20 },
       attachTo: document.body,
@@ -100,7 +100,12 @@ describe('DraggableImage', () => {
     const frame = w.find('.slide-draggable')
     pointerDown(frame.element, { clientX: 100, clientY: 100 })
     expect(w.emitted('dragstart')).toHaveLength(1)
+    // Flood : 3 moves → 1 seul dragmove (dernier pendant) après la frame.
+    window.dispatchEvent(new MouseEvent('pointermove', { clientX: 110, clientY: 120 }))
+    window.dispatchEvent(new MouseEvent('pointermove', { clientX: 120, clientY: 140 }))
     window.dispatchEvent(new MouseEvent('pointermove', { clientX: 130, clientY: 160 }))
+    expect(w.emitted('dragmove')).toBeUndefined()
+    await new Promise((r) => requestAnimationFrame(() => r(null)))
     expect(w.emitted('dragmove')).toHaveLength(1)
     expect(w.emitted('dragmove')![0][0]).toEqual({ x: 40, y: 80 })
     window.dispatchEvent(new MouseEvent('pointerup'))

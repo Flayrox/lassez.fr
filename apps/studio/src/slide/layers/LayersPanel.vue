@@ -62,8 +62,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, getCurrentInstance, ref } from 'vue'
+import { computed, getCurrentInstance, inject, ref, type Ref } from 'vue'
 import { useSlideDeckStore } from '../store/deck'
+import { ASSETS_KEY, type AssetStore } from '../assets'
 import type { LayerKind } from '../types'
 
 const emit = defineEmits<{ (e: 'import-image'): void }>()
@@ -72,6 +73,7 @@ const store = useSlideDeckStore()
 const fileInput = ref<HTMLInputElement | null>(null)
 const renamingId = ref<string | null>(null)
 const renameValue = ref('')
+const assetStore = inject<Ref<AssetStore | null>>(ASSETS_KEY, ref(null))
 
 const layers = computed(() => store.activeSlide?.layers ?? [])
 const ordered = computed(() => [...layers.value].sort((a, b) => b.z - a.z))
@@ -109,11 +111,20 @@ function hasImportListener(): boolean {
   return typeof props?.['onImportImage'] === 'function'
 }
 
-function onFile(e: Event) {
+async function onFile(e: Event) {
   const file = (e.target as HTMLInputElement).files?.[0]
   if (!file) return
-  const url = URL.createObjectURL(file)
-  store.addImageLayer(url)
+  if (assetStore.value) {
+    try {
+      const asset = await assetStore.value.add(file, file.name)
+      store.addImageLayer(asset.url)
+    } catch {
+      /* import annulé, rien à faire */
+    }
+  } else {
+    const url = URL.createObjectURL(file)
+    store.addImageLayer(url)
+  }
   if (fileInput.value) fileInput.value.value = ''
 }
 

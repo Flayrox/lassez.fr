@@ -66,6 +66,9 @@ func New(client *store.Client, cfgPath string, resolver *config.Resolver) *Serve
 	srv.Mux.HandleFunc("DELETE /api/assistant/sessions", srv.deleteAssistantSession)
 	srv.Mux.HandleFunc("POST /api/signals/route", srv.routeSignal)
 	srv.Mux.HandleFunc("GET /api/media/proxy", srv.mediaProxy)
+	srv.Mux.HandleFunc("GET /api/slide-templates", srv.listSlideTemplates)
+	srv.Mux.HandleFunc("POST /api/slide-templates", srv.upsertSlideTemplate)
+	srv.Mux.HandleFunc("DELETE /api/slide-templates", srv.deleteSlideTemplate)
 	return srv
 }
 

@@ -52,12 +52,13 @@
     <div v-if="guides.includes('h-middle')" class="absolute left-0 right-0 h-px bg-[#DC2626] z-[200] pointer-events-none" style="top: 50%;" />
     <div v-if="guides.includes('h-bottom')" class="absolute left-0 right-0 h-px bg-[#DC2626] z-[200] pointer-events-none" style="bottom: 0;" />
 
-    <!-- Sélection -->
+    <!-- Sélections (la primaire a les poignées complètes) -->
     <SelectionBox
-      v-if="selectedLayer && selectedLayer.visible && !selectedLayer.locked"
-      :layer="selectedLayer"
+      v-for="boxed in selectedBoxes"
+      :key="boxed.id"
+      :layer="boxed"
       :scale="viewportScale"
-      @gesturestart="onGestureStart(selectedLayer.id)"
+      @gesturestart="onGestureStart"
       @move="onMove"
       @resize="onResize"
       @gestureend="onGestureEnd"
@@ -121,10 +122,14 @@ const visibleLayers = computed(() => props.slide.layers)
 const behind = computed(() => sortLayers(visibleLayers.value.filter((l) => l.behind)))
 const front = computed(() => sortLayers(visibleLayers.value.filter((l) => !l.behind)))
 
-const selectedLayer = computed<Layer | null>(() => {
-  if (!store.selectedLayerId) return null
-  return props.slide.layers.find((l) => l.id === store.selectedLayerId) ?? null
+/** Toutes les sélectionnées (visibles, déverrouillées) ont leur cadre. */
+const selectedBoxes = computed<Layer[]>(() => {
+  const ids = new Set(store.selectedLayerIds)
+  return props.slide.layers.filter((l) => ids.has(l.id) && l.visible && !l.locked)
 })
+
+/** Couche pilotant le geste en cours (drag groupé). */
+const draggedId = ref<string | null>(null)
 
 function viewFor(kind: LayerKind) {
   if (kind === 'image') return ImageLayerView
@@ -132,8 +137,9 @@ function viewFor(kind: LayerKind) {
   return TextLayerView
 }
 
-function select(id: string) {
-  store.selectLayer(id)
+function select(id: string, additive: boolean) {
+  if (additive) store.toggleLayerSelection(id)
+  else store.selectLayer(id)
 }
 
 function onEmptyDown() {
@@ -146,25 +152,37 @@ function onTemplateDown() {
 }
 
 function onGestureStart(id: string) {
-  store.selectLayer(id)
+  // Draguer une couche hors sélection la sélectionne seule (standard).
+  if (!store.selectedLayerIds.includes(id)) store.selectLayer(id)
+  draggedId.value = id
   store.beginGesture()
 }
 
-function onMove(pos: { x: number; y: number }) {
-  const layer = selectedLayer.value
-  if (!layer) return
-  const snapped = snapToGuides(pos.x, pos.y, layer.w, layer.h, format.value.width, format.value.height)
+function onMove(payload: { id?: string; x: number; y: number }) {
+  const dragged = props.slide.layers.find((l) => l.id === (draggedId.value ?? payload.id))
+  if (!dragged) return
+  const snapped = snapToGuides(payload.x, payload.y, dragged.w, dragged.h, format.value.width, format.value.height)
   guides.value = snapped.guides
-  store.moveLayerLive(layer.id, Math.round(snapped.x * 100) / 100, Math.round(snapped.y * 100) / 100)
+  const nx = Math.round(snapped.x * 100) / 100
+  const ny = Math.round(snapped.y * 100) / 100
+  const dx = nx - dragged.x
+  const dy = ny - dragged.y
+  store.moveLayerLive(dragged.id, nx, ny)
+  // Drag groupé : les autres sélectionnées suivent du même delta.
+  for (const other of selectedBoxes.value) {
+    if (other.id === dragged.id || other.locked) continue
+    store.moveLayerLive(other.id, other.x + dx, other.y + dy)
+  }
 }
 
-function onResize(rect: { x: number; y: number; w: number; h: number }) {
-  const layer = selectedLayer.value
+function onResize(payload: { id: string; rect: { x: number; y: number; w: number; h: number } }) {
+  const layer = props.slide.layers.find((l) => l.id === payload.id)
   if (!layer) return
-  store.updateLayerLive(layer.id, rect)
+  store.updateLayerLive(layer.id, payload.rect)
 }
 
 function onGestureEnd() {
   guides.value = []
+  draggedId.value = null
 }
 </script>

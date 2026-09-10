@@ -27,7 +27,7 @@ import type { ImageLayerData, Layer } from '../types'
 const props = defineProps<{ layer: Layer; scale?: number }>()
 
 const emit = defineEmits<{
-  (e: 'select', id: string): void
+  (e: 'select', id: string, additive: boolean): void
   (e: 'gesturestart', id: string): void
   (e: 'move', pos: { x: number; y: number }): void
   (e: 'gestureend'): void
@@ -62,7 +62,7 @@ const imgStyle = computed(() => ({
 }))
 
 function onDown(e: PointerEvent) {
-  emit('select', props.layer.id)
+  emit('select', props.layer.id, e.shiftKey || e.ctrlKey || e.metaKey)
   if (e.button !== 0) return
   e.preventDefault()
   dragging.value = true

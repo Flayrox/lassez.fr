@@ -3,7 +3,7 @@
   <div
     class="absolute"
     :style="boxStyle"
-    @pointerdown.stop="emit('select', layer.id)"
+    @pointerdown.stop="onSelect"
   >
     <svg :width="layer.w" :height="layer.h" class="block overflow-visible">
       <rect
@@ -41,7 +41,7 @@ import type { Layer, ShapeLayerData } from '../types'
 
 const props = defineProps<{ layer: Layer }>()
 
-const emit = defineEmits<{ (e: 'select', id: string): void }>()
+const emit = defineEmits<{ (e: 'select', id: string, additive: boolean): void }>()
 
 const data = computed(() => props.layer.data as ShapeLayerData)
 const shape = computed(() => data.value.shape ?? 'rect')
@@ -58,4 +58,8 @@ const boxStyle = computed(() => ({
   transform: props.layer.rotation ? `rotate(${props.layer.rotation}deg)` : undefined,
   cursor: 'move',
 }))
+
+function onSelect(e: PointerEvent) {
+  emit('select', props.layer.id, e.shiftKey || e.ctrlKey || e.metaKey)
+}
 </script>

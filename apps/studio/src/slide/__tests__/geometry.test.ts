@@ -1,6 +1,6 @@
 // Tests géométrie moteur : resize 8 poignées, ratio, mini, snap.
 import { describe, expect, it } from 'vitest'
-import { resizeRect, snapToGuides } from '../engine/geometry'
+import { distributeRects, resizeRect, selectionBounds, snapToGuides } from '../engine/geometry'
 
 describe('resizeRect', () => {
   const base = { x: 100, y: 100, w: 200, h: 100 }
@@ -46,6 +46,69 @@ describe('resizeRect', () => {
 
   it('ignore les deltas nuls', () => {
     expect(resizeRect(base, 'se', 0, 0)).toEqual(base)
+  })
+})
+
+describe('selectionBounds', () => {
+  it('englobe tous les rects', () => {
+    expect(
+      selectionBounds([
+        { x: 10, y: 20, w: 100, h: 50 },
+        { x: 200, y: 5, w: 30, h: 300 },
+      ]),
+    ).toEqual({ x: 10, y: 5, w: 220, h: 300 })
+  })
+
+  it('rect unique → lui-même, vide → null', () => {
+    expect(selectionBounds([{ x: 1, y: 2, w: 3, h: 4 }])).toEqual({ x: 1, y: 2, w: 3, h: 4 })
+    expect(selectionBounds([])).toBeNull()
+  })
+})
+
+describe('distributeRects', () => {
+  it('égalise les intervalles, extrêmes fixes (horizontal)', () => {
+    const out = distributeRects(
+      [
+        { x: 0, y: 0, w: 100, h: 10 },
+        { x: 150, y: 0, w: 100, h: 10 },
+        { x: 400, y: 0, w: 100, h: 10 },
+      ],
+      'x',
+    )
+    // span 0→500, tailles 300 → gaps (500-300)/2 = 100
+    expect(out.map((r) => r.x)).toEqual([0, 200, 400])
+  })
+
+  it('trie par position avant de distribuer (vertical)', () => {
+    const out = distributeRects(
+      [
+        { x: 0, y: 400, w: 10, h: 100 },
+        { x: 0, y: 0, w: 10, h: 100 },
+        { x: 0, y: 150, w: 10, h: 100 },
+      ],
+      'y',
+    )
+    expect(out.map((r) => r.y)).toEqual([400, 0, 200])
+  })
+
+  it('< 3 rects → inchangé (copie)', () => {
+    const input = [
+      { x: 0, y: 0, w: 10, h: 10 },
+      { x: 50, y: 0, w: 10, h: 10 },
+    ]
+    const out = distributeRects(input, 'x')
+    expect(out).toEqual(input)
+    expect(out).not.toBe(input)
+  })
+
+  it('ne mute pas l’entrée', () => {
+    const input = [
+      { x: 0, y: 0, w: 100, h: 10 },
+      { x: 120, y: 0, w: 100, h: 10 },
+      { x: 500, y: 0, w: 100, h: 10 },
+    ]
+    distributeRects(input, 'x')
+    expect(input[1].x).toBe(120)
   })
 })
 

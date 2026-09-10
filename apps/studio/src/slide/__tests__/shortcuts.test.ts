@@ -121,4 +121,39 @@ describe('useSlideShortcuts', () => {
     ed.remove()
     w.unmount()
   })
+
+  it('Suppr + Ctrl+D + flèches agissent sur toute la sélection', () => {
+    const { store, w } = setup()
+    const a = store.addTextLayer('A')!
+    const b = store.addTextLayer('B')!
+    store.addTextLayer('C')!
+    store.selectLayer(a.id)
+    store.toggleLayerSelection(b.id)
+    key({ key: 'd', ctrlKey: true })
+    expect(store.activeSlide!.layers).toHaveLength(5)
+    // Les 2 copies sont sélectionnées
+    expect(store.selectedLayerIds).toHaveLength(2)
+    key({ key: 'Delete' })
+    expect(store.activeSlide!.layers).toHaveLength(3)
+    w.unmount()
+  })
+
+  it('flèches déplacent tout le groupe en 1 undo', () => {
+    const { store, w } = setup()
+    const a = store.addTextLayer('A')!
+    const b = store.addTextLayer('B')!
+    const ax0 = a.x
+    const bx0 = b.x
+    store.selectLayer(a.id)
+    store.toggleLayerSelection(b.id)
+    key({ key: 'ArrowRight' })
+    const live = new Map(store.activeSlide!.layers.map((l) => [l.id, l.x]))
+    expect(live.get(a.id)).toBe(ax0 + 1)
+    expect(live.get(b.id)).toBe(bx0 + 1)
+    store.undo()
+    const after = new Map(store.activeSlide!.layers.map((l) => [l.id, l.x]))
+    expect(after.get(a.id)).toBe(ax0)
+    expect(after.get(b.id)).toBe(bx0)
+    w.unmount()
+  })
 })

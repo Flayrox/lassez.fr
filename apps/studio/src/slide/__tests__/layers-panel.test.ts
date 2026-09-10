@@ -110,4 +110,25 @@ describe('LayersPanel', () => {
     expect(w.text()).toContain('derrière template')
     w.unmount()
   })
+
+  it('shift-clic bascule sans désélectionner les autres', async () => {
+    const store = setup()
+    store.addTextLayer('A')
+    store.addTextLayer('B')
+    const w = panel()
+    const rows = w.findAll('.layer-row')
+    expect(rows).toHaveLength(2)
+    // La liste est triée z décroissant : [B, A]
+    await rows[0].trigger('click')
+    expect(store.selectedLayerIds).toHaveLength(1)
+    // shiftKey ne passe pas par trigger (getter seul) → événement natif
+    rows[1].element.dispatchEvent(new MouseEvent('click', { bubbles: true, shiftKey: true }))
+    await w.vm.$nextTick()
+    expect(store.selectedLayerIds).toHaveLength(2)
+    expect(w.findAll('.layer-row.is-active')).toHaveLength(2)
+    rows[0].element.dispatchEvent(new MouseEvent('click', { bubbles: true, shiftKey: true }))
+    await w.vm.$nextTick()
+    expect(store.selectedLayerIds).toHaveLength(1)
+    w.unmount()
+  })
 })

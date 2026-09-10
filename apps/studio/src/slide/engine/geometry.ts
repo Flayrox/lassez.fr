@@ -115,3 +115,38 @@ export function snapToGuides(
   }
   return { x, y, guides }
 }
+
+/** Boîte englobante d'un ensemble de rects (multi-sélection). Pure. */
+export function selectionBounds(rects: Rect[]): Rect | null {
+  if (rects.length === 0) return null
+  const x0 = Math.min(...rects.map((r) => r.x))
+  const y0 = Math.min(...rects.map((r) => r.y))
+  const x1 = Math.max(...rects.map((r) => r.x + r.w))
+  const y1 = Math.max(...rects.map((r) => r.y + r.h))
+  return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 }
+}
+
+/**
+ * Distribution régulière : les extrêmes restent fixes, les intervalles
+ * entre boîtes deviennent égaux (façon Canva). Retourne les rects déplacés
+ * dans l'ordre d'entrée. < 3 rects → inchangé.
+ */
+export function distributeRects(rects: Rect[], axis: 'x' | 'y'): Rect[] {
+  if (rects.length < 3) return rects.map((r) => ({ ...r }))
+  const size = axis === 'x' ? 'w' : 'h'
+  const pos = axis === 'x' ? 'x' : 'y'
+  const order = rects.map((r, i) => i).sort((a, b) => rects[a][pos] - rects[b][pos])
+  const first = rects[order[0]]
+  const last = rects[order[order.length - 1]]
+  const spanStart = first[pos]
+  const spanEnd = last[pos] + last[size]
+  const totalSize = order.reduce((n, i) => n + rects[i][size], 0)
+  const gap = (spanEnd - spanStart - totalSize) / (rects.length - 1)
+  const out = rects.map((r) => ({ ...r }))
+  let cursor = spanStart
+  for (const i of order) {
+    out[i] = { ...out[i], [pos]: Math.round(cursor * 100) / 100 }
+    cursor += out[i][size] + gap
+  }
+  return out
+}

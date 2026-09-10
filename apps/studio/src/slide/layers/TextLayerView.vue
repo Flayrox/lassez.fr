@@ -5,8 +5,7 @@
     class="absolute"
     :style="boxStyle"
     @pointerdown.stop="onSelect"
-  >
-    <RichText
+  >    <RichText
       :doc="doc"
       :label="layer.name"
       sticker-pos="-top-4 left-0"
@@ -26,7 +25,7 @@ import type { Layer, TextLayerData } from '../types'
 
 const props = defineProps<{ layer: Layer }>()
 
-const emit = defineEmits<{ (e: 'select', id: string): void }>()
+const emit = defineEmits<{ (e: 'select', id: string, additive: boolean): void }>()
 
 const store = useSlideDeckStore()
 let gesturing = false
@@ -58,12 +57,16 @@ const boxStyle = computed(() => ({
   transform: props.layer.rotation ? `rotate(${props.layer.rotation}deg)` : undefined,
 }))
 
-function onSelect() {
-  emit('select', props.layer.id)
+function isAdditive(e: { shiftKey: boolean; ctrlKey: boolean; metaKey: boolean }): boolean {
+  return e.shiftKey || e.ctrlKey || e.metaKey
+}
+
+function onSelect(e: PointerEvent) {
+  emit('select', props.layer.id, isAdditive(e))
 }
 
 function onFocus() {
-  emit('select', props.layer.id)
+  emit('select', props.layer.id, false)
   if (!gesturing) {
     gesturing = true
     store.beginGesture()

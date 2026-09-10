@@ -48,7 +48,35 @@
         <SchemaForm :schema="schema" :state="slide.templateState" />
 
         <!-- Couche sélectionnée -->
-        <div v-if="activeLayer" class="mt-5">
+        <div v-if="multiCount > 1" class="mt-5">
+          <div class="flex items-center gap-2 mb-2.5">
+            <span class="text-[10px] font-bold uppercase tracking-[0.1em] shrink-0" style="color: #666;">{{ multiCount }} couches</span>
+            <div class="flex-1 h-px" style="background: #2a2a2a;" />
+          </div>
+          <div class="flex flex-col gap-3">
+            <div>
+              <div class="text-[10px] font-bold mb-1.5" style="color: #666;">ALIGNER SUR LA SLIDE</div>
+              <div class="grid grid-cols-6 gap-1">
+                <button
+                  v-for="a in ALIGN_BUTTONS"
+                  :key="a.pos"
+                  class="align-btn"
+                  :title="a.label"
+                  @click="alignAll(a.pos)"
+                >{{ a.icon }}</button>
+              </div>
+            </div>
+            <div class="flex gap-1.5">
+              <button class="layer-btn" title="Espacements horizontaux égaux" @click="distribute('x')">⇋ Distribuer</button>
+              <button class="layer-btn" title="Espacements verticaux égaux" @click="distribute('y')">⇅ Distribuer</button>
+            </div>
+            <div class="flex gap-1.5">
+              <button class="layer-btn" @click="duplicateAll">Dupliquer ({{ multiCount }})</button>
+              <button class="layer-btn danger" @click="removeAll">Supprimer ({{ multiCount }})</button>
+            </div>
+          </div>
+        </div>
+        <div v-else-if="activeLayer" class="mt-5">
           <div class="flex items-center gap-2 mb-2.5">
             <span class="text-[10px] font-bold uppercase tracking-[0.1em] shrink-0" style="color: #666;">Couche — {{ activeLayer.name }}</span>
             <div class="flex-1 h-px" style="background: #2a2a2a;" />
@@ -172,6 +200,7 @@ const schema = computed(() =>
 )
 const formats = computed(() => FORMAT_IDS.map((id) => FORMATS[id]))
 const activeLayer = computed(() => store.getActiveLayer())
+const multiCount = computed(() => store.selectedLayers.length)
 const textData = computed<TextLayerData | null>(() => {
   const layer = activeLayer.value
   if (!layer || layer.kind !== 'text') return null
@@ -255,6 +284,23 @@ const ALIGN_BUTTONS: { pos: AlignPosition; icon: string; label: string }[] = [
 function align(pos: AlignPosition) {
   const layer = activeLayer.value
   if (layer) store.alignLayer(layer.id, pos)
+}
+
+function alignAll(pos: AlignPosition) {
+  store.alignLayers(store.selectedLayerIds, pos)
+}
+
+function distribute(axis: 'x' | 'y') {
+  // < 3 couches : no-op silencieux (pas d'undo vide).
+  store.distributeSelected(axis)
+}
+
+function duplicateAll() {
+  store.duplicateLayers([...store.selectedLayerIds])
+}
+
+function removeAll() {
+  store.removeLayers([...store.selectedLayerIds])
 }
 </script>
 

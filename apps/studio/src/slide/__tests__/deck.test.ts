@@ -414,8 +414,7 @@ describe('resetSlide — cas limites', () => {
   })
 })
 
-describe('deck store — alignement', () => {
-  it('aligne sur les 6 positions (slide 4:5 = 1080×1350)', () => {
+describe('deck store — alignement', () => {  it('aligne sur les 6 positions (slide 4:5 = 1080×1350)', () => {
     const s = useSlideDeckStore()
     s.ensureInit()
     const l = s.addTextLayer('x')! // 480×160 à 60,60
@@ -451,5 +450,115 @@ describe('deck store — alignement', () => {
     s.toggleLayerLock(l.id)
     s.alignLayer(l.id, 'left')
     expect(l.x).toBe(60)
+  })
+})
+
+describe('deck store — multi-sélection', () => {
+  it('selectLayer remplace, toggle ajoute/retire, clear vide', () => {
+    const s = useSlideDeckStore()
+    s.ensureInit()
+    const a = s.addTextLayer('a')!
+    const b = s.addTextLayer('b')!
+    expect(s.selectedLayerIds).toEqual([b.id])
+    expect(s.selectedLayerId).toBe(b.id)
+    s.toggleLayerSelection(a.id)
+    expect(s.selectedLayerIds).toEqual([b.id, a.id])
+    expect(s.selectedLayers.map((l) => l.id)).toEqual([b.id, a.id])
+    s.toggleLayerSelection(b.id)
+    expect(s.selectedLayerIds).toEqual([a.id])
+    s.selectLayer(b.id)
+    expect(s.selectedLayerIds).toEqual([b.id])
+    s.clearLayerSelection()
+    expect(s.selectedLayerIds).toEqual([])
+    expect(s.selectedLayerId).toBeNull()
+    expect(s.selectedLayers).toEqual([])
+  })
+
+  it('toggle ignore les ids inconnus', () => {
+    const s = useSlideDeckStore()
+    s.ensureInit()
+    s.toggleLayerSelection('nope')
+    expect(s.selectedLayerIds).toEqual([])
+  })
+
+  it('removeLayers supprime en lot en 1 undo', () => {
+    const s = useSlideDeckStore()
+    s.ensureInit()
+    const a = s.addTextLayer('a')!
+    const b = s.addTextLayer('b')!
+    const c = s.addTextLayer('c')!
+    expect(s.removeLayers([a.id, b.id])).toBe(2)
+    expect(s.activeSlide!.layers).toHaveLength(1)
+    // c (non supprimée) reste sélectionnée
+    expect(s.selectedLayerIds).toEqual([c.id])
+    s.undo()
+    expect(s.activeSlide!.layers).toHaveLength(3)
+  })
+
+  it('removeLayers vide = no-op sans checkpoint', () => {
+    const s = useSlideDeckStore()
+    s.ensureInit()
+    s.addTextLayer('a')!
+    expect(s.removeLayers(['nope'])).toBe(0)
+    expect(s.canUndo).toBe(true) // seul l'historique du addTextLayer
+    s.undo()
+    expect(s.activeSlide!.layers).toHaveLength(0)
+  })
+
+  it('duplicateLayers copie en lot et sélectionne les copies', () => {
+    const s = useSlideDeckStore()
+    s.ensureInit()
+    const a = s.addTextLayer('a')!
+    const b = s.addTextLayer('b')!
+    const dups = s.duplicateLayers([a.id, b.id])
+    expect(dups).toHaveLength(2)
+    expect(s.activeSlide!.layers).toHaveLength(4)
+    expect(s.selectedLayerIds).toEqual(dups.map((d) => d.id))
+    s.undo()
+    expect(s.activeSlide!.layers).toHaveLength(2)
+  })
+
+  it('alignLayers aligne le lot en 1 undo', () => {
+    const s = useSlideDeckStore()
+    s.ensureInit()
+    const a = s.addTextLayer('a')!
+    const b = s.addTextLayer('b')!
+    s.alignLayers([a.id, b.id], 'left')
+    // Couches 480px : x=0 pour les deux
+    expect(a.x).toBe(0)
+    expect(b.x).toBe(0)
+    s.undo()
+    expect(s.activeSlide!.layers[0].x).toBe(60)
+  })
+
+  it('distributeSelected égalise en 1 undo, ignore < 3 et verrouillées', () => {
+    const s = useSlideDeckStore()
+    s.ensureInit()
+    const a = s.addTextLayer('a')!
+    const b = s.addTextLayer('b')!
+    const c = s.addTextLayer('c')!
+    s.updateLayer(a.id, { x: 0, w: 100 })
+    s.updateLayer(b.id, { x: 150, w: 100 })
+    s.updateLayer(c.id, { x: 400, w: 100 })
+    s.selectLayer(a.id)
+    s.toggleLayerSelection(b.id)
+    s.toggleLayerSelection(c.id)
+    expect(s.distributeSelected('x')).toBe(true)
+    const xs = new Map(s.activeSlide!.layers.map((l) => [l.id, l.x]))
+    expect([xs.get(a.id), xs.get(b.id), xs.get(c.id)]).toEqual([0, 200, 400])
+    s.undo()
+    expect(s.activeSlide!.layers.find((l) => l.id === b.id)!.x).toBe(150)
+  })
+
+  it('distributeSelected refuse < 3 couches sans checkpoint', () => {
+    const s = useSlideDeckStore()
+    s.ensureInit()
+    const a = s.addTextLayer('a')!
+    s.addTextLayer('b')!
+    s.selectLayer(a.id)
+    s.toggleLayerSelection(s.activeSlide!.layers[1].id)
+    const undos = s.canUndo
+    expect(s.distributeSelected('x')).toBe(false)
+    expect(s.canUndo).toBe(undos)
   })
 })

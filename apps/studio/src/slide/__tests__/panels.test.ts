@@ -247,6 +247,33 @@ describe('PropsPanel', () => {
     w.unmount()
   })
 
+  it('section multi : compteur, distribuer, supprimer le lot', async () => {
+    const store = setup()
+    const a = store.addTextLayer('A')!
+    const b = store.addTextLayer('B')!
+    const c = store.addTextLayer('C')!
+    store.updateLayer(a.id, { x: 0, w: 100 })
+    store.updateLayer(b.id, { x: 150, w: 100 })
+    store.updateLayer(c.id, { x: 400, w: 100 })
+    store.selectLayer(a.id)
+    store.toggleLayerSelection(b.id)
+    store.toggleLayerSelection(c.id)
+    const w = mount(PropsPanel)
+    await flush()
+    expect(w.text()).toContain('3 couches')
+    expect(w.text()).not.toContain('Taille')
+    // Distribuer horizontalement
+    const distBtn = w.findAll('.layer-btn').find((x) => x.attributes('title') === 'Espacements horizontaux égaux')!
+    await distBtn.trigger('click')
+    const xs = new Map(store.activeSlide!.layers.map((l) => [l.id, l.x]))
+    expect([xs.get(a.id), xs.get(b.id), xs.get(c.id)]).toEqual([0, 200, 400])
+    // Supprimer le lot
+    const delBtn = w.findAll('.layer-btn').find((x) => x.text().startsWith('Supprimer ('))!
+    await delBtn.trigger('click')
+    expect(store.activeSlide!.layers).toHaveLength(0)
+    w.unmount()
+  })
+
   it('section couche : sliders + suppression', async () => {
     const store = setup()
     const l = store.addTextLayer('X')!

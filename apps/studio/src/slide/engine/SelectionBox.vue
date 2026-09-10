@@ -34,9 +34,9 @@ const props = withDefaults(
 )
 
 const emit = defineEmits<{
-  (e: 'gesturestart'): void
-  (e: 'move', pos: { x: number; y: number }): void
-  (e: 'resize', rect: { x: number; y: number; w: number; h: number }): void
+  (e: 'gesturestart', id: string): void
+  (e: 'move', payload: { id: string; x: number; y: number }): void
+  (e: 'resize', payload: { id: string; rect: { x: number; y: number; w: number; h: number } }): void
   (e: 'gestureend'): void
 }>()
 
@@ -77,10 +77,10 @@ function onMoveStart(e: PointerEvent) {
   if (e.button !== 0) return
   e.preventDefault()
   e.stopPropagation()
-  emit('gesturestart')
+  emit('gesturestart', props.layer.id)
   const origin = { x: e.clientX, y: e.clientY }
   const start = { x: props.layer.x, y: props.layer.y }
-  const out = createRafEmitter((pos: { x: number; y: number }) => emit('move', pos))
+  const out = createRafEmitter((pos: { x: number; y: number }) => emit('move', { id: props.layer.id, ...pos }))
   const move = (ev: PointerEvent) => {
     const { dx, dy } = toStage(ev, origin)
     out.push({ x: start.x + dx, y: start.y + dy })
@@ -98,10 +98,10 @@ function onResizeStart(e: PointerEvent, handle: ResizeHandle) {
   if (e.button !== 0) return
   e.preventDefault()
   e.stopPropagation()
-  emit('gesturestart')
+  emit('gesturestart', props.layer.id)
   const origin = { x: e.clientX, y: e.clientY }
   const start = { x: props.layer.x, y: props.layer.y, w: props.layer.w, h: props.layer.h }
-  const out = createRafEmitter((rect: { x: number; y: number; w: number; h: number }) => emit('resize', rect))
+  const out = createRafEmitter((rect: { x: number; y: number; w: number; h: number }) => emit('resize', { id: props.layer.id, rect }))
   const move = (ev: PointerEvent) => {
     const { dx, dy } = toStage(ev, origin)
     out.push(resizeRect(start, handle, dx, dy, { keepAspect: ev.shiftKey }))

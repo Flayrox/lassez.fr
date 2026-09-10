@@ -128,4 +128,63 @@ describe('SlideStage', () => {
     expect(w.text().length).toBeGreaterThan(0)
     w.unmount()
   })
+
+  it('shift-clic bascule la multi-sélection (plusieurs cadres)', async () => {
+    const store = setup()
+    store.addTextLayer('A')
+    store.addTextLayer('B')
+    const slide = store.activeSlide!
+    const w = mount(SlideStage, { props: { slide } })
+    await flush()
+    const boxes = () => w.findAllComponents({ name: 'TextLayerView' })
+    expect(boxes()).toHaveLength(2)
+    // Clic simple sur A
+    boxes()[0].trigger('pointerdown')
+    await w.vm.$nextTick()
+    expect(store.selectedLayerIds).toHaveLength(1)
+    // Shift-clic sur B → les deux
+    boxes()[1].element.dispatchEvent(
+      new MouseEvent('pointerdown', { bubbles: true, button: 0, shiftKey: true }),
+    )
+    await w.vm.$nextTick()
+    expect(store.selectedLayerIds).toHaveLength(2)
+    expect(w.findAll('.slide-selection')).toHaveLength(2)
+    // Re shift-clic sur A → retire A
+    boxes()[0].element.dispatchEvent(
+      new MouseEvent('pointerdown', { bubbles: true, button: 0, shiftKey: true }),
+    )
+    await w.vm.$nextTick()
+    expect(store.selectedLayerIds).toHaveLength(1)
+    w.unmount()
+  })
+
+  it('drag groupé : les sélectionnées suivent du même delta', async () => {
+    const store = setup()
+    const a = store.addTextLayer('A')!
+    const b = store.addTextLayer('B')!
+    store.selectLayer(a.id)
+    store.toggleLayerSelection(b.id)
+    const slide = store.activeSlide!
+    const w = mount(SlideStage, { props: { slide } })
+    await flush()
+    const ax0 = a.x
+    const bx0 = b.x
+    // Drag via la bande de A : +40px
+    const strip = w.findAll('.sel-top')[0]
+    strip.element.dispatchEvent(
+      new MouseEvent('pointerdown', { bubbles: true, button: 0, clientX: 100, clientY: 100 }),
+    )
+    window.dispatchEvent(new MouseEvent('pointermove', { clientX: 140, clientY: 100 }))
+    await new Promise((r) => requestAnimationFrame(() => r(null)))
+    await w.vm.$nextTick()
+    expect(a.x).toBe(ax0 + 40)
+    expect(b.x).toBe(bx0 + 40)
+    window.dispatchEvent(new MouseEvent('pointerup'))
+    // 1 seul undo pour tout le geste groupé
+    store.undo()
+    const after = new Map(store.activeSlide!.layers.map((l) => [l.id, l.x]))
+    expect(after.get(a.id)).toBe(ax0)
+    expect(after.get(b.id)).toBe(bx0)
+    w.unmount()
+  })
 })

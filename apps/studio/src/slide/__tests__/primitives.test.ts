@@ -114,7 +114,7 @@ describe('TextLayerView', () => {
     const w = mount(TextLayerView, { props: { layer } })
     await flushEditor()
     await w.trigger('pointerdown')
-    expect(w.emitted('select')![0]).toEqual([layer.id])
+    expect(w.emitted('select')![0]).toEqual([layer.id, false])
     w.unmount()
   })
 })

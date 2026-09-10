@@ -26,6 +26,7 @@ import {
   nextZ,
   renumberZ,
 } from '../utils'
+import { distributeRects } from '../engine/geometry'
 
 export const STORAGE_KEY = 'lassez_slide_deck_v2'
 export const LEGACY_STORAGE_KEY = 'lassez_studio_deck_v1'
@@ -59,7 +60,8 @@ export const useSlideDeckStore = defineStore('slide-deck', () => {
   const slides = ref<Slide[]>([])
   const activeId = ref('')
   const deckFormat = ref<FormatId>(DEFAULT_FORMAT)
-  const selectedLayerId = ref<string | null>(null)
+  /** Sélection multiple — [0] = primaire (cible des poignées/panneaux). */
+  const selectedLayerIds = ref<string[]>([])
   const articleInput = ref('')
   const past = ref<Snapshot[]>([])
   const future = ref<Snapshot[]>([])
@@ -69,6 +71,17 @@ export const useSlideDeckStore = defineStore('slide-deck', () => {
   })
   const canUndo = computed(() => past.value.length > 0)
   const canRedo = computed(() => future.value.length > 0)
+  /** Compat : id primaire (première couche sélectionnée). */
+  const selectedLayerId = computed<string | null>(() => selectedLayerIds.value[0] ?? null)
+  /** Couches sélectionnées de la slide active, dans l'ordre de sélection. */
+  const selectedLayers = computed<Layer[]>(() => {
+    const slide = activeSlide.value
+    if (!slide) return []
+    const byId = new Map(slide.layers.map((l) => [l.id, l]))
+    return selectedLayerIds.value
+      .map((id) => byId.get(id))
+      .filter((l): l is Layer => l !== undefined)
+  })
 
   function checkpoint() {
     past.value.push(snapshotOf(slides.value, activeId.value, deckFormat.value))
@@ -83,7 +96,7 @@ export const useSlideDeckStore = defineStore('slide-deck', () => {
     slides.value = prev.slides
     activeId.value = prev.activeId
     deckFormat.value = prev.deckFormat
-    selectedLayerId.value = null
+    selectedLayerIds.value = []
   }
 
   function redo() {
@@ -93,7 +106,7 @@ export const useSlideDeckStore = defineStore('slide-deck', () => {
     slides.value = next.slides
     activeId.value = next.activeId
     deckFormat.value = next.deckFormat
-    selectedLayerId.value = null
+    selectedLayerIds.value = []
   }
 
   function buildSlide(type: SlideType, index: number): Slide {
@@ -126,7 +139,7 @@ export const useSlideDeckStore = defineStore('slide-deck', () => {
     const slide = buildSlide(type, slides.value.length + 1)
     slides.value.push(slide)
     activeId.value = slide.id
-    selectedLayerId.value = null
+    selectedLayerIds.value = []
     return slide
   }
 
@@ -152,9 +165,10 @@ export const useSlideDeckStore = defineStore('slide-deck', () => {
     checkpoint()
     slides.value.splice(idx, 1)
     if (activeId.value === id) activeId.value = slides.value[Math.max(0, idx - 1)].id
-    if (selectedLayerId.value && !slides.value.some((s) => s.layers.some((l) => l.id === selectedLayerId.value))) {
-      selectedLayerId.value = null
-    }
+    // Élagage : ne garde que les ids encore présents dans le deck.
+    selectedLayerIds.value = selectedLayerIds.value.filter((lid) =>
+      slides.value.some((s) => s.layers.some((l) => l.id === lid)),
+    )
     return true
   }
 
@@ -184,7 +198,7 @@ export const useSlideDeckStore = defineStore('slide-deck', () => {
   function setActiveId(id: string) {
     if (!findSlide(slides.value, id)) return
     activeId.value = id
-    selectedLayerId.value = null
+    selectedLayerIds.value = []
   }
 
   function patchTemplateState(patch: Record<string, unknown>) {
@@ -212,7 +226,7 @@ export const useSlideDeckStore = defineStore('slide-deck', () => {
     checkpoint()
     slide.templateState = deepClone(meta.defaultState)
     slide.layers = []
-    selectedLayerId.value = null
+    selectedLayerIds.value = []
     return true
   }
 
@@ -261,7 +275,7 @@ export const useSlideDeckStore = defineStore('slide-deck', () => {
     // L'id reste généré (un override explicite est respecté tel quel).
     slide.layers.push(layer)
     renumberZ(slide.layers)
-    selectedLayerId.value = layer.id
+    selectedLayerIds.value = [layer.id]
     return layer
   }
 
@@ -347,7 +361,21 @@ export const useSlideDeckStore = defineStore('slide-deck', () => {
     checkpoint()
     slide.layers.splice(idx, 1)
     renumberZ(slide.layers)
-    if (selectedLayerId.value === id) selectedLayerId.value = null
+    selectedLayerIds.value = selectedLayerIds.value.filter((lid) => lid !== id)
+  }
+
+  /** Suppression groupée (multi-sélection) — 1 seul undo. */
+  function removeLayers(ids: string[]): number {
+    const slide = activeSlide.value
+    if (!slide) return 0
+    const targets = slide.layers.filter((l) => ids.includes(l.id))
+    if (targets.length === 0) return 0
+    checkpoint()
+    slide.layers = slide.layers.filter((l) => !ids.includes(l.id))
+    renumberZ(slide.layers)
+    const gone = new Set(targets.map((l) => l.id))
+    selectedLayerIds.value = selectedLayerIds.value.filter((lid) => !gone.has(lid))
+    return targets.length
   }
 
   function duplicateLayer(id: string): Layer | null {
@@ -360,8 +388,27 @@ export const useSlideDeckStore = defineStore('slide-deck', () => {
     dup.y += 24
     slide.layers.push(dup)
     renumberZ(slide.layers)
-    selectedLayerId.value = dup.id
+    selectedLayerIds.value = [dup.id]
     return dup
+  }
+
+  /** Duplication groupée (multi-sélection) — 1 seul undo, sélectionne les copies. */
+  function duplicateLayers(ids: string[]): Layer[] {
+    const slide = activeSlide.value
+    if (!slide) return []
+    const sources = slide.layers.filter((l) => ids.includes(l.id))
+    if (sources.length === 0) return []
+    checkpoint()
+    const dups = sources.map((src) => {
+      const dup: Layer = { ...deepClone(src), id: nid('l'), name: `${src.name} (copie)`, z: nextZ(slide.layers) }
+      dup.x += 24
+      dup.y += 24
+      slide.layers.push(dup)
+      return dup
+    })
+    renumberZ(slide.layers)
+    selectedLayerIds.value = dups.map((d) => d.id)
+    return dups
   }
 
   function moveLayerZ(id: string, dir: 1 | -1) {
@@ -445,23 +492,69 @@ export const useSlideDeckStore = defineStore('slide-deck', () => {
 
   /** Aligne la couche sur la slide (bords/centre) — 1 undo. */
   function alignLayer(id: string, pos: AlignPosition) {
+    alignLayers([id], pos)
+  }
+
+  /** Aligne un lot de couches sur la slide — 1 seul undo. */
+  function alignLayers(ids: string[], pos: AlignPosition) {
     const slide = activeSlide.value
-    const layer = slide?.layers.find((l) => l.id === id)
-    if (!slide || !layer || layer.locked) return
+    if (!slide) return
+    const targets = slide.layers.filter((l) => ids.includes(l.id) && !l.locked)
+    if (targets.length === 0) return
     const f = getFormat(slide.format)
     checkpoint()
-    switch (pos) {
-      case 'left': layer.x = 0; break
-      case 'center-x': layer.x = Math.round(((f.width - layer.w) / 2) * 100) / 100; break
-      case 'right': layer.x = f.width - layer.w; break
-      case 'top': layer.y = 0; break
-      case 'middle': layer.y = Math.round(((f.height - layer.h) / 2) * 100) / 100; break
-      case 'bottom': layer.y = f.height - layer.h; break
+    for (const layer of targets) {
+      switch (pos) {
+        case 'left': layer.x = 0; break
+        case 'center-x': layer.x = Math.round(((f.width - layer.w) / 2) * 100) / 100; break
+        case 'right': layer.x = f.width - layer.w; break
+        case 'top': layer.y = 0; break
+        case 'middle': layer.y = Math.round(((f.height - layer.h) / 2) * 100) / 100; break
+        case 'bottom': layer.y = f.height - layer.h; break
+      }
     }
   }
 
+  /** Sélection simple (remplace). `null` = désélectionne tout. */
   function selectLayer(id: string | null) {
-    selectedLayerId.value = id
+    if (id === null) {
+      selectedLayerIds.value = []
+      return
+    }
+    const slide = activeSlide.value
+    if (slide && !slide.layers.some((l) => l.id === id)) return
+    selectedLayerIds.value = [id]
+  }
+
+  /** Bascule additive (shift/ctrl-clic) pour la multi-sélection. */
+  function toggleLayerSelection(id: string) {
+    const slide = activeSlide.value
+    if (!slide || !slide.layers.some((l) => l.id === id)) return
+    selectedLayerIds.value = selectedLayerIds.value.includes(id)
+      ? selectedLayerIds.value.filter((lid) => lid !== id)
+      : [...selectedLayerIds.value, id]
+  }
+
+  function clearLayerSelection() {
+    selectedLayerIds.value = []
+  }
+
+  /** Distribution régulière des sélectionnées sur un axe — 1 undo. */
+  function distributeSelected(axis: 'x' | 'y'): boolean {
+    const layers = selectedLayers.value.filter((l) => !l.locked)
+    if (layers.length < 3) return false
+    checkpoint()
+    const positions = distributeRects(
+      layers.map((l) => ({ x: l.x, y: l.y, w: l.w, h: l.h })),
+      axis,
+    )
+    const byIndex = new Map(layers.map((l, i) => [l.id, positions[i]]))
+    for (const layer of layers) {
+      const p = byIndex.get(layer.id)!
+      layer.x = p.x
+      layer.y = p.y
+    }
+    return true
   }
 
   // ── (Dé)sérialisation ──────────────────────────────────────
@@ -507,7 +600,7 @@ export const useSlideDeckStore = defineStore('slide-deck', () => {
       slides.value = (arr as Record<string, unknown>[]).map((s, i) => sanitizeSlide(s, i))
       const wanted = !Array.isArray(raw) ? String((raw as Record<string, unknown>)?.activeId ?? '') : ''
       activeId.value = findSlide(slides.value, wanted)?.id ?? slides.value[0].id
-      selectedLayerId.value = null
+      selectedLayerIds.value = []
       return true
     } catch {
       return false
@@ -569,7 +662,7 @@ export const useSlideDeckStore = defineStore('slide-deck', () => {
     slides.value = []
     activeId.value = ''
     deckFormat.value = DEFAULT_FORMAT
-    selectedLayerId.value = null
+    selectedLayerIds.value = []
     articleInput.value = ''
     past.value = []
     future.value = []
@@ -610,14 +703,22 @@ export const useSlideDeckStore = defineStore('slide-deck', () => {
     beginLayerGesture,
     beginGesture,
     removeLayer,
+    removeLayers,
     duplicateLayer,
+    duplicateLayers,
+    distributeSelected,
     moveLayerZ,
     bringLayerToFront,
     sendLayerToBack,
     toggleLayerVisibility,
     toggleLayerLock,
     alignLayer,
+    alignLayers,
     selectLayer,
+    toggleLayerSelection,
+    clearLayerSelection,
+    selectedLayerIds,
+    selectedLayers,
     undo,
     redo,
     serialize,

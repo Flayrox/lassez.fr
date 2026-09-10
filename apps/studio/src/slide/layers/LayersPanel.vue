@@ -20,8 +20,8 @@
         v-for="layer in ordered"
         :key="layer.id"
         class="layer-row"
-        :class="{ 'is-active': layer.id === selectedId, 'is-hidden': !layer.visible }"
-        @click="select(layer.id)"
+        :class="{ 'is-active': isSelected(layer.id), 'is-hidden': !layer.visible }"
+        @click="select(layer.id, $event.shiftKey || $event.ctrlKey || $event.metaKey)"
         @dblclick="startRename(layer)"
       >
         <span class="layer-kind">{{ kindIcon(layer.kind) }}</span>
@@ -36,7 +36,7 @@
             @blur="commitRename(layer.id)"
           />
           <template v-else>
-            <div class="text-[12px] truncate" :style="{ color: layer.id === selectedId ? '#fff' : '#aaa' }">{{ layer.name }}</div>
+            <div class="text-[12px] truncate" :style="{ color: isSelected(layer.id) ? '#fff' : '#aaa' }">{{ layer.name }}</div>
             <div class="text-[9px]" style="color: #666;">
               {{ kindLabel(layer.kind) }} · z {{ layer.z }}
               <span v-if="layer.behind">· derrière template</span>
@@ -77,7 +77,11 @@ const assetStore = inject<Ref<AssetStore | null>>(ASSETS_KEY, ref(null))
 
 const layers = computed(() => store.activeSlide?.layers ?? [])
 const ordered = computed(() => [...layers.value].sort((a, b) => b.z - a.z))
-const selectedId = computed(() => store.selectedLayerId)
+const selectedIds = computed(() => new Set(store.selectedLayerIds))
+
+function isSelected(id: string): boolean {
+  return selectedIds.value.has(id)
+}
 
 function kindIcon(kind: LayerKind): string {
   return kind === 'image' ? '▦' : kind === 'shape' ? '■' : 'T'
@@ -87,8 +91,9 @@ function kindLabel(kind: LayerKind): string {
   return kind === 'image' ? 'Image' : kind === 'shape' ? 'Forme' : 'Texte'
 }
 
-function select(id: string) {
-  store.selectLayer(id)
+function select(id: string, additive: boolean) {
+  if (additive) store.toggleLayerSelection(id)
+  else store.selectLayer(id)
 }
 
 function addText() {

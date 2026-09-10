@@ -104,10 +104,38 @@
               </div>
               <BrandSwatches :value="textData.color" @select="(c) => typoDiscrete({ color: c })" />
             </div>
+
+            <!-- Image : recadrage + miroirs + filtres -->
+            <div v-if="imageData" class="flex flex-col gap-3 pt-3" style="border-top: 1px dashed #2a2a2a;">
+              <label class="layer-slider">Zoom <input type="range" min="0.2" max="3" step="0.05" :value="imageData.zoom ?? 1" @pointerdown="gesture.onBegin" @focus="gesture.onBegin" @input="photo({ zoom: numVal($event) })" @change="gesture.onEnd" @blur="gesture.onEnd" /><span>×{{ (imageData.zoom ?? 1).toFixed(2) }}</span></label>
+              <label class="layer-slider">Focal X <input type="range" min="0" max="100" step="1" :value="imageData.focalX ?? 50" @pointerdown="gesture.onBegin" @focus="gesture.onBegin" @input="photo({ focalX: numVal($event) })" @change="gesture.onEnd" @blur="gesture.onEnd" /><span>{{ Math.round(imageData.focalX ?? 50) }}%</span></label>
+              <label class="layer-slider">Focal Y <input type="range" min="0" max="100" step="1" :value="imageData.focalY ?? 50" @pointerdown="gesture.onBegin" @focus="gesture.onBegin" @input="photo({ focalY: numVal($event) })" @change="gesture.onEnd" @blur="gesture.onEnd" /><span>{{ Math.round(imageData.focalY ?? 50) }}%</span></label>
+              <div class="flex gap-1.5">
+                <button class="layer-btn" :class="{ 'is-active': imageData.flipH }" @click="photoDiscrete({ flipH: !imageData.flipH })">⇋ Miroir H</button>
+                <button class="layer-btn" :class="{ 'is-active': imageData.flipV }" @click="photoDiscrete({ flipV: !imageData.flipV })">⇅ Miroir V</button>
+              </div>
+              <label class="layer-slider">Lumière <input type="range" min="0" max="200" step="1" :value="imageData.brightness ?? 100" @pointerdown="gesture.onBegin" @focus="gesture.onBegin" @input="photo({ brightness: numVal($event) })" @change="gesture.onEnd" @blur="gesture.onEnd" /><span>{{ Math.round(imageData.brightness ?? 100) }}%</span></label>
+              <label class="layer-slider">Contraste <input type="range" min="0" max="200" step="1" :value="imageData.contrast ?? 100" @pointerdown="gesture.onBegin" @focus="gesture.onBegin" @input="photo({ contrast: numVal($event) })" @change="gesture.onEnd" @blur="gesture.onEnd" /><span>{{ Math.round(imageData.contrast ?? 100) }}%</span></label>
+              <label class="layer-slider">Saturation <input type="range" min="0" max="200" step="1" :value="imageData.saturate ?? 100" @pointerdown="gesture.onBegin" @focus="gesture.onBegin" @input="photo({ saturate: numVal($event) })" @change="gesture.onEnd" @blur="gesture.onEnd" /><span>{{ Math.round(imageData.saturate ?? 100) }}%</span></label>
+              <label class="layer-slider">Grisaille <input type="range" min="0" max="100" step="1" :value="imageData.grayscale ?? 0" @pointerdown="gesture.onBegin" @focus="gesture.onBegin" @input="photo({ grayscale: numVal($event) })" @change="gesture.onEnd" @blur="gesture.onEnd" /><span>{{ Math.round(imageData.grayscale ?? 0) }}%</span></label>
+              <label class="layer-slider">Flou <input type="range" min="0" max="10" step="0.5" :value="imageData.blur ?? 0" @pointerdown="gesture.onBegin" @focus="gesture.onBegin" @input="photo({ blur: numVal($event) })" @change="gesture.onEnd" @blur="gesture.onEnd" /><span>{{ (imageData.blur ?? 0).toFixed(1) }}px</span></label>
+            </div>
             <div class="flex gap-1.5">
               <button class="layer-btn" @click="toggleBehind">{{ activeLayer.behind ? 'Passer devant' : 'Passer derrière' }}</button>
               <button class="layer-btn" @click="duplicateLayer">Dupliquer</button>
               <button class="layer-btn danger" @click="removeLayer">Supprimer</button>
+            </div>
+            <div>
+              <div class="text-[10px] font-bold mb-1.5" style="color: #666;">ALIGNER SUR LA SLIDE</div>
+              <div class="grid grid-cols-6 gap-1">
+                <button
+                  v-for="a in ALIGN_BUTTONS"
+                  :key="a.pos"
+                  class="align-btn"
+                  :title="a.label"
+                  @click="align(a.pos)"
+                >{{ a.icon }}</button>
+              </div>
             </div>
           </div>
         </div>
@@ -126,9 +154,10 @@ import { computed } from 'vue'
 import { getTemplate, resolveTemplateSchema } from '../registry'
 import { FORMAT_IDS, FORMATS } from '../formats'
 import type { FormatId } from '../types'
-import type { TextLayerData } from '../types'
+import type { ImageLayerData, TextLayerData } from '../types'
 import { BRAND_FONTS, clampTextSize } from '../brand'
 import { useSlideDeckStore } from '../store/deck'
+import type { AlignPosition } from '../store/deck'
 import { useGestureInput } from '../engine/gestures'
 import SchemaForm from './SchemaForm.vue'
 import BrandSwatches from './BrandSwatches.vue'
@@ -147,6 +176,11 @@ const textData = computed<TextLayerData | null>(() => {
   const layer = activeLayer.value
   if (!layer || layer.kind !== 'text') return null
   return layer.data as TextLayerData
+})
+const imageData = computed<ImageLayerData | null>(() => {
+  const layer = activeLayer.value
+  if (!layer || layer.kind !== 'image') return null
+  return layer.data as ImageLayerData
 })
 const textColor = computed(() =>
   typeof textData.value?.color === 'string' && /^#[0-9a-f]{6}$/i.test(textData.value.color)
@@ -180,6 +214,18 @@ function typoDiscrete(patch: Partial<TextLayerData>) {
   if (layer) store.updateLayerData(layer.id, patch as Record<string, unknown>)
 }
 
+/** Patch data image continu (groupé par geste). */
+function photo(patch: Partial<ImageLayerData>) {
+  const layer = activeLayer.value
+  if (layer) gesture.liveLayerData(layer.id, patch as Record<string, unknown>)
+}
+
+/** Patch data image discret (clic : 1 undo). */
+function photoDiscrete(patch: Partial<ImageLayerData>) {
+  const layer = activeLayer.value
+  if (layer) store.updateLayerData(layer.id, patch as Record<string, unknown>)
+}
+
 function toggleBehind() {
   const layer = activeLayer.value
   if (!layer) return
@@ -195,6 +241,20 @@ function duplicateLayer() {
 function removeLayer() {
   const layer = activeLayer.value
   if (layer) store.removeLayer(layer.id)
+}
+
+const ALIGN_BUTTONS: { pos: AlignPosition; icon: string; label: string }[] = [
+  { pos: 'left', icon: '⇤', label: 'Bord gauche' },
+  { pos: 'center-x', icon: '⇔', label: 'Centrer horizontalement' },
+  { pos: 'right', icon: '⇥', label: 'Bord droit' },
+  { pos: 'top', icon: '⇈', label: 'Haut' },
+  { pos: 'middle', icon: '⇕', label: 'Centrer verticalement' },
+  { pos: 'bottom', icon: '⇊', label: 'Bas' },
+]
+
+function align(pos: AlignPosition) {
+  const layer = activeLayer.value
+  if (layer) store.alignLayer(layer.id, pos)
 }
 </script>
 
@@ -240,5 +300,6 @@ function removeLayer() {
   font-size: 10px; font-weight: 700; padding: 6px 0; cursor: pointer; border-radius: 6px;
 }
 .layer-btn:hover { color: #fff; border-color: #555; }
+.layer-btn.is-active { background: #fff; color: #000; border-color: #fff; }
 .layer-btn.danger:hover { background: #2a1010; color: #ef4444; border-color: #4a1010; }
 </style>

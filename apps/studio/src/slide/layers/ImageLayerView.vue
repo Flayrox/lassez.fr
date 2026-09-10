@@ -20,7 +20,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { getSafeImageUrl } from '../media'
+import { buildImageFilter, buildImageTransform, getSafeImageUrl } from '../media'
 import { createRafEmitter } from '../engine/gestures'
 import type { ImageLayerData, Layer } from '../types'
 
@@ -40,8 +40,6 @@ let out: ReturnType<typeof createRafEmitter<{ x: number; y: number }>> | null = 
 
 const data = computed(() => props.layer.data as ImageLayerData)
 const safeSrc = computed(() => getSafeImageUrl(data.value.src))
-const zoom = computed(() => data.value.zoom ?? 1)
-const grayscale = computed(() => data.value.grayscale ?? 0)
 
 const boxStyle = computed(() => ({
   left: `${props.layer.x}px`,
@@ -55,8 +53,10 @@ const boxStyle = computed(() => ({
 
 const imgStyle = computed(() => ({
   objectFit: (data.value.fit ?? 'cover') as 'cover' | 'contain',
-  transform: `scale(${zoom.value})`,
-  filter: `grayscale(${grayscale.value / 100})`,
+  // Le cadre = le recadrage (zoom + point focal), les miroirs/filtres suivent.
+  objectPosition: `${data.value.focalX ?? 50}% ${data.value.focalY ?? 50}%`,
+  transform: buildImageTransform(data.value.zoom ?? 1, data.value.flipH ?? false, data.value.flipV ?? false),
+  filter: buildImageFilter(data.value),
   userSelect: 'none',
   pointerEvents: 'none',
 }))

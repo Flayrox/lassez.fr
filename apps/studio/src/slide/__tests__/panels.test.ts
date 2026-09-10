@@ -198,6 +198,33 @@ describe('PropsPanel', () => {
     w.unmount()
   })
 
+  it('section image : zoom/focal groupés en 1 undo, flip discret', async () => {
+    const store = setup()
+    const added = store.addImageLayer('https://example.com/a.png')!
+    const w = mount(PropsPanel)
+    await flush()
+    expect(w.text()).toContain('Focal X')
+    // Scope section couche (.layer-slider) : le template a aussi un slider max=3
+    const zoom = w.findAll('.layer-slider input[type="range"]').find((i) => String(i.attributes('max')) === '3')!
+    const el = zoom.element as HTMLInputElement
+    await zoom.trigger('pointerdown')
+    for (const v of ['1.5', '2']) {
+      el.value = v
+      await zoom.trigger('input')
+    }
+    await zoom.trigger('change')
+    const data = () => store.activeSlide!.layers.find((l) => l.id === added.id)!.data as unknown as Record<string, unknown>
+    expect(data().zoom).toBe(2)
+    store.undo()
+    expect(data().zoom ?? 1).toBe(1)
+    store.selectLayer(added.id)
+    await w.vm.$nextTick()
+    await w.findAll('.layer-btn')[0].trigger('click') // Miroir H
+    expect(data().flipH).toBe(true)
+    w.unmount()
+  })
+})
+
   it('BrandSwatches : 8 dots, actif, émission', async () => {
     const { default: BrandSwatches } = await import('../panels/BrandSwatches.vue')
     const w = mount(BrandSwatches, { props: { value: '#dc2626' } })
@@ -205,6 +232,18 @@ describe('PropsPanel', () => {
     expect(w.findAll('.brand-dot.is-active')).toHaveLength(1)
     await w.findAll('.brand-dot')[6].trigger('click')
     expect(w.emitted('select')![0]).toEqual(['#FFFFFF'])
+    w.unmount()
+  })
+
+  it('boutons aligner : centrer horizontalement la couche', async () => {
+    const store = setup()
+    const added = store.addTextLayer('X')!
+    const w = mount(PropsPanel)
+    await flush()
+    // Scope boutons slide (title) : la section typo a aussi des .align-btn
+    const centerBtn = w.findAll('.align-btn').find((b) => b.attributes('title') === 'Centrer horizontalement')!
+    await centerBtn.trigger('click')
+    expect(store.activeSlide!.layers.find((l) => l.id === added.id)!.x).toBe(300)
     w.unmount()
   })
 
@@ -225,7 +264,6 @@ describe('PropsPanel', () => {
     expect(store.activeSlide!.layers).toHaveLength(0)
     w.unmount()
   })
-})
 
 describe('SchemaForm (listes)', () => {
   it('rend les groupes dans l’ordre du schema', async () => {
@@ -259,6 +297,8 @@ describe('SlideToolbar', () => {
     expect(w.emitted('exportPng')).toHaveLength(1)
     await w.findAll('.tb-primary').find((b) => b.text() === 'ZIP')!.trigger('click')
     expect(w.emitted('exportZip')).toHaveLength(1)
+    await w.findAll('.tb-primary').find((b) => b.text() === 'JPG')!.trigger('click')
+    expect(w.emitted('exportJpg')).toHaveLength(1)
     await w.find('select.tb-select').setValue('1:1')
     expect(w.emitted('format')![0]).toEqual(['1:1'])
     w.unmount()

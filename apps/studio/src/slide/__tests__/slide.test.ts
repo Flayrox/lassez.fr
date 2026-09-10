@@ -9,6 +9,7 @@ import { useSlideDeckStore } from '../store/deck'
 
 vi.mock('html-to-image', () => ({
   toPng: vi.fn(async () => 'data:image/png;base64,ZmFrZQ=='),
+  toJpeg: vi.fn(async () => 'data:image/jpeg;base64,ZmFrZQ=='),
 }))
 
 vi.mock('vue-sonner', () => ({
@@ -144,6 +145,18 @@ describe('Slide.vue', () => {
     const raw = localStorage.getItem('lassez_slide_deck_v2')
     expect(raw).toBeTruthy()
     expect(JSON.parse(raw!).slides).toHaveLength(2)
+    w.unmount()
+  })
+
+  it('export JPG : capture jpeg + toast succès', async () => {
+    const { toast } = await import('vue-sonner')
+    const { toJpeg } = await import('html-to-image')
+    const w = await setup()
+    const jpgBtn = w.findAll('.tb-primary').find((b) => b.text() === 'JPG')!
+    await jpgBtn.trigger('click')
+    await flush(400)
+    expect(toJpeg).toHaveBeenCalled()
+    expect(vi.mocked(toast.success)).toHaveBeenCalledWith(expect.stringMatching(/\.jpg$/))
     w.unmount()
   })
 

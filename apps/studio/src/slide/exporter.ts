@@ -1,8 +1,8 @@
-// Export PNG / ZIP / JSON — port du useStudioExport legacy (html-to-image
-// + jszip), adapté aux couches : on masque l'UI d'édition pendant la capture
-// puis on restaure, même en cas d'échec.
+// Export PNG / JPEG / ZIP / JSON — port du useStudioExport legacy
+// (html-to-image + jszip), adapté aux couches : on masque l'UI d'édition
+// pendant la capture puis on restaure, même en cas d'échec.
 import JSZip from 'jszip'
-import { toPng } from 'html-to-image'
+import { toJpeg, toPng } from 'html-to-image'
 import { embedImagesForExport } from './media'
 import { slugifyFileName } from './utils'
 
@@ -14,11 +14,17 @@ export const EXPORT_HIDDEN_SELECTORS = [
   '.slide-tb',
 ] as const
 
-export interface PngOptions {
+export interface RenderOptions {
   width: number
   height: number
   pixelRatio?: number
+  /** PNG (défaut, alpha) ou JPEG (léger, fond blanc — réseaux). */
+  format?: 'png' | 'jpeg'
+  quality?: number
 }
+
+/** @deprecated Utiliser RenderOptions. */
+export type PngOptions = RenderOptions
 
 function hiddenStyle(el: HTMLElement): string | null {
   return el.style.display || null
@@ -40,8 +46,12 @@ export function hideEditingUI(root: HTMLElement): () => void {
   }
 }
 
-/** Capture PNG du stage à taille réelle d'export. */
-export async function renderStagePNG(stage: HTMLElement, opts: PngOptions): Promise<string> {
+/** Capture du stage à taille réelle d'export (PNG ou JPEG). */
+export async function renderStagePNG(stage: HTMLElement, opts: RenderOptions): Promise<string> {
+  return renderStage(stage, opts)
+}
+
+export async function renderStage(stage: HTMLElement, opts: RenderOptions): Promise<string> {
   await embedImagesForExport(stage)
   const restore = hideEditingUI(stage)
   try {
@@ -53,14 +63,19 @@ export async function renderStagePNG(stage: HTMLElement, opts: PngOptions): Prom
       }
     }
     await new Promise((r) => window.setTimeout(r, 120))
-    return await toPng(stage, {
-      quality: 1,
+    const base = {
+      quality: opts.quality ?? 1,
       pixelRatio: opts.pixelRatio ?? 2,
       canvasWidth: opts.width,
       canvasHeight: opts.height,
       cacheBust: true,
       style: { margin: '0', transform: 'none' },
-    })
+    }
+    if (opts.format === 'jpeg') {
+      // Pas d'alpha en JPEG : fond blanc (les templates sont opaques).
+      return await toJpeg(stage, { ...base, quality: opts.quality ?? 0.92, backgroundColor: '#ffffff' })
+    }
+    return await toPng(stage, base)
   } finally {
     restore()
   }

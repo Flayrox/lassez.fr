@@ -247,8 +247,7 @@ describe('deck store — couches', () => {
     expect(cc.z).toBe(Math.max(...s.slides[0].layers.map((l) => l.z)))
   })
 
-  it('toggleLayerVisibility + removeLayer + selectLayer', () => {
-    const s = useSlideDeckStore()
+  it('toggleLayerVisibility + removeLayer + selectLayer', () => {    const s = useSlideDeckStore()
     s.ensureInit()
     const l = s.addTextLayer('x')!
     s.toggleLayerVisibility(l.id)
@@ -412,5 +411,45 @@ describe('resetSlide — cas limites', () => {
     const s = useSlideDeckStore()
     s.ensureInit()
     expect(s.resetSlide('inconnu')).toBe(false)
+  })
+})
+
+describe('deck store — alignement', () => {
+  it('aligne sur les 6 positions (slide 4:5 = 1080×1350)', () => {
+    const s = useSlideDeckStore()
+    s.ensureInit()
+    const l = s.addTextLayer('x')! // 480×160 à 60,60
+    s.alignLayer(l.id, 'left')
+    expect(l.x).toBe(0)
+    s.alignLayer(l.id, 'center-x')
+    expect(l.x).toBe(300)
+    s.alignLayer(l.id, 'right')
+    expect(l.x).toBe(600)
+    s.alignLayer(l.id, 'top')
+    expect(l.y).toBe(0)
+    s.alignLayer(l.id, 'middle')
+    expect(l.y).toBe(595)
+    s.alignLayer(l.id, 'bottom')
+    expect(l.y).toBe(1190)
+  })
+
+  it('1 seul undo pour un alignement', () => {
+    const s = useSlideDeckStore()
+    s.ensureInit()
+    const l = s.addTextLayer('x')!
+    s.alignLayer(l.id, 'center-x')
+    s.undo()
+    expect(s.activeSlide!.layers[0].x).toBe(60)
+  })
+
+  it('ignore id inconnu et couche verrouillée', () => {
+    const s = useSlideDeckStore()
+    s.ensureInit()
+    const l = s.addTextLayer('x')!
+    s.alignLayer('nope', 'left')
+    expect(l.x).toBe(60)
+    s.toggleLayerLock(l.id)
+    s.alignLayer(l.id, 'left')
+    expect(l.x).toBe(60)
   })
 })

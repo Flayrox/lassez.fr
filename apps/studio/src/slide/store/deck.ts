@@ -14,7 +14,7 @@ import type {
   SlideType,
   TextLayerData,
 } from '../types'
-import { DEFAULT_FORMAT } from '../formats'
+import { DEFAULT_FORMAT, getFormat } from '../formats'
 import { DEFAULT_TEXT_SIZE } from '../brand'
 import { coerceSlideType, getTemplate } from '../registry'
 import {
@@ -30,6 +30,8 @@ import {
 export const STORAGE_KEY = 'lassez_slide_deck_v2'
 export const LEGACY_STORAGE_KEY = 'lassez_studio_deck_v1'
 const HISTORY_LIMIT = 100
+
+export type AlignPosition = 'left' | 'center-x' | 'right' | 'top' | 'middle' | 'bottom'
 
 interface Snapshot {
   slides: Slide[]
@@ -441,6 +443,23 @@ export const useSlideDeckStore = defineStore('slide-deck', () => {
     layer.locked = !layer.locked
   }
 
+  /** Aligne la couche sur la slide (bords/centre) — 1 undo. */
+  function alignLayer(id: string, pos: AlignPosition) {
+    const slide = activeSlide.value
+    const layer = slide?.layers.find((l) => l.id === id)
+    if (!slide || !layer || layer.locked) return
+    const f = getFormat(slide.format)
+    checkpoint()
+    switch (pos) {
+      case 'left': layer.x = 0; break
+      case 'center-x': layer.x = Math.round(((f.width - layer.w) / 2) * 100) / 100; break
+      case 'right': layer.x = f.width - layer.w; break
+      case 'top': layer.y = 0; break
+      case 'middle': layer.y = Math.round(((f.height - layer.h) / 2) * 100) / 100; break
+      case 'bottom': layer.y = f.height - layer.h; break
+    }
+  }
+
   function selectLayer(id: string | null) {
     selectedLayerId.value = id
   }
@@ -597,6 +616,7 @@ export const useSlideDeckStore = defineStore('slide-deck', () => {
     sendLayerToBack,
     toggleLayerVisibility,
     toggleLayerLock,
+    alignLayer,
     selectLayer,
     undo,
     redo,

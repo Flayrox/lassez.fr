@@ -15,6 +15,7 @@ import { buildDeckFromArticle } from '../article'
 
 vi.mock('html-to-image', () => ({
   toPng: vi.fn(async () => 'data:image/png;base64,ZmFrZQ=='),
+  toJpeg: vi.fn(async () => 'data:image/jpeg;base64,ZmFrZQ=='),
 }))
 
 afterEach(() => {
@@ -78,6 +79,23 @@ describe('renderStagePNG', () => {
     document.body.appendChild(stage)
     await expect(renderStagePNG(stage, { width: 1080, height: 1080 })).rejects.toThrow('capture KO')
     expect((stage.querySelector('.slide-tb') as HTMLElement).style.display).toBe('')
+    stage.remove()
+  })
+
+  it('format jpeg : toJpeg avec qualité + fond blanc', async () => {
+    const { toJpeg, toPng } = await import('html-to-image')
+    vi.mocked(toPng).mockClear()
+    vi.mocked(toJpeg).mockClear()
+    const stage = document.createElement('div')
+    stage.innerHTML = '<p>Slide</p>'
+    document.body.appendChild(stage)
+    const dataUrl = await renderStagePNG(stage, { width: 1080, height: 1080, format: 'jpeg' })
+    expect(dataUrl).toMatch(/^data:image\/jpeg/)
+    expect(toJpeg).toHaveBeenCalledWith(
+      stage,
+      expect.objectContaining({ quality: 0.92, backgroundColor: '#ffffff' }),
+    )
+    expect(toPng).not.toHaveBeenCalled()
     stage.remove()
   })
 })

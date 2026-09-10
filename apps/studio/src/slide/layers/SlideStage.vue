@@ -45,8 +45,12 @@
     </template>
 
     <!-- Guides magnétiques -->
+    <div v-if="guides.includes('v-left')" class="absolute top-0 bottom-0 w-px bg-[#DC2626] z-[200] pointer-events-none" style="left: 0;" />
     <div v-if="guides.includes('v-center')" class="absolute top-0 bottom-0 w-px bg-[#DC2626] z-[200] pointer-events-none" style="left: 50%;" />
-    <div v-if="guides.includes('h-center')" class="absolute left-0 right-0 h-px bg-[#DC2626] z-[200] pointer-events-none" style="top: 50%;" />
+    <div v-if="guides.includes('v-right')" class="absolute top-0 bottom-0 w-px bg-[#DC2626] z-[200] pointer-events-none" style="right: 0;" />
+    <div v-if="guides.includes('h-top')" class="absolute left-0 right-0 h-px bg-[#DC2626] z-[200] pointer-events-none" style="top: 0;" />
+    <div v-if="guides.includes('h-middle')" class="absolute left-0 right-0 h-px bg-[#DC2626] z-[200] pointer-events-none" style="top: 50%;" />
+    <div v-if="guides.includes('h-bottom')" class="absolute left-0 right-0 h-px bg-[#DC2626] z-[200] pointer-events-none" style="bottom: 0;" />
 
     <!-- Sélection -->
     <SelectionBox

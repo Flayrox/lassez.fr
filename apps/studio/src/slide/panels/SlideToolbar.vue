@@ -43,6 +43,7 @@
       <div class="w-px h-5" style="background: #2a2a2a; margin: 0 4px;" />
       <button class="tb-primary" @click="emit('exportJson')">JSON</button>
       <button class="tb-primary" @click="emit('exportZip')">ZIP</button>
+      <button class="tb-primary" title="JPEG léger (fond blanc) pour les réseaux" @click="emit('exportJpg')">JPG</button>
       <button class="tb-export" @click="emit('exportPng')">↓ Export PNG</button>
     </div>
   </div>
@@ -73,6 +74,7 @@ const emit = defineEmits<{
   (e: 'reset'): void
   (e: 'exportJson'): void
   (e: 'exportZip'): void
+  (e: 'exportJpg'): void
   (e: 'exportPng'): void
 }>()
 

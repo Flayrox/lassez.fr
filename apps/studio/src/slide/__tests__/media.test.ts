@@ -2,6 +2,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   MEDIA_PROXY_PATH,
+  buildImageFilter,
+  buildImageTransform,
   embedImagesForExport,
   getSafeImageUrl,
   isInlineUrl,
@@ -45,6 +47,40 @@ describe('getSafeImageUrl', () => {
 
   it('proxyUrl encode correctement', () => {
     expect(proxyUrl('https://a.fr/x?y=1&z=2')).toContain('url=https%3A%2F%2Fa.fr%2Fx%3Fy%3D1%26z%3D2')
+  })
+})
+
+describe('buildImageFilter', () => {
+  it('neutre → none', () => {
+    expect(buildImageFilter({})).toBe('none')
+    expect(buildImageFilter({ grayscale: 0, brightness: 100, contrast: 100, saturate: 100, blur: 0 })).toBe('none')
+  })
+
+  it('combine grisaille + contraste + flou', () => {
+    expect(buildImageFilter({ grayscale: 50, contrast: 120, blur: 2 })).toBe(
+      'grayscale(0.5) contrast(1.2) blur(2px)',
+    )
+  })
+
+  it('luminosité et saturation', () => {
+    expect(buildImageFilter({ brightness: 150, saturate: 0 })).toBe('brightness(1.5) saturate(0)')
+  })
+
+  it('ignore le flou nul/négatif', () => {
+    expect(buildImageFilter({ blur: -3 })).toBe('none')
+  })
+})
+
+describe('buildImageTransform', () => {
+  it('identité → none', () => {
+    expect(buildImageTransform()).toBe('none')
+    expect(buildImageTransform(1, false, false)).toBe('none')
+  })
+
+  it('zoom + miroirs', () => {
+    expect(buildImageTransform(1.5, false, false)).toBe('scale(1.5) scaleX(1) scaleY(1)')
+    expect(buildImageTransform(1, true, false)).toBe('scale(1) scaleX(-1) scaleY(1)')
+    expect(buildImageTransform(2, true, true)).toBe('scale(2) scaleX(-1) scaleY(-1)')
   })
 })
 

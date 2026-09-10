@@ -6,6 +6,7 @@ import RichText from '../text/RichText.vue'
 import Aesthetics from '../engine/Aesthetics.vue'
 import DraggableImage from '../engine/DraggableImage.vue'
 import TextLayerView from '../layers/TextLayerView.vue'
+import ImageLayerView from '../layers/ImageLayerView.vue'
 import { htmlToTiptapDoc } from '../text/tiptap'
 import { createPinia, setActivePinia } from 'pinia'
 import { useSlideDeckStore } from '../store/deck'
@@ -114,6 +115,37 @@ describe('TextLayerView', () => {
     await flushEditor()
     await w.trigger('pointerdown')
     expect(w.emitted('select')![0]).toEqual([layer.id])
+    w.unmount()
+  })
+})
+
+describe('ImageLayerView', () => {
+  it('applique zoom + miroir + point focal + filtres', () => {
+    setActivePinia(createPinia())
+    const store = useSlideDeckStore()
+    store.ensureInit()
+    const layer = store.addImageLayer('https://example.com/a.png')!
+    store.updateLayerData(layer.id, {
+      zoom: 1.5, flipH: true, focalX: 20, focalY: 80,
+      brightness: 120, contrast: 110, blur: 2,
+    })
+    const w = mount(ImageLayerView, { props: { layer } })
+    const style = w.find('img').attributes('style') ?? ''
+    expect(style).toContain('scale(1.5) scaleX(-1)')
+    expect(style).toContain('object-position: 20% 80%')
+    expect(style).toContain('brightness(1.2)')
+    expect(style).toContain('blur(2px)')
+    w.unmount()
+  })
+
+  it('filtre neutre par défaut', () => {
+    setActivePinia(createPinia())
+    const store = useSlideDeckStore()
+    store.ensureInit()
+    const layer = store.addImageLayer('https://example.com/a.png')!
+    const w = mount(ImageLayerView, { props: { layer } })
+    const style = w.find('img').attributes('style') ?? ''
+    expect(style).toContain('filter: none')
     w.unmount()
   })
 })

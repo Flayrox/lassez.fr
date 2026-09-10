@@ -71,11 +71,11 @@ export function resizeRect(rect: Rect, handle: ResizeHandle, dx: number, dy: num
   }
 }
 
-export type Guide = 'v-center' | 'h-center'
+export type Guide = 'v-left' | 'v-center' | 'v-right' | 'h-top' | 'h-middle' | 'h-bottom'
 
 /**
- * Snap magnétique : le centre de la couche s'aligne sur le centre du stage
- * quand il s'en approche (seuil en px slide).
+ * Snap magnétique : les bords/centre de la couche s'alignent sur les
+ * bords/centre du stage quand ils s'en approchent (seuil en px slide).
  */
 export function snapToGuides(
   x: number,
@@ -87,15 +87,31 @@ export function snapToGuides(
   threshold = 5,
 ): { x: number; y: number; guides: Guide[] } {
   const guides: Guide[] = []
+  // Candidats X : bord gauche→gauche, centre→centre, bord droit→droite.
   const cx = stageW / 2 - w / 2
-  const cy = stageH / 2 - h / 2
-  if (Math.abs(x - cx) <= threshold) {
+  const rx = stageW - w
+  if (Math.abs(x - 0) <= threshold) {
+    x = 0
+    guides.push('v-left')
+  } else if (Math.abs(x - cx) <= threshold) {
     x = cx
     guides.push('v-center')
+  } else if (Math.abs(x - rx) <= threshold) {
+    x = rx
+    guides.push('v-right')
   }
-  if (Math.abs(y - cy) <= threshold) {
+  // Candidats Y : haut→haut, milieu→milieu, bas→bas.
+  const cy = stageH / 2 - h / 2
+  const by = stageH - h
+  if (Math.abs(y - 0) <= threshold) {
+    y = 0
+    guides.push('h-top')
+  } else if (Math.abs(y - cy) <= threshold) {
     y = cy
-    guides.push('h-center')
+    guides.push('h-middle')
+  } else if (Math.abs(y - by) <= threshold) {
+    y = by
+    guides.push('h-bottom')
   }
   return { x, y, guides }
 }

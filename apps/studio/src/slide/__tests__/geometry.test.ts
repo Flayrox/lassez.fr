@@ -55,7 +55,29 @@ describe('snapToGuides', () => {
     const r = snapToGuides(442, 623, 200, 100, 1080, 1350)
     expect(r.x).toBe(440)
     expect(r.y).toBe(625)
-    expect(r.guides).toEqual(['v-center', 'h-center'])
+    expect(r.guides).toEqual(['v-center', 'h-middle'])
+  })
+
+  it('snappe les bords sur les bords du stage', () => {
+    const left = snapToGuides(3, 100, 200, 100, 1080, 1350)
+    expect(left.x).toBe(0)
+    expect(left.guides).toContain('v-left')
+    const right = snapToGuides(878, 100, 200, 100, 1080, 1350)
+    expect(right.x).toBe(880)
+    expect(right.guides).toContain('v-right')
+    const top = snapToGuides(100, 2, 200, 100, 1080, 1350)
+    expect(top.y).toBe(0)
+    expect(top.guides).toContain('h-top')
+    const bottom = snapToGuides(100, 1248, 200, 100, 1080, 1350)
+    expect(bottom.y).toBe(1250)
+    expect(bottom.guides).toContain('h-bottom')
+  })
+
+  it('le bord gauche est prioritaire sur le centre en cas de conflit', () => {
+    // Couche large 1076 : x=2 proche de 0 ET centre proche du centre → v-left gagne
+    const r = snapToGuides(2, 100, 1076, 100, 1080, 1350)
+    expect(r.guides).toContain('v-left')
+    expect(r.guides).not.toContain('v-center')
   })
 
   it('ne snappe pas hors seuil, guides vides', () => {

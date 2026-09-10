@@ -21,6 +21,7 @@
       @reset="onResetSlide"
       @export-json="onExportJSON"
       @export-zip="onExportZIP"
+      @export-jpg="onExportJPG"
       @export-png="onExportPNG"
     />
 
@@ -273,14 +274,28 @@ async function settleEditors(ms = 250) {
 }
 
 async function onExportPNG() {
+  await exportSingle('png')
+}
+
+async function onExportJPG() {
+  await exportSingle('jpeg')
+}
+
+async function exportSingle(format: 'png' | 'jpeg') {
   const slide = store.activeSlide
   const el = stageEl()
   if (!slide || !el) return
-  exportProgress.value = 'Export PNG…'
+  exportProgress.value = format === 'png' ? 'Export PNG…' : 'Export JPG…'
   try {
     const f = getFormat(slide.format)
-    const dataUrl = await renderStagePNG(el, { width: f.width, height: f.height, pixelRatio: 2 })
-    const name = slideFileName(slide.label, store.slides.indexOf(slide))
+    const dataUrl = await renderStagePNG(el, {
+      width: f.width,
+      height: f.height,
+      pixelRatio: 2,
+      format,
+    })
+    const ext = format === 'png' ? 'png' : 'jpg'
+    const name = slideFileName(slide.label, store.slides.indexOf(slide), ext)
     downloadDataUrl(dataUrl, name)
     toast.success(`Exporté : ${name}`)
   } catch (e) {

@@ -76,6 +76,18 @@ export interface ImageLayerData {
   grayscale?: number
   opacity?: number
   fit?: 'cover' | 'contain'
+  /** Miroir horizontal / vertical. */
+  flipH?: boolean
+  flipV?: boolean
+  /** Filtres en % (100 = neutre). */
+  brightness?: number
+  contrast?: number
+  saturate?: number
+  /** Flou en px. */
+  blur?: number
+  /** Point focal du recadrage en % (object-position) — 50/50 = centré. */
+  focalX?: number
+  focalY?: number
 }
 
 export interface ShapeLayerData {

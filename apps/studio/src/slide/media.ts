@@ -3,6 +3,47 @@
 export const MEDIA_PROXY_PATH = '/api/media/proxy'
 const LEGACY_PROXY_PATH = '/api/proxy-image'
 
+/** Valeurs neutres des filtres image (100% = inchangé, 0px = net). */
+export const NEUTRAL_FILTERS = {
+  grayscale: 0,
+  brightness: 100,
+  contrast: 100,
+  saturate: 100,
+  blur: 0,
+} as const
+
+export interface ImageFilterValues {
+  grayscale?: number
+  brightness?: number
+  contrast?: number
+  saturate?: number
+  blur?: number
+}
+
+/** Construit la chaîne CSS `filter` — pure, testée en table. */
+export function buildImageFilter(values: ImageFilterValues): string {
+  const parts: string[] = []
+  const g = values.grayscale ?? 0
+  if (g !== 0) parts.push(`grayscale(${g / 100})`)
+  const b = values.brightness ?? 100
+  if (b !== 100) parts.push(`brightness(${b / 100})`)
+  const c = values.contrast ?? 100
+  if (c !== 100) parts.push(`contrast(${c / 100})`)
+  const s = values.saturate ?? 100
+  if (s !== 100) parts.push(`saturate(${s / 100})`)
+  const blur = values.blur ?? 0
+  if (blur > 0) parts.push(`blur(${blur}px)`)
+  return parts.length > 0 ? parts.join(' ') : 'none'
+}
+
+/** Transform CSS d'une couche image (zoom + miroirs). Pure. */
+export function buildImageTransform(zoom = 1, flipH = false, flipV = false): string {
+  const sx = flipH ? -1 : 1
+  const sy = flipV ? -1 : 1
+  if (zoom === 1 && sx === 1 && sy === 1) return 'none'
+  return `scale(${zoom}) scaleX(${sx}) scaleY(${sy})`
+}
+
 export function isInlineUrl(url: string): boolean {
   return (
     url.startsWith('data:') || url.startsWith('blob:') || url.startsWith('/uploads/')

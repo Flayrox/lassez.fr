@@ -87,8 +87,30 @@ describe('SlideStage', () => {
     w.unmount()
   })
 
-  it('reflète le format de la slide (dimensions exactes)', async () => {
+  it('guides magnétiques : déplacement au centre affiche les lignes', async () => {
     const store = setup()
+    const l = store.addTextLayer('X')! // 480×160 → centre x=300
+    store.selectLayer(l.id)
+    const w = mount(SlideStage, { props: { slide: store.activeSlide! } })
+    await flush()
+    expect(w.find('.slide-selection').exists()).toBe(true)
+    // Drag via la bande haute : de x=100 vers x=340 → dx=240 → couche à x=300 (centre)
+    const strip = w.find('.sel-top')
+    strip.element.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0, clientX: 100, clientY: 100 }))
+    window.dispatchEvent(new MouseEvent('pointermove', { clientX: 340, clientY: 100 }))
+    await new Promise((r) => requestAnimationFrame(() => r(null)))
+    await w.vm.$nextTick()
+    expect(l.x).toBe(300)
+    const guides = w.findAll('.z-\\[200\\]')
+    expect(guides.length).toBeGreaterThan(0)
+    window.dispatchEvent(new MouseEvent('pointerup'))
+    await w.vm.$nextTick()
+    // Fin de geste : guides effacés
+    expect(w.findAll('.z-\\[200\\]')).toHaveLength(0)
+    w.unmount()
+  })
+
+  it('reflète le format de la slide (dimensions exactes)', async () => {    const store = setup()
     store.setSlideFormat(store.activeSlide!.id, '1:1')
     const w = mount(SlideStage, { props: { slide: store.activeSlide! } })
     await flush()

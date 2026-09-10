@@ -80,6 +80,18 @@ describe('DeckSidebar', () => {
     expect(w.emitted('generate')).toHaveLength(1)
     w.unmount()
   })
+
+  it('bouton ✕ supprime la slide sans throw (non-régression e2e)', async () => {
+    const store = setup()
+    store.addSlide('COVER')
+    const w = mount(DeckSidebar)
+    expect(store.slides).toHaveLength(2)
+    // La 2e ligne a un bouton supprimer (danger)
+    const rows = w.findAll('.slide-row')
+    await rows[1].find('.row-btn.danger').trigger('click')
+    expect(store.slides).toHaveLength(1)
+    w.unmount()
+  })
 })
 
 describe('PropsPanel', () => {

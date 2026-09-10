@@ -2,7 +2,7 @@
 // execCommand déprécié) par Tiptap. Même look (stickers ✎), moteur moderne.
 <template>
   <div class="slide-edit-zone" :class="{ 'is-focused': focused }">
-    <div class="slide-edit-sticker" :class="stickerPos" @mousedown.prevent="focusEditor">
+    <div class="slide-edit-sticker" :class="stickerPos">
       ✎ {{ label }}
     </div>
     <EditorContent :editor="editor" class="slide-editor-content" :class="contentClass" :style="contentStyle" />
@@ -72,13 +72,9 @@ watch(
   { deep: true },
 )
 
-function focusEditor() {
-  editor.commands.focus('end')
-}
-
 onBeforeUnmount(() => {
   editor.destroy()
 })
 
-defineExpose({ editor, focusEditor })
+defineExpose({ editor })
 </script>

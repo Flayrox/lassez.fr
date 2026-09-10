@@ -115,7 +115,8 @@ import { useRoute } from 'vue-router'
 import { toast } from 'vue-sonner'
 import '../slide/slide.css'
 import { useSlideDeckStore } from '../slide/store/deck'
-import { getFormat, type FormatId } from '../slide/formats'
+import { getFormat } from '../slide/formats'
+import type { FormatId } from '../slide/types'
 import { buildDeckFromArticle } from '../slide/article'
 import { ASSETS_KEY, createAssetStore, type AssetStore } from '../slide/assets'
 import {
@@ -199,7 +200,7 @@ function onResizeUp() {
 }
 
 // ── Persistance (debounce 600ms) ──────────────────────────────
-let saveTimer: ReturnType<typeof setTimeout> | null = null
+let saveTimer: number | null = null
 let quotaWarned = false
 watch(
   () => store.serialize(),

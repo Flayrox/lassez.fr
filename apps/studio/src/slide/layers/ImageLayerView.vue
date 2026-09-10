@@ -2,16 +2,14 @@
 // géré par le parent via les événements), resize via la SelectionBox.
 <template>
   <div
-    class="absolute overflow-hidden"
+    class="absolute overflow-hidden slide-layer-view"
     :style="boxStyle"
     @pointerdown.stop="onDown"
   >
     <img
       :src="safeSrc"
       alt=""
-      crossorigin="anonymous"
-      draggable="false"
-      decoding="async"
+      :draggable="false"
       class="w-full h-full"
       :style="imgStyle"
     />
@@ -20,6 +18,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import type { CSSProperties } from 'vue'
 import { buildImageFilter, buildImageTransform, getSafeImageUrl } from '../media'
 import { createRafEmitter } from '../engine/gestures'
 import type { ImageLayerData, Layer } from '../types'
@@ -51,7 +50,7 @@ const boxStyle = computed(() => ({
   cursor: dragging.value ? 'grabbing' : 'grab',
 }))
 
-const imgStyle = computed(() => ({
+const imgStyle = computed<CSSProperties>(() => ({
   objectFit: (data.value.fit ?? 'cover') as 'cover' | 'contain',
   // Le cadre = le recadrage (zoom + point focal), les miroirs/filtres suivent.
   objectPosition: `${data.value.focalX ?? 50}% ${data.value.focalY ?? 50}%`,

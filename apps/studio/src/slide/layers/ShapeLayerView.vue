@@ -1,7 +1,7 @@
 // Couche forme libre (rect / ellipse / ligne / flèche) en SVG.
 <template>
   <div
-    class="absolute"
+    class="absolute slide-layer-view"
     :style="boxStyle"
     @pointerdown.stop="onSelect"
   >

@@ -68,7 +68,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { getAllTemplates } from '../registry'
 import type { SlideType } from '../types'
 
@@ -105,6 +105,28 @@ function close() {
   jsonError.value = ''
   emit('close')
 }
+
+// Échap ferme la modale (capture + stopPropagation pour ne pas
+// déclencher aussi la désélection des couches en arrière-plan).
+function onKey(e: KeyboardEvent) {
+  if (e.key !== 'Escape') return
+  const target = e.target as HTMLElement | null
+  // Ne pas voler l'Échap d'un select/option natif ouvert.
+  if (target instanceof HTMLSelectElement) return
+  e.stopPropagation()
+  close()
+}
+
+watch(
+  () => props.showArticle || props.showJson,
+  (open) => {
+    if (open) window.addEventListener('keydown', onKey, true)
+    else window.removeEventListener('keydown', onKey, true)
+  },
+  { immediate: true },
+)
+
+onBeforeUnmount(() => window.removeEventListener('keydown', onKey, true))
 
 function generate() {
   if (!articleText.value.trim()) return

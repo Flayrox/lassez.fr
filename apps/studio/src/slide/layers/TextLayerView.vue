@@ -2,7 +2,7 @@
 // groupée en un seul undo (focus → beginGesture, frappe → live).
 <template>
   <div
-    class="absolute"
+    class="absolute slide-layer-view"
     :style="boxStyle"
     @pointerdown.stop="onSelect"
   >    <RichText

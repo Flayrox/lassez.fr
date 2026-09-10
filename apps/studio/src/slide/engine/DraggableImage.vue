@@ -13,9 +13,7 @@
     <img
       :src="safeSrc"
       alt=""
-      crossorigin="anonymous"
-      draggable="false"
-      decoding="async"
+      :draggable="false"
       :style="imgStyle"
     />
   </div>
@@ -23,6 +21,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import type { CSSProperties } from 'vue'
 import { getSafeImageUrl } from '../media'
 import { createRafEmitter } from './gestures'
 
@@ -69,7 +68,7 @@ const frameStyle = computed(() => {
   } as Record<string, string>
 })
 
-const imgStyle = computed(() => ({
+const imgStyle = computed<CSSProperties>(() => ({
   width: '100%',
   height: '100%',
   objectFit: 'cover',

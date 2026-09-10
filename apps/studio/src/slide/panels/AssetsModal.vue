@@ -16,7 +16,7 @@
       <div class="p-6 flex flex-col gap-4 overflow-y-auto sb">
         <div class="flex gap-2">
           <button class="modal-cta" @click="fileInput?.click()">+ Importer une image</button>
-          <input ref="fileInput" type="file" accept="image/*" multiple class="hidden" @change="onFiles" />
+          <input ref="fileInput" type="file" accept="image/*" multiple class="hidden" data-testid="assets-file-input" @change="onFiles" />
         </div>
 
         <div v-if="loading" class="text-center text-[12px] py-8" style="color: #666;">Chargement…</div>

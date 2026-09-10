@@ -102,7 +102,7 @@ function duplicate(id: string) {
 }
 
 function remove(id: string) {
-  store.removeSlide(id)
+  store.deleteSlide(id)
 }
 
 function rename(id: string, label: string) {

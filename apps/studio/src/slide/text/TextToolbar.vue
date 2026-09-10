@@ -2,13 +2,16 @@
 // Même positionnement (bulle au-dessus de la sélection), mêmes actions
 // (B/I/U, souligné militant, couleurs, surlignés, presets), mais branchée
 // sur les commandes Tiptap au lieu de document.execCommand.
+// Téléportée sur body : le viewport applique un transform CSS qui casserait
+// tout position fixed resté dans l'arbre du stage (repère faussé).
 <template>
-  <div
-    v-if="visible"
-    class="slide-tb export-hide"
-    :style="{ left: `${x}px`, top: `${y}px` }"
-    @mousedown.prevent
-  >
+  <Teleport to="body">
+    <div
+      v-if="visible"
+      class="slide-tb export-hide"
+      :style="{ left: `${x}px`, top: `${y}px` }"
+      @mousedown.prevent
+    >
     <button class="tb-btn" :class="{ 'is-active': isActive('bold') }" title="Gras" @click="chain().toggleBold().run()"><b>B</b></button>
     <button class="tb-btn" :class="{ 'is-active': isActive('italic') }" title="Italique" @click="chain().toggleItalic().run()"><i>I</i></button>
     <button class="tb-btn" :class="{ 'is-active': isActive('underline') }" title="Souligné" @click="chain().toggleUnderline().run()"><u>U</u></button>
@@ -42,7 +45,8 @@
       <option value="" disabled>Style…</option>
       <option v-for="(p, key) in TEXT_PRESETS" :key="key" :value="key">{{ p.label }}</option>
     </select>
-  </div>
+    </div>
+  </Teleport>
 </template>
 
 <script setup lang="ts">

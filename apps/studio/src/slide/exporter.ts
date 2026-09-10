@@ -34,9 +34,17 @@ function hiddenStyle(el: HTMLElement): string | null {
 export function hideEditingUI(root: HTMLElement): () => void {
   const touched: { el: HTMLElement; prev: string | null }[] = []
   const selector = EXPORT_HIDDEN_SELECTORS.join(',')
-  for (const el of Array.from(root.querySelectorAll<HTMLElement>(selector))) {
+  const hide = (el: HTMLElement) => {
+    // Évite les doublons (toolbar téléportée aussi présente sous body).
+    if (touched.some((t) => t.el === el)) return
     touched.push({ el, prev: hiddenStyle(el) })
     el.style.display = 'none'
+  }
+  for (const el of Array.from(root.querySelectorAll<HTMLElement>(selector))) hide(el)
+  // La toolbar texte est téléportée sur <body> (fixe hors transform) : la
+  // masquer aussi, sinon elle est capturée dans le PNG.
+  if (typeof document !== 'undefined') {
+    for (const el of Array.from(document.querySelectorAll<HTMLElement>('.slide-tb'))) hide(el)
   }
   return () => {
     for (const { el, prev } of touched) {

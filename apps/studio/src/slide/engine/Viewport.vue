@@ -8,7 +8,7 @@
     :style="{ cursor: panCursor }"
     @wheel="onWheel"
     @pointerdown="onBackgroundDown"
-    @dblclick="fit"
+    @dblclick="onDblClick"
   >
     <div
       class="absolute left-0 top-0 origin-top-left"
@@ -85,6 +85,13 @@ function fit() {
 
 function reset() {
   fitted = false
+  fit()
+}
+
+/** Double-clic sur le FOND recentre ; sur le contenu (texte…) : ignoré
+ * (sinon toute sélection de mot au double-clic resettait la vue). */
+function onDblClick(e: MouseEvent) {
+  if ((e.target as HTMLElement).closest('.slide-stage')) return
   fit()
 }
 

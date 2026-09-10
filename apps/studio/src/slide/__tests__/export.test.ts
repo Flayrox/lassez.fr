@@ -52,6 +52,21 @@ describe('hideEditingUI', () => {
     expect((root.querySelector('.slide-selection') as HTMLElement).style.display).toBe('block')
     root.remove()
   })
+
+  it('masque aussi la toolbar téléportée sur body', () => {
+    const root = document.createElement('div')
+    root.innerHTML = '<p>Slide</p>'
+    document.body.appendChild(root)
+    const toolbar = document.createElement('div')
+    toolbar.className = 'slide-tb'
+    document.body.appendChild(toolbar)
+    const restore = hideEditingUI(root)
+    expect(toolbar.style.display).toBe('none')
+    restore()
+    expect(toolbar.style.display).toBe('')
+    root.remove()
+    toolbar.remove()
+  })
 })
 
 describe('renderStagePNG', () => {

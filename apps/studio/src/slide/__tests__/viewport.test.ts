@@ -83,6 +83,20 @@ describe('Viewport', () => {
     w.unmount()
   })
 
+  it('double-clic sur le contenu ne refit pas (sélection de mot)', async () => {
+    const w = mount(Viewport, {
+      props: { stageW: 1080, stageH: 1350 },
+      slots: { default: '<div class="slide-stage" style="width:1080px;height:1350px"><p>texte</p></div>' },
+      attachTo: document.body,
+    })
+    await flush()
+    const vm = w.vm as unknown as { scale: number; setZoom: (s: number) => void }
+    vm.setZoom(2.5)
+    await w.find('.slide-stage p').trigger('dblclick')
+    expect(vm.scale).toBe(2.5)
+    w.unmount()
+  })
+
   it('changement de format refit', async () => {
     const w = viewport()
     await flush()

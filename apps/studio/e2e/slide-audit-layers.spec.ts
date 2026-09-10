@@ -117,8 +117,9 @@ test('multi : shift-clic canvas + Suppr supprime le lot (formes)', async ({ page
 test('garde : Suppr pendant la frappe édite le texte, ne supprime pas', async ({ page }) => {
   await page.locator('button[title="Ajouter un texte"]').click()
   await page.waitForTimeout(400)
-  const editor = page.locator('.slide-stage .slide-layer-view .slide-tiptap').first()
-  await editor.click()
+  // Double-clic = édition ; Suppr y édite le texte, la couche survit.
+  await page.locator('.slide-stage .slide-layer-view').first().dblclick()
+  await page.waitForTimeout(400)
   await page.keyboard.press('Delete') // dans l'éditeur : supprime un caractère
   await page.waitForTimeout(300)
   expect(await layerCount(page)).toBe(1)

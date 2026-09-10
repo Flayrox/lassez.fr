@@ -152,6 +152,20 @@ export const useSlideDeckStore = defineStore('slide-deck', () => {
     return slide
   }
 
+  /**
+   * Insère une slide pré-construite (template custom instancié, import) —
+   * id slide régénéré anti-collision, couches conservées telles quelles.
+   */
+  function insertSlide(slide: Slide): Slide {
+    checkpoint()
+    const fresh: Slide = { ...deepClone(slide), id: nid('s') }
+    slides.value.push(fresh)
+    activeId.value = fresh.id
+    selectedLayerIds.value = []
+    editingLayerId.value = null
+    return fresh
+  }
+
   function duplicateSlide(id: string): Slide | null {
     const src = findSlide(slides.value, id)
     if (!src) return null
@@ -719,6 +733,7 @@ export const useSlideDeckStore = defineStore('slide-deck', () => {
     canRedo,
     ensureInit,
     addSlide,
+    insertSlide,
     duplicateSlide,
     deleteSlide,
     reorder,

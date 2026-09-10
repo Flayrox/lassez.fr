@@ -1,6 +1,6 @@
 // Tests panneaux : sidebar deck, propriétés schema, toolbar, modales,
 // nettoyage de styles.
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import DeckSidebar from '../panels/DeckSidebar.vue'
@@ -8,7 +8,9 @@ import PropsPanel from '../panels/PropsPanel.vue'
 import SchemaForm from '../panels/SchemaForm.vue'
 import SlideToolbar from '../panels/SlideToolbar.vue'
 import SlideModals from '../panels/SlideModals.vue'
+import SaveTemplateModal from '../panels/SaveTemplateModal.vue'
 import { useSlideDeckStore } from '../store/deck'
+import { useUserTemplatesStore } from '../store/userTemplates'
 import { stripMarksFromState } from '../text/tiptap'
 import { htmlToTiptapDoc } from '../text/tiptap'
 
@@ -90,6 +92,57 @@ describe('DeckSidebar', () => {
     const rows = w.findAll('.slide-row')
     await rows[1].find('.row-btn.danger').trigger('click')
     expect(store.slides).toHaveLength(1)
+    w.unmount()
+  })
+
+  it('groupe Mes templates : apply instancie, ✕ supprime (confirm)', async () => {
+    const store = setup()
+    const tplStore = useUserTemplatesStore()
+    await tplStore.load()
+    await tplStore.saveFromSlide(store.activeSlide!, { name: 'Mon custom' })
+    const w = mount(DeckSidebar)
+    await w.find('.add-btn').trigger('click')
+    expect(w.text()).toContain('Mes templates')
+    expect(w.text()).toContain('Mon custom')
+    await w.find('.custom-item').trigger('click')
+    expect(store.slides).toHaveLength(2)
+    expect(store.slides[1].label).toContain('Mon custom')
+    // Suppression avec confirm accepté.
+    vi.stubGlobal('confirm', () => true)
+    await w.find('.add-btn').trigger('click')
+    await w.find('.custom-del').trigger('click')
+    expect(tplStore.count).toBe(0)
+    vi.unstubAllGlobals()
+    w.unmount()
+  })
+
+  it('bouton Sauver émet save-template', async () => {
+    setup()
+    const w = mount(DeckSidebar)
+    await w.find('.save-btn').trigger('click')
+    expect(w.emitted('save-template')).toHaveLength(1)
+    w.unmount()
+  })
+
+  it('SaveTemplateModal : nom requis, save émet nettoyé', async () => {
+    const w = mount(SaveTemplateModal, { props: { show: true } })
+    expect(w.find('.modal-cta').attributes('disabled')).toBeDefined()
+    await w.find('input[type="text"]').setValue('  Ma couv  ')
+    await w.find('select').setValue('Éditorial')
+    await w.find('.modal-cta').trigger('click')
+    expect(w.emitted('save')![0]).toEqual([{ name: 'Ma couv', category: 'Éditorial' }])
+    w.unmount()
+  })
+
+  it('liaison : select typo pose bind + badge 🔗', async () => {
+    const store = setup()
+    const l = store.addTextLayer('X')!
+    const w = mount(PropsPanel)
+    await flush()
+    const selects = w.findAll('.layer-field select')
+    const bindSelect = selects[selects.length - 1]
+    await bindSelect.setValue('headline')
+    expect((l.data as { bind?: string }).bind).toBe('headline')
     w.unmount()
   })
 })

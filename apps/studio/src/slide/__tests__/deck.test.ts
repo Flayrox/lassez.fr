@@ -625,3 +625,22 @@ describe('deck store — édition texte', () => {
     expect(s.editingLayerId).toBeNull()
   })
 })
+
+describe('deck store — insertSlide (templates customs)', () => {
+  it('insère avec id frais, active et sélection vide', () => {
+    const s = useSlideDeckStore()
+    s.ensureInit()
+    const tpl = {
+      id: 's-old', type: 'COVER', label: 'X', format: '1:1',
+      templateState: { headline: 'H' }, layers: [],
+    } as never
+    const inserted = s.insertSlide(tpl)
+    expect(inserted.id).not.toBe('s-old')
+    expect(s.slides).toHaveLength(2)
+    expect(s.activeId).toBe(inserted.id)
+    expect(inserted.format).toBe('1:1')
+    expect(inserted.templateState).toMatchObject({ headline: 'H' })
+    s.undo()
+    expect(s.slides).toHaveLength(1)
+  })
+})

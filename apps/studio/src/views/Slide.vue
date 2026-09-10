@@ -28,7 +28,7 @@
     <div class="flex flex-1 overflow-hidden relative">
       <!-- Sidebar deck -->
       <div :style="{ width: `${sidebarWidth}px`, minWidth: '200px', display: 'flex' }">
-        <DeckSidebar :ai-loading="aiLoading" class="flex-1" @generate="showArticle = true" />
+        <DeckSidebar :ai-loading="aiLoading" class="flex-1" @generate="showArticle = true" @save-template="showSaveTpl = true" />
       </div>
       <div class="slide-resizer" @mousedown="(e) => startResize(e, 'sidebar')" />
 
@@ -101,9 +101,16 @@
       :show-json="showJson"
       :ai-loading="aiLoading"
       :initial-article="store.articleInput"
+      :customs="tplStore.items.map((t) => ({ id: t.id, name: t.name }))"
       @close="showArticle = false; showJson = false"
       @generate="onGenerate"
       @import="onImportJson"
+    />
+
+    <SaveTemplateModal
+      :show="showSaveTpl"
+      @close="showSaveTpl = false"
+      @save="onSaveTemplate"
     />
 
     <AssetsModal
@@ -123,7 +130,8 @@ import '../slide/slide.css'
 import { useSlideDeckStore } from '../slide/store/deck'
 import { getFormat } from '../slide/formats'
 import type { FormatId } from '../slide/types'
-import { buildDeckFromArticle } from '../slide/article'
+import { buildDeckFromSpecs, type DeckSpec } from '../slide/article'
+import type { SlideType } from '../slide/types'
 import { ASSETS_KEY, createAssetStore, type AssetStore } from '../slide/assets'
 import {
   buildDeckZip,
@@ -142,9 +150,12 @@ import PropsPanel from '../slide/panels/PropsPanel.vue'
 import LayersPanel from '../slide/layers/LayersPanel.vue'
 import SlideToolbar from '../slide/panels/SlideToolbar.vue'
 import SlideModals from '../slide/panels/SlideModals.vue'
+import SaveTemplateModal from '../slide/panels/SaveTemplateModal.vue'
 import AssetsModal from '../slide/panels/AssetsModal.vue'
+import { useUserTemplatesStore } from '../slide/store/userTemplates'
 
 const store = useSlideDeckStore()
+const tplStore = useUserTemplatesStore()
 const route = useRoute()
 
 const viewportRef = ref<InstanceType<typeof Viewport> | null>(null)
@@ -153,6 +164,7 @@ const stageRef = ref<{ stageEl: HTMLElement | null } | null>(null)
 const showArticle = ref(false)
 const showJson = ref(false)
 const showAssets = ref(false)
+const showSaveTpl = ref(false)
 const aiLoading = ref(false)
 const exportProgress = ref<string | null>(null)
 const zoomPercent = ref<number | null>(null)
@@ -242,11 +254,18 @@ function onResetSlide() {
   if (store.resetSlide(slide.id)) toast.success('Slide réinitialisée')
 }
 
-function onGenerate(payload: { text: string; types: import('../slide/types').SlideType[] }) {
+function onGenerate(payload: { text: string; types: SlideType[]; customs?: string[] }) {
   aiLoading.value = true
   try {
     store.setArticleInput(payload.text)
-    const { slides, activeId } = buildDeckFromArticle(payload.text, payload.types)
+    const specs: DeckSpec[] = [
+      ...payload.types.map((type) => ({ kind: 'builtin' as const, type })),
+      ...(payload.customs ?? [])
+        .map((id) => tplStore.get(id))
+        .filter((t): t is NonNullable<typeof t> => t !== undefined)
+        .map((template) => ({ kind: 'user' as const, template })),
+    ]
+    const { slides, activeId } = buildDeckFromSpecs(specs, payload.text)
     // Remplace le deck (avec undo possible : checkpoint manuel via une slide).
     store.loadDoc({ deck: slides.map((s) => ({ ...s, state: s.templateState })), activeId })
     showArticle.value = false
@@ -254,6 +273,31 @@ function onGenerate(payload: { text: string; types: import('../slide/types').Sli
   } finally {
     aiLoading.value = false
   }
+}
+
+async function onSaveTemplate(payload: { name: string; category: string }) {
+  const slide = store.activeSlide
+  if (!slide) return
+  let thumbnail: string | undefined
+  try {
+    const el = stageEl()
+    if (el) {
+      const f = getFormat(slide.format)
+      thumbnail = await renderStagePNG(el, {
+        width: f.width,
+        height: f.height,
+        pixelRatio: 0.25,
+        format: 'jpeg',
+        quality: 0.7,
+      })
+    }
+  } catch {
+    thumbnail = undefined // miniature optionnelle : on sauve quand même
+  }
+  const tpl = await tplStore.saveFromSlide(slide, { ...payload, thumbnail })
+  showSaveTpl.value = false
+  if (tpl) toast.success(`Template « ${tpl.name} » sauvé`)
+  else toast.error('Nom invalide — template non sauvé')
 }
 
 function onImportJson(payload: { raw: string }) {
@@ -363,6 +407,8 @@ onMounted(async () => {
   const restored = store.loadFromStorage()
   if (!restored) store.ensureInit()
   assetStore.value = await createAssetStore()
+  // Templates customs : daemon si joignable (partagés), sinon local.
+  await tplStore.syncWithDaemon().catch(() => 'local' as const)
   // Entrée pipeline : ?title=…&body=… (depuis Signaux/Diffusion).
   const title = typeof route.query.title === 'string' ? route.query.title : ''
   const body = typeof route.query.body === 'string' ? route.query.body : ''

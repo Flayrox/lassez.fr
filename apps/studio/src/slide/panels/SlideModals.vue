@@ -42,6 +42,22 @@
               ><span>{{ t.icon }}</span>{{ t.name }}</button>
             </div>
           </div>
+          <div v-if="customs.length > 0" class="flex flex-col gap-3">
+            <label class="text-[11px] font-bold uppercase tracking-tight ml-1" style="color: #999;">Mes templates</label>
+            <div class="grid grid-cols-3 gap-2">
+              <button
+                v-for="t in customs"
+                :key="t.id"
+                class="flex items-center gap-2 p-2.5 text-left border rounded-lg transition-all text-[11px] font-semibold"
+                :style="{
+                  borderColor: enabledCustoms.includes(t.id) ? '#fff' : '#2a2a2a',
+                  color: enabledCustoms.includes(t.id) ? '#fff' : '#888',
+                  background: enabledCustoms.includes(t.id) ? '#222' : 'transparent',
+                }"
+                @click="toggleCustom(t.id)"
+              ><span>💾</span>{{ t.name }}</button>
+            </div>
+          </div>
           <button class="modal-cta" :disabled="aiLoading || !articleText.trim()" @click="generate">
             {{ aiLoading ? 'Génération en cours…' : '✦ Générer le deck' }}
           </button>
@@ -73,13 +89,19 @@ import { getAllTemplates } from '../registry'
 import type { SlideType } from '../types'
 
 const props = withDefaults(
-  defineProps<{ showArticle?: boolean; showJson?: boolean; aiLoading?: boolean; initialArticle?: string }>(),
-  { showArticle: false, showJson: false, aiLoading: false, initialArticle: '' },
+  defineProps<{
+    showArticle?: boolean
+    showJson?: boolean
+    aiLoading?: boolean
+    initialArticle?: string
+    customs?: { id: string; name: string }[]
+  }>(),
+  { showArticle: false, showJson: false, aiLoading: false, initialArticle: '', customs: () => [] },
 )
 
 const emit = defineEmits<{
   (e: 'close'): void
-  (e: 'generate', payload: { text: string; types: SlideType[] }): void
+  (e: 'generate', payload: { text: string; types: SlideType[]; customs: string[] }): void
   (e: 'import', payload: { raw: string }): void
 }>()
 
@@ -90,15 +112,30 @@ const subtitle = computed(() =>
 
 const articleText = ref(props.initialArticle)
 const enabledTypes = ref<SlideType[]>(['NEWS', 'INFO', 'VERSUS', 'BIG_NUM', 'IMPACT_QUOTE', 'OUTRO'])
+const enabledCustoms = ref<string[]>([])
 const jsonText = ref('')
 const jsonError = ref('')
 const allTemplates = computed(() => getAllTemplates())
+
+// Par défaut : tous les customs cochés à l'ouverture.
+watch(
+  () => props.showArticle,
+  (open) => {
+    if (open) enabledCustoms.value = props.customs.map((c) => c.id)
+  },
+)
 
 function toggleType(id: string) {
   const t = id as SlideType
   enabledTypes.value = enabledTypes.value.includes(t)
     ? enabledTypes.value.filter((x) => x !== t)
     : [...enabledTypes.value, t]
+}
+
+function toggleCustom(id: string) {
+  enabledCustoms.value = enabledCustoms.value.includes(id)
+    ? enabledCustoms.value.filter((x) => x !== id)
+    : [...enabledCustoms.value, id]
 }
 
 function close() {
@@ -130,7 +167,11 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey, true))
 
 function generate() {
   if (!articleText.value.trim()) return
-  emit('generate', { text: articleText.value, types: [...enabledTypes.value] })
+  emit('generate', {
+    text: articleText.value,
+    types: [...enabledTypes.value],
+    customs: [...enabledCustoms.value],
+  })
 }
 
 function importJson() {

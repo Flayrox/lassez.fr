@@ -36,7 +36,9 @@
             @blur="commitRename(layer.id)"
           />
           <template v-else>
-            <div class="text-[12px] truncate" :style="{ color: isSelected(layer.id) ? '#fff' : '#aaa' }">{{ layer.name }}</div>
+            <div class="text-[12px] truncate" :style="{ color: isSelected(layer.id) ? '#fff' : '#aaa' }">
+              <span v-if="layerBind(layer)" title="Champ lié (rempli par l'IA)">🔗</span>{{ layer.name }}
+            </div>
             <div class="text-[9px]" style="color: #666;">
               {{ kindLabel(layer.kind) }} · z {{ layer.z }}
               <span v-if="layer.behind">· derrière template</span>
@@ -65,7 +67,7 @@
 import { computed, getCurrentInstance, inject, ref, type Ref } from 'vue'
 import { useSlideDeckStore } from '../store/deck'
 import { ASSETS_KEY, type AssetStore } from '../assets'
-import type { LayerKind } from '../types'
+import type { Layer, LayerKind } from '../types'
 
 const emit = defineEmits<{ (e: 'import-image'): void }>()
 
@@ -89,6 +91,12 @@ function kindIcon(kind: LayerKind): string {
 
 function kindLabel(kind: LayerKind): string {
   return kind === 'image' ? 'Image' : kind === 'shape' ? 'Forme' : 'Texte'
+}
+
+function layerBind(layer: Layer): string {
+  if (layer.kind !== 'text') return ''
+  const bind = (layer.data as { bind?: unknown }).bind
+  return typeof bind === 'string' ? bind : ''
 }
 
 function select(id: string, additive: boolean) {

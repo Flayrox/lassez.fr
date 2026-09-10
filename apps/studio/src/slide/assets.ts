@@ -15,6 +15,9 @@ export interface Asset {
 /** Clé d'injection Vue du store (fourni par Slide.vue). */
 export const ASSETS_KEY = 'slide-assets'
 
+/** Base IndexedDB des assets (dédiée : un store par base, jamais partagée). */
+export const ASSETS_IDB = { db: 'lassez-slide-assets', store: 'assets' } as const
+
 /** Plus grande dimension conservée à l'import (comme Canva : 2048px). */
 export const MAX_IMPORT_DIM = 2048
 /** Sous ce poids, les PNG sont gardés tels quels (logos, alpha). */
@@ -200,7 +203,7 @@ export async function createAssetStore(): Promise<AssetStore> {
   if (typeof indexedDB === 'undefined') return createMemoryAssetStore()
   try {
     const { createStore, get, set, del, keys } = await import('idb-keyval')
-    const store = createStore('lassez-slide', 'assets')
+    const store = createStore(ASSETS_IDB.db, ASSETS_IDB.store)
     const memory = createMemoryAssetStore()
 
     const readDims = (blob: Blob): Promise<{ width?: number; height?: number }> =>

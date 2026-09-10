@@ -68,6 +68,11 @@ export interface TextLayerData {
   lineHeight?: number
   /** Interlettrage en em. */
   letterSpacing?: number
+  /**
+   * Liaison de champ (templates customs) : remplie auto depuis un
+   * article/signal (`headline` ← titre, autres ← paragraphes).
+   */
+  bind?: string
 }
 
 export interface ImageLayerData {
@@ -140,6 +145,27 @@ export interface DeckDoc {
   format: FormatId
   slides: Slide[]
   activeId: string
+}
+
+/**
+ * Template personnalisé — même fondation que les natifs : un template de
+ * base (rendu) + état + couches libres + format. Appliquer = cloner en
+ * slide (nouveaux ids). Stocké local (IndexedDB) puis daemon (Phase 4).
+ */
+export interface UserTemplate {
+  id: string
+  name: string
+  category: string
+  description?: string
+  baseType: SlideType
+  format: FormatId
+  templateState: Record<string, unknown>
+  layers: Layer[]
+  /** Miniature JPEG dataURL (~270px) pour le catalogue. */
+  thumbnail?: string
+  createdAt: number
+  updatedAt: number
+  origin: 'local' | 'daemon'
 }
 
 // ── Formats (multi-format dès V1) ───────────────────────────────

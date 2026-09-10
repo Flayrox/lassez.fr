@@ -131,6 +131,11 @@
                 />
               </div>
               <BrandSwatches :value="textData.color" @select="(c) => typoDiscrete({ color: c })" />
+              <label class="layer-field">Liaison IA 🔗
+                <select class="si" :value="textData.bind ?? ''" @change="typoDiscrete({ bind: ($event.target as HTMLSelectElement).value || undefined })">
+                  <option v-for="o in BIND_OPTIONS" :key="o.value" :value="o.value">{{ o.label }}</option>
+                </select>
+              </label>
             </div>
 
             <!-- Image : recadrage + miroirs + filtres -->
@@ -184,6 +189,7 @@ import { FORMAT_IDS, FORMATS } from '../formats'
 import type { FormatId } from '../types'
 import type { ImageLayerData, TextLayerData } from '../types'
 import { BRAND_FONTS, clampTextSize } from '../brand'
+import { BIND_OPTIONS } from '../article'
 import { useSlideDeckStore } from '../store/deck'
 import type { AlignPosition } from '../store/deck'
 import { useGestureInput } from '../engine/gestures'

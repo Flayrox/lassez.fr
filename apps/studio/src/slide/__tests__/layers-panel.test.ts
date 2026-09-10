@@ -131,4 +131,16 @@ describe('LayersPanel', () => {
     expect(store.selectedLayerIds).toHaveLength(1)
     w.unmount()
   })
+
+  it('badge 🔗 sur les couches liées, absent sinon', async () => {
+    const store = setup()
+    const l = store.addTextLayer('X')!
+    store.updateLayerData(l.id, { bind: 'headline' })
+    store.addTextLayer('Y')!
+    const w = panel()
+    const badges = w.findAll('.layer-row').map((r) => r.text().includes('🔗'))
+    expect(badges).toContain(true)
+    expect(badges).toContain(false)
+    w.unmount()
+  })
 })

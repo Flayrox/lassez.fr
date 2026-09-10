@@ -9,6 +9,24 @@
       <div class="relative">
         <button class="add-btn" :class="{ 'is-open': showMenu }" title="Ajouter une slide" @click="showMenu = !showMenu">+</button>
         <div v-if="showMenu" class="add-menu sb">
+          <div v-if="customTemplates.length > 0">
+            <div class="add-group">Mes templates</div>
+            <button
+              v-for="t in customTemplates"
+              :key="t.id"
+              class="add-item custom-item"
+              @click="applyCustom(t.id)"
+            >
+              <img v-if="t.thumbnail" :src="t.thumbnail" alt="" class="custom-thumb" />
+              <span v-else class="mr-2">💾</span>
+              <span class="flex-1 truncate">{{ t.name }}</span>
+              <span
+                class="custom-del"
+                title="Supprimer ce template"
+                @click.stop="deleteCustom(t.id, t.name)"
+              >✕</span>
+            </button>
+          </div>
           <div v-for="group in groups" :key="group.name">
             <div class="add-group">{{ group.name }}</div>
             <button
@@ -55,10 +73,13 @@
       </div>
     </div>
 
-    <div class="p-3 shrink-0" style="border-top: 1px solid #2a2a2a; background: #111;">
+    <div class="p-3 shrink-0 flex flex-col gap-2" style="border-top: 1px solid #2a2a2a; background: #111;">
       <button class="gen-btn" :disabled="aiLoading" @click="emit('generate')">
         <span v-if="aiLoading" class="animate-ping w-2 h-2 rounded-full bg-white" />
         {{ aiLoading ? 'Génération…' : '✦ Générer le deck' }}
+      </button>
+      <button class="save-btn" title="Figer la slide active en template réutilisable" @click="emit('save-template')">
+        💾 Sauver comme template
       </button>
     </div>
   </aside>
@@ -70,12 +91,14 @@ import Sortable from 'sortablejs'
 import { getTemplate, getTemplateGroups } from '../registry'
 import type { SlideType } from '../types'
 import { useSlideDeckStore } from '../store/deck'
+import { useUserTemplatesStore } from '../store/userTemplates'
 
 defineProps<{ aiLoading?: boolean }>()
 
-const emit = defineEmits<{ (e: 'generate'): void }>()
+const emit = defineEmits<{ (e: 'generate'): void; (e: 'save-template'): void }>()
 
 const store = useSlideDeckStore()
+const tplStore = useUserTemplatesStore()
 const showMenu = ref(false)
 const listEl = ref<HTMLElement | null>(null)
 let sortable: Sortable | null = null
@@ -83,6 +106,7 @@ let sortable: Sortable | null = null
 const slides = computed(() => store.slides)
 const activeId = computed(() => store.activeId)
 const groups = computed(() => getTemplateGroups())
+const customTemplates = computed(() => tplStore.items)
 
 function templateName(type: SlideType): string {
   return getTemplate(type)?.name ?? type.replace(/_/g, ' ')
@@ -95,6 +119,18 @@ function select(id: string) {
 function add(type: SlideType) {
   store.addSlide(type)
   showMenu.value = false
+}
+
+function applyCustom(id: string) {
+  const tpl = tplStore.get(id)
+  if (!tpl) return
+  store.insertSlide(tplStore.instantiate(tpl, store.slides.length + 1))
+  showMenu.value = false
+}
+
+function deleteCustom(id: string, name: string) {
+  if (!window.confirm(`Supprimer le template « ${name} » ?`)) return
+  void tplStore.remove(id)
 }
 
 function duplicate(id: string) {
@@ -159,6 +195,23 @@ onBeforeUnmount(() => {
   display: flex; align-items: center;
 }
 .add-item:hover { background: #202020; color: #fff; }
+.custom-item { align-items: center; gap: 8px; }
+.custom-thumb {
+  width: 28px; height: 34px; object-fit: cover; flex-shrink: 0;
+  border: 1px solid #3a3a3a; border-radius: 4px; background: #000;
+}
+.custom-del {
+  font-size: 10px; color: #666; padding: 2px 5px; border-radius: 4px;
+  opacity: 0; flex-shrink: 0;
+}
+.add-item:hover .custom-del { opacity: 1; }
+.custom-del:hover { background: #2a1010; color: #ef4444; }
+.save-btn {
+  width: 100%; background: transparent; border: 1px dashed #3a3a3a; color: #aaa;
+  font-size: 11px; font-weight: 700; padding: 8px 12px; cursor: pointer;
+  border-radius: 8px; font-family: 'Inter', system-ui, sans-serif;
+}
+.save-btn:hover { border-color: #555; color: #fff; background: #1a1a1a; }
 .slide-row {
   display: flex; align-items: center; gap: 10px;
   padding: 4px 12px 4px 10px; cursor: pointer; user-select: none;

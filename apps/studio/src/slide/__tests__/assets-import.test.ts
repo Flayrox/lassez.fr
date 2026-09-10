@@ -6,12 +6,14 @@ import { createPinia, setActivePinia } from 'pinia'
 import { ref } from 'vue'
 import {
   ASSETS_KEY,
+  ASSETS_IDB,
   MAX_IMPORT_DIM,
   createMemoryAssetStore,
   fitDims,
   prepareImageFile,
   type AssetStore,
 } from '../assets'
+import { TEMPLATES_IDB } from '../templateBackend'
 import SchemaField from '../panels/SchemaField.vue'
 import LayersPanel from '../layers/LayersPanel.vue'
 import { useSlideDeckStore } from '../store/deck'
@@ -25,6 +27,16 @@ afterEach(() => vi.unstubAllGlobals())
 function setFiles(input: HTMLInputElement, files: File[]) {
   Object.defineProperty(input, 'files', { value: files, configurable: true })
 }
+
+describe('indexedDB isolation', () => {
+  it('un domaine = une base (jamais de store partagé)', () => {
+    // Non-régression crash prod : deux createStore sur la même base avec
+    // des stores différents → le 2e store n'existe jamais (NotFoundError).
+    expect(ASSETS_IDB.db).not.toBe(TEMPLATES_IDB.db)
+    expect(ASSETS_IDB.store).toBe('assets')
+    expect(TEMPLATES_IDB.store).toBe('templates')
+  })
+})
 
 describe('fitDims', () => {
   it('laisse passer sous le plafond', () => {

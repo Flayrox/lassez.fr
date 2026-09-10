@@ -171,4 +171,44 @@ describe('Slide.vue', () => {
     expect(w.text()).toContain('Deck — 2')
     w.unmount()
   })
+
+  it('custom : sauver la slide puis l’appliquer depuis le catalogue', async () => {
+    const { toast } = await import('vue-sonner')
+    const w = await setup()
+    await w.find('.save-btn').trigger('click')
+    await w.find('input[placeholder="Ex : Ma couverture enquête"]').setValue('Ma couv')
+    await w.find('.modal-cta').trigger('click')
+    await flush(400)
+    expect(vi.mocked(toast.success)).toHaveBeenCalledWith(expect.stringContaining('Ma couv'))
+    // Le catalogue propose le custom.
+    await w.find('.add-btn').trigger('click')
+    expect(w.text()).toContain('Mes templates')
+    await w.find('.custom-item').trigger('click')
+    await flush()
+    expect(w.text()).toContain('Deck — 2')
+    const store = useSlideDeckStore()
+    expect(store.slides[1].label).toContain('Ma couv')
+    w.unmount()
+  })
+
+  it('custom lié : génération article remplit les couches liées', async () => {
+    const w = await setup()
+    const store = useSlideDeckStore()
+    // Couche liée headline, sauvée comme template.
+    const layer = store.addTextLayer('x')!
+    store.updateLayerData(layer.id, { bind: 'headline' })
+    await w.find('.save-btn').trigger('click')
+    await w.find('input[placeholder="Ex : Ma couverture enquête"]').setValue('Tpl lié')
+    await w.find('.modal-cta').trigger('click')
+    await flush(400)
+    // Génération IA avec le custom : la couche liée reçoit le titre.
+    await w.find('.tb-primary').trigger('click')
+    await w.find('.slide-root textarea').setValue('Titre article choc\n\nParagraphe un')
+    await w.find('.modal-cta').trigger('click')
+    await flush()
+    const customSlide = store.slides.find((s) => s.label.includes('Tpl lié'))
+    expect(customSlide).toBeTruthy()
+    expect(JSON.stringify(customSlide!.layers[0].data)).toContain('Titre article choc')
+    w.unmount()
+  })
 })

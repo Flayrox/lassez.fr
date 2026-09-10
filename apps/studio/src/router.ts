@@ -1,10 +1,12 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { defineAsyncComponent } from 'vue'
 import EmploiDuTemps from './views/EmploiDuTemps.vue' // Hub Signaux — calendrier + onglets par composant de la chaîne
 import Signaux from './views/Signaux.vue'
 import Sources from './views/Sources.vue'
 import Diffusion from './views/Diffusion.vue'
 import Elections from './views/Elections.vue'
-import Slide from './views/Slide.vue'
+// Slide : chunk séparé (Tiptap + export pèsent ~1Mo — pas sur la home).
+const Slide = defineAsyncComponent(() => import('./views/Slide.vue'))
 import Systeme from './views/Systeme.vue' // page « Système » du produit Paramètres
 
 export const router = createRouter({

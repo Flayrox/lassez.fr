@@ -121,6 +121,8 @@ Références dans le code : `lib/elections-db.ts` (chemins + registre).
 app/(frontend)/        Site public (home, articles, enquêtes, élections, …)
 app/api/               Routes API (elections, posts, og, preview, proxy-image…)
 apps/studio/           Studio de pilotage du pipeline (Vue/Vite)
+apps/studio/src/slide/ Studio Slide — création de visuels réseaux (viewport pan/zoom, couches Tiptap, 7 templates, exports PNG/ZIP/JSON, tests vitest)
+apps/studio/src/views/ Vues du studio (Signaux, Diffusion, Élections, Slide… — Slide lazy-loadée, chunk séparé)
 components/            Composants React partagés
 daemon/                Daemon d'automatisation en Go (pipeline 6 nœuds)
 data/                  Bases SQLite locales (pipeline.db + elections/)

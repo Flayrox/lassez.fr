@@ -65,6 +65,7 @@ func New(client *store.Client, cfgPath string, resolver *config.Resolver) *Serve
 	srv.Mux.HandleFunc("GET /api/assistant/history", srv.getAssistantHistory)
 	srv.Mux.HandleFunc("DELETE /api/assistant/sessions", srv.deleteAssistantSession)
 	srv.Mux.HandleFunc("POST /api/signals/route", srv.routeSignal)
+	srv.Mux.HandleFunc("GET /api/media/proxy", srv.mediaProxy)
 	return srv
 }
 

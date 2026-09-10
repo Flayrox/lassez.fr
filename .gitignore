@@ -45,10 +45,10 @@ scratch/
 # Exports locaux de la base (données réelles — à ne jamais versionner)
 data/db-export*/
 
-# État interne de l'app Freebuff
+# État interne des outils locaux (non versionné)
 .freebuff/
 
-# Transcript de la session Codebuff (privé, trop lourd)
+# Transcript de session locale (privé, trop lourd)
 past_convo.json
 
 # Logs et données locales du daemon Go (écrits à l'exécution)

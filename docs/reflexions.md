@@ -124,7 +124,7 @@ Pour que tout ça reste **modulable, contrôlable et testable de bout en bout**,
 ## 9. État du ménage (fait en parallèle)
 
 - **« ancien-labo » supprimé** : rien à supprimer, il n'existe plus dans le projet. L'ancien studio React (`app/(studio)`) et l'ancien radar TypeScript (`radar_lassez/`) ont déjà été retirés de l'arborescence ; seul `apps/studio` (Vue/Vite) subsiste, c'est le studio actuel.
-- **`.gitignore` complété** : `past_convo.json` (transcript privé, 16 Mo), `daemon/logs/`, `scripts/fr.lassez.dev-daemon.plist`, `data/elections/`, `scratch/`, `.freebuff/`, `*.tsbuildinfo`, `*.log`, `.env*` non-example, `apps/studio/dist/`, `daemon/config/.secrets.yaml`, `daemon/config/*.bak`, etc.
+- **`.gitignore` complété** : `past_convo.json` (transcript privé, 16 Mo), `daemon/logs/`, `scripts/fr.lassez.dev-daemon.plist`, `data/elections/`, `scratch/`, `.freebuff/` (état local des outils), `*.tsbuildinfo`, `*.log`, `.env*` non-example, `apps/studio/dist/`, `daemon/config/.secrets.yaml`, `daemon/config/*.bak`, etc.
 
 ---
 

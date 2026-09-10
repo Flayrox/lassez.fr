@@ -225,6 +225,7 @@
         <a v-if="detail?.source_url" :href="detail.source_url" target="_blank" rel="noopener" class="text-info break-all text-[11px] hover:underline">{{ detail.source_url }}</a>
         <DialogFooter>
           <Button v-if="detail?.status === 'PENDING'" @click="bulk([detail.id], 'QUEUED')">Valider</Button>
+          <Button v-if="detail" variant="outline" @click="openInSlide(detail)">🎞 Créer un visuel</Button>
           <Button v-if="detail && canReject(detail.status)" variant="destructive" @click="bulk([detail.id], 'REJECTED')">Rejeter</Button>
         </DialogFooter>
       </DialogContent>
@@ -263,8 +264,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { Tabs, TabsList, TabsTrigger } from '../components/ui/tabs'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/ui/tooltip'
 import { toast } from 'vue-sonner'
+import { useRouter } from 'vue-router'
 import { useSignalsStore, SIGNAL_TABS, tabToStatus } from '../stores/signals'
 import { api } from '../lib/api'
+
+const router = useRouter()
 
 const store = useSignalsStore()
 const tab = ref('inbox')
@@ -387,6 +391,15 @@ async function routeToPipeline(signalId: number, targetPipelineId: string) {
 
 function refresh() { load() }
 function doScan() { scanOpen.value = false; refresh() }
+
+// Entrée pipeline Slide : pré-remplit le studio visuel depuis le signal.
+function openInSlide(s: { source_title?: string; flash_content?: string }) {
+  detailOpen.value = false
+  router.push({
+    path: '/slide',
+    query: { title: s.source_title ?? '', body: s.flash_content ?? '' },
+  })
+}
 
 const FINAL_STATUSES = ['PUBLISHED', 'REJECTED', 'REJECTED_ERROR']
 function canReject(status: string) {

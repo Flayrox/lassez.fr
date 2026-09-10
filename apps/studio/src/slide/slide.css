@@ -1,0 +1,166 @@
+/* Slide — look legacy à l'identique (port du CSS constant du studio v4).
+   Importé par la vue Slide uniquement : le reste du studio garde son thème. */
+@import url('https://fonts.googleapis.com/css2?family=Anton&family=Archivo+Black&family=Inter:wght@400;500;600;700;900&family=Space+Mono:wght@400;700&family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
+
+.slide-root {
+  --slide-bg: #1b1b1b;
+  --slide-panel: #141414;
+  --slide-nav: #0f0f0f;
+  --slide-border: #2a2a2a;
+  --slide-border-mid: #3a3a3a;
+  --slide-text: #ffffff;
+  --slide-text-mid: #aaaaaa;
+  --slide-text-muted: #666666;
+  --slide-accent: #dc2626;
+  background: var(--slide-bg);
+  color: var(--slide-text);
+  font-family: 'Inter', system-ui, sans-serif;
+}
+
+/* ── Alias de polices (templates) ── */
+.slide-root .sg { font-family: 'Space Grotesk', sans-serif; }
+.slide-root .pd { font-family: 'Playfair Display', serif; }
+.slide-root .ab { font-family: 'Archivo Black', sans-serif; }
+.slide-root .ir { font-family: 'Inter', sans-serif; }
+.slide-root .sm { font-family: 'Space Mono', monospace; }
+.slide-root .font-grotesk { font-family: 'Space Grotesk', sans-serif; }
+
+/* ── Zones éditables : survol = pointillés, focus = sticker rouge ── */
+.slide-edit-zone { position: relative; }
+.slide-edit-zone .slide-edit-overlay {
+  position: absolute; inset: 0;
+  border: 1px dashed rgba(255, 255, 255, 0.18);
+  opacity: 0; pointer-events: none; z-index: 50;
+  transition: opacity 0.12s ease;
+}
+.slide-edit-zone:hover .slide-edit-overlay,
+.slide-edit-zone.is-focused .slide-edit-overlay { opacity: 1; }
+.slide-edit-zone.is-focused .slide-edit-overlay {
+  border-style: solid; border-color: rgba(255, 255, 255, 0.35);
+}
+.slide-edit-sticker {
+  position: absolute;
+  background: #09090b; color: #71717a;
+  padding: 1px 4px;
+  font-family: 'Space Mono', monospace;
+  font-size: 7px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.05em;
+  display: flex; align-items: center; gap: 3px;
+  z-index: 60; border: 1px solid #27272a;
+  cursor: pointer; opacity: 0; pointer-events: none;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+.slide-edit-zone:hover .slide-edit-sticker,
+.slide-edit-zone.is-focused .slide-edit-sticker { opacity: 1; pointer-events: auto; }
+.slide-edit-sticker:hover { background: #18181b; color: #a1a1aa; border-color: #3f3f46; }
+.slide-edit-zone.is-focused .slide-edit-sticker {
+  background: #dc2626; color: #fff; border-color: #dc2626;
+  opacity: 1; pointer-events: auto;
+}
+
+/* ── Tiptap dans les templates ── */
+.slide-tiptap { outline: none; }
+.slide-tiptap p { margin: 0; }
+.slide-tiptap:empty::before {
+  content: 'Écris quelque chose…';
+  color: rgba(128, 128, 128, 0.6);
+  pointer-events: none;
+}
+
+/* ── Toolbar flottante ── */
+.slide-tb {
+  position: fixed; transform: translateX(-50%);
+  background: #09090b; border: 1px solid #27272a;
+  display: flex; align-items: center; height: 32px;
+  z-index: 9999; white-space: nowrap;
+}
+.slide-tb::after {
+  content: ''; position: absolute; top: 100%; left: 50%;
+  transform: translateX(-50%);
+  border: 4px solid transparent; border-top-color: #27272a;
+}
+.slide-tb .tb-btn {
+  height: 100%; padding: 0 9px;
+  background: transparent; border: none; border-right: 1px solid #1c1c1e;
+  color: #71717a; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.1s ease;
+  font-family: 'Space Mono', monospace; font-size: 10px; font-weight: 700;
+}
+.slide-tb .tb-btn:hover { background: #18181b; color: #e4e4e7; }
+.slide-tb .tb-btn.is-active { background: #27272a; color: #fff; }
+.slide-tb .tb-sep { width: 1px; height: 20px; background: rgba(255, 255, 255, 0.1); margin: 0 2px; }
+.slide-tb .tb-sel {
+  height: 100%; padding: 0 7px;
+  background: #09090b; border: none;
+  color: #71717a; font-family: 'Space Mono', monospace; font-size: 9px;
+  cursor: pointer; outline: none;
+}
+.slide-tb .tb-dot { width: 12px; height: 12px; display: block; border: 1px solid rgba(255, 255, 255, 0.3); }
+.slide-tb .tb-hl { padding: 1px 4px; font-size: 10px; font-weight: 700; color: #fff; }
+.slide-tb .tb-militant {
+  text-decoration: underline; text-decoration-color: #dc2626;
+  text-decoration-thickness: 3px;
+}
+
+/* ── Scrollbars fines ── */
+.slide-root .sb::-webkit-scrollbar { width: 2px; }
+.slide-root .sb::-webkit-scrollbar-track { background: transparent; }
+.slide-root .sb::-webkit-scrollbar-thumb { background: #27272a; }
+.slide-root .sb::-webkit-scrollbar-thumb:hover { background: #3f3f46; }
+
+/* ── Champs sombres ── */
+.slide-root .si {
+  width: 100%; background: #09090b; border: 1px solid #1e1e20;
+  color: #e4e4e7; font-size: 11px; padding: 6px 8px; outline: none;
+  transition: border-color 0.12s ease; font-family: 'Space Mono', monospace;
+}
+.slide-root .si:focus { border-color: #3f3f46; }
+.slide-root input[type='range'] {
+  -webkit-appearance: none; appearance: none;
+  background: #18181b; height: 2px; outline: none; width: 100%;
+}
+.slide-root input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none; height: 10px; width: 3px;
+  background: #71717a; border: none; cursor: pointer;
+}
+.slide-root input[type='range']::-webkit-slider-thumb:hover { background: #e4e4e7; }
+
+/* ── Habillages ── */
+.slide-root .noise-overlay {
+  position: absolute; inset: 0; pointer-events: none;
+  opacity: 0.08;
+  background-image: url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAyBAMAAADsEZWCAAAAGFBMVEUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/HlFvAAAABnRSTlMAf0D/2t91y7UCAAAAfklEQVQ4y2NgQAX8DIwgwsDAwMgAkkLUA0QhSoEUgyIjyEAQxagIVw2imKxAMphqEMVMCpC0M1QxSCxIM0gxyFIIZpCokGZwaRCwAqkGiQkJK+BSyMogxSDNICEh0QBRDKYaxKQQzCBRIdUgmEFiQZpBqkH8AhgIqQUAP/1l+9b3w9YAAAAASUVORK5CYII=");
+  background-repeat: repeat; background-size: 64px 64px;
+}
+.slide-root .halftone-overlay {
+  position: absolute; inset: 0; pointer-events: none;
+  background-image: radial-gradient(rgba(0, 0, 0, 0.55) 1px, transparent 1px);
+  background-size: 8px 8px;
+}
+.slide-root .maxtext-body ul,
+.slide-root .maxtext-body ol { list-style: none; padding-left: 0; margin: 4px 0; }
+.slide-root .maxtext-body li::before { content: '—'; color: #dc2626; font-weight: 700; margin-right: 6px; }
+
+/* ── Viewport : grille pointillée + guides ── */
+.slide-viewport {
+  background: #111;
+  background-image: radial-gradient(circle, #222 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+.slide-stage {
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.6);
+}
+.slide-draggable.is-dragging { cursor: grabbing; }
+.slide-draggable img { -webkit-user-drag: none; }
+
+/* ── Sélection couche ── */
+.slide-selection {
+  position: absolute; border: 1.5px solid #dc2626; pointer-events: none;
+}
+.slide-handle {
+  position: absolute; width: 10px; height: 10px;
+  background: #fff; border: 1.5px solid #dc2626;
+  pointer-events: auto;
+}

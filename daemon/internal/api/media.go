@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net"
@@ -88,6 +89,11 @@ func (srv *Server) mediaProxy(w http.ResponseWriter, r *http.Request) {
 	_, _ = io.Copy(w, io.LimitReader(resp.Body, mediaMaxBytes+1))
 }
 
+// Résolution DNS injectable (tests déterministes, sans réseau).
+var lookupIP = func(ctx context.Context, host string) ([]net.IP, error) {
+	return net.DefaultResolver.LookupIP(ctx, "ip", host)
+}
+
 // isPrivateHost refuse bouclage, RFC1918, lien-local, donné brut ou résolu.
 // La résolution DNS reste best-effort : échec → refus (fail-closed).
 func isPrivateHost(host string) bool {
@@ -104,7 +110,9 @@ func isPrivateHost(host string) bool {
 			return true
 		}
 	}
-	ips, err := net.DefaultResolver.LookupIP(nil, "ip", host)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	ips, err := lookupIP(ctx, host)
 	if err != nil || len(ips) == 0 {
 		return true
 	}

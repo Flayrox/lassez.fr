@@ -1,8 +1,10 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -50,6 +52,38 @@ func TestMediaProxyValidation(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestIsPrivateHostLookup(t *testing.T) {
+	old := lookupIP
+	defer func() { lookupIP = old }()
+
+	t.Run("IP publique résolue → autorisé", func(t *testing.T) {
+		lookupIP = func(_ context.Context, _ string) ([]net.IP, error) {
+			return []net.IP{net.ParseIP("93.184.216.34")}, nil
+		}
+		if isPrivateHost("cdn.example.com") {
+			t.Fatal("hôte public classé privé")
+		}
+	})
+
+	t.Run("IP privée résolue → refusé", func(t *testing.T) {
+		lookupIP = func(_ context.Context, _ string) ([]net.IP, error) {
+			return []net.IP{net.ParseIP("10.9.9.9")}, nil
+		}
+		if !isPrivateHost("intranet.example.com") {
+			t.Fatal("hôte privé non bloqué")
+		}
+	})
+
+	t.Run("échec DNS → refusé (fail-closed), sans panic", func(t *testing.T) {
+		lookupIP = func(_ context.Context, _ string) ([]net.IP, error) {
+			return nil, context.DeadlineExceeded
+		}
+		if !isPrivateHost("down.example.com") {
+			t.Fatal("échec DNS non refusé")
+		}
+	})
 }
 
 func TestMediaProxySuccess(t *testing.T) {

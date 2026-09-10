@@ -151,6 +151,63 @@ describe('PropsPanel', () => {
     w.unmount()
   })
 
+  it('typo couche texte : taille/famille/align/couleur + 1 undo par drag', async () => {
+    const store = setup()
+    const added = store.addTextLayer('Hello')!
+    expect((added.data as { fontSize?: number }).fontSize).toBe(32)
+    const w = mount(PropsPanel)
+    await flush()
+    // Section typo visible uniquement pour les couches texte
+    expect(w.text()).toContain('Taille')
+    const size = w.findAll('input[type="range"]').find((i) => String(i.attributes('max')) === '200')!
+    const el = size.element as HTMLInputElement
+    await size.trigger('pointerdown')
+    for (const v of ['40', '48']) {
+      el.value = v
+      await size.trigger('input')
+    }
+    await size.trigger('change')
+    const data = () => store.activeSlide!.layers.find((l) => l.id === added.id)!.data as unknown as Record<string, unknown>
+    expect(data().fontSize).toBe(48)
+    store.undo()
+    expect(data().fontSize).toBe(32)
+    // undo() vide la sélection (comportement store) → resélection pour la suite
+    store.selectLayer(added.id)
+    await w.vm.$nextTick()
+    // Famille via le kit
+    const family = w.findAll('select.si')[0]
+    await family.setValue("'Anton', sans-serif")
+    expect(data().fontFamily).toBe("'Anton', sans-serif")
+    // Alignement centré
+    await w.findAll('.align-btn')[1].trigger('click')
+    expect(data().align).toBe('center')
+    // Swatch brand rouge — 2e groupe de dots (le 1er = champ accent du template)
+    await w.findAll('.brand-dot')[8].trigger('click')
+    expect(data().color).toBe('#DC2626')
+    w.unmount()
+  })
+
+  it('pas de section typo pour les couches image', async () => {
+    const store = setup()
+    const l = store.addImageLayer('https://example.com/a.png')!
+    store.selectLayer(l.id)
+    const w = mount(PropsPanel)
+    await flush()
+    expect(w.text()).not.toContain('Taille')
+    expect(w.text()).not.toContain('Interligne')
+    w.unmount()
+  })
+
+  it('BrandSwatches : 8 dots, actif, émission', async () => {
+    const { default: BrandSwatches } = await import('../panels/BrandSwatches.vue')
+    const w = mount(BrandSwatches, { props: { value: '#dc2626' } })
+    expect(w.findAll('.brand-dot')).toHaveLength(8)
+    expect(w.findAll('.brand-dot.is-active')).toHaveLength(1)
+    await w.findAll('.brand-dot')[6].trigger('click')
+    expect(w.emitted('select')![0]).toEqual(['#FFFFFF'])
+    w.unmount()
+  })
+
   it('section couche : sliders + suppression', async () => {
     const store = setup()
     const l = store.addTextLayer('X')!

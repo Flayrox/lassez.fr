@@ -5,7 +5,10 @@ import StaticHtml from '../text/StaticHtml.vue'
 import RichText from '../text/RichText.vue'
 import Aesthetics from '../engine/Aesthetics.vue'
 import DraggableImage from '../engine/DraggableImage.vue'
+import TextLayerView from '../layers/TextLayerView.vue'
 import { htmlToTiptapDoc } from '../text/tiptap'
+import { createPinia, setActivePinia } from 'pinia'
+import { useSlideDeckStore } from '../store/deck'
 
 describe('StaticHtml', () => {
   it('rend le HTML du doc avec les classes passées', () => {
@@ -57,6 +60,60 @@ describe('RichText', () => {
   it('mode non éditable : pas de contenteditable', async () => {
     const w = await mountEditor({ doc: htmlToTiptapDoc('X'), editable: false })
     expect(w.find('.tiptap[contenteditable="false"]').exists()).toBe(true)
+    w.unmount()
+  })
+})
+
+describe('TextLayerView', () => {
+  async function flushEditor() {
+    await new Promise((r) => requestAnimationFrame(() => r(null)))
+  }
+
+  it('applique la typo libre de la couche (taille, famille, graisse)', async () => {
+    setActivePinia(createPinia())
+    const store = useSlideDeckStore()
+    store.ensureInit()
+    const layer = store.addTextLayer('Hello')!
+    store.updateLayerData(layer.id, {
+      fontSize: 48,
+      fontFamily: "'Anton', sans-serif",
+      fontWeight: 900,
+      lineHeight: 1.1,
+      letterSpacing: 0.05,
+      align: 'center',
+      color: '#DC2626',
+    })
+    const w = mount(TextLayerView, { props: { layer } })
+    await flushEditor()
+    const content = w.find('.slide-editor-content')
+    const style = content.attributes('style') ?? ''
+    expect(style).toContain('font-size: 48px')
+    expect(style).toContain('font-weight: 900')
+    expect(style).toContain('text-align: center')
+    expect(w.text()).toContain('Hello')
+    w.unmount()
+  })
+
+  it('défaut 32px sans typo explicite', async () => {
+    setActivePinia(createPinia())
+    const store = useSlideDeckStore()
+    store.ensureInit()
+    const layer = store.addTextLayer('Hi')!
+    const w = mount(TextLayerView, { props: { layer } })
+    await flushEditor()
+    expect(w.find('.slide-editor-content').attributes('style')).toContain('font-size: 32px')
+    w.unmount()
+  })
+
+  it('clic sélectionne la couche', async () => {
+    setActivePinia(createPinia())
+    const store = useSlideDeckStore()
+    store.ensureInit()
+    const layer = store.addTextLayer('Hi')!
+    const w = mount(TextLayerView, { props: { layer } })
+    await flushEditor()
+    await w.trigger('pointerdown')
+    expect(w.emitted('select')![0]).toEqual([layer.id])
     w.unmount()
   })
 })

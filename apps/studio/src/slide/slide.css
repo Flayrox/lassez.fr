@@ -103,6 +103,8 @@
   text-decoration: underline; text-decoration-color: #dc2626;
   text-decoration-thickness: 3px;
 }
+.slide-tb .tb-size { font-size: 9px; font-weight: 700; }
+.slide-tb .tb-size.tb-big { font-size: 12px; }
 
 /* ── Scrollbars fines ── */
 .slide-root .sb::-webkit-scrollbar { width: 2px; }

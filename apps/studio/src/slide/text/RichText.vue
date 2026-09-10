@@ -5,7 +5,7 @@
     <div class="slide-edit-sticker" :class="stickerPos" @mousedown.prevent="focusEditor">
       ✎ {{ label }}
     </div>
-    <EditorContent :editor="editor" :class="contentClass" :style="contentStyle" />
+    <EditorContent :editor="editor" class="slide-editor-content" :class="contentClass" :style="contentStyle" />
     <TextToolbar v-if="editable" :editor="editor" />
   </div>
 </template>

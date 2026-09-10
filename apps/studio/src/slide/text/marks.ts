@@ -1,8 +1,57 @@
 // Marques Tiptap custom — identité Lassez (remplace le bricolage
 // `document.execCommand` + spans inline du legacy BrutToolbar).
 import { Mark, mergeAttributes } from '@tiptap/core'
+import { TextStyle } from '@tiptap/extension-text-style'
 
 export const MILITANT_RED = '#DC2626'
+
+/**
+ * TextStyle étendu : la v3 ne déclare plus que quelques attributs
+ * (taille/famille/interligne/couleur via sous-extensions) et JETTE
+ * silencieusement les autres au setMark. On déclare graisse, style,
+ * interlettrage et casse pour que les presets tiennent.
+ */
+export const ExtendedTextStyle = TextStyle.extend({
+  name: 'textStyle',
+
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      fontWeight: {
+        default: null,
+        parseHTML: (el) => (el as HTMLElement).style.fontWeight || null,
+        renderHTML: (attrs) => {
+          if (!attrs.fontWeight) return {}
+          return { style: `font-weight: ${attrs.fontWeight as string}` }
+        },
+      },
+      fontStyle: {
+        default: null,
+        parseHTML: (el) => (el as HTMLElement).style.fontStyle || null,
+        renderHTML: (attrs) => {
+          if (!attrs.fontStyle) return {}
+          return { style: `font-style: ${attrs.fontStyle as string}` }
+        },
+      },
+      letterSpacing: {
+        default: null,
+        parseHTML: (el) => (el as HTMLElement).style.letterSpacing || null,
+        renderHTML: (attrs) => {
+          if (!attrs.letterSpacing) return {}
+          return { style: `letter-spacing: ${attrs.letterSpacing as string}` }
+        },
+      },
+      textTransform: {
+        default: null,
+        parseHTML: (el) => (el as HTMLElement).style.textTransform || null,
+        renderHTML: (attrs) => {
+          if (!attrs.textTransform) return {}
+          return { style: `text-transform: ${attrs.textTransform as string}` }
+        },
+      },
+    }
+  },
+})
 
 /** Souligné militant : U rouge épais (legacy : wrap textDecoration #DC2626 4px). */
 export const MilitantUnderline = Mark.create({

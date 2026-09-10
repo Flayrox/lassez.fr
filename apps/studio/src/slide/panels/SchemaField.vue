@@ -13,7 +13,7 @@
       />
     </template>
 
-    <!-- Couleur -->
+    <!-- Couleur (+ nuancier brand) -->
     <template v-else-if="field.type === 'color'">
       <div class="flex items-center justify-between">
         <label class="schema-label !mb-0">{{ field.label }}</label>
@@ -27,6 +27,7 @@
           <span>{{ colorValue.toUpperCase() }}</span>
         </div>
       </div>
+      <BrandSwatches :value="colorValue" class="mt-2" @select="(c) => emit('patch', c)" />
     </template>
 
     <!-- Nombre : slider + saisie (geste groupé) -->
@@ -118,6 +119,7 @@
 import { computed, inject, ref, type Ref } from 'vue'
 import type { TemplateField } from '../types'
 import RichText from '../text/RichText.vue'
+import BrandSwatches from './BrandSwatches.vue'
 import { fieldDoc } from '../text/fields'
 import { useTemplateFields } from '../templates/useTemplateFields'
 import { useGestureInput } from '../engine/gestures'

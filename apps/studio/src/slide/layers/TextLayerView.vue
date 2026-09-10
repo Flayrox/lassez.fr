@@ -10,7 +10,7 @@
       :doc="doc"
       :label="layer.name"
       sticker-pos="-top-4 left-0"
-      :content-style="{ textAlign: align }"
+      :content-style="typoStyle"
       @focus="onFocus"
       @update:doc="onUpdate"
     />
@@ -20,6 +20,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import RichText from '../text/RichText.vue'
+import { DEFAULT_TEXT_SIZE } from '../brand'
 import { useSlideDeckStore } from '../store/deck'
 import type { Layer, TextLayerData } from '../types'
 
@@ -32,7 +33,21 @@ let gesturing = false
 
 const data = computed(() => props.layer.data as TextLayerData)
 const doc = computed(() => (data.value.doc ?? {}) as Record<string, unknown>)
-const align = computed(() => data.value.align ?? 'left')
+
+/** Typo libre de la couche — héritée par les paragraphes sans marque. */
+const typoStyle = computed<Record<string, string>>(() => {
+  const d = data.value
+  const style: Record<string, string> = {
+    textAlign: d.align ?? 'left',
+    fontSize: `${d.fontSize ?? DEFAULT_TEXT_SIZE}px`,
+  }
+  if (d.color) style.color = d.color
+  if (d.fontFamily) style.fontFamily = d.fontFamily
+  if (d.fontWeight) style.fontWeight = String(d.fontWeight)
+  if (d.lineHeight) style.lineHeight = String(d.lineHeight)
+  if (d.letterSpacing) style.letterSpacing = `${d.letterSpacing}em`
+  return style
+})
 
 const boxStyle = computed(() => ({
   left: `${props.layer.x}px`,

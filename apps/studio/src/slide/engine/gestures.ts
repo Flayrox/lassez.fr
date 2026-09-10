@@ -39,7 +39,13 @@ export function useGestureInput() {
     store.updateLayerLive(id, patch)
   }
 
-  return { onBegin, onEnd, isGesturing, liveTemplate, liveLayer }
+  /** Patch data de couche groupé (typo, image…) — sans checkpoint par tick. */
+  function liveLayerData(id: string, patch: Record<string, unknown>) {
+    if (!gesturing) onBegin()
+    store.updateLayerDataLive(id, patch)
+  }
+
+  return { onBegin, onEnd, isGesturing, liveTemplate, liveLayer, liveLayerData }
 }
 
 /**

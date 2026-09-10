@@ -31,6 +31,9 @@
       title="Surligné noir" @click="onHighlight('#000000')"
     ><span class="tb-hl" style="background:#000">A</span></button>
     <span class="tb-sep" />
+    <button class="tb-btn" title="Réduire la taille (pas de 2px)" @click="step(-2)"><span class="tb-size">A-</span></button>
+    <button class="tb-btn" title="Agrandir la taille (pas de 2px)" @click="step(2)"><span class="tb-size tb-big">A+</span></button>
+    <span class="tb-sep" />
     <button class="tb-btn" title="Aligner à gauche" @click="chain().setTextAlign('left').run()">⇤</button>
     <button class="tb-btn" title="Centrer" @click="chain().setTextAlign('center').run()">⇔</button>
     <button class="tb-btn" title="Aligner à droite" @click="chain().setTextAlign('right').run()">⇥</button>
@@ -46,7 +49,7 @@
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import type { Editor } from '@tiptap/vue-3'
 import { TEXT_PRESETS, type TextPreset } from './tiptap'
-import { applyTextPreset, toggleLassezHighlight } from './commands'
+import { applyTextPreset, stepFontSize, toggleLassezHighlight } from './commands'
 
 const props = defineProps<{ editor: Editor }>()
 
@@ -64,6 +67,10 @@ function isActive(name: string, attrs?: Record<string, unknown>) {
 
 function onHighlight(color: string) {
   toggleLassezHighlight(props.editor, color)
+}
+
+function step(delta: number) {
+  stepFontSize(props.editor, delta)
 }
 
 function onPreset(value: string) {

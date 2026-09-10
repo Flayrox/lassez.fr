@@ -62,6 +62,48 @@
             </div>
             <label class="layer-slider">Rotation <input type="range" min="-180" max="180" step="1" :value="activeLayer.rotation" @pointerdown="gesture.onBegin" @focus="gesture.onBegin" @input="gesture.liveLayer(activeLayer.id, { rotation: numVal($event) })" @change="gesture.onEnd" @blur="gesture.onEnd" /><span>{{ Math.round(activeLayer.rotation) }}°</span></label>
             <label class="layer-slider">Opacité <input type="range" min="0" max="1" step="0.01" :value="activeLayer.opacity" @pointerdown="gesture.onBegin" @focus="gesture.onBegin" @input="gesture.liveLayer(activeLayer.id, { opacity: numVal($event) })" @change="gesture.onEnd" @blur="gesture.onEnd" /><span>{{ Math.round(activeLayer.opacity * 100) }}%</span></label>
+
+            <!-- Typographie libre (couches texte) -->
+            <div v-if="textData" class="flex flex-col gap-3 pt-3" style="border-top: 1px dashed #2a2a2a;">
+              <label class="layer-slider">Taille <input type="range" min="8" max="200" step="1" :value="textData.fontSize ?? 32" @pointerdown="gesture.onBegin" @focus="gesture.onBegin" @input="typo({ fontSize: clampTextSize(numVal($event)) })" @change="gesture.onEnd" @blur="gesture.onEnd" /><span>{{ Math.round(textData.fontSize ?? 32) }}px</span></label>
+              <label class="layer-field">Police
+                <select class="si" :value="textData.fontFamily ?? ''" @change="typoDiscrete({ fontFamily: ($event.target as HTMLSelectElement).value || undefined })">
+                  <option value="">Défaut du template</option>
+                  <option v-for="f in BRAND_FONTS" :key="f.name" :value="f.family">{{ f.name }}</option>
+                </select>
+              </label>
+              <label class="layer-field">Graisse
+                <select class="si" :value="String(textData.fontWeight ?? '')" @change="typoDiscrete({ fontWeight: weightVal(($event.target as HTMLSelectElement).value) })">
+                  <option value="">Défaut</option>
+                  <option value="400">Normal 400</option>
+                  <option value="500">Medium 500</option>
+                  <option value="700">Bold 700</option>
+                  <option value="900">Black 900</option>
+                </select>
+              </label>
+              <label class="layer-slider">Interligne <input type="range" min="0.8" max="2" step="0.05" :value="textData.lineHeight ?? 1.2" @pointerdown="gesture.onBegin" @focus="gesture.onBegin" @input="typo({ lineHeight: numVal($event) })" @change="gesture.onEnd" @blur="gesture.onEnd" /><span>{{ (textData.lineHeight ?? 1.2).toFixed(2) }}</span></label>
+              <label class="layer-slider">Interlettre <input type="range" min="-0.1" max="0.5" step="0.01" :value="textData.letterSpacing ?? 0" @pointerdown="gesture.onBegin" @focus="gesture.onBegin" @input="typo({ letterSpacing: numVal($event) })" @change="gesture.onEnd" @blur="gesture.onEnd" /><span>{{ (textData.letterSpacing ?? 0).toFixed(2) }}em</span></label>
+              <div class="flex gap-1.5">
+                <button
+                  v-for="a in (['left', 'center', 'right', 'justify'] as const)"
+                  :key="a"
+                  class="align-btn"
+                  :class="{ 'is-active': (textData.align ?? 'left') === a }"
+                  :title="`Aligner ${a}`"
+                  @click="typoDiscrete({ align: a })"
+                >{{ a === 'left' ? '⇤' : a === 'center' ? '⇔' : a === 'right' ? '⇥' : '≣' }}</button>
+              </div>
+              <div class="flex items-center justify-between">
+                <span class="text-[10px] font-bold" style="color: #666;">Couleur</span>
+                <input
+                  type="color" class="typo-color" :value="textColor"
+                  @pointerdown="gesture.onBegin" @focus="gesture.onBegin"
+                  @input="typo({ color: ($event.target as HTMLInputElement).value })"
+                  @change="gesture.onEnd" @blur="gesture.onEnd"
+                />
+              </div>
+              <BrandSwatches :value="textData.color" @select="(c) => typoDiscrete({ color: c })" />
+            </div>
             <div class="flex gap-1.5">
               <button class="layer-btn" @click="toggleBehind">{{ activeLayer.behind ? 'Passer devant' : 'Passer derrière' }}</button>
               <button class="layer-btn" @click="duplicateLayer">Dupliquer</button>
@@ -84,9 +126,12 @@ import { computed } from 'vue'
 import { getTemplate, resolveTemplateSchema } from '../registry'
 import { FORMAT_IDS, FORMATS } from '../formats'
 import type { FormatId } from '../types'
+import type { TextLayerData } from '../types'
+import { BRAND_FONTS, clampTextSize } from '../brand'
 import { useSlideDeckStore } from '../store/deck'
 import { useGestureInput } from '../engine/gestures'
 import SchemaForm from './SchemaForm.vue'
+import BrandSwatches from './BrandSwatches.vue'
 
 const store = useSlideDeckStore()
 const gesture = useGestureInput()
@@ -98,6 +143,16 @@ const schema = computed(() =>
 )
 const formats = computed(() => FORMAT_IDS.map((id) => FORMATS[id]))
 const activeLayer = computed(() => store.getActiveLayer())
+const textData = computed<TextLayerData | null>(() => {
+  const layer = activeLayer.value
+  if (!layer || layer.kind !== 'text') return null
+  return layer.data as TextLayerData
+})
+const textColor = computed(() =>
+  typeof textData.value?.color === 'string' && /^#[0-9a-f]{6}$/i.test(textData.value.color)
+    ? textData.value.color
+    : '#ffffff',
+)
 
 function setFormat(format: FormatId) {
   if (slide.value) store.setSlideFormat(slide.value.id, format)
@@ -106,6 +161,23 @@ function setFormat(format: FormatId) {
 function numVal(e: Event): number {
   const v = parseFloat((e.target as HTMLInputElement).value)
   return Number.isNaN(v) ? 0 : v
+}
+
+function weightVal(raw: string): number | undefined {
+  const v = parseInt(raw, 10)
+  return Number.isFinite(v) ? v : undefined
+}
+
+/** Patch typo continu (groupé par geste). */
+function typo(patch: Partial<TextLayerData>) {
+  const layer = activeLayer.value
+  if (layer) gesture.liveLayerData(layer.id, patch as Record<string, unknown>)
+}
+
+/** Patch typo discret (clic/select : 1 undo). */
+function typoDiscrete(patch: Partial<TextLayerData>) {
+  const layer = activeLayer.value
+  if (layer) store.updateLayerData(layer.id, patch as Record<string, unknown>)
 }
 
 function toggleBehind() {
@@ -149,6 +221,20 @@ function removeLayer() {
   font-size: 10px; font-weight: 700; color: #666;
 }
 .layer-slider span { text-align: right; color: #aaa; font-family: 'Inter', monospace; }
+.layer-field {
+  display: flex; flex-direction: column; gap: 4px;
+  font-size: 10px; font-weight: 700; color: #666;
+}
+.align-btn {
+  flex: 1; background: #0f0f0f; border: 1px solid #2a2a2a; color: #aaa;
+  font-size: 13px; padding: 5px 0; cursor: pointer; border-radius: 6px;
+}
+.align-btn:hover { border-color: #555; color: #fff; }
+.align-btn.is-active { background: #fff; color: #000; border-color: #fff; }
+.typo-color {
+  width: 44px; height: 24px; background: #0f0f0f;
+  border: 1px solid #2a2a2a; border-radius: 6px; cursor: pointer; padding: 2px 4px;
+}
 .layer-btn {
   flex: 1; background: #222; border: 1px solid #3a3a3a; color: #aaa;
   font-size: 10px; font-weight: 700; padding: 6px 0; cursor: pointer; border-radius: 6px;

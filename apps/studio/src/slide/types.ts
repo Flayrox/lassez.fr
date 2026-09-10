@@ -62,6 +62,12 @@ export interface TextLayerData {
   color?: string
   fontFamily?: string
   align?: 'left' | 'center' | 'right' | 'justify'
+  /** Typo libre (px du référentiel slide) — le niveau Canva. */
+  fontSize?: number
+  fontWeight?: number
+  lineHeight?: number
+  /** Interlettrage en em. */
+  letterSpacing?: number
 }
 
 export interface ImageLayerData {

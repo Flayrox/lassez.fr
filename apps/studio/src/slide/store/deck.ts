@@ -15,6 +15,7 @@ import type {
   TextLayerData,
 } from '../types'
 import { DEFAULT_FORMAT } from '../formats'
+import { DEFAULT_TEXT_SIZE } from '../brand'
 import { coerceSlideType, getTemplate } from '../registry'
 import {
   deepClone,
@@ -263,7 +264,7 @@ export const useSlideDeckStore = defineStore('slide-deck', () => {
   }
 
   function addTextLayer(text = '', overrides: Partial<Layer> = {}): Layer | null {
-    const data: TextLayerData = { doc: emptyTiptapDoc(text) }
+    const data: TextLayerData = { doc: emptyTiptapDoc(text), fontSize: DEFAULT_TEXT_SIZE }
     return addLayer('text', data, overrides)
   }
 

@@ -2,11 +2,11 @@
 import { generateHTML } from '@tiptap/html'
 import StarterKit from '@tiptap/starter-kit'
 import TextAlign from '@tiptap/extension-text-align'
-import { TextStyle } from '@tiptap/extension-text-style'
+import { FontFamily, FontSize, LineHeight } from '@tiptap/extension-text-style'
 import Color from '@tiptap/extension-color'
 import Highlight from '@tiptap/extension-highlight'
 import type { Extensions, JSONContent } from '@tiptap/core'
-import { LassezHighlight, MilitantUnderline } from './marks'
+import { ExtendedTextStyle, LassezHighlight, MilitantUnderline } from './marks'
 
 /** Presets typographiques (remplacent le select Style… du BrutToolbar). */
 export type TextPreset = 'HEADING' | 'SUBHEAD' | 'BODY' | 'BOLD' | 'CAPTION'
@@ -59,7 +59,13 @@ export function slideExtensions(): Extensions {
       gapcursor: false,
     }),
     // NB : StarterKit v3 fournit déjà Underline — ne pas le redoubler.
-    TextStyle,
+    // En v3, TextStyle seul ne porte plus taille/famille/interligne : les
+    // sous-extensions dédiées sont requises (sinon setMark silencieux).
+    // ExtendedTextStyle (marks.ts) ajoute graisse/style/interlettrage/casse.
+    ExtendedTextStyle,
+    FontSize,
+    FontFamily,
+    LineHeight,
     Color,
     Highlight.configure({ multicolor: true }),
     TextAlign.configure({ types: ['paragraph'] }),

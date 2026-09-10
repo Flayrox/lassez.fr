@@ -38,8 +38,14 @@
           <span class="text-[11px]" style="color: #666; font-family: Inter, sans-serif;">Studio</span>
           <span style="color: #333;">/</span>
           <span class="text-[11px]" style="color: #999; font-family: Inter, sans-serif;">Slide Editor</span>
-          <div class="ml-auto">
-            <span class="text-[10px]" style="color: #444; font-family: Inter, sans-serif;">
+          <div class="ml-auto flex items-center gap-1.5">
+            <button class="zoom-btn" title="Zoom arrière" @click="viewportRef?.zoomStep(-1)">−</button>
+            <button class="zoom-btn zoom-value" :title="`Zoom ${zoomPercent ?? 100}% — cliquer pour ajuster`" @click="viewportRef?.fit()">
+              {{ zoomPercent ?? 100 }}%
+            </button>
+            <button class="zoom-btn" title="Zoom avant" @click="viewportRef?.zoomStep(1)">+</button>
+            <button class="zoom-btn" title="Ajuster à l’écran" @click="viewportRef?.fit()">⛶</button>
+            <span class="text-[10px] ml-2" style="color: #444; font-family: Inter, sans-serif;">
               {{ formatLabel }}
             </span>
           </div>
@@ -382,4 +388,13 @@ onBeforeUnmount(() => {
   cursor: col-resize; z-index: 100; position: relative;
 }
 .slide-resizer:hover { background: rgba(255, 255, 255, 0.1); }
+.zoom-btn {
+  min-width: 26px; height: 24px; padding: 0 6px;
+  background: #252525; border: 1px solid #2a2a2a; color: #aaa;
+  font-size: 12px; font-weight: 700; cursor: pointer; border-radius: 6px;
+  font-family: 'Inter', system-ui, sans-serif;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.zoom-btn:hover { border-color: #555; color: #fff; }
+.zoom-btn.zoom-value { font-family: 'Inter', monospace; font-size: 10px; font-weight: 600; }
 </style>

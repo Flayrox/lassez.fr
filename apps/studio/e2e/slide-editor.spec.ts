@@ -66,3 +66,16 @@ test('taper du texte ne déplace pas le stage', async ({ page }) => {
   expect(await stageTransform(page), 'le stage ne bouge pas pendant la frappe').toBe(before)
   await expect(title).toContainText('TEST')
 })
+
+test('contrôles zoom : + agrandit, % recentre (fit)', async ({ page }) => {
+  const zoomValue = page.locator('.zoom-value')
+  const initial = await zoomValue.textContent()
+  await page.locator('.zoom-btn', { hasText: '+' }).click()
+  await page.waitForTimeout(200)
+  const grown = await zoomValue.textContent()
+  expect(parseInt(grown!), 'zoom augmenté').toBeGreaterThan(parseInt(initial!))
+  // Le % affiché est cliquable → fit.
+  await zoomValue.click()
+  await page.waitForTimeout(200)
+  await page.screenshot({ path: '/tmp/e2e-zoom.png' })
+})

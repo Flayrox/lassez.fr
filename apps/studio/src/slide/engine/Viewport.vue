@@ -75,7 +75,8 @@ function zoomStep(dir: 1 | -1) {
 function fit() {
   if (!box.value) return
   const rect = box.value.getBoundingClientRect()
-  const s = clampZoom(fitScale(props.stageW, props.stageH, rect.width, rect.height))
+  // Padding resserré : le slide occupe le maximum du viewport.
+  const s = clampZoom(fitScale(props.stageW, props.stageH, rect.width, rect.height, 28))
   scale.value = s
   tx.value = (rect.width - props.stageW * s) / 2
   ty.value = (rect.height - props.stageH * s) / 2

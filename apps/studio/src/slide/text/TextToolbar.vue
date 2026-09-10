@@ -102,7 +102,8 @@ function refresh() {
     return
   }
   x.value = rect.left + rect.width / 2
-  y.value = Math.max(40, rect.top - 12)
+  // Carte de 42px + marge : la bulle flotte au-dessus sans recouvrir.
+  y.value = Math.max(48, rect.top - 52)
   visible.value = true
 }
 
